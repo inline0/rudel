@@ -131,7 +131,7 @@ class DatabaseCloner {
 	 */
 	public function clone_table_structure( $wpdb, $translator, string $table, string $source_prefix, string $target_prefix ): void {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Schema introspection on validated table name from SHOW TABLES.
-		$row = $wpdb->get_row( "SHOW CREATE TABLE `{$table}`", ARRAY_N );
+		$row = $wpdb->get_row( "SHOW CREATE TABLE `{$table}`", \ARRAY_N );
 		if ( ! $row || empty( $row[1] ) ) {
 			throw new \RuntimeException( 'Failed to get CREATE TABLE for: ' . $table );
 		}
@@ -166,7 +166,7 @@ class DatabaseCloner {
 					$chunk_size,
 					$offset
 				),
-				ARRAY_A
+				\ARRAY_A
 			);
 
 			if ( empty( $rows ) ) {
@@ -250,6 +250,9 @@ class DatabaseCloner {
 		);
 
 		foreach ( $simple_updates as list( $table, $column ) ) {
+			if ( ! $this->table_exists( $pdo, $table ) ) {
+				continue;
+			}
 			$this->sqlite_exec(
 				$pdo,
 				"UPDATE `{$table}` SET `{$column}` = REPLACE(`{$column}`, ?, ?) WHERE `{$column}` LIKE ?",
@@ -267,6 +270,9 @@ class DatabaseCloner {
 		);
 
 		foreach ( $serialized_updates as list( $table, $column, $pk ) ) {
+			if ( ! $this->table_exists( $pdo, $table ) ) {
+				continue;
+			}
 			$this->rewrite_urls_in_column( $pdo, $table, $column, $pk, $host_url, $sandbox_url );
 		}
 	}
@@ -288,18 +294,22 @@ class DatabaseCloner {
 		}
 
 		// usermeta meta_key: {prefix}capabilities, {prefix}user_level, etc.
-		$this->sqlite_exec(
-			$pdo,
-			"UPDATE `{$prefix}usermeta` SET `meta_key` = REPLACE(`meta_key`, ?, ?) WHERE `meta_key` LIKE ?",
-			array( $source_prefix, $target_prefix, $source_prefix . '%' )
-		);
+		if ( $this->table_exists( $pdo, "{$prefix}usermeta" ) ) {
+			$this->sqlite_exec(
+				$pdo,
+				"UPDATE `{$prefix}usermeta` SET `meta_key` = REPLACE(`meta_key`, ?, ?) WHERE `meta_key` LIKE ?",
+				array( $source_prefix, $target_prefix, $source_prefix . '%' )
+			);
+		}
 
 		// options option_name: {prefix}user_roles, etc.
-		$this->sqlite_exec(
-			$pdo,
-			"UPDATE `{$prefix}options` SET `option_name` = REPLACE(`option_name`, ?, ?) WHERE `option_name` LIKE ?",
-			array( $source_prefix, $target_prefix, $source_prefix . '%' )
-		);
+		if ( $this->table_exists( $pdo, "{$prefix}options" ) ) {
+			$this->sqlite_exec(
+				$pdo,
+				"UPDATE `{$prefix}options` SET `option_name` = REPLACE(`option_name`, ?, ?) WHERE `option_name` LIKE ?",
+				array( $source_prefix, $target_prefix, $source_prefix . '%' )
+			);
+		}
 	}
 
 	/**
@@ -446,6 +456,19 @@ class DatabaseCloner {
 		// The translator's constructor accepts a PDO or null.
 		// When passed a PDO, it uses it directly and registers UDFs on it.
 		return new \WP_SQLite_Translator( $pdo );
+	}
+
+	/**
+	 * Check if a table exists in the SQLite database.
+	 *
+	 * @param \PDO   $pdo   SQLite PDO connection.
+	 * @param string $table Table name.
+	 * @return bool
+	 */
+	private function table_exists( \PDO $pdo, string $table ): bool {
+		$stmt = $pdo->prepare( "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?" );
+		$stmt->execute( array( $table ) );
+		return (int) $stmt->fetchColumn() > 0;
 	}
 
 	/**

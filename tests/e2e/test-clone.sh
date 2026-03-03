@@ -108,13 +108,34 @@ pass "Plugin active"
 
 wp_cli rewrite structure '/%postname%/' --hard > /dev/null 2>&1
 
-# Create host content to clone
-wp_cli post create --post_title="Host Post Alpha" --post_status=publish > /dev/null 2>&1
-wp_cli post create --post_title="Host Post Beta" --post_status=publish > /dev/null 2>&1
+# Create rich host content to clone
 wp_cli option update blogname "Host Site Name" > /dev/null 2>&1
+wp_cli option update blogdescription "A complex WordPress site for clone testing" > /dev/null 2>&1
+
+# Posts with varied content
+wp_cli post create --post_title="Host Post Alpha" --post_status=publish --post_content='<p>Alpha content with <a href="http://localhost:8888/about">internal link</a>.</p>' > /dev/null 2>&1
+wp_cli post create --post_title="Host Post Beta" --post_status=publish --post_content='<div class="gallery"><img src="http://localhost:8888/wp-content/uploads/photo.jpg" /></div>' > /dev/null 2>&1
+wp_cli post create --post_title="Draft Post" --post_status=draft --post_content='Unpublished draft content.' > /dev/null 2>&1
+wp_cli post create --post_title="Host Page" --post_type=page --post_status=publish --post_content='<p>Page content with special chars: O'\''Brien &amp; "quotes"</p>' > /dev/null 2>&1
+
+# Custom post meta
+ALPHA_ID_NUM=$(wp_cli post list --post_type=post --post_status=publish --format=csv --fields=ID,post_title | grep "Host Post Alpha" | cut -d',' -f1 | tail -1)
+if [[ -n "$ALPHA_ID_NUM" ]]; then
+    wp_cli post meta update "$ALPHA_ID_NUM" _custom_url "http://localhost:8888/custom/path" > /dev/null 2>&1
+    wp_cli post meta update "$ALPHA_ID_NUM" _view_count "42" > /dev/null 2>&1
+    wp_cli post meta update "$ALPHA_ID_NUM" _featured "1" > /dev/null 2>&1
+fi
+
+# Create a second user
+wp_cli user create editor editor@host.local --role=editor --display_name="Editor User" > /dev/null 2>&1 || true
+
+# Serialized option (simulating plugin settings)
+wp_cli option update rudel_test_settings '{"api_url":"http://localhost:8888/api","enabled":true,"count":5}' --format=json > /dev/null 2>&1 || true
 
 HOST_POST_COUNT=$(wp_cli post list --post_type=post --post_status=publish --format=count | tail -1)
-pass "Host has $HOST_POST_COUNT published posts"
+HOST_PAGE_COUNT=$(wp_cli post list --post_type=page --post_status=publish --format=count | tail -1)
+HOST_USER_COUNT=$(wp_cli user list --format=count | tail -1)
+pass "Host has $HOST_POST_COUNT published posts, $HOST_PAGE_COUNT pages, $HOST_USER_COUNT users"
 
 # Clone all
 echo ""
@@ -155,6 +176,56 @@ if echo "$CLONE_POSTS" | grep -q "Host Post Beta"; then
     pass "Clone has 'Host Post Beta'"
 else
     fail "Clone missing host post" "$CLONE_POSTS"
+fi
+
+# Verify draft posts cloned too
+CLONE_DRAFTS=$(sandbox_cli "$CLONE_ID" post list --post_type=post --post_status=draft --format=csv --fields=post_title)
+if echo "$CLONE_DRAFTS" | grep -q "Draft Post"; then
+    pass "Clone has draft post"
+else
+    fail "Clone missing draft post" "$CLONE_DRAFTS"
+fi
+
+# Verify pages cloned
+CLONE_PAGES=$(sandbox_cli "$CLONE_ID" post list --post_type=page --post_status=publish --format=csv --fields=post_title)
+if echo "$CLONE_PAGES" | grep -q "Host Page"; then
+    pass "Clone has custom page"
+else
+    fail "Clone missing custom page" "$CLONE_PAGES"
+fi
+
+# Verify multiple users cloned
+CLONE_USERS=$(sandbox_cli "$CLONE_ID" user list --format=count | tail -1)
+if [[ "$CLONE_USERS" -ge 2 ]]; then
+    pass "Clone has $CLONE_USERS users (multiple)"
+else
+    fail "Clone user count wrong" "Expected >= 2, got: $CLONE_USERS"
+fi
+
+# Verify post meta survived clone
+if [[ -n "$ALPHA_ID_NUM" ]]; then
+    CLONE_META_VAL=$(sandbox_cli "$CLONE_ID" post meta get "$ALPHA_ID_NUM" _view_count | tail -1)
+    if [[ "$CLONE_META_VAL" == "42" ]]; then
+        pass "Clone has post meta (_view_count=42)"
+    else
+        fail "Clone post meta missing" "Got: $CLONE_META_VAL"
+    fi
+
+    # Verify URL in post meta was rewritten
+    CLONE_META_URL=$(sandbox_cli "$CLONE_ID" post meta get "$ALPHA_ID_NUM" _custom_url | tail -1)
+    if echo "$CLONE_META_URL" | grep -q "__rudel/${CLONE_ID}"; then
+        pass "Clone post meta URL rewritten to sandbox"
+    else
+        fail "Clone post meta URL not rewritten" "Got: $CLONE_META_URL"
+    fi
+fi
+
+# Verify blogdescription survived
+CLONE_DESC=$(sandbox_cli "$CLONE_ID" option get blogdescription | tail -1)
+if [[ "$CLONE_DESC" == "A complex WordPress site for clone testing" ]]; then
+    pass "Clone has host blogdescription"
+else
+    fail "Clone blogdescription mismatch" "Got: $CLONE_DESC"
 fi
 
 # Verify sandbox URL rewriting
@@ -213,6 +284,49 @@ if [[ -z "$DB_CLONE_THEMES" || "$DB_CLONE_THEMES" =~ ^[[:space:]]*$ ]]; then
     pass "DB-only clone has empty themes directory"
 else
     fail "DB-only clone unexpectedly has themes" "$DB_CLONE_THEMES"
+fi
+
+# Selective clone: themes only (no DB)
+echo ""
+echo -e "${BOLD}Selective clone: themes only${NC}"
+
+THEME_CLONE_OUTPUT=$(wp_cli rudel create --name=themes-only --clone-themes)
+THEME_CLONE_ID=$(parse_sandbox_id "$THEME_CLONE_OUTPUT")
+if [[ -n "$THEME_CLONE_ID" ]]; then
+    SANDBOX_IDS+=("$THEME_CLONE_ID")
+    pass "Created themes-only clone: $THEME_CLONE_ID"
+else
+    fail "Failed to create themes-only clone" "$THEME_CLONE_OUTPUT"
+fi
+
+# Themes-only clone should have a blank DB (default blogname)
+THEME_CLONE_NAME=$(sandbox_cli "$THEME_CLONE_ID" option get blogname | tail -1)
+if [[ "$THEME_CLONE_NAME" == "Rudel Sandbox" ]]; then
+    pass "Themes-only clone has blank DB (default blogname)"
+else
+    fail "Themes-only clone DB not blank" "Got: $THEME_CLONE_NAME"
+fi
+
+# But should have themes copied
+THEME_CLONE_HAS_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-sandboxes/${THEME_CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
+if [[ -n "$THEME_CLONE_HAS_THEMES" ]]; then
+    pass "Themes-only clone has themes copied"
+else
+    fail "Themes-only clone missing themes" ""
+fi
+
+# Verify clone_source metadata
+THEME_META=$(wpenv_run bash -c "cat /var/www/html/wp-content/rudel-sandboxes/${THEME_CLONE_ID}/.rudel.json" | tail -30)
+if echo "$THEME_META" | grep -q '"db_cloned": false'; then
+    pass "Themes-only metadata shows db_cloned: false"
+else
+    fail "Themes-only metadata wrong db_cloned" "$THEME_META"
+fi
+
+if echo "$THEME_META" | grep -q '"themes_cloned": true'; then
+    pass "Themes-only metadata shows themes_cloned: true"
+else
+    fail "Themes-only metadata wrong themes_cloned" "$THEME_META"
 fi
 
 # Isolation: modifying clone doesn't affect host
