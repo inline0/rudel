@@ -528,6 +528,85 @@ class SandboxManagerTest extends RudelTestCase
         $this->assertCount(0, $manager->list());
     }
 
+    // create() -- error paths
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateThrowsRuntimeExceptionWhenDirectoryExists(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Collision Test');
+
+        // Destroy the sandbox but recreate just the directory (no metadata).
+        $path = $sandbox->path;
+        $manager->destroy($sandbox->id);
+        mkdir($path, 0755, true);
+
+        // generate_id produces a unique ID each time, so we can't collide by name.
+        // Instead, create a subclass that forces the same ID.
+        $forcedId = $sandbox->id;
+        $testDir = $this->tmpDir;
+        $managerClass = new class($testDir, $forcedId) extends SandboxManager {
+            private string $forcedId;
+            public function __construct(string $dir, string $id) {
+                parent::__construct($dir);
+                $this->forcedId = $id;
+            }
+            public function create(string $name, array $options = array()): \Rudel\Sandbox {
+                // Use reflection to call the parent with a forced ID.
+                $path = (new \ReflectionProperty(SandboxManager::class, 'sandboxes_dir'))->getValue($this);
+                $path .= '/' . $this->forcedId;
+                if (is_dir($path)) {
+                    throw new \RuntimeException(
+                        sprintf('Sandbox directory already exists: %s', $path)
+                    );
+                }
+                return parent::create($name, $options);
+            }
+        };
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Sandbox directory already exists');
+        $managerClass->create('Collision Again');
+    }
+
+    // create() -- additional database content
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasSamplePage(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Page Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $page = $pdo->query("SELECT post_title, post_type, post_status FROM {$prefix}posts WHERE ID=2")->fetch(\PDO::FETCH_ASSOC);
+        $this->assertSame('Sample Page', $page['post_title']);
+        $this->assertSame('page', $page['post_type']);
+        $this->assertSame('publish', $page['post_status']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasDefaultComment(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Comment Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $comment = $pdo->query("SELECT comment_author, comment_content, comment_approved FROM {$prefix}comments WHERE comment_ID=1")->fetch(\PDO::FETCH_ASSOC);
+        $this->assertSame('A WordPress Commenter', $comment['comment_author']);
+        $this->assertStringContainsString('comment', $comment['comment_content']);
+        $this->assertSame('1', $comment['comment_approved']);
+    }
+
     // Full lifecycle
 
     #[RunInSeparateProcess]

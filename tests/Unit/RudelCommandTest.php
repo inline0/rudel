@@ -351,6 +351,20 @@ class RudelCommandTest extends RudelTestCase
         $this->assertSame('1 GB', $this->callFormatSize(1073741824));
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testFormatSizeFractionalKilobytes(): void
+    {
+        $this->assertSame('1.5 KB', $this->callFormatSize(1536));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testFormatSizeLargeValueStaysInGB(): void
+    {
+        $this->assertSame('1024 GB', $this->callFormatSize(1099511627776));
+    }
+
     private function callFormatSize(int $bytes): string
     {
         $cmd = $this->createCommand();

@@ -267,6 +267,25 @@ class ConfigWriterTest extends RudelTestCase
         $this->assertTrue($writer->is_installed());
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testIsInstalledReturnsFalseForNonReadableFile(): void
+    {
+        $configPath = $this->createWpConfig($this->tmpDir);
+        chmod($configPath, 0000);
+
+        define('ABSPATH', $this->tmpDir . '/');
+        define('RUDEL_PLUGIN_FILE', $this->tmpDir . '/rudel.php');
+
+        $writer = new ConfigWriter();
+
+        try {
+            $this->assertFalse($writer->is_installed());
+        } finally {
+            chmod($configPath, 0644);
+        }
+    }
+
     // getConfigPath() edge cases
 
     #[RunInSeparateProcess]

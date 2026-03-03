@@ -69,6 +69,11 @@ class BootstrapTest extends RudelTestCase
         $script .= '  "wp_content_url" => defined("WP_CONTENT_URL") ? WP_CONTENT_URL : null,' . "\n";
         $script .= '  "auth_key" => defined("AUTH_KEY") ? AUTH_KEY : null,' . "\n";
         $script .= '  "nonce_key" => defined("NONCE_KEY") ? NONCE_KEY : null,' . "\n";
+        $script .= '  "rudel_table_prefix" => defined("RUDEL_TABLE_PREFIX") ? RUDEL_TABLE_PREFIX : null,' . "\n";
+        $script .= '  "wp_siteurl" => defined("WP_SITEURL") ? WP_SITEURL : null,' . "\n";
+        $script .= '  "wp_home" => defined("WP_HOME") ? WP_HOME : null,' . "\n";
+        $script .= '  "uploads" => defined("UPLOADS") ? UPLOADS : null,' . "\n";
+        $script .= '  "table_prefix_caller_scope" => isset($table_prefix) ? $table_prefix : null,' . "\n";
         $script .= ']);' . "\n";
 
         $tmpScript = $this->tmpDir . '/bootstrap-test-' . uniqid() . '.php';
@@ -435,6 +440,110 @@ class BootstrapTest extends RudelTestCase
         );
 
         $this->assertSame('abs-test', $result['sandbox_id']);
+    }
+
+    // CLI --url= resolution
+
+    public function testCliUrlPathPrefixResolution(): void
+    {
+        $this->createFakeSandboxInDir('cli-path-box');
+
+        $result = $this->runBootstrap(
+            serverVars: ['HTTP_HOST' => 'example.com'],
+            argv: ['wp', '--url=http://example.com/__rudel/cli-path-box/', 'post', 'list'],
+        );
+
+        $this->assertSame('cli-path-box', $result['sandbox_id']);
+    }
+
+    public function testCliUrlSubdomainResolution(): void
+    {
+        $this->createFakeSandboxInDir('cli-sub-box');
+
+        $result = $this->runBootstrap(
+            serverVars: ['HTTP_HOST' => 'example.com'],
+            argv: ['wp', '--url=https://cli-sub-box.example.com', 'option', 'get', 'siteurl'],
+        );
+
+        $this->assertSame('cli-sub-box', $result['sandbox_id']);
+    }
+
+    public function testCliUrlNonMatchingReturnsNull(): void
+    {
+        $result = $this->runBootstrap(
+            serverVars: ['HTTP_HOST' => 'example.com'],
+            argv: ['wp', '--url=http://example.com/something', 'post', 'list'],
+        );
+
+        $this->assertNull($result['sandbox_id'] ?? null);
+    }
+
+    // Additional constants
+
+    public function testDefinesTablePrefixConstant(): void
+    {
+        $this->createFakeSandboxInDir('tprefix-box');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'tprefix-box',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $expected = 'wp_' . substr(md5('tprefix-box'), 0, 6) . '_';
+        $this->assertSame($expected, $result['rudel_table_prefix']);
+    }
+
+    public function testDefinesWpSiteurlAndWpHome(): void
+    {
+        $this->createFakeSandboxInDir('urlconst-box');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'urlconst-box',
+            'HTTP_HOST' => 'example.com',
+        ]);
+
+        $this->assertSame('http://example.com/__rudel/urlconst-box', $result['wp_siteurl']);
+        $this->assertSame('http://example.com/__rudel/urlconst-box', $result['wp_home']);
+    }
+
+    public function testTablePrefixSetInCallerScope(): void
+    {
+        $this->createFakeSandboxInDir('scope-box');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'scope-box',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $expected = 'wp_' . substr(md5('scope-box'), 0, 6) . '_';
+        $this->assertSame($expected, $result['table_prefix_caller_scope']);
+    }
+
+    public function testForwardedProtoTakesPriorityOverHttps(): void
+    {
+        $this->createFakeSandboxInDir('proto-prio');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'proto-prio',
+            'HTTP_HOST' => 'example.com',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+            'HTTPS' => 'off',
+        ]);
+
+        $this->assertStringStartsWith('https://', $result['wp_content_url'] ?? '');
+        $this->assertStringStartsWith('https://', $result['wp_siteurl'] ?? '');
+    }
+
+    public function testDefinesUploadsConstant(): void
+    {
+        $this->createFakeSandboxInDir('uploads-box');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'uploads-box',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('wp-content/uploads', $result['uploads']);
     }
 
     // Helpers

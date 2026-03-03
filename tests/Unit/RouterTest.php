@@ -212,6 +212,27 @@ class RouterTest extends RudelTestCase
         $this->assertNull($router->resolve_from_cli());
     }
 
+    // resolveFromCli() -- non-matching URL
+
+    public function testResolveFromCliReturnsNullForNonMatchingUrl(): void
+    {
+        $GLOBALS['argv'] = ['wp', '--url=http://example.com/something'];
+
+        $router = $this->makeRouter();
+        $this->assertNull($router->resolve_from_cli());
+    }
+
+    // resolveFromSubdomain() -- host with port
+
+    public function testResolveFromSubdomainHandlesHostWithPort(): void
+    {
+        $this->createFakeSandbox('portbox');
+        $_SERVER['HTTP_HOST'] = 'portbox.example.com:8080';
+
+        $router = $this->makeRouter();
+        $this->assertSame('portbox', $router->resolve_from_subdomain());
+    }
+
     // resolve() -- priority order
 
     public function testResolveHeaderWinsOverCookie(): void

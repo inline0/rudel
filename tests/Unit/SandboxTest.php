@@ -144,6 +144,12 @@ class SandboxTest extends RudelTestCase
         $this->assertTrue(Sandbox::validate_id($id));
     }
 
+    public function testGenerateIdWithEmptySlugUsesSandboxPrefix(): void
+    {
+        $id = Sandbox::generate_id('!@#$%^&*()');
+        $this->assertMatchesRegularExpression('/^sandbox-[a-f0-9]{4}$/', $id);
+    }
+
     public function testGenerateIdHandlesUnicode(): void
     {
         $id = Sandbox::generate_id('café résumé');
