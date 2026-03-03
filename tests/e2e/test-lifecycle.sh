@@ -87,7 +87,7 @@ echo -e "${BOLD}Create sandbox${NC}"
 OUTPUT=$(run_php '
     $manager = new Rudel\SandboxManager();
     $sandbox = $manager->create("e2e-test");
-    echo json_encode($sandbox->toArray());
+    echo json_encode($sandbox->to_array());
 ')
 
 SANDBOX_ID=$(echo "$OUTPUT" | php -r 'echo json_decode(file_get_contents("php://stdin"), true)["id"];')
@@ -310,7 +310,7 @@ echo -e "${BOLD}Sandbox isolation${NC}"
 SECOND_OUTPUT=$(run_php '
     $manager = new Rudel\SandboxManager();
     $sandbox = $manager->create("e2e-second");
-    echo json_encode($sandbox->toArray());
+    echo json_encode($sandbox->to_array());
 ')
 SECOND_ID=$(echo "$SECOND_OUTPUT" | php -r 'echo json_decode(file_get_contents("php://stdin"), true)["id"];')
 
