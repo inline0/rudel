@@ -277,6 +277,31 @@ class ConfigWriterTest extends RudelTestCase
         $writer->is_installed();
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUninstallReturnsSilentlyWhenFileNotWritable(): void
+    {
+        $configPath = $this->createWpConfig($this->tmpDir);
+
+        define('ABSPATH', $this->tmpDir . '/');
+        define('RUDEL_PLUGIN_FILE', $this->tmpDir . '/rudel.php');
+
+        $writer = new ConfigWriter();
+        $writer->install();
+        $this->assertTrue($writer->is_installed());
+
+        chmod($configPath, 0444);
+
+        try {
+            $writer->uninstall();
+
+            $contents = file_get_contents($configPath);
+            $this->assertStringContainsString('// Rudel sandbox bootstrap', $contents);
+        } finally {
+            chmod($configPath, 0644);
+        }
+    }
+
     // Full cycle
 
     #[RunInSeparateProcess]

@@ -30,7 +30,7 @@ class BootstrapTest extends RudelTestCase
      * Run bootstrap.php in a child process with controlled environment.
      * Returns the output as JSON with the state of all relevant constants.
      */
-    private function runBootstrap(array $serverVars = [], array $cookieVars = [], array $argv = [], array $extraDefines = []): array
+    private function runBootstrap(array $serverVars = [], array $cookieVars = [], array $argv = [], array $extraDefines = [], bool $skipWpContentDir = false): array
     {
         $script = '<?php' . "\n";
 
@@ -43,8 +43,10 @@ class BootstrapTest extends RudelTestCase
             $script .= '$GLOBALS["argv"] = $argv;' . "\n";
         }
 
-        // Define WP_CONTENT_DIR so bootstrap can find sandboxes
-        $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
+        if (! $skipWpContentDir) {
+            // Define WP_CONTENT_DIR so bootstrap can find sandboxes
+            $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
+        }
 
         foreach ($extraDefines as $name => $value) {
             $script .= "define('{$name}', " . var_export($value, true) . ");\n";
@@ -64,6 +66,7 @@ class BootstrapTest extends RudelTestCase
         $script .= '  "wp_plugin_dir" => defined("WP_PLUGIN_DIR") ? WP_PLUGIN_DIR : null,' . "\n";
         $script .= '  "wp_temp_dir" => defined("WP_TEMP_DIR") ? WP_TEMP_DIR : null,' . "\n";
         $script .= '  "table_prefix" => $GLOBALS["table_prefix"] ?? null,' . "\n";
+        $script .= '  "wp_content_url" => defined("WP_CONTENT_URL") ? WP_CONTENT_URL : null,' . "\n";
         $script .= '  "auth_key" => defined("AUTH_KEY") ? AUTH_KEY : null,' . "\n";
         $script .= '  "nonce_key" => defined("NONCE_KEY") ? NONCE_KEY : null,' . "\n";
         $script .= ']);' . "\n";
@@ -324,6 +327,114 @@ class BootstrapTest extends RudelTestCase
         // WP_CONTENT_DIR is set by our test harness, not by bootstrap
         // The key test: DB_DIR should NOT be set (bootstrap returned early)
         $this->assertNull($result['db_dir'] ?? null);
+    }
+
+    // Protocol detection
+
+    public function testProtocolFromForwardedProto(): void
+    {
+        $this->createFakeSandboxInDir('proto-fwd');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'proto-fwd',
+            'HTTP_HOST' => 'example.com',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ]);
+
+        $this->assertStringStartsWith('https://', $result['wp_content_url'] ?? '');
+    }
+
+    public function testProtocolFromHttpsServerVar(): void
+    {
+        $this->createFakeSandboxInDir('proto-https');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'proto-https',
+            'HTTP_HOST' => 'example.com',
+            'HTTPS' => 'on',
+        ]);
+
+        $this->assertStringStartsWith('https://', $result['wp_content_url'] ?? '');
+    }
+
+    public function testProtocolIgnoresHttpsOff(): void
+    {
+        $this->createFakeSandboxInDir('proto-off');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'proto-off',
+            'HTTP_HOST' => 'example.com',
+            'HTTPS' => 'off',
+        ]);
+
+        $this->assertStringStartsWith('http://', $result['wp_content_url'] ?? '');
+    }
+
+    public function testProtocolDefaultsToHttp(): void
+    {
+        $this->createFakeSandboxInDir('proto-default');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'proto-default',
+            'HTTP_HOST' => 'example.com',
+        ]);
+
+        $this->assertStringStartsWith('http://', $result['wp_content_url'] ?? '');
+    }
+
+    public function testSubdomainWithPort(): void
+    {
+        $this->createFakeSandboxInDir('porttest');
+
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => 'porttest.example.com:8080',
+        ]);
+
+        $this->assertSame('porttest', $result['sandbox_id']);
+    }
+
+    // Sandboxes directory resolution
+
+    public function testSandboxesDirFromRudelConstant(): void
+    {
+        $customDir = $this->tmpDir . '/custom-sandboxes';
+        mkdir($customDir, 0755, true);
+        $path = $customDir . '/const-test';
+        mkdir($path, 0755);
+        file_put_contents($path . '/.rudel.json', json_encode(['id' => 'const-test', 'name' => 'const-test']));
+
+        $result = $this->runBootstrap(
+            serverVars: [
+                'HTTP_X_RUDEL_SANDBOX' => 'const-test',
+                'HTTP_HOST' => 'localhost',
+            ],
+            extraDefines: ['RUDEL_SANDBOXES_DIR' => $customDir],
+            skipWpContentDir: true,
+        );
+
+        $this->assertSame('const-test', $result['sandbox_id']);
+    }
+
+    public function testSandboxesDirFromAbspathFallback(): void
+    {
+        $absDir = $this->tmpDir . '/wproot';
+        mkdir($absDir . '/wp-content/rudel-sandboxes/abs-test', 0755, true);
+        file_put_contents(
+            $absDir . '/wp-content/rudel-sandboxes/abs-test/.rudel.json',
+            json_encode(['id' => 'abs-test', 'name' => 'abs-test'])
+        );
+
+        $result = $this->runBootstrap(
+            serverVars: [
+                'HTTP_X_RUDEL_SANDBOX' => 'abs-test',
+                'HTTP_HOST' => 'localhost',
+            ],
+            extraDefines: ['ABSPATH' => $absDir . '/'],
+            skipWpContentDir: true,
+        );
+
+        $this->assertSame('abs-test', $result['sandbox_id']);
     }
 
     // Helpers

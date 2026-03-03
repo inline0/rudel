@@ -2,6 +2,8 @@
 
 namespace Rudel\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use Rudel\Sandbox;
 use Rudel\Tests\RudelTestCase;
 
@@ -293,10 +295,27 @@ class SandboxTest extends RudelTestCase
 
     public function testGetUrlWithoutWpHome(): void
     {
-        // WP_HOME is not defined in test context
         $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
         $url = $sandbox->get_url();
         $this->assertSame('/__rudel/my-sandbox-abcd/', $url);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testGetUrlWithWpHomeDefined(): void
+    {
+        define('WP_HOME', 'https://example.com');
+        $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
+        $this->assertSame('https://example.com/__rudel/my-sandbox-abcd/', $sandbox->get_url());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testGetUrlWithWpHomeTrimsTrailingSlash(): void
+    {
+        define('WP_HOME', 'https://example.com/');
+        $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
+        $this->assertSame('https://example.com/__rudel/my-sandbox-abcd/', $sandbox->get_url());
     }
 
     // toArray()

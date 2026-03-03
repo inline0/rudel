@@ -579,6 +579,41 @@ class SandboxManagerTest extends RudelTestCase
         $this->assertNotNull($manager->get($b->id));
     }
 
+    // Constructor defaults
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testConstructorDefaultUsesRudelSandboxesDirConstant(): void
+    {
+        $this->defineConstants();
+        define('RUDEL_SANDBOXES_DIR', '/custom/sandboxes');
+        $manager = new SandboxManager();
+        $this->assertSame('/custom/sandboxes', $manager->get_sandboxes_dir());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testConstructorDefaultFallsBackToWpContentDir(): void
+    {
+        $this->defineConstants();
+        define('WP_CONTENT_DIR', '/var/www/wp-content');
+        $manager = new SandboxManager();
+        $this->assertSame('/var/www/wp-content/rudel-sandboxes', $manager->get_sandboxes_dir());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateUsesAbspathForWpCorePath(): void
+    {
+        $this->defineConstants();
+        define('ABSPATH', $this->tmpDir . '/wordpress/');
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Abspath Test');
+
+        $bootstrap = file_get_contents($sandbox->path . '/bootstrap.php');
+        $this->assertStringContainsString($this->tmpDir . '/wordpress', $bootstrap);
+    }
+
     // Helpers
 
     private function defineConstants(): void

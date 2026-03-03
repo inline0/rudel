@@ -2,6 +2,8 @@
 
 namespace Rudel\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use Rudel\Router;
 use Rudel\Tests\RudelTestCase;
 
@@ -283,6 +285,26 @@ class RouterTest extends RudelTestCase
         $_SERVER['HTTP_X_RUDEL_SANDBOX'] = 'abc/def';
         $router = $this->makeRouter();
         $this->assertNull($router->resolve());
+    }
+
+    // Constructor defaults
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testConstructorDefaultUsesWpContentDir(): void
+    {
+        define('WP_CONTENT_DIR', '/var/www/wp-content');
+        $router = new Router();
+        $this->assertSame('/var/www/wp-content/rudel-sandboxes', $router->get_sandboxes_dir());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testConstructorDefaultFallback(): void
+    {
+        $router = new Router();
+        $srcDir = dirname(__DIR__, 2) . '/src';
+        $this->assertSame($srcDir . '/../rudel-sandboxes', $router->get_sandboxes_dir());
     }
 
     public function testSymlinkEscapeIsBlocked(): void

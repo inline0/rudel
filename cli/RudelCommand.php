@@ -38,9 +38,11 @@ class RudelCommand extends \WP_CLI_Command {
 
 	/**
 	 * Constructor.
+	 *
+	 * @param SandboxManager|null $manager Optional manager instance for dependency injection.
 	 */
-	public function __construct() {
-		$this->manager = new SandboxManager();
+	public function __construct( ?SandboxManager $manager = null ) {
+		$this->manager = $manager ?? new SandboxManager();
 	}
 
 	/**
