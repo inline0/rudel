@@ -34,10 +34,12 @@ rudel/
 ├── phpcs.xml            # PHPCS configuration
 ├── .wp-env.json         # Docker-based wp-env config
 ├── src/
-│   ├── ConfigWriter.php # wp-config.php line management
-│   ├── Sandbox.php      # Sandbox model
+│   ├── ConfigWriter.php  # wp-config.php line management
+│   ├── ContentCloner.php # Copies wp-content dirs from host to sandbox
+│   ├── DatabaseCloner.php # Clones host MySQL to sandbox SQLite
+│   ├── Sandbox.php       # Sandbox model
 │   ├── SandboxManager.php # CRUD orchestrator
-│   └── Router.php       # Request to sandbox resolution
+│   └── Router.php        # Request to sandbox resolution
 ├── cli/
 │   └── RudelCommand.php # WP-CLI commands
 ├── templates/           # Template files for generated sandbox files
@@ -81,12 +83,16 @@ rudel/
 | `composer test:security` | Run security tests only |
 | `bash tests/e2e/run-all.sh` | Run all E2E shell tests |
 | `bash tests/e2e/test-wp-env.sh` | Run wp-env E2E tests (requires Docker) |
+| `bash tests/e2e/test-clone.sh` | Run clone E2E tests (requires Docker) |
 
 ## WP-CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `wp rudel create --name=<name> [--template=<template>]` | Create a new sandbox |
+| `wp rudel create --name=<name> [--template=<template>]` | Create a blank sandbox |
+| `wp rudel create --name=<name> --clone-all` | Clone host DB + wp-content into sandbox |
+| `wp rudel create --name=<name> --clone-db` | Clone host DB only |
+| `wp rudel create --name=<name> --clone-themes --clone-plugins` | Clone specific content |
 | `wp rudel list [--format=<format>]` | List all sandboxes |
 | `wp rudel info <id> [--format=<format>]` | Show sandbox details |
 | `wp rudel destroy <id> [--force]` | Delete a sandbox |

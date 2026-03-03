@@ -56,6 +56,12 @@ class SandboxManager {
 			);
 		}
 
+		$clone_db      = ! empty( $options['clone_db'] );
+		$clone_themes  = ! empty( $options['clone_themes'] );
+		$clone_plugins = ! empty( $options['clone_plugins'] );
+		$clone_uploads = ! empty( $options['clone_uploads'] );
+		$has_clone     = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
+
 		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox scaffolding.
 		if ( ! is_dir( $this->sandboxes_dir ) ) {
 			mkdir( $this->sandboxes_dir, 0755, true );
@@ -75,15 +81,69 @@ class SandboxManager {
 		$this->write_sandbox_bootstrap( $id, $path );
 		$this->write_wp_cli_yml( $path );
 		$this->write_claude_md( $id, $name, $path );
-		$this->create_blank_database( $id, $path );
+
+		$clone_source = null;
+		$template     = $options['template'] ?? ( $has_clone ? 'clone' : 'blank' );
+
+		if ( $clone_db ) {
+			$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
+			$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+			$sandbox_url  = $site_url . '/__rudel/' . $id;
+
+			$db_cloner    = new DatabaseCloner( $this->plugin_dir );
+			$clone_result = $db_cloner->clone_database(
+				$path . '/wordpress.db',
+				$table_prefix,
+				$sandbox_url,
+				array( 'chunk_size' => $options['chunk_size'] ?? 500 )
+			);
+
+			$clone_source = array(
+				'host_url'       => $site_url,
+				'cloned_at'      => gmdate( 'c' ),
+				'db_cloned'      => true,
+				'themes_cloned'  => $clone_themes,
+				'plugins_cloned' => $clone_plugins,
+				'uploads_cloned' => $clone_uploads,
+				'tables_cloned'  => $clone_result['tables_cloned'],
+				'rows_cloned'    => $clone_result['rows_cloned'],
+			);
+		} else {
+			$this->create_blank_database( $id, $path );
+
+			if ( $has_clone ) {
+				$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+				$clone_source = array(
+					'host_url'       => $site_url,
+					'cloned_at'      => gmdate( 'c' ),
+					'db_cloned'      => false,
+					'themes_cloned'  => $clone_themes,
+					'plugins_cloned' => $clone_plugins,
+					'uploads_cloned' => $clone_uploads,
+				);
+			}
+		}
+
+		if ( $clone_themes || $clone_plugins || $clone_uploads ) {
+			$content_cloner = new ContentCloner();
+			$content_cloner->clone_content(
+				$path . '/wp-content',
+				array(
+					'themes'  => $clone_themes,
+					'plugins' => $clone_plugins,
+					'uploads' => $clone_uploads,
+				)
+			);
+		}
 
 		$sandbox = new Sandbox(
 			id: $id,
 			name: $name,
 			path: $path,
 			created_at: gmdate( 'c' ),
-			template: $options['template'] ?? 'blank',
+			template: $template,
 			status: 'active',
+			clone_source: $clone_source,
 		);
 		$sandbox->save_meta();
 

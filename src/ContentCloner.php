@@ -1,0 +1,136 @@
+<?php
+/**
+ * Content cloner: copies wp-content subdirectories from host to sandbox.
+ *
+ * @package Rudel
+ */
+
+namespace Rudel;
+
+/**
+ * Copies themes, plugins, and uploads from the host WordPress
+ * wp-content directory into a sandbox's wp-content directory.
+ */
+class ContentCloner {
+
+	/**
+	 * Clone wp-content subdirectories from the host to the sandbox.
+	 *
+	 * @param string $sandbox_wp_content Absolute path to the sandbox wp-content directory.
+	 * @param array  $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
+	 * @return array<string, string> Status per directory: 'copied', 'skipped', or 'missing'.
+	 */
+	public function clone_content( string $sandbox_wp_content, array $options = array() ): array {
+		$host_wp_content = $this->get_host_wp_content_dir();
+		$results         = array();
+
+		$directories = array( 'themes', 'plugins', 'uploads' );
+
+		foreach ( $directories as $dir ) {
+			if ( empty( $options[ $dir ] ) ) {
+				$results[ $dir ] = 'skipped';
+				continue;
+			}
+
+			$source = $host_wp_content . '/' . $dir;
+			$target = $sandbox_wp_content . '/' . $dir;
+
+			if ( ! is_dir( $source ) ) {
+				$results[ $dir ] = 'missing';
+				continue;
+			}
+
+			// Remove the empty directory created by SandboxManager scaffolding.
+			if ( is_dir( $target ) ) {
+				$this->delete_directory( $target );
+			}
+
+			$this->copy_directory( $source, $target );
+			$results[ $dir ] = 'copied';
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Recursively copy a directory.
+	 *
+	 * @param string $source Absolute source directory path.
+	 * @param string $target Absolute target directory path.
+	 * @return void
+	 */
+	public function copy_directory( string $source, string $target ): void {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox content cloning.
+		mkdir( $target, 0755, true );
+
+		$iterator = new \RecursiveIteratorIterator(
+			new \RecursiveDirectoryIterator( $source, \FilesystemIterator::SKIP_DOTS ),
+			\RecursiveIteratorIterator::SELF_FIRST
+		);
+
+		foreach ( $iterator as $item ) {
+			$relative    = substr( $item->getPathname(), strlen( $source ) );
+			$target_path = $target . $relative;
+
+			if ( $item->isDir() ) {
+				if ( ! is_dir( $target_path ) ) {
+					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating sandbox subdirectory.
+					mkdir( $target_path, 0755, true );
+				}
+			} else {
+				$target_dir = dirname( $target_path );
+				if ( ! is_dir( $target_dir ) ) {
+					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating parent directory for copied file.
+					mkdir( $target_dir, 0755, true );
+				}
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying file to sandbox.
+				copy( $item->getPathname(), $target_path );
+			}
+		}
+	}
+
+	/**
+	 * Recursively delete a directory and all its contents.
+	 *
+	 * @param string $dir Absolute path to the directory.
+	 * @return void
+	 */
+	private function delete_directory( string $dir ): void {
+		if ( ! is_dir( $dir ) ) {
+			return;
+		}
+
+		$iterator = new \RecursiveIteratorIterator(
+			new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS ),
+			\RecursiveIteratorIterator::CHILD_FIRST
+		);
+
+		foreach ( $iterator as $item ) {
+			if ( $item->isDir() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removing empty directory during content clone.
+				rmdir( $item->getPathname() );
+			} else {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing file during content clone.
+				unlink( $item->getPathname() );
+			}
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removing now-empty directory.
+		rmdir( $dir );
+	}
+
+	/**
+	 * Get the host WordPress wp-content directory path.
+	 *
+	 * @return string Absolute path without trailing slash.
+	 */
+	private function get_host_wp_content_dir(): string {
+		if ( defined( 'WP_CONTENT_DIR' ) ) {
+			return rtrim( WP_CONTENT_DIR, '/' );
+		}
+		if ( defined( 'ABSPATH' ) ) {
+			return rtrim( ABSPATH, '/' ) . '/wp-content';
+		}
+		return dirname( __DIR__, 3 ) . '/wp-content';
+	}
+}

@@ -59,10 +59,31 @@ class RudelCommand extends \WP_CLI_Command {
 	 * default: blank
 	 * ---
 	 *
+	 * [--clone-db]
+	 * : Clone the host MySQL database into the sandbox SQLite database.
+	 *
+	 * [--clone-themes]
+	 * : Copy host themes into the sandbox.
+	 *
+	 * [--clone-plugins]
+	 * : Copy host plugins into the sandbox.
+	 *
+	 * [--clone-uploads]
+	 * : Copy host uploads into the sandbox.
+	 *
+	 * [--clone-all]
+	 * : Clone everything (database, themes, plugins, uploads).
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     $ wp rudel create --name="my-sandbox"
 	 *     Success: Sandbox created: my-sandbox-a1b2
+	 *
+	 *     $ wp rudel create --name="full-clone" --clone-all
+	 *     Success: Sandbox created: full-clone-c3d4
+	 *
+	 *     $ wp rudel create --name="db-only" --clone-db
+	 *     Success: Sandbox created: db-only-e5f6
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -74,15 +95,61 @@ class RudelCommand extends \WP_CLI_Command {
 		$name     = $assoc_args['name'];
 		$template = $assoc_args['template'] ?? 'blank';
 
-		WP_CLI::log( "Creating sandbox '{$name}'..." );
+		$clone_all = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
+		$options   = array(
+			'template'      => $template,
+			'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
+			'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
+			'clone_plugins' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-plugins', false ),
+			'clone_uploads' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-uploads', false ),
+		);
+
+		$has_clone = $options['clone_db'] || $options['clone_themes'] || $options['clone_plugins'] || $options['clone_uploads'];
+
+		if ( $has_clone ) {
+			WP_CLI::log( "Creating sandbox '{$name}' with cloned content..." );
+			if ( $options['clone_db'] ) {
+				WP_CLI::log( '  Cloning host database...' );
+			}
+			if ( $options['clone_themes'] ) {
+				WP_CLI::log( '  Cloning themes...' );
+			}
+			if ( $options['clone_plugins'] ) {
+				WP_CLI::log( '  Cloning plugins...' );
+			}
+			if ( $options['clone_uploads'] ) {
+				WP_CLI::log( '  Cloning uploads...' );
+			}
+		} else {
+			WP_CLI::log( "Creating sandbox '{$name}'..." );
+		}
 
 		try {
-			$sandbox = $this->manager->create( $name, array( 'template' => $template ) );
+			$sandbox = $this->manager->create( $name, $options );
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
 		}
 
 		WP_CLI::success( "Sandbox created: {$sandbox->id}" );
+
+		if ( $sandbox->clone_source ) {
+			$src = $sandbox->clone_source;
+			WP_CLI::log( '' );
+			WP_CLI::log( '  Clone summary:' );
+			if ( ! empty( $src['db_cloned'] ) ) {
+				WP_CLI::log( "    Database: {$src['tables_cloned']} tables, {$src['rows_cloned']} rows" );
+			}
+			if ( ! empty( $src['themes_cloned'] ) ) {
+				WP_CLI::log( '    Themes: copied' );
+			}
+			if ( ! empty( $src['plugins_cloned'] ) ) {
+				WP_CLI::log( '    Plugins: copied' );
+			}
+			if ( ! empty( $src['uploads_cloned'] ) ) {
+				WP_CLI::log( '    Uploads: copied' );
+			}
+		}
+
 		WP_CLI::log( '' );
 		WP_CLI::log( "  Path: {$sandbox->path}" );
 		WP_CLI::log( "  URL:  {$sandbox->get_url()}" );

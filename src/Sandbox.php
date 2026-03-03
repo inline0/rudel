@@ -15,12 +15,13 @@ class Sandbox {
 	/**
 	 * Constructor.
 	 *
-	 * @param string $id         Sandbox identifier.
-	 * @param string $name       Human-readable name.
-	 * @param string $path       Absolute filesystem path.
-	 * @param string $created_at ISO 8601 creation timestamp.
-	 * @param string $template   Template used to create this sandbox.
-	 * @param string $status     Current status (active, paused).
+	 * @param string     $id           Sandbox identifier.
+	 * @param string     $name         Human-readable name.
+	 * @param string     $path         Absolute filesystem path.
+	 * @param string     $created_at   ISO 8601 creation timestamp.
+	 * @param string     $template     Template used to create this sandbox.
+	 * @param string     $status       Current status (active, paused).
+	 * @param array|null $clone_source Clone source metadata, or null if not cloned.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -29,6 +30,7 @@ class Sandbox {
 		public readonly string $created_at,
 		public readonly string $template = 'blank',
 		public readonly string $status = 'active',
+		public readonly ?array $clone_source = null,
 	) {}
 
 	/**
@@ -56,6 +58,7 @@ class Sandbox {
 			created_at: $data['created_at'] ?? '',
 			template: $data['template'] ?? 'blank',
 			status: $data['status'] ?? 'active',
+			clone_source: $data['clone_source'] ?? null,
 		);
 	}
 
@@ -113,7 +116,7 @@ class Sandbox {
 	 * @return array<string, string> Sandbox data.
 	 */
 	public function to_array(): array {
-		return array(
+		$data = array(
 			'id'         => $this->id,
 			'name'       => $this->name,
 			'path'       => $this->path,
@@ -121,6 +124,12 @@ class Sandbox {
 			'template'   => $this->template,
 			'status'     => $this->status,
 		);
+
+		if ( null !== $this->clone_source ) {
+			$data['clone_source'] = $this->clone_source;
+		}
+
+		return $data;
 	}
 
 	/**
