@@ -1,0 +1,162 @@
+<?php
+/**
+ * Sandbox model.
+ *
+ * @package Rudel
+ */
+
+namespace Rudel;
+
+/**
+ * Represents a single Rudel sandbox environment.
+ */
+class Sandbox {
+
+	/**
+	 * Constructor.
+	 *
+	 * @param string $id         Sandbox identifier.
+	 * @param string $name       Human-readable name.
+	 * @param string $path       Absolute filesystem path.
+	 * @param string $created_at ISO 8601 creation timestamp.
+	 * @param string $template   Template used to create this sandbox.
+	 * @param string $status     Current status (active, paused).
+	 */
+	public function __construct(
+		public readonly string $id,
+		public readonly string $name,
+		public readonly string $path,
+		public readonly string $created_at,
+		public readonly string $template = 'blank',
+		public readonly string $status = 'active',
+	) {}
+
+	/**
+	 * Load a sandbox from its directory path.
+	 *
+	 * @param string $path Absolute path to the sandbox directory.
+	 * @return self|null Sandbox instance or null if metadata is missing/invalid.
+	 */
+	public static function from_path( string $path ): ?self {
+		$meta_file = rtrim( $path, '/' ) . '/.rudel.json';
+		if ( ! file_exists( $meta_file ) ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file read.
+		$data = json_decode( file_get_contents( $meta_file ), true );
+		if ( ! $data ) {
+			return null;
+		}
+
+		return new self(
+			id: $data['id'],
+			name: $data['name'],
+			path: rtrim( $path, '/' ),
+			created_at: $data['created_at'] ?? '',
+			template: $data['template'] ?? 'blank',
+			status: $data['status'] ?? 'active',
+		);
+	}
+
+	/**
+	 * Get the path to the sandbox SQLite database file.
+	 *
+	 * @return string Absolute path to the database file.
+	 */
+	public function get_db_path(): string {
+		return $this->path . '/wordpress.db';
+	}
+
+	/**
+	 * Get the path to the sandbox wp-content directory.
+	 *
+	 * @return string Absolute path to wp-content.
+	 */
+	public function get_wp_content_path(): string {
+		return $this->path . '/wp-content';
+	}
+
+	/**
+	 * Calculate total disk usage of the sandbox directory.
+	 *
+	 * @return int Size in bytes.
+	 */
+	public function get_size(): int {
+		$size     = 0;
+		$iterator = new \RecursiveIteratorIterator(
+			new \RecursiveDirectoryIterator( $this->path, \FilesystemIterator::SKIP_DOTS )
+		);
+		foreach ( $iterator as $file ) {
+			if ( $file->isFile() ) {
+				$size += $file->getSize();
+			}
+		}
+		return $size;
+	}
+
+	/**
+	 * Get the sandbox URL.
+	 *
+	 * @return string URL path or full URL if WP_HOME is defined.
+	 */
+	public function get_url(): string {
+		if ( defined( 'WP_HOME' ) ) {
+			return rtrim( WP_HOME, '/' ) . '/__rudel/' . $this->id . '/';
+		}
+		return '/__rudel/' . $this->id . '/';
+	}
+
+	/**
+	 * Convert sandbox to an associative array.
+	 *
+	 * @return array<string, string> Sandbox data.
+	 */
+	public function to_array(): array {
+		return array(
+			'id'         => $this->id,
+			'name'       => $this->name,
+			'path'       => $this->path,
+			'created_at' => $this->created_at,
+			'template'   => $this->template,
+			'status'     => $this->status,
+		);
+	}
+
+	/**
+	 * Write metadata to .rudel.json inside the sandbox directory.
+	 *
+	 * @return void
+	 */
+	public function save_meta(): void {
+		$meta_file = $this->path . '/.rudel.json';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- No WP dependency in model.
+		file_put_contents( $meta_file, json_encode( $this->to_array(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
+	}
+
+	/**
+	 * Validate a sandbox ID format.
+	 *
+	 * @param string $id Candidate sandbox ID.
+	 * @return bool True if the ID is valid.
+	 */
+	public static function validate_id( string $id ): bool {
+		return (bool) preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/', $id );
+	}
+
+	/**
+	 * Generate a unique sandbox ID from a human-readable name.
+	 *
+	 * @param string $name Human-readable name.
+	 * @return string Generated ID in slug-hash format.
+	 */
+	public static function generate_id( string $name ): string {
+		$slug = strtolower( trim( preg_replace( '/[^a-zA-Z0-9]+/', '-', $name ), '-' ) );
+		$slug = substr( $slug, 0, 48 );
+		$hash = substr( md5( uniqid( $name, true ) ), 0, 4 );
+		if ( '' === $slug ) {
+			return 'sandbox-' . $hash;
+		}
+		return $slug . '-' . $hash;
+	}
+}

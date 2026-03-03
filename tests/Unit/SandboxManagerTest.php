@@ -1,0 +1,590 @@
+<?php
+
+namespace Rudel\Tests\Unit;
+
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use Rudel\Sandbox;
+use Rudel\SandboxManager;
+use Rudel\Tests\RudelTestCase;
+
+class SandboxManagerTest extends RudelTestCase
+{
+    // All tests run in separate processes because SandboxManager reads constants.
+
+    // create() -- directory structure
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateBuildsCorrectDirectoryStructure(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Structure Test');
+
+        $this->assertDirectoryExists($sandbox->path);
+        $this->assertDirectoryExists($sandbox->path . '/wp-content');
+        $this->assertDirectoryExists($sandbox->path . '/wp-content/themes');
+        $this->assertDirectoryExists($sandbox->path . '/wp-content/plugins');
+        $this->assertDirectoryExists($sandbox->path . '/wp-content/uploads');
+        $this->assertDirectoryExists($sandbox->path . '/wp-content/mu-plugins');
+        $this->assertDirectoryExists($sandbox->path . '/tmp');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateGeneratesAllRequiredFiles(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Files Test');
+
+        $this->assertFileExists($sandbox->path . '/.rudel.json');
+        $this->assertFileExists($sandbox->path . '/wordpress.db');
+        $this->assertFileExists($sandbox->path . '/wp-cli.yml');
+        $this->assertFileExists($sandbox->path . '/bootstrap.php');
+        $this->assertFileExists($sandbox->path . '/CLAUDE.md');
+        $this->assertFileExists($sandbox->path . '/wp-content/db.php');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateReturnsSandboxWithCorrectMetadata(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Meta Test', ['template' => 'blank']);
+
+        $this->assertNotEmpty($sandbox->id);
+        $this->assertSame('Meta Test', $sandbox->name);
+        $this->assertSame('blank', $sandbox->template);
+        $this->assertSame('active', $sandbox->status);
+        $this->assertNotEmpty($sandbox->created_at);
+        $this->assertTrue(Sandbox::validate_id($sandbox->id));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateAutoCreatesSandboxesBaseDir(): void
+    {
+        $this->defineConstants();
+        $sandboxesDir = $this->tmpDir . '/nested/sandboxes';
+        $this->assertDirectoryDoesNotExist($sandboxesDir);
+
+        $manager = new SandboxManager($sandboxesDir);
+        $sandbox = $manager->create('Auto Dir Test');
+
+        $this->assertDirectoryExists($sandboxesDir);
+        $this->assertDirectoryExists($sandbox->path);
+    }
+
+    // create() -- generated file contents
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateWpCliYmlContainsCorrectPath(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('WpCli Test');
+
+        $yml = file_get_contents($sandbox->path . '/wp-cli.yml');
+        $this->assertStringContainsString('path:', $yml);
+        $this->assertStringContainsString('require:', $yml);
+        $this->assertStringContainsString($sandbox->path . '/bootstrap.php', $yml);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateBootstrapContainsSandboxId(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Bootstrap Test');
+
+        $bootstrap = file_get_contents($sandbox->path . '/bootstrap.php');
+        $this->assertStringContainsString("'" . $sandbox->id . "'", $bootstrap);
+        $this->assertStringContainsString($sandbox->path, $bootstrap);
+        $this->assertStringContainsString('RUDEL_SANDBOX_ID', $bootstrap);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDbDropInPointsToSharedSqlite(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('DbDropIn Test');
+
+        $db = file_get_contents($sandbox->path . '/wp-content/db.php');
+        $this->assertStringContainsString('sqlite-database-integration', $db);
+        $this->assertStringContainsString("require_once", $db);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateClaudeMdContainsSandboxInfo(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Claude Test');
+
+        $md = file_get_contents($sandbox->path . '/CLAUDE.md');
+        $this->assertStringContainsString('Claude Test', $md);
+        $this->assertStringContainsString($sandbox->id, $md);
+        $this->assertStringContainsString('Security rules', $md);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateRudelJsonIsValidAndReadable(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Json Test');
+
+        $raw = file_get_contents($sandbox->path . '/.rudel.json');
+        $data = json_decode($raw, true);
+        $this->assertNotNull($data);
+        $this->assertSame($sandbox->id, $data['id']);
+        $this->assertSame('Json Test', $data['name']);
+        $this->assertSame('active', $data['status']);
+    }
+
+    // create() -- file permissions
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateSetsReadOnlyPermissionsOnCriticalFiles(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Perms Test');
+
+        // bootstrap.php, wp-cli.yml, CLAUDE.md should be 0444 (read-only)
+        $this->assertSame('0444', substr(sprintf('%o', fileperms($sandbox->path . '/bootstrap.php')), -4));
+        $this->assertSame('0444', substr(sprintf('%o', fileperms($sandbox->path . '/wp-cli.yml')), -4));
+        $this->assertSame('0444', substr(sprintf('%o', fileperms($sandbox->path . '/CLAUDE.md')), -4));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateSetsDatabasePermissions(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('DbPerms Test');
+
+        $this->assertSame('0664', substr(sprintf('%o', fileperms($sandbox->get_db_path())), -4));
+    }
+
+    // create() -- SQLite database contents
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasAllWordPressTables(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Tables Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+            ->fetchAll(\PDO::FETCH_COLUMN);
+
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $expected = [
+            $prefix . 'commentmeta',
+            $prefix . 'comments',
+            $prefix . 'links',
+            $prefix . 'options',
+            $prefix . 'postmeta',
+            $prefix . 'posts',
+            $prefix . 'term_relationships',
+            $prefix . 'term_taxonomy',
+            $prefix . 'termmeta',
+            $prefix . 'terms',
+            $prefix . 'usermeta',
+            $prefix . 'users',
+        ];
+
+        $this->assertSame($expected, $tables);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasAdminUser(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('User Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $user = $pdo->query("SELECT user_login, user_email FROM {$prefix}users WHERE ID=1")->fetch(\PDO::FETCH_ASSOC);
+        $this->assertSame('admin', $user['user_login']);
+        $this->assertSame('admin@sandbox.local', $user['user_email']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasAdminCapabilities(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Caps Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $caps = $pdo->query("SELECT meta_value FROM {$prefix}usermeta WHERE user_id=1 AND meta_key='{$prefix}capabilities'")->fetchColumn();
+        $this->assertNotFalse($caps);
+        $capsArray = unserialize($caps);
+        $this->assertTrue($capsArray['administrator'] ?? false);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasRequiredOptions(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Options Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $requiredOptions = ['siteurl', 'home', 'blogname', 'blogdescription', 'permalink_structure', 'active_plugins', 'template', 'stylesheet', 'wp_user_roles'];
+
+        foreach ($requiredOptions as $name) {
+            $val = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='{$name}'")->fetchColumn();
+            $this->assertNotFalse($val, "Option '{$name}' should exist in database");
+        }
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseSiteurlContainsSandboxId(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Url Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
+        $this->assertStringContainsString($sandbox->id, $siteurl);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasHelloWorldPost(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Post Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $title = $pdo->query("SELECT post_title FROM {$prefix}posts WHERE ID=1")->fetchColumn();
+        $this->assertSame('Hello world!', $title);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasUncategorizedTerm(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Term Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $name = $pdo->query("SELECT name FROM {$prefix}terms WHERE term_id=1")->fetchColumn();
+        $this->assertSame('Uncategorized', $name);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateDatabaseHasUserRoles(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Roles Test');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $roles = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='wp_user_roles'")->fetchColumn();
+        $rolesArray = unserialize($roles);
+        $this->assertArrayHasKey('administrator', $rolesArray);
+        $this->assertArrayHasKey('editor', $rolesArray);
+        $this->assertArrayHasKey('author', $rolesArray);
+        $this->assertArrayHasKey('contributor', $rolesArray);
+        $this->assertArrayHasKey('subscriber', $rolesArray);
+    }
+
+    // create() -- table prefix isolation
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateUsesDifferentTablePrefixPerSandbox(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $sandbox1 = $manager->create('Prefix Test A');
+        $sandbox2 = $manager->create('Prefix Test B');
+
+        $pdo1 = new \PDO('sqlite:' . $sandbox1->get_db_path());
+        $pdo2 = new \PDO('sqlite:' . $sandbox2->get_db_path());
+
+        $tables1 = $pdo1->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")->fetchAll(\PDO::FETCH_COLUMN);
+        $tables2 = $pdo2->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")->fetchAll(\PDO::FETCH_COLUMN);
+
+        // Tables should have different prefixes
+        $prefix1 = 'wp_' . substr(md5($sandbox1->id), 0, 6) . '_';
+        $prefix2 = 'wp_' . substr(md5($sandbox2->id), 0, 6) . '_';
+        $this->assertNotSame($prefix1, $prefix2);
+
+        // Verify each sandbox uses its own prefix
+        foreach ($tables1 as $t) {
+            $this->assertStringStartsWith($prefix1, $t);
+        }
+        foreach ($tables2 as $t) {
+            $this->assertStringStartsWith($prefix2, $t);
+        }
+    }
+
+    // list()
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testListReturnsEmptyWhenNoSandboxes(): void
+    {
+        $this->defineConstants();
+        mkdir($this->tmpDir . '/sandboxes', 0755);
+        $manager = new SandboxManager($this->tmpDir . '/sandboxes');
+
+        $this->assertSame([], $manager->list());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testListReturnsEmptyWhenDirNotExists(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir . '/nonexistent');
+
+        $this->assertSame([], $manager->list());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testListReturnsAllSandboxes(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox1 = $manager->create('List Test A');
+        $sandbox2 = $manager->create('List Test B');
+
+        $list = $manager->list();
+        $this->assertCount(2, $list);
+
+        $ids = array_map(fn($s) => $s->id, $list);
+        $this->assertContains($sandbox1->id, $ids);
+        $this->assertContains($sandbox2->id, $ids);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testListSkipsDirsWithoutMetaFile(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $manager->create('Real Sandbox');
+
+        // Create a junk directory with no .rudel.json
+        mkdir($this->tmpDir . '/not-a-sandbox', 0755);
+
+        $list = $manager->list();
+        $this->assertCount(1, $list);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testListSkipsRegularFiles(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $manager->create('Real Sandbox');
+
+        // Create a regular file (not a directory)
+        file_put_contents($this->tmpDir . '/some-file.txt', 'not a sandbox');
+
+        $list = $manager->list();
+        $this->assertCount(1, $list);
+    }
+
+    // get()
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testGetReturnsSandboxById(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Get Test');
+
+        $got = $manager->get($sandbox->id);
+        $this->assertNotNull($got);
+        $this->assertSame($sandbox->id, $got->id);
+        $this->assertSame('Get Test', $got->name);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testGetReturnsNullForNonexistent(): void
+    {
+        $this->defineConstants();
+        mkdir($this->tmpDir . '/sandboxes', 0755);
+        $manager = new SandboxManager($this->tmpDir . '/sandboxes');
+
+        $this->assertNull($manager->get('nonexistent-id'));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testGetReturnsNullForInvalidId(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $this->assertNull($manager->get('../../../etc'));
+        $this->assertNull($manager->get(''));
+        $this->assertNull($manager->get('.hidden'));
+    }
+
+    // destroy()
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDestroyRemovesSandboxDirectory(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Destroy Test');
+
+        $this->assertDirectoryExists($sandbox->path);
+        $result = $manager->destroy($sandbox->id);
+
+        $this->assertTrue($result);
+        $this->assertDirectoryDoesNotExist($sandbox->path);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDestroyReturnsFalseForNonexistent(): void
+    {
+        $this->defineConstants();
+        mkdir($this->tmpDir . '/sandboxes', 0755);
+        $manager = new SandboxManager($this->tmpDir . '/sandboxes');
+
+        $this->assertFalse($manager->destroy('nonexistent'));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDestroyHandlesReadOnlyFiles(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('ReadOnly Destroy');
+
+        // Verify read-only files exist
+        $this->assertFalse(is_writable($sandbox->path . '/bootstrap.php'));
+        $this->assertFalse(is_writable($sandbox->path . '/wp-cli.yml'));
+
+        // Destroy should still succeed
+        $result = $manager->destroy($sandbox->id);
+        $this->assertTrue($result);
+        $this->assertDirectoryDoesNotExist($sandbox->path);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDestroyRemovedFromList(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Gone Test');
+
+        $this->assertCount(1, $manager->list());
+        $manager->destroy($sandbox->id);
+        $this->assertCount(0, $manager->list());
+    }
+
+    // Full lifecycle
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testFullCreateListGetDestroyCycle(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        // Create
+        $sandbox = $manager->create('Lifecycle Test');
+        $id = $sandbox->id;
+
+        // List
+        $list = $manager->list();
+        $this->assertCount(1, $list);
+        $this->assertSame($id, $list[0]->id);
+
+        // Get
+        $got = $manager->get($id);
+        $this->assertNotNull($got);
+        $this->assertSame('Lifecycle Test', $got->name);
+
+        // Destroy
+        $this->assertTrue($manager->destroy($id));
+        $this->assertNull($manager->get($id));
+        $this->assertCount(0, $manager->list());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testMultipleSandboxesAreIsolated(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $a = $manager->create('Sandbox A');
+        $b = $manager->create('Sandbox B');
+
+        // Each has its own database
+        $this->assertNotSame($a->get_db_path(), $b->get_db_path());
+
+        // Each has its own wp-content
+        $this->assertNotSame($a->get_wp_content_path(), $b->get_wp_content_path());
+
+        // Destroying one doesn't affect the other
+        $manager->destroy($a->id);
+        $this->assertNull($manager->get($a->id));
+        $this->assertNotNull($manager->get($b->id));
+    }
+
+    // Helpers
+
+    private function defineConstants(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+    }
+}

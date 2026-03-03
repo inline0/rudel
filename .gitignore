@@ -1,0 +1,6 @@
+vendor/
+lib/sqlite-database-integration/
+node_modules/
+.DS_Store
+*.rudel-backup-*
+.phpunit.cache/

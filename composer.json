@@ -1,0 +1,40 @@
+{
+    "name": "rudel/rudel",
+    "description": "Sandboxed WordPress environments powered by SQLite",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Rudel\\": "src/",
+            "Rudel\\CLI\\": "cli/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Rudel\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite unit",
+        "test:integration": "phpunit --testsuite integration",
+        "test:security": "phpunit --testsuite security",
+        "cs": "phpcs",
+        "cs:fix": "phpcbf"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^13.0",
+        "squizlabs/php_codesniffer": "^3.7",
+        "wp-coding-standards/wpcs": "^3.0",
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+    }
+}
