@@ -51,9 +51,9 @@ class ConfigWriterTest extends RudelTestCase
 
         $this->assertSame($after_first, $after_second);
 
-        // Only one occurrence of the marker
+        // Same number of marker occurrences after double install
         $this->assertSame(
-            1,
+            substr_count($after_first, '// Rudel sandbox bootstrap'),
             substr_count($after_second, '// Rudel sandbox bootstrap')
         );
     }
@@ -98,7 +98,44 @@ class ConfigWriterTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testInstallInjectsAfterPhpTag(): void
+    public function testInstallInjectsTwoLines(): void
+    {
+        $configPath = $this->createWpConfig(
+            $this->tmpDir,
+            "<?php\n\$x = 1;\nrequire_once __DIR__ . '/wp-settings.php';\n"
+        );
+
+        define('ABSPATH', $this->tmpDir . '/');
+        define('RUDEL_PLUGIN_FILE', $this->tmpDir . '/rudel.php');
+
+        $writer = new ConfigWriter();
+        $writer->install();
+
+        $lines  = file($configPath);
+        $marker = '// Rudel sandbox bootstrap';
+
+        // Should have exactly two marker lines
+        $markerLines = array_filter($lines, fn($l) => str_contains($l, $marker));
+        $this->assertCount(2, $markerLines);
+
+        // First marker: require_once near the top (line 2)
+        $this->assertStringContainsString('require_once', $lines[1]);
+        $this->assertStringContainsString($marker, $lines[1]);
+
+        // Second marker: table_prefix fixup just before wp-settings.php
+        $settingsIdx = null;
+        foreach ($lines as $i => $line) {
+            if (str_contains($line, 'wp-settings.php') && !str_contains($line, $marker)) {
+                $settingsIdx = $i;
+            }
+        }
+        $this->assertNotNull($settingsIdx);
+        $this->assertStringContainsString('table_prefix', $lines[$settingsIdx - 1]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testInstallWithoutWpSettingsOnlyInjectsRequire(): void
     {
         $configPath = $this->createWpConfig($this->tmpDir, "<?php\n\$x = 1;\n");
 
@@ -108,26 +145,14 @@ class ConfigWriterTest extends RudelTestCase
         $writer = new ConfigWriter();
         $writer->install();
 
-        $lines = file($configPath);
-        // First line should be <?php, second should be the require_once
+        $lines  = file($configPath);
+        $marker = '// Rudel sandbox bootstrap';
+
+        // Only the require_once line (no wp-settings.php to inject fixup before)
+        $markerLines = array_filter($lines, fn($l) => str_contains($l, $marker));
+        $this->assertCount(1, $markerLines);
         $this->assertStringStartsWith('<?php', $lines[0]);
-        $this->assertStringContainsString('// Rudel sandbox bootstrap', $lines[1]);
-    }
-
-    #[RunInSeparateProcess]
-    #[PreserveGlobalState(false)]
-    public function testInstallHandlesWhitespaceAfterPhpTag(): void
-    {
-        $configPath = $this->createWpConfig($this->tmpDir, "<?php   \n\$x = 1;\n");
-
-        define('ABSPATH', $this->tmpDir . '/');
-        define('RUDEL_PLUGIN_FILE', $this->tmpDir . '/rudel.php');
-
-        $writer = new ConfigWriter();
-        $writer->install();
-
-        $contents = file_get_contents($configPath);
-        $this->assertStringContainsString('// Rudel sandbox bootstrap', $contents);
+        $this->assertStringContainsString($marker, $lines[1]);
     }
 
     // uninstall()

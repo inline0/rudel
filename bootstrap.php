@@ -27,7 +27,10 @@ if ( defined( 'RUDEL_SANDBOX_ID' ) ) {
 	return;
 }
 
-( function () {
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Temporary variable, unset after use.
+$_rudel_prefix = null;
+
+( function () use ( &$_rudel_prefix ) {
 	$plugin_dir    = __DIR__;
 	$sandboxes_dir = null;
 
@@ -177,17 +180,24 @@ if ( defined( 'RUDEL_SANDBOX_ID' ) ) {
 	};
 
 	// open_basedir jail.
-	$wp_core_path  = defined( 'ABSPATH' ) ? rtrim( ABSPATH, '/' ) : dirname( __DIR__, 2 );
-	$allowed_paths = implode(
-		PATH_SEPARATOR,
-		array(
-			$sandbox_path,
-			$wp_core_path,
-			$plugin_dir,
-			sys_get_temp_dir(),
-			'/tmp',
-		)
+	$wp_core_path = defined( 'ABSPATH' ) ? rtrim( ABSPATH, '/' ) : dirname( __DIR__, 2 );
+	$paths        = array(
+		$sandbox_path,
+		$wp_core_path,
+		$plugin_dir,
+		sys_get_temp_dir(),
+		'/tmp',
 	);
+
+	// In CLI mode, allow the CLI tool (e.g. WP-CLI phar) to read its own files.
+	if ( 'cli' === php_sapi_name() && ! empty( $_SERVER['SCRIPT_FILENAME'] ) ) {
+		$cli_dir = dirname( (string) realpath( $_SERVER['SCRIPT_FILENAME'] ) );
+		if ( '' !== $cli_dir && '.' !== $cli_dir ) {
+			$paths[] = $cli_dir;
+		}
+	}
+
+	$allowed_paths = implode( PATH_SEPARATOR, $paths );
 	// phpcs:ignore WordPress.PHP.IniSet.Risky -- Intentional open_basedir jail for sandbox isolation.
 	ini_set( 'open_basedir', $allowed_paths );
 
@@ -210,14 +220,21 @@ if ( defined( 'RUDEL_SANDBOX_ID' ) ) {
 	$host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
 	$site_url = $protocol . '://' . $host;
 
-	$def( 'WP_CONTENT_URL', $site_url . '/wp-content' );
+	// Sandbox site URL (preempts wp-config.php constants).
+	$sandbox_url = $site_url . '/__rudel/' . $sandbox_id;
+	$def( 'WP_SITEURL', $sandbox_url );
+	$def( 'WP_HOME', $sandbox_url );
+
+	$def( 'WP_CONTENT_URL', $sandbox_url . '/wp-content' );
 	$def( 'WP_PLUGIN_DIR', $sandbox_path . '/wp-content/plugins' );
 	$def( 'WPMU_PLUGIN_DIR', $sandbox_path . '/wp-content/mu-plugins' );
 	$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );
 	$def( 'UPLOADS', 'wp-content/uploads' );
 
-	// Per-sandbox table prefix.
-	$GLOBALS['table_prefix'] = 'wp_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
+	// Per-sandbox table prefix (stored as constant so wp-config.php can't overwrite it).
+	$_rudel_prefix           = 'wp_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
+	$GLOBALS['table_prefix'] = $_rudel_prefix;
+	$def( 'RUDEL_TABLE_PREFIX', $_rudel_prefix );
 
 	// Per-sandbox auth salts (deterministic).
 	$def( 'AUTH_KEY', hash( 'sha256', $sandbox_id . 'AUTH_KEY' ) );
@@ -233,3 +250,10 @@ if ( defined( 'RUDEL_SANDBOX_ID' ) ) {
 	$def( 'RUDEL_SANDBOX_ID', $sandbox_id );
 	$def( 'RUDEL_SANDBOX_PATH', $sandbox_path );
 } )();
+
+// Also set $table_prefix in the caller's scope for WP-CLI eval compatibility.
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Must match WP's $table_prefix variable name.
+if ( null !== $_rudel_prefix ) {
+	$table_prefix = $_rudel_prefix;
+}
+unset( $_rudel_prefix );

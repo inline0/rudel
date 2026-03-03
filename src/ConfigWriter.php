@@ -48,9 +48,22 @@ class ConfigWriter {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local wp-config.php.
 		$contents = file_get_contents( $config_path );
+
+		// Inject bootstrap require after <?php so it runs before wp-config.php
+		// defines constants (WP_SITEURL, WP_HOME, auth keys, etc.).
 		$contents = preg_replace(
 			'/^<\?php\s*/i',
 			"<?php\n{$line}\n",
+			$contents,
+			1
+		);
+
+		// Also inject a table_prefix fixup just before wp-settings.php.
+		// wp-config.php sets $table_prefix after the bootstrap, overwriting it.
+		$fixup    = "if ( defined( 'RUDEL_TABLE_PREFIX' ) ) { \$table_prefix = RUDEL_TABLE_PREFIX; } " . self::MARKER;
+		$contents = preg_replace(
+			'/^(\s*require(?:_once)?\s.*wp-settings\.php.*$)/mi',
+			"{$fixup}\n$1",
 			$contents,
 			1
 		);

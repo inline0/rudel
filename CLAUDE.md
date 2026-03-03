@@ -72,6 +72,7 @@ rudel/
 | `composer test:integration` | Run integration tests only |
 | `composer test:security` | Run security tests only |
 | `bash tests/E2E/run-all.sh` | Run all E2E shell tests |
+| `bash tests/e2e/test-wp-env.sh` | Run wp-env E2E tests (requires Docker) |
 
 ## WP-CLI Commands
 

@@ -78,12 +78,12 @@ echo -e "${BOLD}Initial state${NC}"
 
 RESULT=$(run_writer '
     $w = new Rudel\ConfigWriter();
-    echo $w->isInstalled() ? "true" : "false";
+    echo $w->is_installed() ? "true" : "false";
 ')
 if [[ "$RESULT" == "false" ]]; then
-    pass "isInstalled() returns false initially"
+    pass "is_installed() returns false initially"
 else
-    fail "isInstalled() should return false" "$RESULT"
+    fail "is_installed() should return false" "$RESULT"
 fi
 
 # --------------------------------------------------------------------------
@@ -109,23 +109,32 @@ else
     fail "install() didn't inject require_once" ""
 fi
 
-# Marker should be near the top (line 2)
-LINE_NUM=$(grep -n "// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1)
-if [[ "$LINE_NUM" -le 3 ]]; then
-    pass "Bootstrap line is near the top (line $LINE_NUM)"
+# Require line should be near the top (line 2)
+REQUIRE_LINE=$(grep -n "require_once.*// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1)
+if [[ -n "$REQUIRE_LINE" && "$REQUIRE_LINE" -le 3 ]]; then
+    pass "Bootstrap require is near the top (line $REQUIRE_LINE)"
 else
-    fail "Bootstrap line too far down" "Line: $LINE_NUM"
+    fail "Bootstrap require not near top" "Line: $REQUIRE_LINE"
+fi
+
+# Table prefix fixup should be just before wp-settings.php
+SETTINGS_LINE=$(grep -n "wp-settings.php" "$WP_DIR/wp-config.php" | grep -v "Rudel" | head -1 | cut -d: -f1)
+FIXUP_LINE=$(grep -n "table_prefix.*// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1)
+if [[ -n "$SETTINGS_LINE" && -n "$FIXUP_LINE" && "$FIXUP_LINE" -eq $((SETTINGS_LINE - 1)) ]]; then
+    pass "Table prefix fixup is before wp-settings.php (line $FIXUP_LINE)"
+else
+    fail "Table prefix fixup not before wp-settings.php" "Fixup: $FIXUP_LINE, Settings: $SETTINGS_LINE"
 fi
 
 # isInstalled should now return true
 RESULT=$(run_writer '
     $w = new Rudel\ConfigWriter();
-    echo $w->isInstalled() ? "true" : "false";
+    echo $w->is_installed() ? "true" : "false";
 ')
 if [[ "$RESULT" == "true" ]]; then
-    pass "isInstalled() returns true after install"
+    pass "is_installed() returns true after install"
 else
-    fail "isInstalled() should return true" "$RESULT"
+    fail "is_installed() should return true" "$RESULT"
 fi
 
 # --------------------------------------------------------------------------
@@ -170,10 +179,10 @@ else
 fi
 
 MARKER_COUNT=$(grep -c "// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php")
-if [[ "$MARKER_COUNT" -eq 1 ]]; then
-    pass "Only one marker line after double install"
+if [[ "$MARKER_COUNT" -eq 2 ]]; then
+    pass "Exactly two marker lines after double install"
 else
-    fail "Multiple marker lines" "Count: $MARKER_COUNT"
+    fail "Wrong marker line count" "Expected 2, got: $MARKER_COUNT"
 fi
 
 # --------------------------------------------------------------------------
@@ -214,12 +223,12 @@ fi
 
 RESULT=$(run_writer '
     $w = new Rudel\ConfigWriter();
-    echo $w->isInstalled() ? "true" : "false";
+    echo $w->is_installed() ? "true" : "false";
 ')
 if [[ "$RESULT" == "false" ]]; then
-    pass "isInstalled() returns false after uninstall"
+    pass "is_installed() returns false after uninstall"
 else
-    fail "isInstalled() should return false" "$RESULT"
+    fail "is_installed() should return false" "$RESULT"
 fi
 
 # --------------------------------------------------------------------------
