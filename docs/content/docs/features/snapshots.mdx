@@ -1,0 +1,37 @@
+---
+title: Snapshots
+description: Create point-in-time snapshots and restore sandboxes instantly.
+---
+
+# Snapshots
+
+Snapshots capture the complete state of a sandbox at a point in time: the SQLite database and the entire wp-content directory.
+
+## Create a snapshot
+
+```bash
+wp rudel snapshot my-sandbox-a1b2 --name=before-update
+```
+
+This copies the sandbox's database and wp-content into a named snapshot stored within the sandbox directory. Snapshots are fast because they are simple file copies.
+
+## Restore from a snapshot
+
+```bash
+wp rudel restore my-sandbox-a1b2 --snapshot=before-update
+```
+
+This replaces the sandbox's current database and wp-content with the snapshot's contents. You will be prompted for confirmation unless you pass `--force`:
+
+```bash
+wp rudel restore my-sandbox-a1b2 --snapshot=before-update --force
+```
+
+Restoring is destructive to the current state. If you want to preserve the current state before restoring, create another snapshot first.
+
+## Use cases
+
+- **Before risky changes**: Snapshot before running migrations, updating plugins, or making large code changes.
+- **A/B testing**: Create multiple snapshots at different states and switch between them.
+- **Agent checkpoints**: Let AI coding agents snapshot before attempting changes, enabling easy rollback.
+- **Demo environments**: Snapshot a clean state and restore after each demo.

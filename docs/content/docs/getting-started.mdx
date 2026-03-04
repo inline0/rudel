@@ -1,0 +1,89 @@
+---
+title: Getting Started
+description: Install Rudel and create your first sandbox.
+---
+
+# Getting Started
+
+## Installation
+
+Install Rudel via Composer:
+
+```bash
+composer require rudel/rudel
+```
+
+Or install as a standard WordPress plugin by uploading the zip file through the WordPress admin, or via WP-CLI:
+
+```bash
+wp plugin install rudel --activate
+```
+
+## Setup
+
+On activation, Rudel adds a single line to your `wp-config.php`:
+
+```php
+require_once __DIR__ . '/wp-content/plugins/rudel/bootstrap.php';
+```
+
+This bootstrap file runs before `wp-settings.php` and detects sandbox context from the incoming request. When no sandbox is active, WordPress boots normally with zero overhead.
+
+Rudel also downloads the [SQLite Database Integration](https://github.com/WordPress/sqlite-database-integration) into its `lib/` directory automatically.
+
+## Verify installation
+
+Check that everything is set up correctly:
+
+```bash
+wp rudel status
+```
+
+This shows:
+
+| Field | Description |
+|---|---|
+| Bootstrap installed | Whether the `wp-config.php` line is in place |
+| Sandboxes directory | Where sandboxes are stored |
+| Active sandboxes | Number of existing sandboxes |
+| SQLite integration | Whether the SQLite library is installed |
+| PHP version | Current PHP version |
+| SQLite3 extension | Whether the SQLite3 PHP extension is available |
+| PDO SQLite | Whether PDO SQLite is available |
+
+## Create your first sandbox
+
+```bash
+wp rudel create --name="my-first-sandbox"
+```
+
+This creates a blank sandbox with a fresh SQLite database and empty wp-content directory. The output includes the sandbox path and access URL.
+
+To start using the sandbox via WP-CLI:
+
+```bash
+cd /path/to/sandboxes/my-first-sandbox-a1b2
+wp post list
+```
+
+Any `wp` command run from within the sandbox directory is automatically scoped to that sandbox's database and content, thanks to the `wp-cli.yml` file.
+
+## Create a sandbox with cloned content
+
+To clone your host site's database and content into a sandbox:
+
+```bash
+wp rudel create --name="full-clone" --clone-all
+```
+
+This copies the host MySQL database into an SQLite database, along with all themes, plugins, and uploads. See [Creating Sandboxes](/docs/sandboxes/creating) for all available options.
+
+## Access a sandbox in the browser
+
+Sandboxes can be accessed via:
+
+- **Path prefix**: `example.com/__rudel/sandbox-123/`
+- **Subdomain**: `sandbox-123.example.com` (requires wildcard DNS)
+- **Header/cookie**: `X-Rudel-Sandbox: sandbox-123` (for programmatic access)
+
+The path prefix method works out of the box with no DNS configuration.

@@ -1,0 +1,36 @@
+---
+title: Export & Import
+description: Package sandboxes as portable zip archives.
+---
+
+# Export & Import
+
+Sandboxes can be exported as zip archives and imported on any Rudel installation. This makes it easy to share environments, back them up, or move them between servers.
+
+## Export a sandbox
+
+```bash
+wp rudel export my-sandbox-a1b2 --output=/tmp/sandbox.zip
+```
+
+The zip archive contains the sandbox's SQLite database, wp-content directory, and metadata. The output path must be specified.
+
+## Import a sandbox
+
+```bash
+wp rudel import /tmp/sandbox.zip --name=imported-sandbox
+```
+
+This creates a new sandbox from the zip archive with the specified name. The imported sandbox gets a new unique ID and is immediately ready to use.
+
+```
+Success: Sandbox imported: imported-sandbox-a1b2
+  Path: /path/to/sandboxes/imported-sandbox-a1b2
+```
+
+## Use cases
+
+- **Sharing environments**: Export a sandbox and send the zip to a colleague.
+- **Backups**: Periodically export important sandboxes for safekeeping.
+- **Migration**: Move sandboxes between different WordPress installations.
+- **CI/CD**: Export a sandbox, include it in your repository, and import it in CI for testing.

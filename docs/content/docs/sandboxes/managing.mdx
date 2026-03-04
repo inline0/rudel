@@ -1,0 +1,65 @@
+---
+title: Managing Sandboxes
+description: List, inspect, and destroy sandboxes.
+---
+
+# Managing Sandboxes
+
+## List all sandboxes
+
+```bash
+wp rudel list
+```
+
+Output includes the sandbox ID, name, status, template, creation date, and size. Supports multiple output formats:
+
+```bash
+wp rudel list --format=json
+wp rudel list --format=csv
+wp rudel list --format=yaml
+wp rudel list --format=count
+```
+
+## Show sandbox details
+
+```bash
+wp rudel info my-sandbox-a1b2
+```
+
+Displays detailed information about a specific sandbox:
+
+| Field | Description |
+|---|---|
+| id | Unique sandbox identifier |
+| name | Human-readable name |
+| status | Current status (active, expired) |
+| template | Template used to create it |
+| created_at | Creation timestamp |
+| size | Total disk usage |
+| db_path | Path to the SQLite database |
+| url | Access URL |
+| wp_content | Path to wp-content directory |
+
+Supports `--format=json` and `--format=yaml` for machine-readable output.
+
+## Destroy a sandbox
+
+```bash
+wp rudel destroy my-sandbox-a1b2
+```
+
+This permanently deletes the sandbox directory and all its contents. You will be prompted for confirmation unless you pass `--force`:
+
+```bash
+wp rudel destroy my-sandbox-a1b2 --force
+```
+
+There is no undo. If you want to preserve the sandbox state before destroying it, create a [snapshot](/docs/features/snapshots) or [export](/docs/features/export-import) first.
+
+## Check Rudel status
+
+```bash
+wp rudel status
+```
+
+Shows overall Rudel configuration and health: whether the bootstrap is installed, the sandboxes directory path, active sandbox count, SQLite integration status, and PHP extension availability.

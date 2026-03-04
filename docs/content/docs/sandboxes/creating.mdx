@@ -1,0 +1,94 @@
+---
+title: Creating Sandboxes
+description: All the ways to create a sandbox, from blank to fully cloned.
+---
+
+# Creating Sandboxes
+
+Rudel offers several ways to create sandboxes, depending on how much of your host site you want to bring along.
+
+## Blank sandbox
+
+Creates an empty sandbox with a fresh SQLite database and minimal wp-content:
+
+```bash
+wp rudel create --name="my-sandbox"
+```
+
+This is the fastest option. The sandbox gets the default WordPress tables but no content, no themes beyond the default, and no plugins.
+
+## Clone everything
+
+Clones the host MySQL database and all wp-content into the sandbox:
+
+```bash
+wp rudel create --name="full-clone" --clone-all
+```
+
+The `--clone-all` flag is equivalent to passing `--clone-db --clone-themes --clone-plugins --clone-uploads` together. The database cloner converts MySQL data to SQLite and rewrites URLs automatically.
+
+## Clone database only
+
+Clones just the host database without any wp-content files:
+
+```bash
+wp rudel create --name="db-only" --clone-db
+```
+
+Useful when you want the host's posts, options, and users but plan to install themes and plugins fresh.
+
+## Selective cloning
+
+Pick exactly what to clone:
+
+```bash
+# Clone themes and plugins, but not uploads or database
+wp rudel create --name="themes-plugins" --clone-themes --clone-plugins
+
+# Clone database and themes only
+wp rudel create --name="db-themes" --clone-db --clone-themes
+```
+
+Available flags:
+
+| Flag | What it clones |
+|---|---|
+| `--clone-db` | Host MySQL database to sandbox SQLite |
+| `--clone-themes` | Host themes directory |
+| `--clone-plugins` | Host plugins directory |
+| `--clone-uploads` | Host uploads directory |
+| `--clone-all` | All of the above |
+
+## Clone from an existing sandbox
+
+Create a new sandbox by copying an existing one:
+
+```bash
+wp rudel create --name="copy" --clone-from=my-sandbox-a1b2
+```
+
+This copies the source sandbox's SQLite database and wp-content directory into a new sandbox. The `--clone-from` flag is mutually exclusive with `--clone-db` and `--clone-all`.
+
+## Create from a template
+
+Use a saved template as the starting point:
+
+```bash
+wp rudel create --name="from-template" --template=starter
+```
+
+Templates are pre-configured snapshots saved from existing sandboxes. See [Templates](/docs/features/templates) for how to create and manage them.
+
+## What happens during creation
+
+When you create a sandbox, Rudel:
+
+1. Generates a unique sandbox ID from the name (e.g., `my-sandbox-a1b2`).
+2. Creates the sandbox directory with `wp-content`, `tmp`, and subdirectories.
+3. Copies or creates the SQLite database.
+4. Generates `wp-cli.yml` scoped to the sandbox.
+5. Generates `bootstrap.php` with the sandbox's WordPress constants.
+6. Optionally clones content based on the flags provided.
+7. Writes `.rudel.json` metadata to the sandbox directory.
+
+The sandbox is ready to use immediately after creation.

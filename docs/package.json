@@ -1,0 +1,33 @@
+{
+  "name": "@rudel/docs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 9800",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@types/mdx": "^2.0.13",
+    "fumadocs-core": "^16.4.7",
+    "fumadocs-mdx": "^14.2.6",
+    "fumadocs-ui": "^16.4.7",
+    "lucide-react": "^0.562.0",
+    "next": "16.1.4",
+    "onedocs": "0.1.25",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "trustedDependencies": [
+    "sharp",
+    "unrs-resolver"
+  ]
+}

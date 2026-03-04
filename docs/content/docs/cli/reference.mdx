@@ -1,0 +1,199 @@
+---
+title: CLI Reference
+description: Complete WP-CLI command reference for Rudel.
+---
+
+# CLI Reference
+
+All Rudel operations are available through WP-CLI under the `wp rudel` namespace.
+
+## Sandbox commands
+
+### `wp rudel create`
+
+Create a new sandbox.
+
+```bash
+wp rudel create --name=<name> [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
+```
+
+| Option | Description |
+|---|---|
+| `--name=<name>` | Human-readable name for the sandbox (required) |
+| `--template=<template>` | Template to use (default: `blank`) |
+| `--clone-db` | Clone the host MySQL database into sandbox SQLite |
+| `--clone-themes` | Copy host themes into the sandbox |
+| `--clone-plugins` | Copy host plugins into the sandbox |
+| `--clone-uploads` | Copy host uploads into the sandbox |
+| `--clone-all` | Clone everything (database, themes, plugins, uploads) |
+| `--clone-from=<id>` | Clone from an existing sandbox |
+
+```bash
+# Blank sandbox
+wp rudel create --name="my-sandbox"
+
+# Full clone of host
+wp rudel create --name="full-clone" --clone-all
+
+# Clone database only
+wp rudel create --name="db-only" --clone-db
+
+# Clone from existing sandbox
+wp rudel create --name="copy" --clone-from=my-sandbox-a1b2
+
+# Create from template
+wp rudel create --name="from-template" --template=starter
+```
+
+### `wp rudel list`
+
+List all sandboxes.
+
+```bash
+wp rudel list [--format=<format>]
+```
+
+| Option | Description |
+|---|---|
+| `--format=<format>` | Output format: `table` (default), `json`, `csv`, `yaml`, `count` |
+
+### `wp rudel info`
+
+Show sandbox details.
+
+```bash
+wp rudel info <id> [--format=<format>]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--format=<format>` | Output format: `table` (default), `json`, `yaml` |
+
+### `wp rudel destroy`
+
+Delete a sandbox permanently.
+
+```bash
+wp rudel destroy <id> [--force]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--force` | Skip confirmation prompt |
+
+### `wp rudel status`
+
+Show Rudel status and configuration.
+
+```bash
+wp rudel status
+```
+
+### `wp rudel snapshot`
+
+Create a point-in-time snapshot of a sandbox.
+
+```bash
+wp rudel snapshot <id> --name=<name>
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--name=<name>` | Snapshot name (required) |
+
+### `wp rudel restore`
+
+Restore a sandbox from a snapshot.
+
+```bash
+wp rudel restore <id> --snapshot=<name> [--force]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--snapshot=<name>` | Snapshot name to restore from (required) |
+| `--force` | Skip confirmation prompt |
+
+### `wp rudel export`
+
+Export a sandbox as a zip archive.
+
+```bash
+wp rudel export <id> --output=<path>
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--output=<path>` | Output path for the zip file (required) |
+
+### `wp rudel import`
+
+Import a sandbox from a zip archive.
+
+```bash
+wp rudel import <file> --name=<name>
+```
+
+| Option | Description |
+|---|---|
+| `<file>` | Path to the zip file (required) |
+| `--name=<name>` | Name for the imported sandbox (required) |
+
+### `wp rudel cleanup`
+
+Clean up expired sandboxes.
+
+```bash
+wp rudel cleanup [--dry-run] [--max-age-days=<days>]
+```
+
+| Option | Description |
+|---|---|
+| `--dry-run` | Show what would be removed without deleting |
+| `--max-age-days=<days>` | Override the configured max age in days |
+
+## Template commands
+
+### `wp rudel template save`
+
+Save a sandbox as a reusable template.
+
+```bash
+wp rudel template save <id> --name=<name> [--description=<description>]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID to save (required) |
+| `--name=<name>` | Template name (required) |
+| `--description=<description>` | Optional description |
+
+### `wp rudel template list`
+
+List all templates.
+
+```bash
+wp rudel template list [--format=<format>]
+```
+
+| Option | Description |
+|---|---|
+| `--format=<format>` | Output format: `table` (default), `json`, `csv`, `yaml`, `count` |
+
+### `wp rudel template delete`
+
+Delete a template.
+
+```bash
+wp rudel template delete <name> [--force]
+```
+
+| Option | Description |
+|---|---|
+| `<name>` | Template name (required) |
+| `--force` | Skip confirmation prompt |
