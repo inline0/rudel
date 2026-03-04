@@ -12,10 +12,11 @@ export default defineConfig({
   },
   icon: "/icon.png",
   nav: {
-    links: [{ label: "Docs", href: "/docs" }],
     github: "inline0/rudel",
   },
-  footer: {},
+  footer: {
+    links: [{ label: "Inline0.com", href: "https://inline0.com" }],
+  },
   homepage: {
     hero: {
       title: "WordPress sandboxes powered by SQLite",

@@ -18,7 +18,7 @@ export default function RootLayout({
       <head>
         <FontHead />
       </head>
-      <body className="antialiased">
+      <body className="antialiased" suppressHydrationWarning>
         <RootProvider>{children}</RootProvider>
       </body>
     </html>
