@@ -149,4 +149,4 @@ Full documentation at [rudel.dev](https://rudel.dev).
 
 ## License
 
-MIT
+GPL-2.0-or-later
