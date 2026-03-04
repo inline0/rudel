@@ -4,6 +4,7 @@ namespace Rudel\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use Rudel\RudelConfig;
 use Rudel\Sandbox;
 use Rudel\SandboxManager;
 use Rudel\Tests\RudelTestCase;
@@ -691,6 +692,387 @@ class SandboxManagerTest extends RudelTestCase
 
         $wpCliYml = file_get_contents($sandbox->path . '/wp-cli.yml');
         $this->assertStringContainsString($this->tmpDir . '/wordpress', $wpCliYml);
+    }
+
+    // clone_from
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSandboxCopiesDatabase(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Clone Source');
+
+        $clone = $manager->create('Clone Target', ['clone_from' => $source->id]);
+
+        $this->assertFileExists($clone->get_db_path());
+        $pdo = new \PDO('sqlite:' . $clone->get_db_path());
+        $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            ->fetchAll(\PDO::FETCH_COLUMN);
+        $this->assertNotEmpty($tables);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSandboxRewritesUrls(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'http://example.com');
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Url Source');
+
+        $clone = $manager->create('Url Target', ['clone_from' => $source->id]);
+
+        $pdo = new \PDO('sqlite:' . $clone->get_db_path());
+        $prefix = 'wp_' . substr(md5($clone->id), 0, 6) . '_';
+        $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
+        $this->assertStringContainsString($clone->id, $siteurl);
+        $this->assertStringNotContainsString($source->id, $siteurl);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSandboxRewritesPrefix(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Prefix Source');
+
+        $clone = $manager->create('Prefix Target', ['clone_from' => $source->id]);
+
+        $pdo = new \PDO('sqlite:' . $clone->get_db_path());
+        $sourcePrefix = 'wp_' . substr(md5($source->id), 0, 6) . '_';
+        $clonePrefix = 'wp_' . substr(md5($clone->id), 0, 6) . '_';
+
+        $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            ->fetchAll(\PDO::FETCH_COLUMN);
+
+        foreach ($tables as $table) {
+            $this->assertStringStartsWith($clonePrefix, $table);
+            $this->assertStringStartsNotWith($sourcePrefix, $table);
+        }
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSandboxCopiesWpContent(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Content Source');
+
+        // Add a file to source wp-content.
+        file_put_contents($source->get_wp_content_path() . '/themes/test.txt', 'hello');
+
+        $clone = $manager->create('Content Target', ['clone_from' => $source->id]);
+
+        $this->assertFileExists($clone->get_wp_content_path() . '/themes/test.txt');
+        $this->assertSame('hello', file_get_contents($clone->get_wp_content_path() . '/themes/test.txt'));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSandboxThrowsOnMissingSource(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Source sandbox not found');
+        $manager->create('Orphan Clone', ['clone_from' => 'nonexistent-id']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSandboxRejectsConflictingOptions(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Conflict Source');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $manager->create('Conflict Target', ['clone_from' => $source->id, 'clone_db' => true]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSandboxSetsCloneSourceMeta(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Meta Source');
+
+        $clone = $manager->create('Meta Target', ['clone_from' => $source->id]);
+
+        $this->assertNotNull($clone->clone_source);
+        $this->assertSame('sandbox', $clone->clone_source['type']);
+        $this->assertSame($source->id, $clone->clone_source['source_id']);
+    }
+
+    // cleanup
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupRemovesExpiredSandboxes(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        // Create a sandbox with an old created_at.
+        $sandbox = $manager->create('Old Sandbox', ['skip_limits' => true]);
+        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
+        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
+        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+
+        $result = $manager->cleanup(['max_age_days' => 1]);
+
+        $this->assertContains($sandbox->id, $result['removed']);
+        $this->assertDirectoryDoesNotExist($sandbox->path);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupDryRunDoesNotDestroy(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $sandbox = $manager->create('DryRun Sandbox', ['skip_limits' => true]);
+        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
+        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
+        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+
+        $result = $manager->cleanup(['max_age_days' => 1, 'dry_run' => true]);
+
+        $this->assertContains($sandbox->id, $result['removed']);
+        $this->assertDirectoryExists($sandbox->path);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupSkipsRecentSandboxes(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Recent Sandbox', ['skip_limits' => true]);
+
+        $result = $manager->cleanup(['max_age_days' => 30]);
+
+        $this->assertContains($sandbox->id, $result['skipped']);
+        $this->assertDirectoryExists($sandbox->path);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupReturnsEmptyWhenNoMaxAge(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $manager->create('No Cleanup', ['skip_limits' => true]);
+
+        $result = $manager->cleanup(['max_age_days' => 0]);
+
+        $this->assertEmpty($result['removed']);
+        $this->assertEmpty($result['skipped']);
+    }
+
+    // limits
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCheckLimitsThrowsWhenMaxSandboxesExceeded(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $manager->create('Limit A', ['skip_limits' => true]);
+        $manager->create('Limit B', ['skip_limits' => true]);
+
+        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config->set('max_sandboxes', 2);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Sandbox limit reached');
+        $manager->check_limits($config);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCheckLimitsPassesWhenUnderLimit(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $manager->create('Under Limit', ['skip_limits' => true]);
+
+        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config->set('max_sandboxes', 5);
+
+        // Should not throw.
+        $manager->check_limits($config);
+        $this->assertTrue(true);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCheckLimitsSkipsWhenZero(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $manager->create('Unlimited', ['skip_limits' => true]);
+
+        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config->set('max_sandboxes', 0);
+
+        // Should not throw.
+        $manager->check_limits($config);
+        $this->assertTrue(true);
+    }
+
+    // export / import
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testExportCreatesZipWithExpectedFiles(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Export Test');
+
+        $zipPath = $this->tmpDir . '/export.zip';
+        $manager->export($sandbox->id, $zipPath);
+
+        $this->assertFileExists($zipPath);
+
+        $zip = new \ZipArchive();
+        $zip->open($zipPath);
+        $names = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $names[] = $zip->getNameIndex($i);
+        }
+        $zip->close();
+
+        $this->assertContains('.rudel.json', $names);
+        $this->assertContains('wordpress.db', $names);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testExportExcludesSnapshots(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Export Snap Test');
+
+        // Create a snapshot directory.
+        mkdir($sandbox->path . '/snapshots/v1', 0755, true);
+        file_put_contents($sandbox->path . '/snapshots/v1/data.txt', 'snap');
+
+        $zipPath = $this->tmpDir . '/export-snap.zip';
+        $manager->export($sandbox->id, $zipPath);
+
+        $zip = new \ZipArchive();
+        $zip->open($zipPath);
+        $names = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $names[] = $zip->getNameIndex($i);
+        }
+        $zip->close();
+
+        foreach ($names as $n) {
+            $this->assertStringStartsNotWith('snapshots/', $n);
+        }
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testExportThrowsOnMissingSandbox(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Sandbox not found');
+        $manager->export('nonexistent', $this->tmpDir . '/out.zip');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testImportCreatesSandboxWithNewId(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Import Source');
+
+        $zipPath = $this->tmpDir . '/import.zip';
+        $manager->export($sandbox->id, $zipPath);
+
+        $imported = $manager->import($zipPath, 'Imported Sandbox');
+
+        $this->assertNotSame($sandbox->id, $imported->id);
+        $this->assertSame('Imported Sandbox', $imported->name);
+        $this->assertFileExists($imported->get_db_path());
+        $this->assertDirectoryExists($imported->get_wp_content_path());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testImportRewritesUrlsAndPrefix(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'http://import-test.com');
+
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Import Rewrite');
+
+        $zipPath = $this->tmpDir . '/import-rw.zip';
+        $manager->export($sandbox->id, $zipPath);
+
+        $imported = $manager->import($zipPath, 'Rewritten Import');
+
+        $pdo = new \PDO('sqlite:' . $imported->get_db_path());
+        $prefix = 'wp_' . substr(md5($imported->id), 0, 6) . '_';
+
+        $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            ->fetchAll(\PDO::FETCH_COLUMN);
+        foreach ($tables as $t) {
+            $this->assertStringStartsWith($prefix, $t);
+        }
+
+        $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
+        $this->assertStringContainsString($imported->id, $siteurl);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testImportThrowsOnInvalidZip(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $badZip = $this->tmpDir . '/bad.zip';
+        file_put_contents($badZip, 'not a zip');
+
+        $this->expectException(\RuntimeException::class);
+        $manager->import($badZip, 'Bad Import');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testImportThrowsOnMissingRudelJson(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        // Create a zip without .rudel.json.
+        $zipPath = $this->tmpDir . '/no-meta.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFromString('test.txt', 'data');
+        $zip->close();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('missing .rudel.json');
+        $manager->import($zipPath, 'No Meta Import');
     }
 
     // Helpers

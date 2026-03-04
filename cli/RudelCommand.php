@@ -8,6 +8,7 @@
 namespace Rudel\CLI;
 
 use Rudel\SandboxManager;
+use Rudel\SnapshotManager;
 use WP_CLI;
 
 /**
@@ -74,6 +75,9 @@ class RudelCommand extends \WP_CLI_Command {
 	 * [--clone-all]
 	 * : Clone everything (database, themes, plugins, uploads).
 	 *
+	 * [--clone-from=<id>]
+	 * : Clone from an existing sandbox (copies SQLite db and wp-content). Mutually exclusive with --clone-db/--clone-all.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     $ wp rudel create --name="my-sandbox"
@@ -95,8 +99,9 @@ class RudelCommand extends \WP_CLI_Command {
 		$name     = $assoc_args['name'];
 		$template = $assoc_args['template'] ?? 'blank';
 
-		$clone_all = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
-		$options   = array(
+		$clone_all  = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
+		$clone_from = $assoc_args['clone-from'] ?? null;
+		$options    = array(
 			'template'      => $template,
 			'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
 			'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
@@ -104,9 +109,15 @@ class RudelCommand extends \WP_CLI_Command {
 			'clone_uploads' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-uploads', false ),
 		);
 
+		if ( $clone_from ) {
+			$options['clone_from'] = $clone_from;
+		}
+
 		$has_clone = $options['clone_db'] || $options['clone_themes'] || $options['clone_plugins'] || $options['clone_uploads'];
 
-		if ( $has_clone ) {
+		if ( $clone_from ) {
+			WP_CLI::log( "Creating sandbox '{$name}' cloned from '{$clone_from}'..." );
+		} elseif ( $has_clone ) {
 			WP_CLI::log( "Creating sandbox '{$name}' with cloned content..." );
 			if ( $options['clone_db'] ) {
 				WP_CLI::log( '  Cloning host database...' );
@@ -372,6 +383,224 @@ class RudelCommand extends \WP_CLI_Command {
 		);
 
 		WP_CLI\Utils\format_items( 'table', $items, array( 'Field', 'Value' ) );
+	}
+
+	/**
+	 * Create a snapshot of a sandbox.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : Sandbox ID to snapshot.
+	 *
+	 * --name=<name>
+	 * : Name for the snapshot.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     $ wp rudel snapshot my-sandbox-a1b2 --name=before-update
+	 *     Success: Snapshot created: before-update
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @when after_wp_load
+	 */
+	public function snapshot( $args, $assoc_args ): void {
+		$id      = $args[0];
+		$sandbox = $this->manager->get( $id );
+
+		if ( ! $sandbox ) {
+			WP_CLI::error( "Sandbox not found: {$id}" );
+		}
+
+		$name = $assoc_args['name'];
+
+		try {
+			$snap_manager = new SnapshotManager( $sandbox );
+			$meta         = $snap_manager->create( $name );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		WP_CLI::success( "Snapshot created: {$meta['name']}" );
+	}
+
+	/**
+	 * Restore a sandbox from a snapshot.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : Sandbox ID to restore.
+	 *
+	 * --snapshot=<name>
+	 * : Snapshot name to restore from.
+	 *
+	 * [--force]
+	 * : Skip confirmation prompt.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     $ wp rudel restore my-sandbox-a1b2 --snapshot=before-update --force
+	 *     Success: Sandbox restored from snapshot: before-update
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @when after_wp_load
+	 */
+	public function restore( $args, $assoc_args ): void {
+		$id      = $args[0];
+		$sandbox = $this->manager->get( $id );
+
+		if ( ! $sandbox ) {
+			WP_CLI::error( "Sandbox not found: {$id}" );
+		}
+
+		$snapshot_name = $assoc_args['snapshot'];
+		$force         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false );
+
+		if ( ! $force ) {
+			WP_CLI::confirm( "Are you sure you want to restore sandbox '{$sandbox->name}' from snapshot '{$snapshot_name}'?" );
+		}
+
+		try {
+			$snap_manager = new SnapshotManager( $sandbox );
+			$snap_manager->restore( $snapshot_name );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		WP_CLI::success( "Sandbox restored from snapshot: {$snapshot_name}" );
+	}
+
+	/**
+	 * Clean up expired sandboxes.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--dry-run]
+	 * : Show what would be removed without actually deleting.
+	 *
+	 * [--max-age-days=<days>]
+	 * : Override the configured max age in days.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     $ wp rudel cleanup --max-age-days=30
+	 *     Removed 2 sandbox(es).
+	 *
+	 *     $ wp rudel cleanup --dry-run --max-age-days=7
+	 *     Would remove 3 sandbox(es).
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @when after_wp_load
+	 */
+	public function cleanup( $args, $assoc_args ): void {
+		$options = array(
+			'dry_run'      => \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false ),
+			'max_age_days' => (int) ( $assoc_args['max-age-days'] ?? 0 ),
+		);
+
+		$result = $this->manager->cleanup( $options );
+
+		if ( $options['dry_run'] ) {
+			$count = count( $result['removed'] );
+			WP_CLI::log( "Would remove {$count} sandbox(es)." );
+			foreach ( $result['removed'] as $id ) {
+				WP_CLI::log( "  {$id}" );
+			}
+		} else {
+			$count = count( $result['removed'] );
+			WP_CLI::success( "Removed {$count} sandbox(es)." );
+			foreach ( $result['removed'] as $id ) {
+				WP_CLI::log( "  {$id}" );
+			}
+		}
+
+		if ( ! empty( $result['errors'] ) ) {
+			foreach ( $result['errors'] as $id ) {
+				WP_CLI::warning( "Failed to remove: {$id}" );
+			}
+		}
+	}
+
+	/**
+	 * Export a sandbox as a zip archive.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : Sandbox ID to export.
+	 *
+	 * --output=<path>
+	 * : Output path for the zip file.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     $ wp rudel export my-sandbox-a1b2 --output=/tmp/sandbox.zip
+	 *     Success: Sandbox exported to /tmp/sandbox.zip
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @when after_wp_load
+	 */
+	public function export( $args, $assoc_args ): void {
+		$id          = $args[0];
+		$output_path = $assoc_args['output'];
+
+		try {
+			$this->manager->export( $id, $output_path );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		WP_CLI::success( "Sandbox exported to {$output_path}" );
+	}
+
+	/**
+	 * Import a sandbox from a zip archive.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <file>
+	 * : Path to the zip file to import.
+	 *
+	 * --name=<name>
+	 * : Human-readable name for the imported sandbox.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     $ wp rudel import /tmp/sandbox.zip --name=imported-sandbox
+	 *     Success: Sandbox imported: imported-sandbox-a1b2
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @subcommand import
+	 * @when after_wp_load
+	 */
+	public function import_( $args, $assoc_args ): void {
+		$zip_path = $args[0];
+		$name     = $assoc_args['name'];
+
+		try {
+			$sandbox = $this->manager->import( $zip_path, $name );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		WP_CLI::success( "Sandbox imported: {$sandbox->id}" );
+		WP_CLI::log( "  Path: {$sandbox->path}" );
 	}
 
 	/**

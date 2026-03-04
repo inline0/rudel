@@ -34,14 +34,18 @@ rudel/
 ├── phpcs.xml            # PHPCS configuration
 ├── .wp-env.json         # Docker-based wp-env config
 ├── src/
-│   ├── ConfigWriter.php  # wp-config.php line management
-│   ├── ContentCloner.php # Copies wp-content dirs from host to sandbox
+│   ├── ConfigWriter.php   # wp-config.php line management
+│   ├── ContentCloner.php  # Copies wp-content dirs from host to sandbox
 │   ├── DatabaseCloner.php # Clones host MySQL to sandbox SQLite
-│   ├── Sandbox.php       # Sandbox model
-│   ├── SandboxManager.php # CRUD orchestrator
-│   └── Router.php        # Request to sandbox resolution
+│   ├── RudelConfig.php    # JSON config (limits, cleanup settings)
+│   ├── Sandbox.php        # Sandbox model
+│   ├── SandboxManager.php # CRUD orchestrator + export/import/cleanup
+│   ├── SnapshotManager.php # Point-in-time snapshots per sandbox
+│   ├── TemplateManager.php # Reusable sandbox templates
+│   └── Router.php         # Request to sandbox resolution
 ├── cli/
-│   └── RudelCommand.php # WP-CLI commands
+│   ├── RudelCommand.php    # WP-CLI commands (rudel)
+│   └── TemplateCommand.php # WP-CLI commands (rudel template)
 ├── templates/           # Template files for generated sandbox files
 ├── lib/                 # Bundled SQLite integration (auto-downloaded)
 └── tests/
@@ -90,11 +94,20 @@ rudel/
 
 | Command | Description |
 |---------|-------------|
-| `wp rudel create --name=<name> [--template=<template>]` | Create a blank sandbox |
+| `wp rudel create --name=<name> [--template=<template>]` | Create a blank sandbox (or from template) |
 | `wp rudel create --name=<name> --clone-all` | Clone host DB + wp-content into sandbox |
 | `wp rudel create --name=<name> --clone-db` | Clone host DB only |
 | `wp rudel create --name=<name> --clone-themes --clone-plugins` | Clone specific content |
+| `wp rudel create --name=<name> --clone-from=<id>` | Clone from an existing sandbox |
 | `wp rudel list [--format=<format>]` | List all sandboxes |
 | `wp rudel info <id> [--format=<format>]` | Show sandbox details |
 | `wp rudel destroy <id> [--force]` | Delete a sandbox |
 | `wp rudel status` | Show Rudel status and config |
+| `wp rudel snapshot <id> --name=<name>` | Create a snapshot of a sandbox |
+| `wp rudel restore <id> --snapshot=<name> [--force]` | Restore a sandbox from a snapshot |
+| `wp rudel export <id> --output=<path>` | Export a sandbox as a zip archive |
+| `wp rudel import <file> --name=<name>` | Import a sandbox from a zip archive |
+| `wp rudel cleanup [--dry-run] [--max-age-days=<days>]` | Clean up expired sandboxes |
+| `wp rudel template save <id> --name=<name>` | Save a sandbox as a template |
+| `wp rudel template list [--format=<format>]` | List all templates |
+| `wp rudel template delete <name> [--force]` | Delete a template |

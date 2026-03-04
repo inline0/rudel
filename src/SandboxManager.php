@@ -44,9 +44,14 @@ class SandboxManager {
 	 * @return Sandbox The newly created sandbox.
 	 *
 	 * @throws \RuntimeException If the directory already exists or creation fails.
+	 * @throws \InvalidArgumentException If conflicting clone options are provided.
 	 * @throws \Throwable If any step after directory creation fails (directory is cleaned up).
 	 */
 	public function create( string $name, array $options = array() ): Sandbox {
+		if ( empty( $options['skip_limits'] ) ) {
+			$this->check_limits();
+		}
+
 		$id   = Sandbox::generate_id( $name );
 		$path = $this->sandboxes_dir . '/' . $id;
 
@@ -57,11 +62,16 @@ class SandboxManager {
 			);
 		}
 
+		$clone_from    = $options['clone_from'] ?? null;
 		$clone_db      = ! empty( $options['clone_db'] );
 		$clone_themes  = ! empty( $options['clone_themes'] );
 		$clone_plugins = ! empty( $options['clone_plugins'] );
 		$clone_uploads = ! empty( $options['clone_uploads'] );
 		$has_clone     = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
+
+		if ( $clone_from && $has_clone ) {
+			throw new \InvalidArgumentException( 'Cannot combine --clone-from with --clone-db, --clone-themes, --clone-plugins, or --clone-uploads.' );
+		}
 
 		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox scaffolding.
 		if ( ! is_dir( $this->sandboxes_dir ) ) {
@@ -89,10 +99,21 @@ class SandboxManager {
 			$this->write_wp_cli_yml( $path );
 			$this->write_claude_md( $id, $name, $path );
 
-			$clone_source = null;
-			$template     = $options['template'] ?? ( $has_clone ? 'clone' : 'blank' );
+			$clone_source     = null;
+			$template         = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
+			$is_from_template = ! in_array( $template, array( 'blank', 'clone' ), true )
+				&& ! $clone_from && ! $has_clone
+				&& $this->template_exists( $template );
 
-			if ( $clone_db ) {
+			if ( $is_from_template ) {
+				$this->initialize_from_template( $template, $id, $path );
+			} elseif ( $clone_from ) {
+				$source = $this->get( $clone_from );
+				if ( ! $source ) {
+					throw new \RuntimeException( sprintf( 'Source sandbox not found: %s', $clone_from ) );
+				}
+				$clone_source = $this->clone_from_sandbox( $source, $id, $path );
+			} elseif ( $clone_db ) {
 				$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
 				$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 				$sandbox_url  = $site_url . '/__rudel/' . $id;
@@ -224,12 +245,249 @@ class SandboxManager {
 	}
 
 	/**
+	 * Export a sandbox as a zip archive.
+	 *
+	 * @param string $id          Sandbox identifier.
+	 * @param string $output_path Absolute path for the output zip file.
+	 * @return void
+	 *
+	 * @throws \RuntimeException If the sandbox is not found or export fails.
+	 */
+	public function export( string $id, string $output_path ): void {
+		$sandbox = $this->get( $id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $id ) );
+		}
+
+		$zip = new \ZipArchive();
+		if ( true !== $zip->open( $output_path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE ) ) {
+			throw new \RuntimeException( sprintf( 'Failed to create zip archive: %s', $output_path ) );
+		}
+
+		$base_path = $sandbox->path;
+		$iterator  = new \RecursiveIteratorIterator(
+			new \RecursiveDirectoryIterator( $base_path, \FilesystemIterator::SKIP_DOTS ),
+			\RecursiveIteratorIterator::SELF_FIRST
+		);
+
+		foreach ( $iterator as $item ) {
+			$relative = substr( $item->getPathname(), strlen( $base_path ) + 1 );
+
+			// Skip snapshots directory.
+			if ( str_starts_with( $relative, 'snapshots/' ) || 'snapshots' === $relative ) {
+				continue;
+			}
+
+			if ( $item->isDir() ) {
+				$zip->addEmptyDir( $relative );
+			} else {
+				$zip->addFile( $item->getPathname(), $relative );
+			}
+		}
+
+		$zip->close();
+	}
+
+	/**
+	 * Import a sandbox from a zip archive.
+	 *
+	 * @param string $zip_path Absolute path to the zip file.
+	 * @param string $name     Human-readable name for the imported sandbox.
+	 * @return Sandbox The imported sandbox.
+	 *
+	 * @throws \RuntimeException If the zip is invalid or import fails.
+	 */
+	public function import( string $zip_path, string $name ): Sandbox {
+		if ( ! file_exists( $zip_path ) ) {
+			throw new \RuntimeException( sprintf( 'Zip file not found: %s', $zip_path ) );
+		}
+
+		$zip = new \ZipArchive();
+		if ( true !== $zip->open( $zip_path ) ) {
+			throw new \RuntimeException( sprintf( 'Failed to open zip archive: %s', $zip_path ) );
+		}
+
+		$tmp_dir = sys_get_temp_dir() . '/rudel-import-' . uniqid();
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating temp extraction directory.
+		mkdir( $tmp_dir, 0755, true );
+		$zip->extractTo( $tmp_dir );
+		$zip->close();
+
+		$meta_file = $tmp_dir . '/.rudel.json';
+		if ( ! file_exists( $meta_file ) ) {
+			$this->delete_directory( $tmp_dir );
+			throw new \RuntimeException( 'Invalid sandbox archive: missing .rudel.json' );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading extracted metadata.
+		$old_meta = json_decode( file_get_contents( $meta_file ), true );
+		if ( ! is_array( $old_meta ) || empty( $old_meta['id'] ) ) {
+			$this->delete_directory( $tmp_dir );
+			throw new \RuntimeException( 'Invalid sandbox archive: malformed .rudel.json' );
+		}
+
+		$old_id = $old_meta['id'];
+		$new_id = Sandbox::generate_id( $name );
+
+		if ( ! is_dir( $this->sandboxes_dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating sandboxes directory.
+			mkdir( $this->sandboxes_dir, 0755, true );
+		}
+
+		$new_path = $this->sandboxes_dir . '/' . $new_id;
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Moving extracted sandbox into place.
+		rename( $tmp_dir, $new_path );
+
+		$this->ensure_sqlite_integration();
+		$this->write_db_drop_in( $new_path );
+		$this->write_sandbox_bootstrap( $new_id, $new_path );
+		$this->write_wp_cli_yml( $new_path );
+		$this->write_claude_md( $new_id, $name, $new_path );
+
+		// Rewrite URLs and prefix in the database.
+		$db_path = $new_path . '/wordpress.db';
+		if ( file_exists( $db_path ) ) {
+			$old_prefix = 'wp_' . substr( md5( $old_id ), 0, 6 ) . '_';
+			$new_prefix = 'wp_' . substr( md5( $new_id ), 0, 6 ) . '_';
+
+			$site_url = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+			$old_url  = $site_url . '/__rudel/' . $old_id;
+			$new_url  = $site_url . '/__rudel/' . $new_id;
+
+			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO for import rewriting.
+			$pdo = new \PDO( 'sqlite:' . $db_path );
+			$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+			// phpcs:enable
+
+			$db_cloner = new DatabaseCloner( $this->plugin_dir );
+			$db_cloner->rewrite_urls( $pdo, $old_prefix, $old_url, $new_url );
+
+			if ( $old_prefix !== $new_prefix ) {
+				// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
+				$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$old_prefix}%'" )
+					->fetchAll( \PDO::FETCH_COLUMN );
+				// phpcs:enable
+
+				foreach ( $tables as $old_table ) {
+					$new_table = $new_prefix . substr( $old_table, strlen( $old_prefix ) );
+					$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
+				}
+
+				$db_cloner->rewrite_table_prefix_in_data( $pdo, $new_prefix, $old_prefix, $new_prefix );
+			}
+
+			$pdo = null;
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting permissions on imported database file.
+			chmod( $db_path, 0664 );
+		}
+
+		$sandbox = new Sandbox(
+			id: $new_id,
+			name: $name,
+			path: $new_path,
+			created_at: gmdate( 'c' ),
+			template: $old_meta['template'] ?? 'imported',
+			status: 'active',
+		);
+		$sandbox->save_meta();
+
+		return $sandbox;
+	}
+
+	/**
 	 * Get the configured sandboxes directory.
 	 *
 	 * @return string Absolute path.
 	 */
 	public function get_sandboxes_dir(): string {
 		return $this->sandboxes_dir;
+	}
+
+	/**
+	 * Clean up expired sandboxes.
+	 *
+	 * @param array $options Options: 'dry_run' (bool), 'max_age_days' (int override).
+	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
+	 */
+	public function cleanup( array $options = array() ): array {
+		$dry_run      = ! empty( $options['dry_run'] );
+		$max_age_days = $options['max_age_days'] ?? 0;
+
+		if ( 0 === $max_age_days ) {
+			$config       = new RudelConfig();
+			$max_age_days = $config->get( 'max_age_days' );
+		}
+
+		$result = array(
+			'removed' => array(),
+			'skipped' => array(),
+			'errors'  => array(),
+		);
+
+		if ( $max_age_days <= 0 ) {
+			return $result;
+		}
+
+		$cutoff    = time() - ( $max_age_days * 86400 );
+		$sandboxes = $this->list();
+
+		foreach ( $sandboxes as $sandbox ) {
+			$created = strtotime( $sandbox->created_at );
+
+			if ( false === $created || $created >= $cutoff ) {
+				$result['skipped'][] = $sandbox->id;
+				continue;
+			}
+
+			if ( $dry_run ) {
+				$result['removed'][] = $sandbox->id;
+				continue;
+			}
+
+			if ( $this->destroy( $sandbox->id ) ) {
+				$result['removed'][] = $sandbox->id;
+			} else {
+				$result['errors'][] = $sandbox->id;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Check configured limits before creating a new sandbox.
+	 *
+	 * @param RudelConfig|null $config Optional config instance for testing.
+	 * @return void
+	 *
+	 * @throws \RuntimeException If a limit is exceeded.
+	 */
+	public function check_limits( ?RudelConfig $config = null ): void {
+		$config        = $config ?? new RudelConfig();
+		$max_sandboxes = $config->get( 'max_sandboxes' );
+		$max_disk_mb   = $config->get( 'max_disk_mb' );
+
+		if ( $max_sandboxes > 0 ) {
+			$count = count( $this->list() );
+			if ( $count >= $max_sandboxes ) {
+				throw new \RuntimeException(
+					sprintf( 'Sandbox limit reached: %d of %d', $count, $max_sandboxes )
+				);
+			}
+		}
+
+		if ( $max_disk_mb > 0 ) {
+			$total_bytes = 0;
+			foreach ( $this->list() as $sandbox ) {
+				$total_bytes += $sandbox->get_size();
+			}
+			$total_mb = $total_bytes / ( 1024 * 1024 );
+			if ( $total_mb >= $max_disk_mb ) {
+				throw new \RuntimeException(
+					sprintf( 'Disk limit reached: %.1f MB of %d MB', $total_mb, $max_disk_mb )
+				);
+			}
+		}
 	}
 
 	/**
@@ -812,6 +1070,164 @@ class SandboxManager {
 					'level_0' => true,
 				),
 			),
+		);
+	}
+
+	/**
+	 * Check if a template exists by name.
+	 *
+	 * @param string $name Template name.
+	 * @return bool True if the template directory exists.
+	 */
+	private function template_exists( string $name ): bool {
+		$tpl_manager = new TemplateManager();
+		return is_dir( $tpl_manager->get_templates_dir() . '/' . $name );
+	}
+
+	/**
+	 * Initialize a sandbox from a template: copy db and wp-content, rewrite URLs and prefix.
+	 *
+	 * @param string $template_name Template name.
+	 * @param string $target_id     New sandbox ID.
+	 * @param string $target_path   New sandbox directory path.
+	 * @return void
+	 *
+	 * @throws \RuntimeException If the template is not found or initialization fails.
+	 */
+	private function initialize_from_template( string $template_name, string $target_id, string $target_path ): void {
+		$tpl_manager   = new TemplateManager();
+		$template_path = $tpl_manager->get_template_path( $template_name );
+
+		$meta_file = $template_path . '/template.json';
+		if ( ! file_exists( $meta_file ) ) {
+			throw new \RuntimeException( sprintf( 'Template metadata not found: %s', $template_name ) );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template metadata.
+		$meta = json_decode( file_get_contents( $meta_file ), true );
+
+		$source_db = $template_path . '/wordpress.db';
+		$target_db = $target_path . '/wordpress.db';
+
+		if ( file_exists( $source_db ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying database from template.
+			copy( $source_db, $target_db );
+		}
+
+		$source_url    = $meta['source_url'] ?? '';
+		$site_url      = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+		$sandbox_url   = $site_url . '/__rudel/' . $target_id;
+		$source_id     = $meta['source_sandbox_id'] ?? '';
+		$source_prefix = 'wp_' . substr( md5( $source_id ), 0, 6 ) . '_';
+		$target_prefix = 'wp_' . substr( md5( $target_id ), 0, 6 ) . '_';
+
+		if ( file_exists( $target_db ) ) {
+			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO for template initialization.
+			$pdo = new \PDO( 'sqlite:' . $target_db );
+			$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+			// phpcs:enable
+
+			$db_cloner = new DatabaseCloner( $this->plugin_dir );
+
+			if ( $source_url && $source_url !== $sandbox_url ) {
+				$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $sandbox_url );
+			}
+
+			if ( $source_prefix !== $target_prefix ) {
+				// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
+				$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
+					->fetchAll( \PDO::FETCH_COLUMN );
+				// phpcs:enable
+
+				foreach ( $tables as $old_table ) {
+					$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
+					$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
+				}
+
+				$db_cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
+			}
+
+			$pdo = null;
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting permissions on generated database file.
+			chmod( $target_db, 0664 );
+		}
+
+		// Replace scaffolded wp-content with template wp-content.
+		$template_content = $template_path . '/wp-content';
+		if ( is_dir( $template_content ) ) {
+			$this->delete_directory( $target_path . '/wp-content' );
+			$content_cloner = new ContentCloner();
+			$content_cloner->copy_directory( $template_content, $target_path . '/wp-content' );
+			$this->write_db_drop_in( $target_path );
+		}
+	}
+
+	/**
+	 * Clone from an existing sandbox: copy its SQLite db and wp-content, then rewrite URLs and prefix.
+	 *
+	 * @param Sandbox $source      Source sandbox to clone from.
+	 * @param string  $target_id   New sandbox ID.
+	 * @param string  $target_path New sandbox directory path.
+	 * @return array Clone source metadata.
+	 *
+	 * @throws \RuntimeException If the database copy fails.
+	 */
+	private function clone_from_sandbox( Sandbox $source, string $target_id, string $target_path ): array {
+		$source_db = $source->get_db_path();
+		$target_db = $target_path . '/wordpress.db';
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file.
+		if ( ! copy( $source_db, $target_db ) ) {
+			throw new \RuntimeException( sprintf( 'Failed to copy database from source sandbox: %s', $source->id ) );
+		}
+
+		$source_prefix = 'wp_' . substr( md5( $source->id ), 0, 6 ) . '_';
+		$target_prefix = 'wp_' . substr( md5( $target_id ), 0, 6 ) . '_';
+
+		$site_url    = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+		$source_url  = $site_url . '/__rudel/' . $source->id;
+		$sandbox_url = $site_url . '/__rudel/' . $target_id;
+
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO.
+		$pdo = new \PDO( 'sqlite:' . $target_db );
+		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+		// phpcs:enable
+
+		$db_cloner = new DatabaseCloner( $this->plugin_dir );
+		$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $sandbox_url );
+
+		// Rename tables from source prefix to target prefix.
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
+		$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
+			->fetchAll( \PDO::FETCH_COLUMN );
+		// phpcs:enable
+
+		foreach ( $tables as $old_table ) {
+			$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
+			$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
+		}
+
+		$db_cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
+
+		$pdo = null;
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting permissions on generated database file.
+		chmod( $target_db, 0664 );
+
+		// Replace scaffolded wp-content with source sandbox's wp-content.
+		$this->delete_directory( $target_path . '/wp-content' );
+		$content_cloner = new ContentCloner();
+		$content_cloner->copy_directory( $source->get_wp_content_path(), $target_path . '/wp-content' );
+
+		// Re-write the db.php drop-in (it was copied from source but needs same content).
+		$this->write_db_drop_in( $target_path );
+
+		return array(
+			'type'           => 'sandbox',
+			'source_id'      => $source->id,
+			'source_name'    => $source->name,
+			'cloned_at'      => gmdate( 'c' ),
+			'db_cloned'      => true,
+			'content_cloned' => true,
 		);
 	}
 
