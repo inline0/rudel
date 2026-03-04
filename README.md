@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://github.com/inline0/rudel/actions/workflows/ci.yml"><img src="https://github.com/inline0/rudel/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/inline0/rudel/blob/main/LICENSE"><img src="https://img.shields.io/github/license/inline0/rudel.svg" alt="license"></a>
+  <a href="https://github.com/inline0/rudel/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-GPL--2.0-blue.svg" alt="license"></a>
 </p>
 
 ---
