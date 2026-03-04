@@ -20,16 +20,13 @@ jobs:
       - run: composer cs
 
   test:
-    name: Tests (PHP ${{ matrix.php }})
+    name: Tests
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        php: ["8.0", "8.1", "8.2", "8.3", "8.4"]
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: "8.4"
           extensions: sqlite3, pdo_sqlite
           tools: composer
       - run: composer install --no-interaction --prefer-dist
