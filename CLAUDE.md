@@ -29,7 +29,6 @@ bash tests/e2e/run-all.sh
 rudel/
 ├── rudel.php            # Entry point
 ├── bootstrap.php        # Pre-boot sandbox resolver (loaded via wp-config.php)
-├── rudel-prd.md         # Product requirements
 ├── phpunit.xml.dist     # PHPUnit configuration
 ├── phpcs.xml            # PHPCS configuration
 ├── .wp-env.json         # Docker-based wp-env config

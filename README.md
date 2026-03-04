@@ -13,6 +13,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/inline0/rudel/actions/workflows/ci.yml"><img src="https://github.com/inline0/rudel/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/inline0/rudel/blob/main/LICENSE"><img src="https://img.shields.io/github/license/inline0/rudel.svg" alt="license"></a>
 </p>
 

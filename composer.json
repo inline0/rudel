@@ -2,7 +2,7 @@
     "name": "rudel/rudel",
     "description": "Sandboxed WordPress environments powered by SQLite",
     "type": "wordpress-plugin",
-    "license": "GPL-2.0-or-later",
+    "license": "MIT",
     "require": {
         "php": ">=8.0"
     },
