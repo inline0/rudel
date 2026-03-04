@@ -394,7 +394,7 @@ class DatabaseClonerPipelineTest extends RudelTestCase
 
         // Float precision
         $score = $pdo->query("SELECT score FROM wp_sb_search_index WHERE id=1")->fetchColumn();
-        $this->assertEquals(0.85, (float) $score, '', 0.01);
+        $this->assertEqualsWithDelta(0.85, (float) $score, 0.01);
 
         // Empty content
         $content = $pdo->query("SELECT content FROM wp_sb_search_index WHERE id=3")->fetchColumn();

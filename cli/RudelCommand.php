@@ -263,6 +263,9 @@ class RudelCommand extends \WP_CLI_Command {
 		if ( 'table' === $format ) {
 			$items = array();
 			foreach ( $data as $key => $value ) {
+				if ( is_array( $value ) ) {
+					$value = wp_json_encode( $value );
+				}
 				$items[] = array(
 					'Field' => $key,
 					'Value' => $value,

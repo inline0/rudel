@@ -48,7 +48,8 @@ rudel/
     ├── bootstrap.php    # PHPUnit bootstrap
     ├── RudelTestCase.php # Shared base test class
     ├── Stubs/
-    │   └── wp-cli-stubs.php
+    │   ├── wp-cli-stubs.php
+    │   └── MockWpdb.php
     ├── Unit/            # PHPUnit unit tests
     ├── Integration/     # PHPUnit integration tests
     ├── Security/        # PHPUnit security tests

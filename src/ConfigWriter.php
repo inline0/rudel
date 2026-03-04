@@ -48,25 +48,35 @@ class ConfigWriter {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local wp-config.php.
 		$contents = file_get_contents( $config_path );
+		if ( false === $contents ) {
+			throw new \RuntimeException( sprintf( 'Failed to read wp-config.php: %s', $config_path ) );
+		}
 
 		// Inject bootstrap require after <?php so it runs before wp-config.php
 		// defines constants (WP_SITEURL, WP_HOME, auth keys, etc.).
-		$contents = preg_replace(
+		$result = preg_replace(
 			'/^<\?php\s*/i',
 			"<?php\n{$line}\n",
 			$contents,
 			1
 		);
+		if ( null === $result ) {
+			throw new \RuntimeException( 'Failed to inject bootstrap line into wp-config.php' );
+		}
+		$contents = $result;
 
 		// Also inject a table_prefix fixup just before wp-settings.php.
 		// wp-config.php sets $table_prefix after the bootstrap, overwriting it.
-		$fixup    = "if ( defined( 'RUDEL_TABLE_PREFIX' ) ) { \$table_prefix = RUDEL_TABLE_PREFIX; } " . self::MARKER;
-		$contents = preg_replace(
+		$fixup  = "if ( defined( 'RUDEL_TABLE_PREFIX' ) ) { \$table_prefix = RUDEL_TABLE_PREFIX; } " . self::MARKER;
+		$result = preg_replace(
 			'/^(\s*require(?:_once)?\s.*wp-settings\.php.*$)/mi',
 			"{$fixup}\n$1",
 			$contents,
 			1
 		);
+		if ( null !== $result ) {
+			$contents = $result;
+		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing local wp-config.php.
 		file_put_contents( $config_path, $contents );
@@ -93,8 +103,11 @@ class ConfigWriter {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local wp-config.php.
 		$contents = file_get_contents( $config_path );
-		$lines    = explode( "\n", $contents );
-		$lines    = array_filter( $lines, fn( $line ) => ! str_contains( $line, self::MARKER ) );
+		if ( false === $contents ) {
+			return;
+		}
+		$lines = explode( "\n", $contents );
+		$lines = array_filter( $lines, fn( $line ) => ! str_contains( $line, self::MARKER ) );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing local wp-config.php.
 		file_put_contents( $config_path, implode( "\n", $lines ) );
 	}

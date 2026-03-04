@@ -222,7 +222,7 @@ echo -e "${BOLD}Constants verification${NC}"
 RESULT=$(run_bootstrap '{"HTTP_X_RUDEL_SANDBOX":"test-sandbox-001","HTTP_HOST":"localhost"}')
 
 TPREFIX=$(get_json_field "$RESULT" "table_prefix")
-EXPECTED_PREFIX="wp_$(echo -n 'test-sandbox-001' | md5 | cut -c1-6)_"
+EXPECTED_PREFIX="wp_$(php -r "echo substr(md5('test-sandbox-001'), 0, 6);")_"
 if [[ "$TPREFIX" == "$EXPECTED_PREFIX" ]]; then
     pass "Table prefix matches expected hash"
 else

@@ -212,7 +212,7 @@ $_rudel_prefix = null;
 
 	// Build content URL.
 	$protocol = 'http';
-	if ( ! empty( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) ) {
+	if ( ! empty( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && in_array( $_SERVER['HTTP_X_FORWARDED_PROTO'], array( 'http', 'https' ), true ) ) {
 		$protocol = $_SERVER['HTTP_X_FORWARDED_PROTO'];
 	} elseif ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
 		$protocol = 'https';

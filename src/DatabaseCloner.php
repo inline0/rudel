@@ -432,6 +432,7 @@ class DatabaseCloner {
 		$base = $this->plugin_dir . 'lib/sqlite-database-integration/wp-includes/sqlite';
 
 		$files = array(
+			$base . '/class-wp-sqlite-token.php',
 			$base . '/class-wp-sqlite-pdo-user-defined-functions.php',
 			$base . '/class-wp-sqlite-lexer.php',
 			$base . '/class-wp-sqlite-query-rewriter.php',

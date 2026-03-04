@@ -47,7 +47,7 @@ class Sandbox {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file read.
 		$data = json_decode( file_get_contents( $meta_file ), true );
-		if ( ! $data ) {
+		if ( ! is_array( $data ) || ! isset( $data['id'], $data['name'] ) ) {
 			return null;
 		}
 
@@ -113,7 +113,7 @@ class Sandbox {
 	/**
 	 * Convert sandbox to an associative array.
 	 *
-	 * @return array<string, string> Sandbox data.
+	 * @return array<string, mixed> Sandbox data.
 	 */
 	public function to_array(): array {
 		$data = array(

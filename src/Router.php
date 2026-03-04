@@ -89,6 +89,8 @@ class Router {
 				if ( preg_match( '#^https?://([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})\.#', $url, $matches ) ) {
 					return $this->validate_and_return( $matches[1] );
 				}
+				// Only process the first --url= argument (matches bootstrap.php behavior).
+				break;
 			}
 		}
 
@@ -187,7 +189,8 @@ class Router {
 		if ( defined( 'WP_CONTENT_DIR' ) ) {
 			return WP_CONTENT_DIR . '/rudel-sandboxes';
 		}
-		return __DIR__ . '/../rudel-sandboxes';
+		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
+		return $abspath . 'wp-content/rudel-sandboxes';
 	}
 
 	/**

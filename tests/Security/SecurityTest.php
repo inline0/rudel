@@ -244,27 +244,28 @@ class SecurityTest extends RudelTestCase
 
     public function testAuthSaltsAreDeterministic(): void
     {
-        $salt1 = hash('sha256', 'test-sandbox' . 'AUTH_KEY');
-        $salt2 = hash('sha256', 'test-sandbox' . 'AUTH_KEY');
-        $this->assertSame($salt1, $salt2);
+        $output1 = $this->runBootstrapAndGetConstant('salt-deterministic', 'AUTH_KEY');
+        $output2 = $this->runBootstrapAndGetConstant('salt-deterministic', 'AUTH_KEY');
+        $this->assertNotEmpty($output1);
+        $this->assertSame($output1, $output2);
     }
 
     public function testAuthSaltsDifferBetweenSandboxes(): void
     {
-        $saltA = hash('sha256', 'sandbox-a' . 'AUTH_KEY');
-        $saltB = hash('sha256', 'sandbox-b' . 'AUTH_KEY');
+        $saltA = $this->runBootstrapAndGetConstant('sandbox-a', 'AUTH_KEY');
+        $saltB = $this->runBootstrapAndGetConstant('sandbox-b', 'AUTH_KEY');
+        $this->assertNotEmpty($saltA);
         $this->assertNotSame($saltA, $saltB);
     }
 
     public function testAllEightSaltsAreUnique(): void
     {
-        $id = 'test-sandbox';
         $saltNames = [
             'AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY',
             'AUTH_SALT', 'SECURE_AUTH_SALT', 'LOGGED_IN_SALT', 'NONCE_SALT',
         ];
 
-        $salts = array_map(fn($name) => hash('sha256', $id . $name), $saltNames);
+        $salts = array_map(fn($name) => $this->runBootstrapAndGetConstant('salt-unique-test', $name), $saltNames);
         $unique = array_unique($salts);
         $this->assertCount(8, $unique, 'All 8 salts should be unique');
     }
@@ -273,15 +274,46 @@ class SecurityTest extends RudelTestCase
 
     public function testTablePrefixesAreUniquePerSandbox(): void
     {
-        $prefix1 = 'wp_' . substr(md5('sandbox-alpha'), 0, 6) . '_';
-        $prefix2 = 'wp_' . substr(md5('sandbox-beta'), 0, 6) . '_';
+        $prefix1 = $this->runBootstrapAndGetConstant('sandbox-alpha', 'RUDEL_TABLE_PREFIX');
+        $prefix2 = $this->runBootstrapAndGetConstant('sandbox-beta', 'RUDEL_TABLE_PREFIX');
+        $this->assertNotEmpty($prefix1);
         $this->assertNotSame($prefix1, $prefix2);
     }
 
     public function testTablePrefixFormatIsConsistent(): void
     {
-        $prefix = 'wp_' . substr(md5('test'), 0, 6) . '_';
+        $prefix = $this->runBootstrapAndGetConstant('test-format', 'RUDEL_TABLE_PREFIX');
         $this->assertMatchesRegularExpression('/^wp_[a-f0-9]{6}_$/', $prefix);
+    }
+
+    /**
+     * Run bootstrap.php in a child process and return a constant's value.
+     */
+    private function runBootstrapAndGetConstant(string $sandboxId, string $constant): string
+    {
+        $sandboxesDir = $this->tmpDir . '/rudel-sandboxes';
+        if (! is_dir($sandboxesDir)) {
+            mkdir($sandboxesDir, 0755, true);
+        }
+        $sandboxPath = $sandboxesDir . '/' . $sandboxId;
+        if (! is_dir($sandboxPath)) {
+            mkdir($sandboxPath, 0755);
+            file_put_contents($sandboxPath . '/.rudel.json', json_encode(['id' => $sandboxId]));
+        }
+
+        $bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
+
+        $script = '<?php' . "\n";
+        $script .= "\$_SERVER['HTTP_X_RUDEL_SANDBOX'] = " . var_export($sandboxId, true) . ";\n";
+        $script .= "\$_SERVER['HTTP_HOST'] = 'localhost';\n";
+        $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
+        $script .= "require " . var_export($bootstrapPath, true) . ";\n";
+        $script .= "echo defined(" . var_export($constant, true) . ") ? constant(" . var_export($constant, true) . ") : '';\n";
+
+        $tmpScript = $this->tmpDir . '/bootstrap-const-test.php';
+        file_put_contents($tmpScript, $script);
+        $output = shell_exec('php ' . escapeshellarg($tmpScript) . ' 2>/dev/null');
+        return trim((string) $output);
     }
 
     // Template file security

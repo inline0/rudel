@@ -46,7 +46,7 @@ parse_sandbox_id() {
 }
 
 strip_wpenv() {
-    sed 's/✔ Ran .*//' | sed '/^[[:space:]]*$/d'
+    sed 's/✔ Ran .*//' | sed '/ℹ Starting /d' | sed '/^[[:space:]]*$/d'
 }
 
 wp_cli() {

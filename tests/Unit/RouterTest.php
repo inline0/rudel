@@ -324,8 +324,8 @@ class RouterTest extends RudelTestCase
     public function testConstructorDefaultFallback(): void
     {
         $router = new Router();
-        $srcDir = dirname(__DIR__, 2) . '/src';
-        $this->assertSame($srcDir . '/../rudel-sandboxes', $router->get_sandboxes_dir());
+        $expected = dirname(__DIR__, 4) . '/wp-content/rudel-sandboxes';
+        $this->assertSame($expected, $router->get_sandboxes_dir());
     }
 
     public function testSymlinkEscapeIsBlocked(): void

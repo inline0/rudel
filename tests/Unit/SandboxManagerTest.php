@@ -689,8 +689,8 @@ class SandboxManagerTest extends RudelTestCase
         $manager = new SandboxManager($this->tmpDir);
         $sandbox = $manager->create('Abspath Test');
 
-        $bootstrap = file_get_contents($sandbox->path . '/bootstrap.php');
-        $this->assertStringContainsString($this->tmpDir . '/wordpress', $bootstrap);
+        $wpCliYml = file_get_contents($sandbox->path . '/wp-cli.yml');
+        $this->assertStringContainsString($this->tmpDir . '/wordpress', $wpCliYml);
     }
 
     // Helpers
