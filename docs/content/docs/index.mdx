@@ -25,15 +25,18 @@ Each sandbox is a self-contained directory:
 
 ```
 /sandboxes/sandbox-{id}/
+├── .rudel.json           # Sandbox metadata (source of truth)
 ├── wp-cli.yml            # Auto-scopes all WP-CLI commands
 ├── bootstrap.php         # Sets WP constants for this sandbox
 ├── wordpress.db          # SQLite database (the entire DB)
 ├── CLAUDE.md             # Agent instructions (optional)
 ├── wp-content/
+│   ├── db.php            # SQLite drop-in
 │   ├── themes/           # Sandbox-specific themes
 │   ├── plugins/          # Sandbox-specific plugins
 │   ├── uploads/          # Isolated media
 │   └── mu-plugins/       # Sandbox mu-plugins
+├── snapshots/            # Named snapshots (created on demand)
 └── tmp/                  # Sandbox temp directory
 ```
 

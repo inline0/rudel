@@ -1,6 +1,6 @@
 ---
 title: Cleanup
-description: Automatic and manual cleanup of expired sandboxes.
+description: Automatic and manual cleanup of stale sandboxes.
 ---
 
 # Cleanup
@@ -9,7 +9,7 @@ Sandboxes are disposable by design. Rudel provides both automatic and manual cle
 
 ## Manual cleanup
 
-Remove all expired sandboxes:
+Remove sandboxes older than the configured `max_age_days`:
 
 ```bash
 wp rudel cleanup
@@ -35,22 +35,22 @@ wp rudel cleanup --dry-run --max-age-days=7
 
 ## Configuration
 
-Cleanup behavior is controlled by the Rudel configuration file (`.rudel-config.json` in the WordPress root):
+Cleanup behavior is controlled by the Rudel configuration file (`rudel-config.json` in the `wp-content` directory):
 
 | Setting | Description | Default |
 |---|---|---|
-| `max_sandboxes` | Maximum number of active sandboxes | 50 |
-| `max_age_days` | Sandboxes older than this are eligible for cleanup | 30 |
-| `max_disk_mb` | Maximum total disk usage for all sandboxes (MB) | 5000 |
+| `max_sandboxes` | Maximum number of active sandboxes (enforced at creation time) | 0 (no limit) |
+| `max_age_days` | Sandboxes older than this are eligible for cleanup | 0 (disabled) |
+| `max_disk_mb` | Maximum total disk usage for all sandboxes in MB (enforced at creation time) | 0 (no limit) |
 
-These limits are enforced during `wp rudel cleanup`. The `max_sandboxes` limit is also checked during sandbox creation.
+The `max_age_days` setting is enforced during `wp rudel cleanup`. The `max_sandboxes` and `max_disk_mb` limits are enforced when creating new sandboxes, not during cleanup.
 
 ## Cleanup behavior
 
 When `wp rudel cleanup` runs:
 
-1. Sandboxes older than `max_age_days` are removed first.
-2. If the sandbox count still exceeds `max_sandboxes`, the oldest sandboxes are removed.
+1. If `max_age_days` is 0 (the default) and no `--max-age-days` override is provided, cleanup returns immediately with no removals.
+2. Sandboxes older than `max_age_days` are removed.
 3. Errors during removal are reported but do not stop the cleanup process.
 
 The `--dry-run` flag shows what would be removed without making changes, so you can verify before committing.

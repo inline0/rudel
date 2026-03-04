@@ -53,15 +53,19 @@ The bootstrap sets PHP's `open_basedir` to restrict file access:
 ini_set('open_basedir', implode(PATH_SEPARATOR, [
     $sandbox_path,          // Sandbox directory (read/write)
     $wp_core_path,          // Shared WP core (read)
+    $rudel_plugin_dir,      // Rudel plugin directory (read)
     sys_get_temp_dir(),     // PHP temp directory
+    '/tmp',                 // Fallback temp directory
 ]));
 ```
+
+In CLI mode, the WP-CLI tool's own directory is also added to the allowlist.
 
 Once set, any file operation outside these paths fails silently. The host's `wp-config.php`, other sandboxes, and the host database are all inaccessible from within a sandbox.
 
 ## Authentication salts
 
-Each sandbox gets its own set of authentication salts, generated at creation time. This means sessions and cookies from one sandbox are not valid in another, preventing cross-sandbox session hijacking.
+Each sandbox gets its own set of authentication salts, deterministically derived from the sandbox ID at boot time. This means sessions and cookies from one sandbox are not valid in another, preventing cross-sandbox session hijacking.
 
 ## WP-CLI scoping
 

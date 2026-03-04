@@ -82,8 +82,9 @@ This copies the host MySQL database into an SQLite database, along with all them
 
 Sandboxes can be accessed via:
 
-- **Path prefix**: `example.com/__rudel/sandbox-123/`
+- **Path prefix**: `example.com/__rudel/sandbox-123/` (no DNS required)
 - **Subdomain**: `sandbox-123.example.com` (requires wildcard DNS)
-- **Header/cookie**: `X-Rudel-Sandbox: sandbox-123` (for programmatic access)
+- **Header**: `X-Rudel-Sandbox: sandbox-123` (for programmatic access)
+- **Cookie**: `rudel_sandbox=sandbox-123` (for browser sessions)
 
 The path prefix method works out of the box with no DNS configuration.

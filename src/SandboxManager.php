@@ -764,7 +764,7 @@ class SandboxManager {
 			array( 'fresh_site', '0' ),
 			array( 'db_version', '57155' ),
 			array( 'initial_db_version', '57155' ),
-			array( 'wp_user_roles', serialize( $this->get_default_user_roles() ) ),
+			array( $table_prefix . 'user_roles', serialize( $this->get_default_user_roles() ) ),
 		);
 		// phpcs:enable
 

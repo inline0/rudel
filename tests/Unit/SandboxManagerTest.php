@@ -256,7 +256,7 @@ class SandboxManagerTest extends RudelTestCase
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
         $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
 
-        $requiredOptions = ['siteurl', 'home', 'blogname', 'blogdescription', 'permalink_structure', 'active_plugins', 'template', 'stylesheet', 'wp_user_roles'];
+        $requiredOptions = ['siteurl', 'home', 'blogname', 'blogdescription', 'permalink_structure', 'active_plugins', 'template', 'stylesheet', $prefix . 'user_roles'];
 
         foreach ($requiredOptions as $name) {
             $val = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='{$name}'")->fetchColumn();
@@ -320,7 +320,7 @@ class SandboxManagerTest extends RudelTestCase
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
         $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
 
-        $roles = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='wp_user_roles'")->fetchColumn();
+        $roles = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='{$prefix}user_roles'")->fetchColumn();
         $rolesArray = unserialize($roles);
         $this->assertArrayHasKey('administrator', $rolesArray);
         $this->assertArrayHasKey('editor', $rolesArray);

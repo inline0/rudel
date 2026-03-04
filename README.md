@@ -74,11 +74,14 @@ Each sandbox is a self-contained directory:
 
 ```
 /sandboxes/sandbox-{id}/
+├── .rudel.json       # Sandbox metadata
 ├── wp-cli.yml        # Auto-scopes all WP-CLI commands
 ├── bootstrap.php     # Sets WP constants for this sandbox
 ├── wordpress.db      # SQLite database
 ├── CLAUDE.md         # Agent instructions (optional)
-└── wp-content/       # Isolated themes, plugins, uploads
+├── wp-content/       # Isolated themes, plugins, uploads
+├── snapshots/        # Named snapshots (on demand)
+└── tmp/              # Sandbox temp directory
 ```
 
 ## WP-CLI Commands
@@ -110,7 +113,8 @@ Sandboxes can be accessed via:
 |--------|---------|
 | Path prefix | `example.com/__rudel/sandbox-123/` |
 | Subdomain | `sandbox-123.example.com` (requires wildcard DNS) |
-| Header/cookie | `X-Rudel-Sandbox: sandbox-123` |
+| Header | `X-Rudel-Sandbox: sandbox-123` |
+| Cookie | `rudel_sandbox=sandbox-123` |
 
 The path prefix method works out of the box with no DNS configuration.
 
