@@ -63,10 +63,10 @@ jobs:
       - name: Verify autoloader resolves classes
         run: |
           php -r "
-            require 'dist/rudel/vendor/autoload.php';
+            \$loader = require 'dist/rudel/vendor/autoload.php';
             \$classes = ['Rudel\\\SandboxManager', 'Rudel\\\CLI\\\RudelCommand'];
             foreach (\$classes as \$c) {
-              if (!class_exists(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
+              if (!\$loader->findFile(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
             }
             echo \"Autoloader OK.\n\";
           "

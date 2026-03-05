@@ -20,7 +20,9 @@ define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
-require_once RUDEL_PLUGIN_DIR . 'vendor/autoload.php';
+if ( file_exists( RUDEL_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
+	require_once RUDEL_PLUGIN_DIR . 'vendor/autoload.php';
+}
 
 register_activation_hook(
 	__FILE__,
