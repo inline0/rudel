@@ -14,6 +14,9 @@ use WP_CLI;
 /**
  * Manage Rudel sandbox templates.
  *
+ * Registered as a subcommand of the main Rudel command. The command name
+ * defaults to "rudel template" but changes if RUDEL_CLI_COMMAND is defined.
+ *
  * ## EXAMPLES
  *
  *     # Save a sandbox as a template

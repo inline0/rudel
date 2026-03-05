@@ -14,6 +14,9 @@ use WP_CLI;
 /**
  * Manage Rudel sandboxes.
  *
+ * The command name defaults to "rudel" but can be changed by defining
+ * RUDEL_CLI_COMMAND in wp-config.php before the plugin loads.
+ *
  * ## EXAMPLES
  *
  *     # Create a new sandbox

@@ -31,6 +31,14 @@ This bootstrap file runs before `wp-settings.php` and detects sandbox context fr
 
 Rudel also downloads the [SQLite Database Integration](https://github.com/WordPress/sqlite-database-integration) into its `lib/` directory automatically.
 
+## Configuration
+
+Rudel works out of the box with sensible defaults. The following optional constants can be defined in `wp-config.php` before the plugin loads:
+
+| Constant | Default | Description |
+|---|---|---|
+| `RUDEL_CLI_COMMAND` | `rudel` | WP-CLI command name. Set to e.g. `sandbox` for white-label use. |
+
 ## Verify installation
 
 Check that everything is set up correctly:

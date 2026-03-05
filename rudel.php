@@ -38,7 +38,11 @@ register_deactivation_hook(
 	}
 );
 
+if ( ! defined( 'RUDEL_CLI_COMMAND' ) ) {
+	define( 'RUDEL_CLI_COMMAND', 'rudel' );
+}
+
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-	WP_CLI::add_command( 'rudel', Rudel\CLI\RudelCommand::class );
-	WP_CLI::add_command( 'rudel template', Rudel\CLI\TemplateCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND, Rudel\CLI\RudelCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }

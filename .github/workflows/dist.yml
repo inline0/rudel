@@ -1,0 +1,182 @@
+name: Distribution
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  zip-integrity:
+    name: Zip Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: sqlite3, pdo_sqlite
+          tools: composer
+
+      - name: Install production dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Build zip
+        run: |
+          mkdir -p dist
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='tests' \
+            --exclude='docs' \
+            --exclude='node_modules' \
+            --exclude='CLAUDE.md' \
+            --exclude='phpunit.xml*' \
+            --exclude='phpcs.xml*' \
+            --exclude='.wp-env.json' \
+            --exclude='dist' \
+            . dist/rudel/
+          cd dist && zip -r rudel.zip rudel/
+
+      - name: Verify required files
+        run: |
+          cd dist/rudel
+          for f in rudel.php bootstrap.php src/SandboxManager.php cli/RudelCommand.php vendor/autoload.php; do
+            test -f "$f" || { echo "Missing: $f"; exit 1; }
+          done
+          test -d templates || { echo "Missing: templates/"; exit 1; }
+          echo "All required files present."
+
+      - name: Verify no dev files leaked
+        run: |
+          cd dist/rudel
+          for f in phpunit.xml phpunit.xml.dist phpcs.xml phpcs.xml.dist .wp-env.json CLAUDE.md; do
+            test ! -f "$f" || { echo "Dev file leaked: $f"; exit 1; }
+          done
+          test ! -d tests || { echo "Dev directory leaked: tests/"; exit 1; }
+          test ! -d .github || { echo "Dev directory leaked: .github/"; exit 1; }
+          echo "No dev files in zip."
+
+      - name: Verify PHP syntax
+        run: find dist/rudel -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Verify autoloader resolves classes
+        run: |
+          php -r "
+            require 'dist/rudel/vendor/autoload.php';
+            \$classes = ['Rudel\\\SandboxManager', 'Rudel\\\CLI\\\RudelCommand'];
+            foreach (\$classes as \$c) {
+              if (!class_exists(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
+            }
+            echo \"Autoloader OK.\n\";
+          "
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rudel-zip
+          path: dist/rudel.zip
+
+  wordpress-activation:
+    name: WordPress Activation
+    needs: zip-integrity
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: sqlite3, pdo_sqlite, mysqli
+          tools: wp-cli
+
+      - name: Download zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rudel-zip
+
+      - name: Install WordPress
+        run: |
+          wp core download --path=wordpress
+          wp config create --path=wordpress \
+            --dbname=wordpress --dbuser=root --dbpass=root --dbhost=127.0.0.1
+          wp core install --path=wordpress \
+            --url=http://localhost --title=Test \
+            --admin_user=admin --admin_password=admin --admin_email=test@example.com
+
+      - name: Install and activate Rudel
+        run: wp plugin install rudel.zip --activate --path=wordpress
+
+      - name: Verify plugin is active
+        run: wp plugin list --status=active --field=name --path=wordpress | grep -q rudel
+
+      - name: Verify plugin loads
+        run: wp eval "echo RUDEL_VERSION;" --path=wordpress
+
+      - name: Verify CLI commands
+        run: wp rudel status --path=wordpress
+
+  composer-install:
+    name: Composer Install
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: sqlite3, pdo_sqlite, mysqli
+          tools: composer, wp-cli
+
+      - name: Create test project
+        run: |
+          mkdir test-project && cd test-project
+          composer init --name=test/project --no-interaction
+          composer config repositories.rudel vcs https://github.com/${{ github.repository }}
+          composer require rudel/rudel:dev-${{ github.ref_name }} --no-interaction
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ secrets.GITHUB_TOKEN }}"}}'
+
+      - name: Verify installed files
+        run: |
+          test -f test-project/vendor/rudel/rudel/rudel.php || { echo "Missing rudel.php"; exit 1; }
+          echo "Composer install OK."
+
+      - name: Install WordPress and activate
+        run: |
+          wp core download --path=wordpress
+          wp config create --path=wordpress \
+            --dbname=wordpress --dbuser=root --dbpass=root --dbhost=127.0.0.1
+          wp core install --path=wordpress \
+            --url=http://localhost --title=Test \
+            --admin_user=admin --admin_password=admin --admin_email=test@example.com
+          ln -s "$(pwd)/test-project/vendor/rudel/rudel" wordpress/wp-content/plugins/rudel
+          wp plugin activate rudel --path=wordpress
+
+      - name: Verify plugin loads
+        run: wp eval "echo RUDEL_VERSION;" --path=wordpress
+
+      - name: Verify CLI commands
+        run: wp rudel status --path=wordpress

@@ -7,6 +7,18 @@ description: Complete WP-CLI command reference for Rudel.
 
 All Rudel operations are available through WP-CLI under the `wp rudel` namespace.
 
+## Custom command name
+
+The CLI command name can be changed by defining `RUDEL_CLI_COMMAND` in your `wp-config.php` before the plugin loads:
+
+```php
+define( 'RUDEL_CLI_COMMAND', 'sandbox' );
+```
+
+This changes all commands from `wp rudel ...` to `wp sandbox ...`. Useful for white-label distributions or when `rudel` conflicts with another command.
+
+Only the WP-CLI command name is affected. Internal identifiers like the `/__rudel/` URL prefix, `rudel_sandbox` cookie, and `X-Rudel-Sandbox` header remain unchanged.
+
 ## Sandbox commands
 
 ### `wp rudel create`
