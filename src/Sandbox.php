@@ -108,9 +108,9 @@ class Sandbox {
 	 */
 	public function get_url(): string {
 		if ( defined( 'WP_HOME' ) ) {
-			return rtrim( WP_HOME, '/' ) . '/__rudel/' . $this->id . '/';
+			return rtrim( WP_HOME, '/' ) . '/' . RUDEL_PATH_PREFIX . '/' . $this->id . '/';
 		}
-		return '/__rudel/' . $this->id . '/';
+		return '/' . RUDEL_PATH_PREFIX . '/' . $this->id . '/';
 	}
 
 	/**

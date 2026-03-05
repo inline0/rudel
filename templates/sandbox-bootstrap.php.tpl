@@ -27,7 +27,7 @@ define('UPLOADS', 'wp-content/uploads');
 
 // Sandbox site URL (CLI context: build from SERVER_NAME or default to localhost)
 $_rudel_host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
-$_rudel_sandbox_url = 'http://' . $_rudel_host . '/__rudel/' . $sandbox_id;
+$_rudel_sandbox_url = 'http://' . $_rudel_host . '/{{path_prefix}}/' . $sandbox_id;
 if (! defined('WP_SITEURL')) {
     define('WP_SITEURL', $_rudel_sandbox_url);
 }

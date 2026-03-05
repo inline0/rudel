@@ -307,7 +307,7 @@ class DatabaseClonerStressTest extends RudelTestCase
         $cloner->clone_table_data($wpdb, $translator, 'wp_options', 'wp_sb_options', 'wp_', 'wp_sb_');
 
         $pdo = $this->openDb($dbPath);
-        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/__rudel/test');
+        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         // Verify large serialized blob survived and was URL-rewritten
         $value = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='large_widget_config'")->fetchColumn();
@@ -315,14 +315,14 @@ class DatabaseClonerStressTest extends RudelTestCase
         $data = unserialize($value);
         $this->assertIsArray($data);
         $this->assertCount(200, $data);
-        $this->assertEquals('http://host.local/__rudel/test/widget/0', $data['widget_0']['settings']['url']);
-        $this->assertEquals('http://host.local/__rudel/test/widget/199', $data['widget_199']['settings']['url']);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/test/widget/0', $data['widget_0']['settings']['url']);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/test/widget/199', $data['widget_199']['settings']['url']);
         $this->assertTrue($data['widget_0']['settings']['enabled']);
         $this->assertFalse($data['widget_1']['settings']['enabled']);
 
         // Verify large HTML was URL-rewritten
         $html = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='custom_css'")->fetchColumn();
-        $this->assertStringContainsString('http://host.local/__rudel/test/page', $html);
+        $this->assertStringContainsString('http://host.local/' . RUDEL_PATH_PREFIX . '/test/page', $html);
         $this->assertStringNotContainsString('http://host.local/page', $html);
         $this->assertGreaterThan(35000, strlen($html));
     }
@@ -455,7 +455,7 @@ class DatabaseClonerStressTest extends RudelTestCase
         $cloner->clone_table_data($wpdb, $translator, 'wp_postmeta', 'wp_sb_postmeta', 'wp_', 'wp_sb_');
 
         $pdo = $this->openDb($dbPath);
-        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/__rudel/sandbox');
+        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/sandbox');
 
         // All 1000 rows should be rewritten
         $unrewritten = $pdo->query("SELECT COUNT(*) FROM wp_sb_postmeta WHERE meta_value LIKE '%http://host.local/resource%' AND meta_value NOT LIKE '%__rudel%'")->fetchColumn();
@@ -463,13 +463,13 @@ class DatabaseClonerStressTest extends RudelTestCase
 
         // Spot check some rows
         $val1 = $pdo->query("SELECT meta_value FROM wp_sb_postmeta WHERE meta_id=1")->fetchColumn();
-        $this->assertEquals('http://host.local/__rudel/sandbox/resource/1', $val1);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/sandbox/resource/1', $val1);
 
         $val500 = $pdo->query("SELECT meta_value FROM wp_sb_postmeta WHERE meta_id=500")->fetchColumn();
-        $this->assertEquals('http://host.local/__rudel/sandbox/resource/500', $val500);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/sandbox/resource/500', $val500);
 
         $val1000 = $pdo->query("SELECT meta_value FROM wp_sb_postmeta WHERE meta_id=1000")->fetchColumn();
-        $this->assertEquals('http://host.local/__rudel/sandbox/resource/1000', $val1000);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/sandbox/resource/1000', $val1000);
     }
 
     // Stress: deeply nested serialized data (5 levels deep)
@@ -553,11 +553,11 @@ class DatabaseClonerStressTest extends RudelTestCase
         $cloner->clone_table_data($wpdb, $translator, 'wp_options', 'wp_sb_options', 'wp_', 'wp_sb_');
 
         $pdo = $this->openDb($dbPath);
-        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/__rudel/test');
+        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         // Plain URL options rewritten
         $siteurl = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='siteurl'")->fetchColumn();
-        $this->assertEquals('http://host.local/__rudel/test', $siteurl);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/test', $siteurl);
 
         // Non-URL option untouched
         $blogname = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='blogname'")->fetchColumn();
@@ -566,8 +566,8 @@ class DatabaseClonerStressTest extends RudelTestCase
         // Serialized with URLs: rewritten properly
         $serWithUrls = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='serialized_with_urls'")->fetchColumn();
         $data = unserialize($serWithUrls);
-        $this->assertEquals('http://host.local/__rudel/test/a', $data['a']);
-        $this->assertEquals('http://host.local/__rudel/test/b', $data['b']);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/test/a', $data['a']);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/test/b', $data['b']);
 
         // Serialized without URLs: untouched
         $serNoUrls = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='serialized_without_urls'")->fetchColumn();
@@ -577,7 +577,7 @@ class DatabaseClonerStressTest extends RudelTestCase
 
         // Plain text with URL: rewritten
         $plainUrl = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='plain_url'")->fetchColumn();
-        $this->assertEquals('Go to http://host.local/__rudel/test/page for more', $plainUrl);
+        $this->assertEquals('Go to http://host.local/' . RUDEL_PATH_PREFIX . '/test/page for more', $plainUrl);
 
         // Empty value: untouched
         $empty = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='empty_value'")->fetchColumn();

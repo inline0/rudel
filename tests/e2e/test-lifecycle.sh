@@ -68,6 +68,7 @@ run_php() {
         require_once '$RUDEL_DIR/vendor/autoload.php';
         define('RUDEL_PLUGIN_DIR', '$RUDEL_DIR/');
         define('RUDEL_SANDBOXES_DIR', '$TEST_TMPDIR/sandboxes');
+        define('RUDEL_PATH_PREFIX', '__rudel');
         define('WP_HOME', 'http://localhost:8888');
         $1
     " 2>&1

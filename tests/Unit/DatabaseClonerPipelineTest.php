@@ -183,12 +183,12 @@ class DatabaseClonerPipelineTest extends RudelTestCase
         $cloner->clone_table_data($wpdb, $translator, 'wp_options', 'wp_sb_options', 'wp_', 'wp_sb_');
 
         $pdo = $this->openDb($dbPath);
-        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/__rudel/test-1234');
+        $cloner->rewrite_urls($pdo, 'wp_sb_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test-1234');
         $cloner->rewrite_table_prefix_in_data($pdo, 'wp_sb_', 'wp_', 'wp_sb_');
 
         // siteurl and home rewritten
         $siteurl = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='siteurl'")->fetchColumn();
-        $this->assertEquals('http://host.local/__rudel/test-1234', $siteurl);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/test-1234', $siteurl);
 
         // blogname unchanged
         $blogname = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='blogname'")->fetchColumn();
@@ -203,13 +203,13 @@ class DatabaseClonerPipelineTest extends RudelTestCase
         // widget_text serialized URLs rewritten
         $widgets = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='widget_text'")->fetchColumn();
         $widgetData = unserialize($widgets);
-        $this->assertStringContainsString('http://host.local/__rudel/test-1234/about', $widgetData['text-1']['text']);
-        $this->assertStringContainsString('http://host.local/__rudel/test-1234/contact', $widgetData['text-2']['text']);
+        $this->assertStringContainsString('http://host.local/' . RUDEL_PATH_PREFIX . '/test-1234/about', $widgetData['text-1']['text']);
+        $this->assertStringContainsString('http://host.local/' . RUDEL_PATH_PREFIX . '/test-1234/contact', $widgetData['text-2']['text']);
 
         // Deeply nested serialized URL rewritten
         $nested = $pdo->query("SELECT option_value FROM wp_sb_options WHERE option_name='nested_config'")->fetchColumn();
         $nestedData = unserialize($nested);
-        $this->assertEquals('http://host.local/__rudel/test-1234/deep/nested/path', $nestedData['level1']['level2']['url']);
+        $this->assertEquals('http://host.local/' . RUDEL_PATH_PREFIX . '/test-1234/deep/nested/path', $nestedData['level1']['level2']['url']);
         $this->assertEquals(42, $nestedData['level1']['level2']['count']);
 
         // Table prefix rewritten in option_name

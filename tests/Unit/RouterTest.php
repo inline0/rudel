@@ -101,7 +101,7 @@ class RouterTest extends RudelTestCase
     public function testResolveFromPathPrefixFindsValidSandbox(): void
     {
         $this->createFakeSandbox('pathtest-abc');
-        $_SERVER['REQUEST_URI'] = '/__rudel/pathtest-abc/wp-admin/';
+        $_SERVER['REQUEST_URI'] = '/' . RUDEL_PATH_PREFIX . '/pathtest-abc/wp-admin/';
 
         $router = $this->makeRouter();
         $this->assertSame('pathtest-abc', $router->resolve_from_path_prefix());
@@ -110,7 +110,7 @@ class RouterTest extends RudelTestCase
     public function testResolveFromPathPrefixWorksWithoutTrailingSlash(): void
     {
         $this->createFakeSandbox('noslash-test');
-        $_SERVER['REQUEST_URI'] = '/__rudel/noslash-test';
+        $_SERVER['REQUEST_URI'] = '/' . RUDEL_PATH_PREFIX . '/noslash-test';
 
         $router = $this->makeRouter();
         $this->assertSame('noslash-test', $router->resolve_from_path_prefix());
@@ -132,7 +132,7 @@ class RouterTest extends RudelTestCase
 
     public function testResolveFromPathPrefixRejectsInvalidId(): void
     {
-        $_SERVER['REQUEST_URI'] = '/__rudel/../etc/passwd/';
+        $_SERVER['REQUEST_URI'] = '/' . RUDEL_PATH_PREFIX . '/../etc/passwd/';
         $router = $this->makeRouter();
         $this->assertNull($router->resolve_from_path_prefix());
     }
@@ -181,7 +181,7 @@ class RouterTest extends RudelTestCase
     public function testResolveFromCliParsesPathPrefixUrl(): void
     {
         $this->createFakeSandbox('cli-sandbox');
-        $GLOBALS['argv'] = ['wp', '--url=http://localhost/__rudel/cli-sandbox/'];
+        $GLOBALS['argv'] = ['wp', '--url=http://localhost/' . RUDEL_PATH_PREFIX . '/cli-sandbox/'];
 
         $router = $this->makeRouter();
         $this->assertSame('cli-sandbox', $router->resolve_from_cli());
@@ -254,7 +254,7 @@ class RouterTest extends RudelTestCase
 
         unset($_SERVER['HTTP_X_RUDEL_SANDBOX']);
         $_COOKIE['rudel_sandbox'] = 'from-cookie';
-        $_SERVER['REQUEST_URI'] = '/__rudel/from-path/';
+        $_SERVER['REQUEST_URI'] = '/' . RUDEL_PATH_PREFIX . '/from-path/';
 
         $router = $this->makeRouter();
         $this->assertSame('from-cookie', $router->resolve());
@@ -266,7 +266,7 @@ class RouterTest extends RudelTestCase
 
         unset($_SERVER['HTTP_X_RUDEL_SANDBOX']);
         unset($_COOKIE['rudel_sandbox']);
-        $_SERVER['REQUEST_URI'] = '/__rudel/from-path/';
+        $_SERVER['REQUEST_URI'] = '/' . RUDEL_PATH_PREFIX . '/from-path/';
         $_SERVER['HTTP_HOST'] = 'localhost';
 
         $router = $this->makeRouter();

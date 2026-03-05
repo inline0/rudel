@@ -303,7 +303,7 @@ class SandboxTest extends RudelTestCase
     {
         $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
         $url = $sandbox->get_url();
-        $this->assertSame('/__rudel/my-sandbox-abcd/', $url);
+        $this->assertSame('/' . RUDEL_PATH_PREFIX . '/my-sandbox-abcd/', $url);
     }
 
     #[RunInSeparateProcess]
@@ -312,7 +312,7 @@ class SandboxTest extends RudelTestCase
     {
         define('WP_HOME', 'https://example.com');
         $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
-        $this->assertSame('https://example.com/__rudel/my-sandbox-abcd/', $sandbox->get_url());
+        $this->assertSame('https://example.com/' . RUDEL_PATH_PREFIX . '/my-sandbox-abcd/', $sandbox->get_url());
     }
 
     #[RunInSeparateProcess]
@@ -321,7 +321,7 @@ class SandboxTest extends RudelTestCase
     {
         define('WP_HOME', 'https://example.com/');
         $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
-        $this->assertSame('https://example.com/__rudel/my-sandbox-abcd/', $sandbox->get_url());
+        $this->assertSame('https://example.com/' . RUDEL_PATH_PREFIX . '/my-sandbox-abcd/', $sandbox->get_url());
     }
 
     // toArray()

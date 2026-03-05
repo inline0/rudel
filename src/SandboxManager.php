@@ -117,7 +117,7 @@ class SandboxManager {
 			} elseif ( $clone_db ) {
 				$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
 				$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-				$sandbox_url  = $site_url . '/__rudel/' . $id;
+				$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
 				$db_cloner    = new DatabaseCloner( $this->plugin_dir );
 				$clone_result = $db_cloner->clone_database(
@@ -363,8 +363,8 @@ class SandboxManager {
 			$new_prefix = 'wp_' . substr( md5( $new_id ), 0, 6 ) . '_';
 
 			$site_url = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-			$old_url  = $site_url . '/__rudel/' . $old_id;
-			$new_url  = $site_url . '/__rudel/' . $new_id;
+			$old_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $old_id;
+			$new_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $new_id;
 
 			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO for import rewriting.
 			$pdo = new \PDO( 'sqlite:' . $db_path );
@@ -656,7 +656,7 @@ class SandboxManager {
 				. "if (! defined('MULTISITE')) { define('MULTISITE', true); }\n"
 				. "if (! defined('SUBDOMAIN_INSTALL')) { define('SUBDOMAIN_INSTALL', false); }\n"
 				. "if (! defined('DOMAIN_CURRENT_SITE')) { define('DOMAIN_CURRENT_SITE', \$_SERVER['HTTP_HOST'] ?? 'localhost'); }\n"
-				. "if (! defined('PATH_CURRENT_SITE')) { define('PATH_CURRENT_SITE', '/__rudel/' . \$sandbox_id . '/'); }\n"
+				. "if (! defined('PATH_CURRENT_SITE')) { define('PATH_CURRENT_SITE', '/" . RUDEL_PATH_PREFIX . "/' . \$sandbox_id . '/'); }\n"
 				. "if (! defined('SITE_ID_CURRENT_SITE')) { define('SITE_ID_CURRENT_SITE', 1); }\n"
 				. "if (! defined('BLOG_ID_CURRENT_SITE')) { define('BLOG_ID_CURRENT_SITE', 1); }\n";
 		}
@@ -666,6 +666,7 @@ class SandboxManager {
 			array(
 				'{{sandbox_id}}'      => $id,
 				'{{sandbox_path}}'    => $path,
+				'{{path_prefix}}'     => RUDEL_PATH_PREFIX,
 				'{{multisite_block}}' => $multisite_block,
 			)
 		);
@@ -743,7 +744,7 @@ class SandboxManager {
 		}
 
 		$site_url    = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		$sandbox_url = $site_url . '/__rudel/' . $id;
+		$sandbox_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
 		// phpcs:disable WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WordPress stores options as serialized PHP arrays.
 		$options = array(
@@ -1143,7 +1144,7 @@ class SandboxManager {
 
 		$source_url    = $meta['source_url'] ?? '';
 		$site_url      = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		$sandbox_url   = $site_url . '/__rudel/' . $target_id;
+		$sandbox_url   = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $target_id;
 		$source_id     = $meta['source_sandbox_id'] ?? '';
 		$source_prefix = 'wp_' . substr( md5( $source_id ), 0, 6 ) . '_';
 		$target_prefix = 'wp_' . substr( md5( $target_id ), 0, 6 ) . '_';
@@ -1212,8 +1213,8 @@ class SandboxManager {
 		$target_prefix = 'wp_' . substr( md5( $target_id ), 0, 6 ) . '_';
 
 		$site_url    = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		$source_url  = $site_url . '/__rudel/' . $source->id;
-		$sandbox_url = $site_url . '/__rudel/' . $target_id;
+		$source_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $source->id;
+		$sandbox_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $target_id;
 
 		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO.
 		$pdo = new \PDO( 'sqlite:' . $target_db );

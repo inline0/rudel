@@ -50,6 +50,10 @@ if ( ! defined( 'RUDEL_CLI_COMMAND' ) ) {
 	define( 'RUDEL_CLI_COMMAND', 'rudel' );
 }
 
+if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
+	define( 'RUDEL_PATH_PREFIX', '__rudel' );
+}
+
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND, Rudel\CLI\RudelCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );

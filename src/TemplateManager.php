@@ -70,7 +70,7 @@ class TemplateManager {
 		$content_cloner->copy_directory( $sandbox->get_wp_content_path(), $template_path . '/wp-content' );
 
 		$site_url   = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		$source_url = $site_url . '/__rudel/' . $sandbox->id;
+		$source_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox->id;
 
 		$meta = array(
 			'name'              => $name,

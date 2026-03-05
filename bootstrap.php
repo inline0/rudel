@@ -30,6 +30,10 @@ if ( defined( 'RUDEL_SANDBOX_ID' ) ) {
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Temporary variable, unset after use.
 $_rudel_prefix = null;
 
+if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
+	define( 'RUDEL_PATH_PREFIX', '__rudel' );
+}
+
 ( function () use ( &$_rudel_prefix ) {
 	$plugin_dir    = __DIR__;
 	$sandboxes_dir = null;
@@ -111,7 +115,7 @@ $_rudel_prefix = null;
 			foreach ( $argv as $arg ) {
 				if ( 0 === strpos( $arg, '--url=' ) ) {
 					$url = substr( $arg, 6 );
-					if ( preg_match( '#/__rudel/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $url, $m ) ) {
+					if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $url, $m ) ) {
 						if ( $validate_id( $m[1] ) ) {
 							$path = $validate_path( $m[1] );
 							if ( $path ) {
@@ -138,7 +142,7 @@ $_rudel_prefix = null;
 	// 4. Path prefix: /__rudel/{id}/.
 	if ( ! $sandbox_id ) {
 		$uri = $_SERVER['REQUEST_URI'] ?? '';
-		if ( preg_match( '#^/__rudel/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $uri, $m ) ) {
+		if ( preg_match( '#^/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $uri, $m ) ) {
 			if ( $validate_id( $m[1] ) ) {
 				$path = $validate_path( $m[1] );
 				if ( $path ) {
@@ -221,7 +225,7 @@ $_rudel_prefix = null;
 	$site_url = $protocol . '://' . $host;
 
 	// Sandbox site URL (preempts wp-config.php constants).
-	$sandbox_url = $site_url . '/__rudel/' . $sandbox_id;
+	$sandbox_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
 	$def( 'WP_SITEURL', $sandbox_url );
 	$def( 'WP_HOME', $sandbox_url );
 
@@ -256,7 +260,7 @@ $_rudel_prefix = null;
 			$def( 'MULTISITE', true );
 			$def( 'SUBDOMAIN_INSTALL', false );
 			$def( 'DOMAIN_CURRENT_SITE', $host );
-			$def( 'PATH_CURRENT_SITE', '/__rudel/' . $sandbox_id . '/' );
+			$def( 'PATH_CURRENT_SITE', '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
 			$def( 'SITE_ID_CURRENT_SITE', 1 );
 			$def( 'BLOG_ID_CURRENT_SITE', 1 );
 		} else {

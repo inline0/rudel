@@ -16,6 +16,10 @@ if ( ! defined( 'ARRAY_A' ) ) {
     define( 'ARRAY_A', 1 );
 }
 
+if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
+    define( 'RUDEL_PATH_PREFIX', '__rudel' );
+}
+
 // Global temp directory for all tests -- each test class manages its own subdirectory.
 define('RUDEL_TEST_TMPDIR', sys_get_temp_dir() . '/rudel-tests-' . getmypid());
 

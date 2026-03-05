@@ -70,8 +70,8 @@ class DatabaseClonerTest extends RudelTestCase
     public function testSearchReplaceValueReplacesPlainUrl(): void
     {
         $value = 'http://example.com/wp-content/uploads/image.jpg';
-        $result = $this->cloner->search_replace_value($value, 'http://example.com', 'http://example.com/__rudel/test-1234');
-        $this->assertSame('http://example.com/__rudel/test-1234/wp-content/uploads/image.jpg', $result);
+        $result = $this->cloner->search_replace_value($value, 'http://example.com', 'http://example.com/' . RUDEL_PATH_PREFIX . '/test-1234');
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/test-1234/wp-content/uploads/image.jpg', $result);
     }
 
     public function testSearchReplaceValueHandlesMultipleOccurrences(): void
@@ -184,14 +184,14 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo->exec("INSERT INTO wp_test_options (option_name, option_value) VALUES ('home', 'http://host.local')");
         $pdo->exec("INSERT INTO wp_test_options (option_name, option_value) VALUES ('blogname', 'Test Blog')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $siteurl = $pdo->query("SELECT option_value FROM wp_test_options WHERE option_name='siteurl'")->fetchColumn();
         $home = $pdo->query("SELECT option_value FROM wp_test_options WHERE option_name='home'")->fetchColumn();
         $blogname = $pdo->query("SELECT option_value FROM wp_test_options WHERE option_name='blogname'")->fetchColumn();
 
-        $this->assertSame('http://host.local/__rudel/test', $siteurl);
-        $this->assertSame('http://host.local/__rudel/test', $home);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test', $siteurl);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test', $home);
         $this->assertSame('Test Blog', $blogname);
     }
 
@@ -200,10 +200,10 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo = $this->createTestDb('wp_test_');
         $pdo->exec("INSERT INTO wp_test_posts (ID, post_author, post_content, post_title, post_date, post_date_gmt, post_modified, post_modified_gmt) VALUES (1, 1, 'Visit http://host.local/about for info', 'Test', '2026-01-01', '2026-01-01', '2026-01-01', '2026-01-01')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $content = $pdo->query("SELECT post_content FROM wp_test_posts WHERE ID=1")->fetchColumn();
-        $this->assertSame('Visit http://host.local/__rudel/test/about for info', $content);
+        $this->assertSame('Visit http://host.local/' . RUDEL_PATH_PREFIX . '/test/about for info', $content);
     }
 
     public function testRewriteUrlsUpdatesPostGuid(): void
@@ -211,10 +211,10 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo = $this->createTestDb('wp_test_');
         $pdo->exec("INSERT INTO wp_test_posts (ID, post_author, post_content, post_title, guid, post_date, post_date_gmt, post_modified, post_modified_gmt) VALUES (1, 1, 'content', 'Test', 'http://host.local/?p=1', '2026-01-01', '2026-01-01', '2026-01-01', '2026-01-01')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $guid = $pdo->query("SELECT guid FROM wp_test_posts WHERE ID=1")->fetchColumn();
-        $this->assertSame('http://host.local/__rudel/test/?p=1', $guid);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test/?p=1', $guid);
     }
 
     public function testRewriteUrlsSkipsWhenUrlsAreIdentical(): void
@@ -235,11 +235,11 @@ class DatabaseClonerTest extends RudelTestCase
         $serialized = serialize(['widget_url' => 'http://host.local/widget']);
         $pdo->exec("INSERT INTO wp_test_options (option_name, option_value) VALUES ('widget_config', " . $pdo->quote($serialized) . ")");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $value = $pdo->query("SELECT option_value FROM wp_test_options WHERE option_name='widget_config'")->fetchColumn();
         $data = unserialize($value);
-        $this->assertSame('http://host.local/__rudel/test/widget', $data['widget_url']);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test/widget', $data['widget_url']);
     }
 
     // rewrite_table_prefix_in_data()
@@ -309,10 +309,10 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo = $this->createMultisiteTestDb('wp_test_');
         $pdo->exec("INSERT INTO wp_test_2_posts (ID, post_author, post_content, post_title, guid, post_date, post_date_gmt, post_modified, post_modified_gmt) VALUES (1, 1, 'content', 'News Post', 'http://host.local/?p=10', '2026-01-01', '2026-01-01', '2026-01-01', '2026-01-01')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $guid = $pdo->query("SELECT guid FROM wp_test_2_posts WHERE ID=1")->fetchColumn();
-        $this->assertSame('http://host.local/__rudel/test/?p=10', $guid);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test/?p=10', $guid);
     }
 
     public function testRewriteUrlsProcessesPerBlogOptions(): void
@@ -321,12 +321,12 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo->exec("INSERT INTO wp_test_2_options (option_name, option_value) VALUES ('siteurl', 'http://host.local/news')");
         $pdo->exec("INSERT INTO wp_test_2_options (option_name, option_value) VALUES ('home', 'http://host.local/news')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $siteurl = $pdo->query("SELECT option_value FROM wp_test_2_options WHERE option_name='siteurl'")->fetchColumn();
         $home = $pdo->query("SELECT option_value FROM wp_test_2_options WHERE option_name='home'")->fetchColumn();
-        $this->assertSame('http://host.local/__rudel/test/news', $siteurl);
-        $this->assertSame('http://host.local/__rudel/test/news', $home);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test/news', $siteurl);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test/news', $home);
     }
 
     public function testRewriteUrlsProcessesPerBlogPostContent(): void
@@ -334,10 +334,10 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo = $this->createMultisiteTestDb('wp_test_');
         $pdo->exec("INSERT INTO wp_test_3_posts (ID, post_author, post_content, post_title, post_date, post_date_gmt, post_modified, post_modified_gmt) VALUES (1, 1, 'Visit http://host.local/shop for deals', 'Shop Post', '2026-01-01', '2026-01-01', '2026-01-01', '2026-01-01')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $content = $pdo->query("SELECT post_content FROM wp_test_3_posts WHERE ID=1")->fetchColumn();
-        $this->assertSame('Visit http://host.local/__rudel/test/shop for deals', $content);
+        $this->assertSame('Visit http://host.local/' . RUDEL_PATH_PREFIX . '/test/shop for deals', $content);
     }
 
     public function testRewriteUrlsProcessesSitemeta(): void
@@ -345,10 +345,10 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo = $this->createMultisiteTestDb('wp_test_');
         $pdo->exec("INSERT INTO wp_test_sitemeta (site_id, meta_key, meta_value) VALUES (1, 'siteurl', 'http://host.local')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $value = $pdo->query("SELECT meta_value FROM wp_test_sitemeta WHERE meta_key='siteurl'")->fetchColumn();
-        $this->assertSame('http://host.local/__rudel/test', $value);
+        $this->assertSame('http://host.local/' . RUDEL_PATH_PREFIX . '/test', $value);
     }
 
     public function testRewriteUrlsRewritesWpBlogsPath(): void
@@ -358,12 +358,12 @@ class DatabaseClonerTest extends RudelTestCase
         $pdo->exec("INSERT INTO wp_test_blogs (blog_id, site_id, domain, path) VALUES (2, 1, 'host.local', '/news/')");
         $pdo->exec("INSERT INTO wp_test_blogs (blog_id, site_id, domain, path) VALUES (3, 1, 'host.local', '/shop/')");
 
-        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/' . RUDEL_PATH_PREFIX . '/test');
 
         $paths = $pdo->query("SELECT blog_id, path FROM wp_test_blogs ORDER BY blog_id")->fetchAll(\PDO::FETCH_KEY_PAIR);
-        $this->assertSame('/__rudel/test/', $paths[1]);
-        $this->assertSame('/__rudel/test/news/', $paths[2]);
-        $this->assertSame('/__rudel/test/shop/', $paths[3]);
+        $this->assertSame('/' . RUDEL_PATH_PREFIX . '/test/', $paths[1]);
+        $this->assertSame('/' . RUDEL_PATH_PREFIX . '/test/news/', $paths[2]);
+        $this->assertSame('/' . RUDEL_PATH_PREFIX . '/test/shop/', $paths[3]);
     }
 
     // rewrite_table_prefix_in_data() -- multisite per-blog options

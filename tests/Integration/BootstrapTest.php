@@ -150,7 +150,7 @@ class BootstrapTest extends RudelTestCase
         $this->createFakeSandboxInDir('path-box');
 
         $result = $this->runBootstrap([
-            'REQUEST_URI' => '/__rudel/path-box/wp-admin/',
+            'REQUEST_URI' => '/' . RUDEL_PATH_PREFIX . '/path-box/wp-admin/',
             'HTTP_HOST' => 'example.com',
         ]);
 
@@ -263,7 +263,7 @@ class BootstrapTest extends RudelTestCase
 
         $result = $this->runBootstrap(
             serverVars: [
-                'REQUEST_URI' => '/__rudel/path-loses/',
+                'REQUEST_URI' => '/' . RUDEL_PATH_PREFIX . '/path-loses/',
                 'HTTP_HOST' => 'example.com',
             ],
             cookieVars: ['rudel_sandbox' => 'cookie-wins'],
@@ -450,7 +450,7 @@ class BootstrapTest extends RudelTestCase
 
         $result = $this->runBootstrap(
             serverVars: ['HTTP_HOST' => 'example.com'],
-            argv: ['wp', '--url=http://example.com/__rudel/cli-path-box/', 'post', 'list'],
+            argv: ['wp', '--url=http://example.com/' . RUDEL_PATH_PREFIX . '/cli-path-box/', 'post', 'list'],
         );
 
         $this->assertSame('cli-path-box', $result['sandbox_id']);
@@ -502,8 +502,8 @@ class BootstrapTest extends RudelTestCase
             'HTTP_HOST' => 'example.com',
         ]);
 
-        $this->assertSame('http://example.com/__rudel/urlconst-box', $result['wp_siteurl']);
-        $this->assertSame('http://example.com/__rudel/urlconst-box', $result['wp_home']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/urlconst-box', $result['wp_siteurl']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/urlconst-box', $result['wp_home']);
     }
 
     public function testTablePrefixSetInCallerScope(): void

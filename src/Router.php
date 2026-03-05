@@ -82,7 +82,7 @@ class Router {
 			if ( str_starts_with( $arg, '--url=' ) ) {
 				$url = substr( $arg, 6 );
 				// Path prefix pattern.
-				if ( preg_match( '#/__rudel/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $url, $matches ) ) {
+				if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $url, $matches ) ) {
 					return $this->validate_and_return( $matches[1] );
 				}
 				// Subdomain pattern.
@@ -105,7 +105,7 @@ class Router {
 	public function resolve_from_path_prefix(): ?string {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Pre-WP context; validated by regex.
 		$uri = $_SERVER['REQUEST_URI'] ?? '';
-		if ( preg_match( '#^/__rudel/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $uri, $matches ) ) {
+		if ( preg_match( '#^/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $uri, $matches ) ) {
 			return $this->validate_and_return( $matches[1] );
 		}
 		return null;
