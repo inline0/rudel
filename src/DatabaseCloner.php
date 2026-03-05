@@ -43,7 +43,7 @@ class DatabaseCloner {
 	 * @param string $target_prefix  Table prefix for the sandbox.
 	 * @param string $sandbox_url    Full URL for the sandbox (for URL rewriting).
 	 * @param array  $options        Optional settings: 'chunk_size' => int.
-	 * @return array{tables_cloned: int, rows_cloned: int} Clone statistics.
+	 * @return array{tables_cloned: int, rows_cloned: int, is_multisite: bool} Clone statistics.
 	 *
 	 * @throws \RuntimeException If cloning fails.
 	 */
@@ -91,6 +91,8 @@ class DatabaseCloner {
 		$this->rewrite_urls( $pdo, $target_prefix, $host_url, $sandbox_url );
 		$this->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
 
+		$is_multisite = $this->table_exists( $pdo, "{$target_prefix}blogs" );
+
 		$pdo = null;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting permissions on generated database file.
 		chmod( $sqlite_db_path, 0664 );
@@ -98,6 +100,7 @@ class DatabaseCloner {
 		return array(
 			'tables_cloned' => $table_count,
 			'rows_cloned'   => $total_rows,
+			'is_multisite'  => $is_multisite,
 		);
 	}
 
@@ -275,6 +278,60 @@ class DatabaseCloner {
 			}
 			$this->rewrite_urls_in_column( $pdo, $table, $column, $pk, $host_url, $sandbox_url );
 		}
+
+		// Per-blog tables (multisite).
+		$blog_ids = $this->discover_blog_ids( $pdo, $prefix );
+		foreach ( $blog_ids as $blog_id ) {
+			$blog_simple = array(
+				array( "{$prefix}{$blog_id}_posts", 'guid' ),
+			);
+			foreach ( $blog_simple as list( $table, $column ) ) {
+				if ( ! $this->table_exists( $pdo, $table ) ) {
+					continue;
+				}
+				$this->sqlite_exec(
+					$pdo,
+					"UPDATE `{$table}` SET `{$column}` = REPLACE(`{$column}`, ?, ?) WHERE `{$column}` LIKE ?",
+					array( $host_url, $sandbox_url, '%' . $host_url . '%' )
+				);
+			}
+
+			$blog_serialized = array(
+				array( "{$prefix}{$blog_id}_options", 'option_value', 'option_id' ),
+				array( "{$prefix}{$blog_id}_postmeta", 'meta_value', 'meta_id' ),
+				array( "{$prefix}{$blog_id}_posts", 'post_content', 'ID' ),
+				array( "{$prefix}{$blog_id}_comments", 'comment_content', 'comment_ID' ),
+			);
+			foreach ( $blog_serialized as list( $table, $column, $pk ) ) {
+				if ( ! $this->table_exists( $pdo, $table ) ) {
+					continue;
+				}
+				$this->rewrite_urls_in_column( $pdo, $table, $column, $pk, $host_url, $sandbox_url );
+			}
+		}
+
+		// Network sitemeta table.
+		if ( $this->table_exists( $pdo, "{$prefix}sitemeta" ) ) {
+			$this->rewrite_urls_in_column( $pdo, "{$prefix}sitemeta", 'meta_value', 'meta_id', $host_url, $sandbox_url );
+		}
+
+		// wp_blogs path rewriting: replace host base path with sandbox base path.
+		if ( $this->table_exists( $pdo, "{$prefix}blogs" ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Unit-testable without WordPress.
+			$host_parsed = parse_url( $host_url, PHP_URL_PATH );
+			$host_path   = rtrim( $host_parsed ? $host_parsed : '/', '/' ) . '/';
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Unit-testable without WordPress.
+			$sbx_parsed   = parse_url( $sandbox_url, PHP_URL_PATH );
+			$sandbox_path = rtrim( $sbx_parsed ? $sbx_parsed : '/', '/' ) . '/';
+
+			if ( $host_path !== $sandbox_path ) {
+				$this->sqlite_exec(
+					$pdo,
+					"UPDATE `{$prefix}blogs` SET `path` = ? || SUBSTR(`path`, LENGTH(?) + 1) WHERE `path` LIKE ?",
+					array( $sandbox_path, $host_path, $host_path . '%' )
+				);
+			}
+		}
 	}
 
 	/**
@@ -310,6 +367,44 @@ class DatabaseCloner {
 				array( $source_prefix, $target_prefix, $source_prefix . '%' )
 			);
 		}
+
+		// Per-blog options tables (multisite).
+		$blog_ids = $this->discover_blog_ids( $pdo, $prefix );
+		foreach ( $blog_ids as $blog_id ) {
+			$blog_options = "{$prefix}{$blog_id}_options";
+			if ( $this->table_exists( $pdo, $blog_options ) ) {
+				$this->sqlite_exec(
+					$pdo,
+					"UPDATE `{$blog_options}` SET `option_name` = REPLACE(`option_name`, ?, ?) WHERE `option_name` LIKE ?",
+					array( $source_prefix, $target_prefix, $source_prefix . '%' )
+				);
+			}
+		}
+	}
+
+	/**
+	 * Discover per-blog table IDs from the SQLite database.
+	 *
+	 * Scans sqlite_master for tables matching {prefix}N_ where N is a numeric blog ID.
+	 *
+	 * @param \PDO   $pdo    SQLite PDO connection.
+	 * @param string $prefix Table prefix.
+	 * @return int[] Array of blog ID integers.
+	 */
+	private function discover_blog_ids( \PDO $pdo, string $prefix ): array {
+		$escaped = preg_quote( $prefix, '/' );
+		$stmt    = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table'" );
+		// phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO fetch.
+		$tables = $stmt->fetchAll( \PDO::FETCH_COLUMN );
+		$ids    = array();
+
+		foreach ( $tables as $table ) {
+			if ( preg_match( '/^' . $escaped . '(\d+)_/', $table, $m ) ) {
+				$ids[ (int) $m[1] ] = true;
+			}
+		}
+
+		return array_keys( $ids );
 	}
 
 	/**

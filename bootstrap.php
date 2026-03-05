@@ -246,6 +246,25 @@ $_rudel_prefix = null;
 	$def( 'LOGGED_IN_SALT', hash( 'sha256', $sandbox_id . 'LOGGED_IN_SALT' ) );
 	$def( 'NONCE_SALT', hash( 'sha256', $sandbox_id . 'NONCE_SALT' ) );
 
+	// Multisite constants: read from sandbox metadata.
+	$meta_file = $sandbox_path . '/.rudel.json';
+	if ( file_exists( $meta_file ) ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
+		$meta_json = json_decode( file_get_contents( $meta_file ), true );
+		if ( ! empty( $meta_json['multisite'] ) ) {
+			$def( 'WP_ALLOW_MULTISITE', true );
+			$def( 'MULTISITE', true );
+			$def( 'SUBDOMAIN_INSTALL', false );
+			$def( 'DOMAIN_CURRENT_SITE', $host );
+			$def( 'PATH_CURRENT_SITE', '/__rudel/' . $sandbox_id . '/' );
+			$def( 'SITE_ID_CURRENT_SITE', 1 );
+			$def( 'BLOG_ID_CURRENT_SITE', 1 );
+		} else {
+			$def( 'MULTISITE', false );
+			$def( 'WP_ALLOW_MULTISITE', false );
+		}
+	}
+
 	// Rudel sandbox markers.
 	$def( 'RUDEL_SANDBOX_ID', $sandbox_id );
 	$def( 'RUDEL_SANDBOX_PATH', $sandbox_path );

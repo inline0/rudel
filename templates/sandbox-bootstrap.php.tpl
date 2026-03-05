@@ -38,7 +38,7 @@ if (! defined('WP_CONTENT_URL')) {
     define('WP_CONTENT_URL', $_rudel_sandbox_url . '/wp-content');
 }
 unset($_rudel_host, $_rudel_sandbox_url);
-
+{{multisite_block}}
 // Per-sandbox table prefix
 $_rudel_prefix = 'wp_' . substr(md5($sandbox_id), 0, 6) . '_';
 $GLOBALS['table_prefix'] = $_rudel_prefix;

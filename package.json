@@ -4,6 +4,16 @@
 		"@wordpress/env": "^10.0.0"
 	},
 	"scripts": {
-		"test:e2e:wp-env": "bash tests/e2e/test-wp-env.sh"
+		"cs": "composer cs",
+		"cs:fix": "composer cs:fix",
+		"test": "bash tests/run-all.sh",
+		"test:unit": "composer test:unit",
+		"test:integration": "composer test:integration",
+		"test:security": "composer test:security",
+		"test:phpunit": "composer test",
+		"test:e2e": "bash tests/e2e/run-all.sh",
+		"test:e2e:wp-env": "bash tests/e2e/test-wp-env.sh",
+		"test:e2e:clone": "bash tests/e2e/test-clone.sh",
+		"test:e2e:multisite": "bash tests/e2e/test-multisite.sh"
 	}
 }

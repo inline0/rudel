@@ -100,6 +100,7 @@ class SandboxManager {
 			$this->write_claude_md( $id, $name, $path );
 
 			$clone_source     = null;
+			$is_multisite     = false;
 			$template         = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
 			$is_from_template = ! in_array( $template, array( 'blank', 'clone' ), true )
 				&& ! $clone_from && ! $has_clone
@@ -126,6 +127,8 @@ class SandboxManager {
 					array( 'chunk_size' => $options['chunk_size'] ?? 500 )
 				);
 
+				$is_multisite = ! empty( $clone_result['is_multisite'] );
+
 				$clone_source = array(
 					'host_url'       => $site_url,
 					'cloned_at'      => gmdate( 'c' ),
@@ -136,6 +139,10 @@ class SandboxManager {
 					'tables_cloned'  => $clone_result['tables_cloned'],
 					'rows_cloned'    => $clone_result['rows_cloned'],
 				);
+
+				if ( $is_multisite ) {
+					$clone_source['multisite'] = true;
+				}
 			} else {
 				$this->create_blank_database( $id, $path );
 
@@ -168,6 +175,10 @@ class SandboxManager {
 			throw $e;
 		}
 
+		if ( $is_multisite ) {
+			$this->write_sandbox_bootstrap( $id, $path, true );
+		}
+
 		$sandbox = new Sandbox(
 			id: $id,
 			name: $name,
@@ -176,6 +187,7 @@ class SandboxManager {
 			template: $template,
 			status: 'active',
 			clone_source: $clone_source,
+			multisite: $is_multisite,
 		);
 		$sandbox->save_meta();
 
@@ -628,18 +640,33 @@ class SandboxManager {
 	/**
 	 * Write the per-sandbox bootstrap.php.
 	 *
-	 * @param string $id   Sandbox identifier.
-	 * @param string $path Absolute path to the sandbox directory.
+	 * @param string $id        Sandbox identifier.
+	 * @param string $path      Absolute path to the sandbox directory.
+	 * @param bool   $multisite Whether this sandbox is a multisite clone.
 	 * @return void
 	 */
-	private function write_sandbox_bootstrap( string $id, string $path ): void {
+	private function write_sandbox_bootstrap( string $id, string $path, bool $multisite = false ): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$template = file_get_contents( $this->plugin_dir . 'templates/sandbox-bootstrap.php.tpl' );
-		$content  = strtr(
+
+		$multisite_block = '';
+		if ( $multisite ) {
+			$multisite_block = "\n// Multisite\n"
+				. "if (! defined('WP_ALLOW_MULTISITE')) { define('WP_ALLOW_MULTISITE', true); }\n"
+				. "if (! defined('MULTISITE')) { define('MULTISITE', true); }\n"
+				. "if (! defined('SUBDOMAIN_INSTALL')) { define('SUBDOMAIN_INSTALL', false); }\n"
+				. "if (! defined('DOMAIN_CURRENT_SITE')) { define('DOMAIN_CURRENT_SITE', \$_SERVER['HTTP_HOST'] ?? 'localhost'); }\n"
+				. "if (! defined('PATH_CURRENT_SITE')) { define('PATH_CURRENT_SITE', '/__rudel/' . \$sandbox_id . '/'); }\n"
+				. "if (! defined('SITE_ID_CURRENT_SITE')) { define('SITE_ID_CURRENT_SITE', 1); }\n"
+				. "if (! defined('BLOG_ID_CURRENT_SITE')) { define('BLOG_ID_CURRENT_SITE', 1); }\n";
+		}
+
+		$content = strtr(
 			$template,
 			array(
-				'{{sandbox_id}}'   => $id,
-				'{{sandbox_path}}' => $path,
+				'{{sandbox_id}}'      => $id,
+				'{{sandbox_path}}'    => $path,
+				'{{multisite_block}}' => $multisite_block,
 			)
 		);
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing sandbox bootstrap.

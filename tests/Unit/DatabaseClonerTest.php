@@ -302,7 +302,182 @@ class DatabaseClonerTest extends RudelTestCase
         $this->assertSame('wp_abc_posts', $result);
     }
 
+    // rewrite_urls() -- multisite per-blog tables
+
+    public function testRewriteUrlsProcessesPerBlogPostsGuid(): void
+    {
+        $pdo = $this->createMultisiteTestDb('wp_test_');
+        $pdo->exec("INSERT INTO wp_test_2_posts (ID, post_author, post_content, post_title, guid, post_date, post_date_gmt, post_modified, post_modified_gmt) VALUES (1, 1, 'content', 'News Post', 'http://host.local/?p=10', '2026-01-01', '2026-01-01', '2026-01-01', '2026-01-01')");
+
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+
+        $guid = $pdo->query("SELECT guid FROM wp_test_2_posts WHERE ID=1")->fetchColumn();
+        $this->assertSame('http://host.local/__rudel/test/?p=10', $guid);
+    }
+
+    public function testRewriteUrlsProcessesPerBlogOptions(): void
+    {
+        $pdo = $this->createMultisiteTestDb('wp_test_');
+        $pdo->exec("INSERT INTO wp_test_2_options (option_name, option_value) VALUES ('siteurl', 'http://host.local/news')");
+        $pdo->exec("INSERT INTO wp_test_2_options (option_name, option_value) VALUES ('home', 'http://host.local/news')");
+
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+
+        $siteurl = $pdo->query("SELECT option_value FROM wp_test_2_options WHERE option_name='siteurl'")->fetchColumn();
+        $home = $pdo->query("SELECT option_value FROM wp_test_2_options WHERE option_name='home'")->fetchColumn();
+        $this->assertSame('http://host.local/__rudel/test/news', $siteurl);
+        $this->assertSame('http://host.local/__rudel/test/news', $home);
+    }
+
+    public function testRewriteUrlsProcessesPerBlogPostContent(): void
+    {
+        $pdo = $this->createMultisiteTestDb('wp_test_');
+        $pdo->exec("INSERT INTO wp_test_3_posts (ID, post_author, post_content, post_title, post_date, post_date_gmt, post_modified, post_modified_gmt) VALUES (1, 1, 'Visit http://host.local/shop for deals', 'Shop Post', '2026-01-01', '2026-01-01', '2026-01-01', '2026-01-01')");
+
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+
+        $content = $pdo->query("SELECT post_content FROM wp_test_3_posts WHERE ID=1")->fetchColumn();
+        $this->assertSame('Visit http://host.local/__rudel/test/shop for deals', $content);
+    }
+
+    public function testRewriteUrlsProcessesSitemeta(): void
+    {
+        $pdo = $this->createMultisiteTestDb('wp_test_');
+        $pdo->exec("INSERT INTO wp_test_sitemeta (site_id, meta_key, meta_value) VALUES (1, 'siteurl', 'http://host.local')");
+
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+
+        $value = $pdo->query("SELECT meta_value FROM wp_test_sitemeta WHERE meta_key='siteurl'")->fetchColumn();
+        $this->assertSame('http://host.local/__rudel/test', $value);
+    }
+
+    public function testRewriteUrlsRewritesWpBlogsPath(): void
+    {
+        $pdo = $this->createMultisiteTestDb('wp_test_');
+        $pdo->exec("INSERT INTO wp_test_blogs (blog_id, site_id, domain, path) VALUES (1, 1, 'host.local', '/')");
+        $pdo->exec("INSERT INTO wp_test_blogs (blog_id, site_id, domain, path) VALUES (2, 1, 'host.local', '/news/')");
+        $pdo->exec("INSERT INTO wp_test_blogs (blog_id, site_id, domain, path) VALUES (3, 1, 'host.local', '/shop/')");
+
+        $this->cloner->rewrite_urls($pdo, 'wp_test_', 'http://host.local', 'http://host.local/__rudel/test');
+
+        $paths = $pdo->query("SELECT blog_id, path FROM wp_test_blogs ORDER BY blog_id")->fetchAll(\PDO::FETCH_KEY_PAIR);
+        $this->assertSame('/__rudel/test/', $paths[1]);
+        $this->assertSame('/__rudel/test/news/', $paths[2]);
+        $this->assertSame('/__rudel/test/shop/', $paths[3]);
+    }
+
+    // rewrite_table_prefix_in_data() -- multisite per-blog options
+
+    public function testRewriteTablePrefixInDataHandlesPerBlogOptions(): void
+    {
+        $pdo = $this->createMultisiteTestDb('wp_test_');
+        $pdo->exec("INSERT INTO wp_test_2_options (option_name, option_value) VALUES ('wp_user_roles', 'roles_data')");
+        $pdo->exec("INSERT INTO wp_test_2_options (option_name, option_value) VALUES ('blogname', 'News')");
+
+        $this->cloner->rewrite_table_prefix_in_data($pdo, 'wp_test_', 'wp_', 'wp_test_');
+
+        $roles = $pdo->query("SELECT option_name FROM wp_test_2_options WHERE option_value='roles_data'")->fetchColumn();
+        $blog = $pdo->query("SELECT option_name FROM wp_test_2_options WHERE option_value='News'")->fetchColumn();
+        $this->assertSame('wp_test_user_roles', $roles);
+        $this->assertSame('blogname', $blog);
+    }
+
     // Helpers
+
+    private function createMultisiteTestDb(string $prefix): \PDO
+    {
+        $pdo = $this->createTestDb($prefix);
+
+        // Per-blog tables for blog_id=2
+        $pdo->exec("CREATE TABLE {$prefix}2_options (
+            option_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            option_name TEXT NOT NULL DEFAULT '' UNIQUE,
+            option_value TEXT NOT NULL DEFAULT '',
+            autoload TEXT NOT NULL DEFAULT 'yes'
+        )");
+        $pdo->exec("CREATE TABLE {$prefix}2_posts (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_author INTEGER NOT NULL DEFAULT 0,
+            post_date TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_date_gmt TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_content TEXT NOT NULL DEFAULT '',
+            post_title TEXT NOT NULL DEFAULT '',
+            post_excerpt TEXT NOT NULL DEFAULT '',
+            post_status TEXT NOT NULL DEFAULT 'publish',
+            comment_status TEXT NOT NULL DEFAULT 'open',
+            ping_status TEXT NOT NULL DEFAULT 'open',
+            post_password TEXT NOT NULL DEFAULT '',
+            post_name TEXT NOT NULL DEFAULT '',
+            to_ping TEXT NOT NULL DEFAULT '',
+            pinged TEXT NOT NULL DEFAULT '',
+            post_modified TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_modified_gmt TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_content_filtered TEXT NOT NULL DEFAULT '',
+            post_parent INTEGER NOT NULL DEFAULT 0,
+            guid TEXT NOT NULL DEFAULT '',
+            menu_order INTEGER NOT NULL DEFAULT 0,
+            post_type TEXT NOT NULL DEFAULT 'post',
+            post_mime_type TEXT NOT NULL DEFAULT '',
+            comment_count INTEGER NOT NULL DEFAULT 0
+        )");
+
+        // Per-blog tables for blog_id=3
+        $pdo->exec("CREATE TABLE {$prefix}3_options (
+            option_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            option_name TEXT NOT NULL DEFAULT '' UNIQUE,
+            option_value TEXT NOT NULL DEFAULT '',
+            autoload TEXT NOT NULL DEFAULT 'yes'
+        )");
+        $pdo->exec("CREATE TABLE {$prefix}3_posts (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_author INTEGER NOT NULL DEFAULT 0,
+            post_date TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_date_gmt TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_content TEXT NOT NULL DEFAULT '',
+            post_title TEXT NOT NULL DEFAULT '',
+            post_excerpt TEXT NOT NULL DEFAULT '',
+            post_status TEXT NOT NULL DEFAULT 'publish',
+            comment_status TEXT NOT NULL DEFAULT 'open',
+            ping_status TEXT NOT NULL DEFAULT 'open',
+            post_password TEXT NOT NULL DEFAULT '',
+            post_name TEXT NOT NULL DEFAULT '',
+            to_ping TEXT NOT NULL DEFAULT '',
+            pinged TEXT NOT NULL DEFAULT '',
+            post_modified TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_modified_gmt TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            post_content_filtered TEXT NOT NULL DEFAULT '',
+            post_parent INTEGER NOT NULL DEFAULT 0,
+            guid TEXT NOT NULL DEFAULT '',
+            menu_order INTEGER NOT NULL DEFAULT 0,
+            post_type TEXT NOT NULL DEFAULT 'post',
+            post_mime_type TEXT NOT NULL DEFAULT '',
+            comment_count INTEGER NOT NULL DEFAULT 0
+        )");
+
+        // Network tables
+        $pdo->exec("CREATE TABLE {$prefix}blogs (
+            blog_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id INTEGER NOT NULL DEFAULT 0,
+            domain TEXT NOT NULL DEFAULT '',
+            path TEXT NOT NULL DEFAULT '/',
+            registered TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            last_updated TEXT NOT NULL DEFAULT '0000-00-00 00:00:00',
+            public INTEGER NOT NULL DEFAULT 1,
+            archived INTEGER NOT NULL DEFAULT 0,
+            mature INTEGER NOT NULL DEFAULT 0,
+            spam INTEGER NOT NULL DEFAULT 0,
+            deleted INTEGER NOT NULL DEFAULT 0,
+            lang_id INTEGER NOT NULL DEFAULT 0
+        )");
+        $pdo->exec("CREATE TABLE {$prefix}sitemeta (
+            meta_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id INTEGER NOT NULL DEFAULT 0,
+            meta_key TEXT DEFAULT NULL,
+            meta_value TEXT
+        )");
+
+        return $pdo;
+    }
 
     private function createTestDb(string $prefix): \PDO
     {

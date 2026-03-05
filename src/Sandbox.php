@@ -22,6 +22,7 @@ class Sandbox {
 	 * @param string     $template     Template used to create this sandbox.
 	 * @param string     $status       Current status (active, paused).
 	 * @param array|null $clone_source Clone source metadata, or null if not cloned.
+	 * @param bool       $multisite    Whether this sandbox was cloned from a multisite host.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -31,6 +32,7 @@ class Sandbox {
 		public readonly string $template = 'blank',
 		public readonly string $status = 'active',
 		public readonly ?array $clone_source = null,
+		public readonly bool $multisite = false,
 	) {}
 
 	/**
@@ -59,6 +61,7 @@ class Sandbox {
 			template: $data['template'] ?? 'blank',
 			status: $data['status'] ?? 'active',
 			clone_source: $data['clone_source'] ?? null,
+			multisite: ! empty( $data['multisite'] ),
 		);
 	}
 
@@ -127,6 +130,10 @@ class Sandbox {
 
 		if ( null !== $this->clone_source ) {
 			$data['clone_source'] = $this->clone_source;
+		}
+
+		if ( $this->multisite ) {
+			$data['multisite'] = true;
 		}
 
 		return $data;
