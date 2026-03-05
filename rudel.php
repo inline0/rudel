@@ -20,9 +20,15 @@ define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
-if ( file_exists( RUDEL_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
-	require_once RUDEL_PLUGIN_DIR . 'vendor/autoload.php';
+$rudel_autoload = RUDEL_PLUGIN_DIR . 'vendor/autoload.php';
+if ( ! file_exists( $rudel_autoload ) ) {
+	// Composer package: vendor/rudel/rudel/ -> vendor/autoload.php.
+	$rudel_autoload = dirname( __DIR__, 2 ) . '/autoload.php';
 }
+if ( file_exists( $rudel_autoload ) ) {
+	require_once $rudel_autoload;
+}
+unset( $rudel_autoload );
 
 register_activation_hook(
 	__FILE__,
