@@ -67,6 +67,15 @@ rudel/
 - **No banner comments**: never use decorative separator lines like `// ==========`, `// -----`, `// ===== SECTION =====`, etc. In large test files with many assertions, a single `// Section Name` line is fine to separate groups.
 - **No em dashes**: never use em dashes in code, docs, or copy. Use periods, commas, colons, or rewrite the sentence.
 
+## Configuration
+
+Both constants are optional. Define them in `wp-config.php` before the `require bootstrap.php` line.
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `RUDEL_CLI_COMMAND` | `rudel` | WP-CLI command name (e.g. `wp rudel create`) |
+| `RUDEL_PATH_PREFIX` | `__rudel` | URL path prefix for sandbox access (e.g. `/__rudel/{id}/`) |
+
 ## Key Rules
 
 1. **100% WordPress Coding Standards**: no exceptions. Run `composer cs` before committing.
