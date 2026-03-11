@@ -17,7 +17,7 @@ define( 'RUDEL_CLI_COMMAND', 'sandbox' );
 
 This changes all commands from `wp rudel ...` to `wp sandbox ...`. Useful for white-label distributions or when `rudel` conflicts with another command.
 
-Only the WP-CLI command name is affected. Internal identifiers like the `/__rudel/` URL prefix, `rudel_sandbox` cookie, and `X-Rudel-Sandbox` header remain unchanged.
+Only the WP-CLI command name is affected. Internal identifiers like the `rudel_sandbox` cookie and `X-Rudel-Sandbox` header remain unchanged. The URL path prefix can be configured separately via `RUDEL_PATH_PREFIX`.
 
 ## Sandbox commands
 
