@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Coding Standards
@@ -16,17 +20,7 @@ jobs:
         with:
           php-version: "8.4"
           tools: composer
-      - name: Cache Composer dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/composer-cache
-          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
-        env:
-          COMPOSER_CACHE_DIR: ${{ runner.temp }}/composer-cache
-      - run: composer install --no-interaction --prefer-dist
-        env:
-          COMPOSER_CACHE_DIR: ${{ runner.temp }}/composer-cache
+      - run: composer install --no-interaction
       - run: composer cs
 
   test:
@@ -39,15 +33,5 @@ jobs:
           php-version: "8.4"
           extensions: sqlite3, pdo_sqlite
           tools: composer
-      - name: Cache Composer dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/composer-cache
-          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
-        env:
-          COMPOSER_CACHE_DIR: ${{ runner.temp }}/composer-cache
-      - run: composer install --no-interaction --prefer-dist
-        env:
-          COMPOSER_CACHE_DIR: ${{ runner.temp }}/composer-cache
+      - run: composer install --no-interaction
       - run: composer test

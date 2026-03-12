@@ -8,8 +8,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build Release Zip
+  release-zip:
+    name: Build release zip
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,11 +20,11 @@ jobs:
           tools: composer
 
       - name: Install production dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+        run: composer install --no-dev --optimize-autoloader --no-interaction
 
-      - name: Build zip
+      - name: Create release zip
         run: |
-          mkdir -p dist
+          mkdir -p dist/rudel
           rsync -a \
             --exclude='.git' \
             --exclude='.github' \
@@ -38,9 +38,9 @@ jobs:
             --exclude='.wp-env.json' \
             --exclude='dist' \
             . dist/rudel/
-          cd dist && zip -r rudel.zip rudel/
+          cd dist && zip -r ../rudel.zip rudel/
 
       - name: Upload release asset
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/rudel.zip --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" rudel.zip --clobber
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}

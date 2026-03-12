@@ -4,9 +4,13 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: dist-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   zip-integrity:
-    name: Zip Integrity
+    name: Zip integrity
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +22,7 @@ jobs:
           tools: composer
 
       - name: Install production dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+        run: composer install --no-dev --optimize-autoloader --no-interaction
 
       - name: Build zip
         run: |
@@ -78,22 +82,9 @@ jobs:
           path: dist/rudel.zip
 
   wordpress-activation:
-    name: WordPress Activation
+    name: WordPress activation
     needs: zip-integrity
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wordpress
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
     steps:
       - uses: shivammathur/setup-php@v2
         with:
@@ -106,43 +97,102 @@ jobs:
         with:
           name: rudel-zip
 
+      - name: Start MySQL
+        run: |
+          sudo systemctl start mysql
+          mysql -u root -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+
       - name: Install WordPress
         run: |
-          wp core download --path=wordpress
-          wp config create --path=wordpress \
-            --dbname=wordpress --dbuser=root --dbpass=root --dbhost=127.0.0.1
-          wp core install --path=wordpress \
-            --url=http://localhost --title=Test \
-            --admin_user=admin --admin_password=admin --admin_email=test@example.com
+          mkdir wordpress && cd wordpress
+          wp core download
+          wp config create --dbname=wordpress --dbuser=root --dbpass=root
+          wp core install --url=http://localhost --title=Test \
+            --admin_user=admin --admin_password=admin --admin_email=test@example.com --skip-email
 
       - name: Install and activate Rudel
-        run: wp plugin install rudel.zip --activate --path=wordpress
+        run: |
+          cd wordpress
+          wp plugin install ../rudel.zip --activate
 
       - name: Verify plugin is active
-        run: wp plugin list --status=active --field=name --path=wordpress | grep -q rudel
+        run: |
+          cd wordpress
+          wp plugin list --status=active --field=name | grep -q rudel
+          echo "Plugin is active"
 
       - name: Verify plugin loads
-        run: wp eval "echo RUDEL_VERSION;" --path=wordpress
+        run: |
+          cd wordpress
+          wp eval "echo 'RUDEL_VERSION: ' . RUDEL_VERSION . PHP_EOL;"
 
       - name: Verify CLI commands
-        run: wp rudel status --path=wordpress
+        run: |
+          cd wordpress
+          wp rudel status
+
+  packagist-install:
+    name: Packagist install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: sqlite3, pdo_sqlite, mysqli
+          tools: wp-cli
+
+      - name: Install via Composer from Packagist
+        run: |
+          mkdir -p test-project && cd test-project
+          composer init --no-interaction --name=test/rudel-packagist
+          composer require rudel/rudel --no-interaction
+
+      - name: Verify package installed
+        run: |
+          cd test-project
+          test -f vendor/rudel/rudel/rudel.php
+          echo "Plugin files installed from Packagist"
+
+      - name: Verify autoloader resolves classes
+        run: |
+          cd test-project
+          php -r "
+            \$loader = require 'vendor/autoload.php';
+            \$classes = ['Rudel\\\SandboxManager', 'Rudel\\\CLI\\\RudelCommand'];
+            foreach (\$classes as \$c) {
+              if (!\$loader->findFile(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
+            }
+            echo \"Packagist install: classes resolve\n\";
+          "
+
+      - name: Start MySQL
+        run: |
+          sudo systemctl start mysql
+          mysql -u root -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+
+      - name: Set up WordPress with Packagist-installed plugin
+        run: |
+          mkdir wordpress && cd wordpress
+          wp core download
+          wp config create --dbname=wordpress --dbuser=root --dbpass=root
+          wp core install --url=http://localhost --title=Test \
+            --admin_user=admin --admin_password=admin --admin_email=test@example.com --skip-email
+          ln -s $GITHUB_WORKSPACE/test-project/vendor/rudel/rudel wp-content/plugins/rudel
+          wp plugin activate rudel
+
+      - name: Verify plugin loads
+        run: |
+          cd wordpress
+          wp eval "echo 'RUDEL_VERSION: ' . RUDEL_VERSION . PHP_EOL;"
+
+      - name: Verify CLI commands
+        run: |
+          cd wordpress
+          wp rudel status
 
   composer-install:
-    name: Composer Install
+    name: Composer install
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wordpress
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
     steps:
       - uses: shivammathur/setup-php@v2
         with:
@@ -152,31 +202,68 @@ jobs:
 
       - name: Create test project
         run: |
-          mkdir test-project && cd test-project
-          composer init --name=test/project --no-interaction
-          composer config repositories.rudel vcs https://github.com/${{ github.repository }}
-          composer require rudel/rudel:dev-${{ github.ref_name }} --no-interaction
+          mkdir -p test-project
+          cd test-project
+          cat > composer.json << 'COMPOSER'
+          {
+            "repositories": [
+              {
+                "type": "vcs",
+                "url": "https://github.com/${{ github.repository }}"
+              }
+            ],
+            "require": {
+              "rudel/rudel": "dev-${{ github.ref_name }}"
+            }
+          }
+          COMPOSER
+
+      - name: Install via Composer
+        run: |
+          cd test-project
+          composer install --no-interaction --prefer-dist
         env:
           COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ secrets.GITHUB_TOKEN }}"}}'
 
-      - name: Verify installed files
+      - name: Verify package installed
         run: |
-          test -f test-project/vendor/rudel/rudel/rudel.php || { echo "Missing rudel.php"; exit 1; }
-          echo "Composer install OK."
+          cd test-project
+          test -f vendor/rudel/rudel/rudel.php
+          echo "Plugin files installed"
 
-      - name: Install WordPress and activate
+      - name: Verify autoloader resolves classes
         run: |
-          wp core download --path=wordpress
-          wp config create --path=wordpress \
-            --dbname=wordpress --dbuser=root --dbpass=root --dbhost=127.0.0.1
-          wp core install --path=wordpress \
-            --url=http://localhost --title=Test \
-            --admin_user=admin --admin_password=admin --admin_email=test@example.com
-          ln -s "$(pwd)/test-project/vendor/rudel/rudel" wordpress/wp-content/plugins/rudel
-          wp plugin activate rudel --path=wordpress
+          cd test-project
+          php -r "
+            \$loader = require 'vendor/autoload.php';
+            \$classes = ['Rudel\\\SandboxManager', 'Rudel\\\CLI\\\RudelCommand'];
+            foreach (\$classes as \$c) {
+              if (!\$loader->findFile(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
+            }
+            echo \"Composer install: classes resolve\n\";
+          "
+
+      - name: Start MySQL
+        run: |
+          sudo systemctl start mysql
+          mysql -u root -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+
+      - name: Set up WordPress with Composer-installed plugin
+        run: |
+          mkdir wordpress && cd wordpress
+          wp core download
+          wp config create --dbname=wordpress --dbuser=root --dbpass=root
+          wp core install --url=http://localhost --title=Test \
+            --admin_user=admin --admin_password=admin --admin_email=test@example.com --skip-email
+          ln -s $GITHUB_WORKSPACE/test-project/vendor/rudel/rudel wp-content/plugins/rudel
+          wp plugin activate rudel
 
       - name: Verify plugin loads
-        run: wp eval "echo RUDEL_VERSION;" --path=wordpress
+        run: |
+          cd wordpress
+          wp eval "echo 'RUDEL_VERSION: ' . RUDEL_VERSION . PHP_EOL;"
 
       - name: Verify CLI commands
-        run: wp rudel status --path=wordpress
+        run: |
+          cd wordpress
+          wp rudel status
