@@ -1,5 +1,6 @@
 import { defineConfig } from "onedocs/config";
 import { Box, Database, Camera, Upload, Clock, Terminal, Bot, Layers } from "lucide-react";
+import { HeroLeft } from "./src/components/hero-left";
 
 const iconClass = "h-5 w-5 text-fd-primary";
 
@@ -19,10 +20,7 @@ export default defineConfig({
   },
   homepage: {
     hero: {
-      title: "WordPress sandboxes powered by SQLite",
-      description:
-        "Isolated WordPress environments with their own SQLite database, wp-content directory, and WP-CLI scope. Create, snapshot, and destroy in seconds.",
-      cta: { label: "Get Started", href: "/docs" },
+      left: HeroLeft,
     },
     features: [
       {
