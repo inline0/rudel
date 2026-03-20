@@ -59,10 +59,30 @@ class SnapshotManager {
 			throw new \RuntimeException( sprintf( 'Failed to create snapshot directory: %s', $snapshot_path ) );
 		}
 
-		$source_db = $this->sandbox->get_db_path();
-		if ( file_exists( $source_db ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file for snapshot.
-			copy( $source_db, $snapshot_path . '/wordpress.db' );
+		if ( $this->sandbox->is_mysql() ) {
+			$mysql_cloner  = new MySQLCloner();
+			$source_prefix = $this->sandbox->get_table_prefix();
+			$snap_prefix   = $source_prefix . 'snap_' . substr( md5( $name ), 0, 6 ) . '_';
+			$mysql_cloner->copy_tables( $source_prefix, $snap_prefix );
+
+			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing snapshot DB metadata.
+			file_put_contents(
+				$snapshot_path . '/db_snapshot.json',
+				json_encode(
+					array(
+						'engine'       => 'mysql',
+						'table_prefix' => $snap_prefix,
+					),
+					JSON_PRETTY_PRINT
+				) . "\n"
+			);
+			// phpcs:enable
+		} else {
+			$source_db = $this->sandbox->get_db_path();
+			if ( file_exists( $source_db ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file for snapshot.
+				copy( $source_db, $snapshot_path . '/wordpress.db' );
+			}
 		}
 
 		$content_cloner = new ContentCloner();
@@ -133,16 +153,30 @@ class SnapshotManager {
 			throw new \RuntimeException( sprintf( 'Snapshot not found: %s', $name ) );
 		}
 
-		$snapshot_db = $snapshot_path . '/wordpress.db';
-		$sandbox_db  = $this->sandbox->get_db_path();
-
-		if ( file_exists( $snapshot_db ) ) {
-			if ( file_exists( $sandbox_db ) ) {
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing current database before restore.
-				unlink( $sandbox_db );
+		if ( $this->sandbox->is_mysql() ) {
+			$db_meta_file = $snapshot_path . '/db_snapshot.json';
+			if ( file_exists( $db_meta_file ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading snapshot metadata.
+				$db_meta = json_decode( file_get_contents( $db_meta_file ), true );
+				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
+					$mysql_cloner   = new MySQLCloner();
+					$sandbox_prefix = $this->sandbox->get_table_prefix();
+					$mysql_cloner->drop_tables( $sandbox_prefix );
+					$mysql_cloner->copy_tables( $db_meta['table_prefix'], $sandbox_prefix );
+				}
 			}
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Restoring database from snapshot.
-			copy( $snapshot_db, $sandbox_db );
+		} else {
+			$snapshot_db = $snapshot_path . '/wordpress.db';
+			$sandbox_db  = $this->sandbox->get_db_path();
+
+			if ( file_exists( $snapshot_db ) ) {
+				if ( file_exists( $sandbox_db ) ) {
+					// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing current database before restore.
+					unlink( $sandbox_db );
+				}
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Restoring database from snapshot.
+				copy( $snapshot_db, $sandbox_db );
+			}
 		}
 
 		$sandbox_content  = $this->sandbox->get_wp_content_path();
@@ -166,6 +200,17 @@ class SnapshotManager {
 
 		if ( ! is_dir( $snapshot_path ) ) {
 			return false;
+		}
+
+		// Clean up MySQL snapshot tables if they exist.
+		$db_meta_file = $snapshot_path . '/db_snapshot.json';
+		if ( file_exists( $db_meta_file ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading snapshot metadata.
+			$db_meta = json_decode( file_get_contents( $db_meta_file ), true );
+			if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
+				$mysql_cloner = new MySQLCloner();
+				$mysql_cloner->drop_tables( $db_meta['table_prefix'] );
+			}
 		}
 
 		return $this->delete_directory( $snapshot_path );

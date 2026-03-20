@@ -63,8 +63,17 @@ class RudelCommand extends \WP_CLI_Command {
 	 * default: blank
 	 * ---
 	 *
+	 * [--engine=<engine>]
+	 * : Database engine for the sandbox.
+	 * ---
+	 * default: mysql
+	 * options:
+	 *   - mysql
+	 *   - sqlite
+	 * ---
+	 *
 	 * [--clone-db]
-	 * : Clone the host MySQL database into the sandbox SQLite database.
+	 * : Clone the host database into the sandbox.
 	 *
 	 * [--clone-themes]
 	 * : Copy host themes into the sandbox.
@@ -79,7 +88,7 @@ class RudelCommand extends \WP_CLI_Command {
 	 * : Clone everything (database, themes, plugins, uploads).
 	 *
 	 * [--clone-from=<id>]
-	 * : Clone from an existing sandbox (copies SQLite db and wp-content). Mutually exclusive with --clone-db/--clone-all.
+	 * : Clone from an existing sandbox. Mutually exclusive with --clone-db/--clone-all.
 	 *
 	 * ## EXAMPLES
 	 *
@@ -102,9 +111,11 @@ class RudelCommand extends \WP_CLI_Command {
 		$name     = $assoc_args['name'];
 		$template = $assoc_args['template'] ?? 'blank';
 
+		$engine     = $assoc_args['engine'] ?? 'mysql';
 		$clone_all  = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
 		$clone_from = $assoc_args['clone-from'] ?? null;
 		$options    = array(
+			'engine'        => $engine,
 			'template'      => $template,
 			'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
 			'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
@@ -216,6 +227,7 @@ class RudelCommand extends \WP_CLI_Command {
 				return array(
 					'id'       => $sandbox->id,
 					'name'     => $sandbox->name,
+					'engine'   => $sandbox->engine,
 					'status'   => $sandbox->status,
 					'template' => $sandbox->template,
 					'created'  => $sandbox->created_at,
@@ -227,7 +239,7 @@ class RudelCommand extends \WP_CLI_Command {
 		);
 
 		$format = $assoc_args['format'] ?? 'table';
-		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'status', 'template', 'created', 'size' ) );
+		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'engine', 'status', 'template', 'created', 'size' ) );
 	}
 
 	/**
@@ -268,7 +280,7 @@ class RudelCommand extends \WP_CLI_Command {
 
 		$data               = $sandbox->to_array();
 		$data['size']       = $this->format_size( $sandbox->get_size() );
-		$data['db_path']    = $sandbox->get_db_path();
+		$data['db_path']    = $sandbox->get_db_path() ?? 'N/A (MySQL)';
 		$data['url']        = $sandbox->get_url();
 		$data['wp_content'] = $sandbox->get_wp_content_path();
 

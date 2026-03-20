@@ -83,6 +83,11 @@ class SandboxManager {
 		}
 		// phpcs:enable
 
+		$engine = $options['engine'] ?? 'mysql';
+		if ( ! in_array( $engine, array( 'mysql', 'sqlite' ), true ) ) {
+			throw new \InvalidArgumentException( sprintf( 'Invalid engine: %s. Must be "mysql" or "sqlite".', $engine ) );
+		}
+
 		try {
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
 			mkdir( $path . '/wp-content', 0755 );
@@ -93,9 +98,11 @@ class SandboxManager {
 			mkdir( $path . '/tmp', 0755 );
 			// phpcs:enable
 
-			$this->ensure_sqlite_integration();
-			$this->write_db_drop_in( $path );
-			$this->write_sandbox_bootstrap( $id, $path );
+			if ( 'sqlite' === $engine ) {
+				$this->ensure_sqlite_integration();
+				$this->write_db_drop_in( $path );
+			}
+			$this->write_sandbox_bootstrap( $id, $path, false, $engine );
 			$this->write_wp_cli_yml( $path );
 			$this->write_claude_md( $id, $name, $path );
 
@@ -107,25 +114,39 @@ class SandboxManager {
 				&& $this->template_exists( $template );
 
 			if ( $is_from_template ) {
-				$this->initialize_from_template( $template, $id, $path );
+				$this->initialize_from_template( $template, $id, $path, $engine );
 			} elseif ( $clone_from ) {
 				$source = $this->get( $clone_from );
 				if ( ! $source ) {
 					throw new \RuntimeException( sprintf( 'Source sandbox not found: %s', $clone_from ) );
 				}
-				$clone_source = $this->clone_from_sandbox( $source, $id, $path );
+				if ( $source->engine !== $engine ) {
+					throw new \InvalidArgumentException(
+						sprintf( 'Cannot clone across engines: source is %s, target is %s.', $source->engine, $engine )
+					);
+				}
+				$clone_source = $this->clone_from_sandbox( $source, $id, $path, $engine );
 			} elseif ( $clone_db ) {
 				$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
 				$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 				$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
-				$db_cloner    = new DatabaseCloner( $this->plugin_dir );
-				$clone_result = $db_cloner->clone_database(
-					$path . '/wordpress.db',
-					$table_prefix,
-					$sandbox_url,
-					array( 'chunk_size' => $options['chunk_size'] ?? 500 )
-				);
+				if ( 'mysql' === $engine ) {
+					$db_cloner    = new MySQLCloner();
+					$clone_result = $db_cloner->clone_database(
+						$table_prefix,
+						$sandbox_url,
+						array( 'chunk_size' => $options['chunk_size'] ?? 500 )
+					);
+				} else {
+					$db_cloner    = new DatabaseCloner( $this->plugin_dir );
+					$clone_result = $db_cloner->clone_database(
+						$path . '/wordpress.db',
+						$table_prefix,
+						$sandbox_url,
+						array( 'chunk_size' => $options['chunk_size'] ?? 500 )
+					);
+				}
 
 				$is_multisite = ! empty( $clone_result['is_multisite'] );
 
@@ -144,7 +165,11 @@ class SandboxManager {
 					$clone_source['multisite'] = true;
 				}
 			} else {
-				$this->create_blank_database( $id, $path );
+				if ( 'sqlite' === $engine ) {
+					$this->create_blank_database( $id, $path );
+				} else {
+					$this->create_blank_mysql_database( $id );
+				}
 
 				if ( $has_clone ) {
 					$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
@@ -171,12 +196,20 @@ class SandboxManager {
 				);
 			}
 		} catch ( \Throwable $e ) {
+			if ( 'mysql' === $engine ) {
+				global $wpdb;
+				if ( isset( $wpdb ) && $wpdb ) {
+					$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
+					$mysql_cloner = new MySQLCloner();
+					$mysql_cloner->drop_tables( $table_prefix );
+				}
+			}
 			$this->delete_directory( $path );
 			throw $e;
 		}
 
 		if ( $is_multisite ) {
-			$this->write_sandbox_bootstrap( $id, $path, true );
+			$this->write_sandbox_bootstrap( $id, $path, true, $engine );
 		}
 
 		$sandbox = new Sandbox(
@@ -188,6 +221,7 @@ class SandboxManager {
 			status: 'active',
 			clone_source: $clone_source,
 			multisite: $is_multisite,
+			engine: $engine,
 		);
 		$sandbox->save_meta();
 
@@ -251,6 +285,11 @@ class SandboxManager {
 		$sandbox = $this->get( $id );
 		if ( ! $sandbox ) {
 			return false;
+		}
+
+		if ( $sandbox->is_mysql() ) {
+			$mysql_cloner = new MySQLCloner();
+			$mysql_cloner->drop_tables( $sandbox->get_table_prefix() );
 		}
 
 		return $this->delete_directory( $sandbox->path );
@@ -346,13 +385,17 @@ class SandboxManager {
 			mkdir( $this->sandboxes_dir, 0755, true );
 		}
 
+		$engine = $old_meta['engine'] ?? 'mysql';
+
 		$new_path = $this->sandboxes_dir . '/' . $new_id;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Moving extracted sandbox into place.
 		rename( $tmp_dir, $new_path );
 
-		$this->ensure_sqlite_integration();
-		$this->write_db_drop_in( $new_path );
-		$this->write_sandbox_bootstrap( $new_id, $new_path );
+		if ( 'sqlite' === $engine ) {
+			$this->ensure_sqlite_integration();
+			$this->write_db_drop_in( $new_path );
+		}
+		$this->write_sandbox_bootstrap( $new_id, $new_path, false, $engine );
 		$this->write_wp_cli_yml( $new_path );
 		$this->write_claude_md( $new_id, $name, $new_path );
 
@@ -400,6 +443,7 @@ class SandboxManager {
 			created_at: gmdate( 'c' ),
 			template: $old_meta['template'] ?? 'imported',
 			status: 'active',
+			engine: $engine,
 		);
 		$sandbox->save_meta();
 
@@ -643,9 +687,10 @@ class SandboxManager {
 	 * @param string $id        Sandbox identifier.
 	 * @param string $path      Absolute path to the sandbox directory.
 	 * @param bool   $multisite Whether this sandbox is a multisite clone.
+	 * @param string $engine    Database engine: 'mysql' or 'sqlite'.
 	 * @return void
 	 */
-	private function write_sandbox_bootstrap( string $id, string $path, bool $multisite = false ): void {
+	private function write_sandbox_bootstrap( string $id, string $path, bool $multisite = false, string $engine = 'mysql' ): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$template = file_get_contents( $this->plugin_dir . 'templates/sandbox-bootstrap.php.tpl' );
 
@@ -661,6 +706,15 @@ class SandboxManager {
 				. "if (! defined('BLOG_ID_CURRENT_SITE')) { define('BLOG_ID_CURRENT_SITE', 1); }\n";
 		}
 
+		$sqlite_block = '';
+		if ( 'sqlite' === $engine ) {
+			$sqlite_block = "// SQLite database\n"
+				. "define('DB_DIR', \$sandbox_path);\n"
+				. "define('DB_FILE', 'wordpress.db');\n"
+				. "define('DATABASE_TYPE', 'sqlite');\n"
+				. "define('DB_ENGINE', 'sqlite');\n";
+		}
+
 		$content = strtr(
 			$template,
 			array(
@@ -668,6 +722,7 @@ class SandboxManager {
 				'{{sandbox_path}}'    => $path,
 				'{{path_prefix}}'     => RUDEL_PATH_PREFIX,
 				'{{multisite_block}}' => $multisite_block,
+				'{{sqlite_block}}'    => $sqlite_block,
 			)
 		);
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing sandbox bootstrap.
@@ -822,6 +877,373 @@ class SandboxManager {
 		$pdo = null;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting permissions on generated database file.
 		chmod( $db_path, 0664 );
+	}
+
+	/**
+	 * Create a blank MySQL database with WordPress schema and default content.
+	 *
+	 * @param string $id Sandbox identifier.
+	 * @return void
+	 */
+	private function create_blank_mysql_database( string $id ): void {
+		global $wpdb;
+
+		$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
+		$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+		$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
+
+		// Create tables using WordPress's dbDelta-compatible schema.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Dynamic table prefix for sandbox isolation; all table names are internally generated.
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		$charset_collate = $wpdb->get_charset_collate();
+
+		$tables = $this->get_wordpress_mysql_table_schema( $table_prefix, $charset_collate );
+		foreach ( $tables as $sql ) {
+			$wpdb->query( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- DDL from internal schema, not user input.
+		}
+
+		$now = current_time( 'mysql', true );
+
+		// phpcs:disable WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize, WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- WordPress stores options as serialized PHP arrays; meta_key inserts required for WP bootstrap.
+		$options = array(
+			array( 'siteurl', $sandbox_url ),
+			array( 'home', $sandbox_url ),
+			array( 'blogname', 'Rudel Sandbox' ),
+			array( 'blogdescription', 'A sandboxed WordPress environment' ),
+			array( 'admin_email', 'admin@sandbox.local' ),
+			array( 'users_can_register', '0' ),
+			array( 'start_of_week', '1' ),
+			array( 'use_balanceTags', '0' ),
+			array( 'use_smilies', '1' ),
+			array( 'require_name_email', '1' ),
+			array( 'comments_per_page', '50' ),
+			array( 'posts_per_page', '10' ),
+			array( 'date_format', 'F j, Y' ),
+			array( 'time_format', 'g:i a' ),
+			array( 'links_updated_date_format', 'F j, Y g:i a' ),
+			array( 'comment_moderation', '0' ),
+			array( 'moderation_notify', '1' ),
+			array( 'permalink_structure', '/%postname%/' ),
+			array( 'rewrite_rules', '' ),
+			array( 'active_plugins', serialize( array() ) ),
+			array( 'template', 'twentytwentyfour' ),
+			array( 'stylesheet', 'twentytwentyfour' ),
+			array( 'current_theme', 'Twenty Twenty-Four' ),
+			array( 'WPLANG', '' ),
+			array( 'widget_block', serialize( array() ) ),
+			array( 'sidebars_widgets', serialize( array( 'wp_inactive_widgets' => array() ) ) ),
+			array( 'fresh_site', '0' ),
+			array( 'db_version', '57155' ),
+			array( 'initial_db_version', '57155' ),
+			array( $table_prefix . 'user_roles', serialize( $this->get_default_user_roles() ) ),
+		);
+
+		foreach ( $options as list( $opt_name, $opt_value ) ) {
+			$wpdb->insert(
+				"{$table_prefix}options",
+				array(
+					'option_name'  => $opt_name,
+					'option_value' => $opt_value,
+					'autoload'     => 'yes',
+				)
+			);
+		}
+
+		$password_hash = '$P$BForRudelSandboxDefaultAdmin00000.';
+		$wpdb->insert(
+			"{$table_prefix}users",
+			array(
+				'ID'              => 1,
+				'user_login'      => 'admin',
+				'user_pass'       => $password_hash,
+				'user_nicename'   => 'admin',
+				'user_email'      => 'admin@sandbox.local',
+				'user_registered' => $now,
+				'user_status'     => 0,
+				'display_name'    => 'admin',
+			)
+		);
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WordPress capability format.
+		$wpdb->insert(
+			"{$table_prefix}usermeta",
+			array(
+				'user_id'    => 1,
+				'meta_key'   => "{$table_prefix}capabilities",
+				'meta_value' => serialize( array( 'administrator' => true ) ),
+			)
+		);
+		$wpdb->insert(
+			"{$table_prefix}usermeta",
+			array(
+				'user_id'    => 1,
+				'meta_key'   => "{$table_prefix}user_level",
+				'meta_value' => '10',
+			)
+		);
+		$wpdb->insert(
+			"{$table_prefix}usermeta",
+			array(
+				'user_id'    => 1,
+				'meta_key'   => 'nickname',
+				'meta_value' => 'admin',
+			)
+		);
+
+		$wpdb->insert(
+			"{$table_prefix}posts",
+			array(
+				'ID'                => 1,
+				'post_author'       => 1,
+				'post_date'         => $now,
+				'post_date_gmt'     => $now,
+				'post_content'      => 'Welcome to your Rudel sandbox. This is your first post. Edit or delete it, then start writing!',
+				'post_title'        => 'Hello world!',
+				'post_excerpt'      => '',
+				'post_status'       => 'publish',
+				'comment_status'    => 'open',
+				'ping_status'       => 'open',
+				'post_name'         => 'hello-world',
+				'post_type'         => 'post',
+				'post_modified'     => $now,
+				'post_modified_gmt' => $now,
+			)
+		);
+
+		$wpdb->insert(
+			"{$table_prefix}posts",
+			array(
+				'ID'                => 2,
+				'post_author'       => 1,
+				'post_date'         => $now,
+				'post_date_gmt'     => $now,
+				'post_content'      => 'This is a sample page.',
+				'post_title'        => 'Sample Page',
+				'post_excerpt'      => '',
+				'post_status'       => 'publish',
+				'comment_status'    => 'closed',
+				'ping_status'       => 'open',
+				'post_name'         => 'sample-page',
+				'post_type'         => 'page',
+				'post_modified'     => $now,
+				'post_modified_gmt' => $now,
+			)
+		);
+
+		$wpdb->insert(
+			"{$table_prefix}comments",
+			array(
+				'comment_ID'           => 1,
+				'comment_post_ID'      => 1,
+				'comment_author'       => 'A WordPress Commenter',
+				'comment_author_email' => 'wapuu@wordpress.example',
+				'comment_author_url'   => 'https://wordpress.org/',
+				'comment_date'         => $now,
+				'comment_date_gmt'     => $now,
+				'comment_content'      => 'Hi, this is a comment.',
+				'comment_approved'     => '1',
+				'comment_type'         => 'comment',
+			)
+		);
+
+		$wpdb->insert(
+			"{$table_prefix}terms",
+			array(
+				'term_id'    => 1,
+				'name'       => 'Uncategorized',
+				'slug'       => 'uncategorized',
+				'term_group' => 0,
+			)
+		);
+		$wpdb->insert(
+			"{$table_prefix}term_taxonomy",
+			array(
+				'term_taxonomy_id' => 1,
+				'term_id'          => 1,
+				'taxonomy'         => 'category',
+				'description'      => '',
+				'parent'           => 0,
+				'count'            => 1,
+			)
+		);
+		$wpdb->insert(
+			"{$table_prefix}term_relationships",
+			array(
+				'object_id'        => 1,
+				'term_taxonomy_id' => 1,
+			)
+		);
+		// phpcs:enable
+	}
+
+	/**
+	 * Get WordPress core table CREATE statements for MySQL.
+	 *
+	 * @param string $prefix           Table prefix.
+	 * @param string $charset_collate  Charset/collation string.
+	 * @return string[] Array of CREATE TABLE SQL statements.
+	 */
+	private function get_wordpress_mysql_table_schema( string $prefix, string $charset_collate ): array {
+		return array(
+			"CREATE TABLE IF NOT EXISTS `{$prefix}terms` (
+				term_id bigint(20) unsigned NOT NULL auto_increment,
+				name varchar(200) NOT NULL default '',
+				slug varchar(200) NOT NULL default '',
+				term_group bigint(10) NOT NULL default 0,
+				PRIMARY KEY (term_id),
+				KEY slug (slug(191)),
+				KEY name (name(191))
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}term_taxonomy` (
+				term_taxonomy_id bigint(20) unsigned NOT NULL auto_increment,
+				term_id bigint(20) unsigned NOT NULL default 0,
+				taxonomy varchar(32) NOT NULL default '',
+				description longtext NOT NULL,
+				parent bigint(20) unsigned NOT NULL default 0,
+				count bigint(20) NOT NULL default 0,
+				PRIMARY KEY (term_taxonomy_id),
+				UNIQUE KEY term_id_taxonomy (term_id, taxonomy),
+				KEY taxonomy (taxonomy)
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}term_relationships` (
+				object_id bigint(20) unsigned NOT NULL default 0,
+				term_taxonomy_id bigint(20) unsigned NOT NULL default 0,
+				term_order int(11) NOT NULL default 0,
+				PRIMARY KEY (object_id, term_taxonomy_id),
+				KEY term_taxonomy_id (term_taxonomy_id)
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}termmeta` (
+				meta_id bigint(20) unsigned NOT NULL auto_increment,
+				term_id bigint(20) unsigned NOT NULL default 0,
+				meta_key varchar(255) default NULL,
+				meta_value longtext,
+				PRIMARY KEY (meta_id),
+				KEY term_id (term_id),
+				KEY meta_key (meta_key(191))
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}commentmeta` (
+				meta_id bigint(20) unsigned NOT NULL auto_increment,
+				comment_id bigint(20) unsigned NOT NULL default 0,
+				meta_key varchar(255) default NULL,
+				meta_value longtext,
+				PRIMARY KEY (meta_id),
+				KEY comment_id (comment_id),
+				KEY meta_key (meta_key(191))
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}comments` (
+				comment_ID bigint(20) unsigned NOT NULL auto_increment,
+				comment_post_ID bigint(20) unsigned NOT NULL default 0,
+				comment_author tinytext NOT NULL,
+				comment_author_email varchar(100) NOT NULL default '',
+				comment_author_url varchar(200) NOT NULL default '',
+				comment_author_IP varchar(100) NOT NULL default '',
+				comment_date datetime NOT NULL default '0000-00-00 00:00:00',
+				comment_date_gmt datetime NOT NULL default '0000-00-00 00:00:00',
+				comment_content text NOT NULL,
+				comment_karma int(11) NOT NULL default 0,
+				comment_approved varchar(20) NOT NULL default '1',
+				comment_agent varchar(255) NOT NULL default '',
+				comment_type varchar(20) NOT NULL default 'comment',
+				comment_parent bigint(20) unsigned NOT NULL default 0,
+				user_id bigint(20) unsigned NOT NULL default 0,
+				PRIMARY KEY (comment_ID),
+				KEY comment_post_ID (comment_post_ID),
+				KEY comment_approved_date_gmt (comment_approved, comment_date_gmt),
+				KEY comment_date_gmt (comment_date_gmt),
+				KEY comment_parent (comment_parent),
+				KEY comment_author_email (comment_author_email(10))
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}links` (
+				link_id bigint(20) unsigned NOT NULL auto_increment,
+				link_url varchar(255) NOT NULL default '',
+				link_name varchar(255) NOT NULL default '',
+				link_image varchar(255) NOT NULL default '',
+				link_target varchar(25) NOT NULL default '',
+				link_description varchar(255) NOT NULL default '',
+				link_visible varchar(20) NOT NULL default 'Y',
+				link_owner bigint(20) unsigned NOT NULL default 1,
+				link_rating int(11) NOT NULL default 0,
+				link_updated datetime NOT NULL default '0000-00-00 00:00:00',
+				link_rel varchar(255) NOT NULL default '',
+				link_notes mediumtext NOT NULL,
+				link_rss varchar(255) NOT NULL default '',
+				PRIMARY KEY (link_id),
+				KEY link_visible (link_visible)
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}options` (
+				option_id bigint(20) unsigned NOT NULL auto_increment,
+				option_name varchar(191) NOT NULL default '',
+				option_value longtext NOT NULL,
+				autoload varchar(20) NOT NULL default 'yes',
+				PRIMARY KEY (option_id),
+				UNIQUE KEY option_name (option_name),
+				KEY autoload (autoload)
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}postmeta` (
+				meta_id bigint(20) unsigned NOT NULL auto_increment,
+				post_id bigint(20) unsigned NOT NULL default 0,
+				meta_key varchar(255) default NULL,
+				meta_value longtext,
+				PRIMARY KEY (meta_id),
+				KEY post_id (post_id),
+				KEY meta_key (meta_key(191))
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}posts` (
+				ID bigint(20) unsigned NOT NULL auto_increment,
+				post_author bigint(20) unsigned NOT NULL default 0,
+				post_date datetime NOT NULL default '0000-00-00 00:00:00',
+				post_date_gmt datetime NOT NULL default '0000-00-00 00:00:00',
+				post_content longtext NOT NULL,
+				post_title text NOT NULL,
+				post_excerpt text NOT NULL,
+				post_status varchar(20) NOT NULL default 'publish',
+				comment_status varchar(20) NOT NULL default 'open',
+				ping_status varchar(20) NOT NULL default 'open',
+				post_password varchar(255) NOT NULL default '',
+				post_name varchar(200) NOT NULL default '',
+				to_ping text NOT NULL,
+				pinged text NOT NULL,
+				post_modified datetime NOT NULL default '0000-00-00 00:00:00',
+				post_modified_gmt datetime NOT NULL default '0000-00-00 00:00:00',
+				post_content_filtered longtext NOT NULL,
+				post_parent bigint(20) unsigned NOT NULL default 0,
+				guid varchar(255) NOT NULL default '',
+				menu_order int(11) NOT NULL default 0,
+				post_type varchar(20) NOT NULL default 'post',
+				post_mime_type varchar(100) NOT NULL default '',
+				comment_count bigint(20) NOT NULL default 0,
+				PRIMARY KEY (ID),
+				KEY post_name (post_name(191)),
+				KEY type_status_date (post_type, post_status, post_date, ID),
+				KEY post_parent (post_parent),
+				KEY post_author (post_author)
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}users` (
+				ID bigint(20) unsigned NOT NULL auto_increment,
+				user_login varchar(60) NOT NULL default '',
+				user_pass varchar(255) NOT NULL default '',
+				user_nicename varchar(50) NOT NULL default '',
+				user_email varchar(100) NOT NULL default '',
+				user_url varchar(100) NOT NULL default '',
+				user_registered datetime NOT NULL default '0000-00-00 00:00:00',
+				user_activation_key varchar(255) NOT NULL default '',
+				user_status int(11) NOT NULL default 0,
+				display_name varchar(250) NOT NULL default '',
+				PRIMARY KEY (ID),
+				KEY user_login_key (user_login),
+				KEY user_nicename (user_nicename),
+				KEY user_email (user_email)
+			) {$charset_collate}",
+			"CREATE TABLE IF NOT EXISTS `{$prefix}usermeta` (
+				umeta_id bigint(20) unsigned NOT NULL auto_increment,
+				user_id bigint(20) unsigned NOT NULL default 0,
+				meta_key varchar(255) default NULL,
+				meta_value longtext,
+				PRIMARY KEY (umeta_id),
+				KEY user_id (user_id),
+				KEY meta_key (meta_key(191))
+			) {$charset_collate}",
+		);
 	}
 
 	/**
@@ -1118,11 +1540,12 @@ class SandboxManager {
 	 * @param string $template_name Template name.
 	 * @param string $target_id     New sandbox ID.
 	 * @param string $target_path   New sandbox directory path.
+	 * @param string $engine        Database engine: 'mysql' or 'sqlite'.
 	 * @return void
 	 *
 	 * @throws \RuntimeException If the template is not found or initialization fails.
 	 */
-	private function initialize_from_template( string $template_name, string $target_id, string $target_path ): void {
+	private function initialize_from_template( string $template_name, string $target_id, string $target_path, string $engine = 'mysql' ): void {
 		$tpl_manager   = new TemplateManager();
 		$template_path = $tpl_manager->get_template_path( $template_name );
 
@@ -1186,68 +1609,81 @@ class SandboxManager {
 			$this->delete_directory( $target_path . '/wp-content' );
 			$content_cloner = new ContentCloner();
 			$content_cloner->copy_directory( $template_content, $target_path . '/wp-content' );
-			$this->write_db_drop_in( $target_path );
+			if ( 'sqlite' === $engine ) {
+				$this->write_db_drop_in( $target_path );
+			}
 		}
 	}
 
 	/**
-	 * Clone from an existing sandbox: copy its SQLite db and wp-content, then rewrite URLs and prefix.
+	 * Clone from an existing sandbox: copy its db and wp-content, then rewrite URLs and prefix.
 	 *
 	 * @param Sandbox $source      Source sandbox to clone from.
 	 * @param string  $target_id   New sandbox ID.
 	 * @param string  $target_path New sandbox directory path.
+	 * @param string  $engine      Database engine: 'mysql' or 'sqlite'.
 	 * @return array Clone source metadata.
 	 *
 	 * @throws \RuntimeException If the database copy fails.
 	 */
-	private function clone_from_sandbox( Sandbox $source, string $target_id, string $target_path ): array {
-		$source_db = $source->get_db_path();
-		$target_db = $target_path . '/wordpress.db';
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file.
-		if ( ! copy( $source_db, $target_db ) ) {
-			throw new \RuntimeException( sprintf( 'Failed to copy database from source sandbox: %s', $source->id ) );
-		}
-
-		$source_prefix = 'wp_' . substr( md5( $source->id ), 0, 6 ) . '_';
+	private function clone_from_sandbox( Sandbox $source, string $target_id, string $target_path, string $engine = 'mysql' ): array {
+		$source_prefix = $source->get_table_prefix();
 		$target_prefix = 'wp_' . substr( md5( $target_id ), 0, 6 ) . '_';
 
 		$site_url    = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 		$source_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $source->id;
 		$sandbox_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $target_id;
 
-		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO.
-		$pdo = new \PDO( 'sqlite:' . $target_db );
-		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-		// phpcs:enable
+		if ( 'mysql' === $engine ) {
+			$mysql_cloner = new MySQLCloner();
+			$mysql_cloner->copy_tables( $source_prefix, $target_prefix );
 
-		$db_cloner = new DatabaseCloner( $this->plugin_dir );
-		$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $sandbox_url );
+			global $wpdb;
+			$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $sandbox_url );
+			$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
+		} else {
+			$source_db = $source->get_db_path();
+			$target_db = $target_path . '/wordpress.db';
 
-		// Rename tables from source prefix to target prefix.
-		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
-		$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
-			->fetchAll( \PDO::FETCH_COLUMN );
-		// phpcs:enable
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file.
+			if ( ! copy( $source_db, $target_db ) ) {
+				throw new \RuntimeException( sprintf( 'Failed to copy database from source sandbox: %s', $source->id ) );
+			}
 
-		foreach ( $tables as $old_table ) {
-			$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
-			$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
+			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO.
+			$pdo = new \PDO( 'sqlite:' . $target_db );
+			$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+			// phpcs:enable
+
+			$db_cloner = new DatabaseCloner( $this->plugin_dir );
+			$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $sandbox_url );
+
+			// Rename tables from source prefix to target prefix.
+			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
+			$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
+				->fetchAll( \PDO::FETCH_COLUMN );
+			// phpcs:enable
+
+			foreach ( $tables as $old_table ) {
+				$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
+				$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
+			}
+
+			$db_cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
+
+			$pdo = null;
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting permissions on generated database file.
+			chmod( $target_db, 0664 );
 		}
-
-		$db_cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
-
-		$pdo = null;
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting permissions on generated database file.
-		chmod( $target_db, 0664 );
 
 		// Replace scaffolded wp-content with source sandbox's wp-content.
 		$this->delete_directory( $target_path . '/wp-content' );
 		$content_cloner = new ContentCloner();
 		$content_cloner->copy_directory( $source->get_wp_content_path(), $target_path . '/wp-content' );
 
-		// Re-write the db.php drop-in (it was copied from source but needs same content).
-		$this->write_db_drop_in( $target_path );
+		if ( 'sqlite' === $engine ) {
+			$this->write_db_drop_in( $target_path );
+		}
 
 		return array(
 			'type'           => 'sandbox',

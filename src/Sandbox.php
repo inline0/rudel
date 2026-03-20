@@ -23,6 +23,7 @@ class Sandbox {
 	 * @param string     $status       Current status (active, paused).
 	 * @param array|null $clone_source Clone source metadata, or null if not cloned.
 	 * @param bool       $multisite    Whether this sandbox was cloned from a multisite host.
+	 * @param string     $engine       Database engine: 'mysql' or 'sqlite'.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -33,6 +34,7 @@ class Sandbox {
 		public readonly string $status = 'active',
 		public readonly ?array $clone_source = null,
 		public readonly bool $multisite = false,
+		public readonly string $engine = 'mysql',
 	) {}
 
 	/**
@@ -62,16 +64,47 @@ class Sandbox {
 			status: $data['status'] ?? 'active',
 			clone_source: $data['clone_source'] ?? null,
 			multisite: ! empty( $data['multisite'] ),
+			engine: $data['engine'] ?? 'mysql',
 		);
+	}
+
+	/**
+	 * Check if this sandbox uses the MySQL engine.
+	 *
+	 * @return bool True if MySQL.
+	 */
+	public function is_mysql(): bool {
+		return 'mysql' === $this->engine;
+	}
+
+	/**
+	 * Check if this sandbox uses the SQLite engine.
+	 *
+	 * @return bool True if SQLite.
+	 */
+	public function is_sqlite(): bool {
+		return 'sqlite' === $this->engine;
 	}
 
 	/**
 	 * Get the path to the sandbox SQLite database file.
 	 *
-	 * @return string Absolute path to the database file.
+	 * @return string|null Absolute path to the database file, or null for MySQL sandboxes.
 	 */
-	public function get_db_path(): string {
+	public function get_db_path(): ?string {
+		if ( $this->is_mysql() ) {
+			return null;
+		}
 		return $this->path . '/wordpress.db';
+	}
+
+	/**
+	 * Get the sandbox table prefix.
+	 *
+	 * @return string Table prefix string.
+	 */
+	public function get_table_prefix(): string {
+		return 'wp_' . substr( md5( $this->id ), 0, 6 ) . '_';
 	}
 
 	/**
@@ -126,6 +159,7 @@ class Sandbox {
 			'created_at' => $this->created_at,
 			'template'   => $this->template,
 			'status'     => $this->status,
+			'engine'     => $this->engine,
 		);
 
 		if ( null !== $this->clone_source ) {

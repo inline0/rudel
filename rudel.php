@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Rudel
- * Description: Sandboxed WordPress environments powered by SQLite.
+ * Description: Sandboxed WordPress environments with isolated databases and content.
  * Version: 0.1.0
  * Author: Rudel
  * License: GPL-2.0-or-later

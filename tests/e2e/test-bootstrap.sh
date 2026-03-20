@@ -43,7 +43,7 @@ fail() {
 
 # Create sandboxes directory with a test sandbox
 mkdir -p "$SANDBOXES_DIR/test-sandbox-001"
-echo '{"id":"test-sandbox-001","name":"test"}' > "$SANDBOXES_DIR/test-sandbox-001/.rudel.json"
+echo '{"id":"test-sandbox-001","name":"test","engine":"sqlite"}' > "$SANDBOXES_DIR/test-sandbox-001/.rudel.json"
 
 # Helper: run bootstrap.php in a child process and get constants as JSON
 run_bootstrap() {
@@ -201,9 +201,9 @@ echo -e "${BOLD}Priority order${NC}"
 
 # Header wins over cookie
 mkdir -p "$SANDBOXES_DIR/header-wins"
-echo '{"id":"header-wins"}' > "$SANDBOXES_DIR/header-wins/.rudel.json"
+echo '{"id":"header-wins","engine":"sqlite"}' > "$SANDBOXES_DIR/header-wins/.rudel.json"
 mkdir -p "$SANDBOXES_DIR/cookie-loses"
-echo '{"id":"cookie-loses"}' > "$SANDBOXES_DIR/cookie-loses/.rudel.json"
+echo '{"id":"cookie-loses","engine":"sqlite"}' > "$SANDBOXES_DIR/cookie-loses/.rudel.json"
 
 RESULT=$(run_bootstrap '{"HTTP_X_RUDEL_SANDBOX":"header-wins","HTTP_HOST":"example.com"}' '{"rudel_sandbox":"cookie-loses"}')
 SID=$(get_json_field "$RESULT" "sandbox_id")
@@ -300,6 +300,51 @@ if [[ "$DB_DIR" == "NULL" ]]; then
     pass "Skips when RUDEL_SANDBOX_ID already defined"
 else
     fail "Didn't skip when already resolved" "DB_DIR: $DB_DIR"
+fi
+
+# --------------------------------------------------------------------------
+# MySQL engine: no SQLite constants
+# --------------------------------------------------------------------------
+echo ""
+echo -e "${BOLD}MySQL engine${NC}"
+
+mkdir -p "$SANDBOXES_DIR/mysql-sandbox"
+echo '{"id":"mysql-sandbox","name":"mysql-test","engine":"mysql"}' > "$SANDBOXES_DIR/mysql-sandbox/.rudel.json"
+
+RESULT=$(run_bootstrap '{"HTTP_X_RUDEL_SANDBOX":"mysql-sandbox","HTTP_HOST":"localhost"}')
+SID=$(get_json_field "$RESULT" "sandbox_id")
+if [[ "$SID" == "mysql-sandbox" ]]; then
+    pass "MySQL sandbox detected"
+else
+    fail "MySQL sandbox not detected" "Got: $SID"
+fi
+
+DB_FILE=$(get_json_field "$RESULT" "db_file")
+if [[ "$DB_FILE" == "NULL" ]]; then
+    pass "DB_FILE not set for MySQL engine"
+else
+    fail "DB_FILE should be null for MySQL" "Got: $DB_FILE"
+fi
+
+DB_TYPE=$(get_json_field "$RESULT" "database_type")
+if [[ "$DB_TYPE" == "NULL" ]]; then
+    pass "DATABASE_TYPE not set for MySQL engine"
+else
+    fail "DATABASE_TYPE should be null for MySQL" "Got: $DB_TYPE"
+fi
+
+TABLE_PREFIX=$(get_json_field "$RESULT" "table_prefix")
+if [[ "$TABLE_PREFIX" != "NULL" ]]; then
+    pass "Table prefix still set for MySQL engine"
+else
+    fail "Table prefix missing for MySQL" "Got: $TABLE_PREFIX"
+fi
+
+WP_CONTENT=$(get_json_field "$RESULT" "wp_content_dir")
+if [[ "$WP_CONTENT" != "NULL" ]]; then
+    pass "WP_CONTENT_DIR still set for MySQL engine"
+else
+    fail "WP_CONTENT_DIR missing for MySQL" "Got: $WP_CONTENT"
 fi
 
 # --------------------------------------------------------------------------

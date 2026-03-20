@@ -138,7 +138,7 @@ class TemplateManagerTest extends RudelTestCase
         $tplDir = $this->tmpDir . '/templates';
 
         $sbManager = new SandboxManager($sandboxDir);
-        $source = $sbManager->create('Template Source');
+        $source = $sbManager->create('Template Source', ['engine' => 'sqlite']);
 
         $tplManager = new TemplateManager($tplDir);
         $tplManager->save($source, 'mytemplate');
@@ -154,7 +154,7 @@ class TemplateManagerTest extends RudelTestCase
         // Rename templates dir to match what WP_CONTENT_DIR resolves.
         rename($tplDir, $this->tmpDir . '/rudel-templates');
 
-        $newSandbox = $sbManager->create('From Template', ['template' => 'mytemplate']);
+        $newSandbox = $sbManager->create('From Template', ['engine' => 'sqlite', 'template' => 'mytemplate']);
 
         $pdo = new \PDO('sqlite:' . $newSandbox->get_db_path());
         $prefix = 'wp_' . substr(md5($newSandbox->id), 0, 6) . '_';
@@ -178,6 +178,6 @@ class TemplateManagerTest extends RudelTestCase
     {
         $sandboxDir = $this->tmpDir . '/sandboxes';
         $manager = new SandboxManager($sandboxDir);
-        return $manager->create($name);
+        return $manager->create($name, ['engine' => 'sqlite']);
     }
 }

@@ -181,7 +181,7 @@ class SecurityTest extends RudelTestCase
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         $manager = new SandboxManager($this->tmpDir);
-        $sandbox = $manager->create('Perms Security Test');
+        $sandbox = $manager->create('Perms Security Test', ['engine' => 'sqlite']);
 
         // These files should be read-only (0444)
         $readOnlyFiles = [
@@ -203,7 +203,7 @@ class SecurityTest extends RudelTestCase
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         $manager = new SandboxManager($this->tmpDir);
-        $sandbox = $manager->create('Writable Test');
+        $sandbox = $manager->create('Writable Test', ['engine' => 'sqlite']);
 
         // Database should be writable
         $this->assertTrue(is_writable($sandbox->get_db_path()));
@@ -225,8 +225,8 @@ class SecurityTest extends RudelTestCase
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         $manager = new SandboxManager($this->tmpDir);
 
-        $sandboxA = $manager->create('Isolation A');
-        $sandboxB = $manager->create('Isolation B');
+        $sandboxA = $manager->create('Isolation A', ['engine' => 'sqlite']);
+        $sandboxB = $manager->create('Isolation B', ['engine' => 'sqlite']);
 
         // Modify data in sandbox A's database
         $pdoA = new \PDO('sqlite:' . $sandboxA->get_db_path());
@@ -324,7 +324,7 @@ class SecurityTest extends RudelTestCase
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         $manager = new SandboxManager($this->tmpDir);
-        $sandbox = $manager->create('Template Security');
+        $sandbox = $manager->create('Template Security', ['engine' => 'sqlite']);
 
         $dbPhp = file_get_contents($sandbox->path . '/wp-content/db.php');
         $this->assertStringNotContainsString('{{', $dbPhp);
@@ -337,7 +337,7 @@ class SecurityTest extends RudelTestCase
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         $manager = new SandboxManager($this->tmpDir);
-        $sandbox = $manager->create('Placeholder Security');
+        $sandbox = $manager->create('Placeholder Security', ['engine' => 'sqlite']);
 
         $bootstrap = file_get_contents($sandbox->path . '/bootstrap.php');
         $this->assertStringNotContainsString('{{', $bootstrap);
@@ -350,7 +350,7 @@ class SecurityTest extends RudelTestCase
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         $manager = new SandboxManager($this->tmpDir);
-        $sandbox = $manager->create('YML Security');
+        $sandbox = $manager->create('YML Security', ['engine' => 'sqlite']);
 
         $yml = file_get_contents($sandbox->path . '/wp-cli.yml');
         $this->assertStringNotContainsString('{{', $yml);
@@ -363,7 +363,7 @@ class SecurityTest extends RudelTestCase
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         $manager = new SandboxManager($this->tmpDir);
-        $sandbox = $manager->create('MD Security');
+        $sandbox = $manager->create('MD Security', ['engine' => 'sqlite']);
 
         $md = file_get_contents($sandbox->path . '/CLAUDE.md');
         $this->assertStringNotContainsString('{{', $md);

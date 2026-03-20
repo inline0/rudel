@@ -186,6 +186,6 @@ class SnapshotManagerTest extends RudelTestCase
     private function createRealSandbox(string $name): Sandbox
     {
         $manager = new SandboxManager($this->tmpDir);
-        return $manager->create($name);
+        return $manager->create($name, ['engine' => 'sqlite']);
     }
 }

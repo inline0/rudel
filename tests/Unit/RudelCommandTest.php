@@ -29,7 +29,7 @@ class RudelCommandTest extends RudelTestCase
     public function testCreateOutputsSuccessWithSandboxId(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Test Create', 'template' => 'blank']);
+        $cmd->create([], ['name' => 'Test Create', 'template' => 'blank', 'engine' => 'sqlite']);
 
         $this->assertCount(1, \WP_CLI::$successes);
         $this->assertStringContainsString('Sandbox created:', \WP_CLI::$successes[0]);
@@ -40,7 +40,7 @@ class RudelCommandTest extends RudelTestCase
     public function testCreateLogsPathAndUrl(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Path Test', 'template' => 'blank']);
+        $cmd->create([], ['name' => 'Path Test', 'template' => 'blank', 'engine' => 'sqlite']);
 
         $logMessages = array_filter(\WP_CLI::$log, fn($m) => is_string($m));
         $combined = implode("\n", $logMessages);
@@ -53,7 +53,7 @@ class RudelCommandTest extends RudelTestCase
     public function testCreatePassesTemplateOption(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Template Test', 'template' => 'custom']);
+        $cmd->create([], ['name' => 'Template Test', 'template' => 'custom', 'engine' => 'sqlite']);
 
         $this->assertCount(1, \WP_CLI::$successes);
     }
@@ -63,7 +63,7 @@ class RudelCommandTest extends RudelTestCase
     public function testCreateDefaultsTemplateToBlank(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Default Template']);
+        $cmd->create([], ['name' => 'Default Template', 'engine' => 'sqlite']);
 
         $this->assertCount(1, \WP_CLI::$successes);
     }
@@ -91,7 +91,7 @@ class RudelCommandTest extends RudelTestCase
         $cmd = new \Rudel\CLI\RudelCommand($manager);
 
         $this->expectException(\RuntimeException::class);
-        $cmd->create([], ['name' => 'Will Fail']);
+        $cmd->create([], ['name' => 'Will Fail', 'engine' => 'sqlite']);
     }
 
     // list_()
@@ -101,7 +101,7 @@ class RudelCommandTest extends RudelTestCase
     public function testListWithSandboxesCallsFormatItems(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'List Item']);
+        $cmd->create([], ['name' => 'List Item', 'engine' => 'sqlite']);
         \WP_CLI::reset();
 
         $cmd->list_([], []);
@@ -110,7 +110,7 @@ class RudelCommandTest extends RudelTestCase
         $this->assertCount(1, $formatCalls);
 
         $call = array_values($formatCalls)[0];
-        $this->assertSame(['id', 'name', 'status', 'template', 'created', 'size'], $call['fields']);
+        $this->assertSame(['id', 'name', 'engine', 'status', 'template', 'created', 'size'], $call['fields']);
     }
 
     #[RunInSeparateProcess]
@@ -131,7 +131,7 @@ class RudelCommandTest extends RudelTestCase
     public function testListRespectsFormatArgument(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Format Test']);
+        $cmd->create([], ['name' => 'Format Test', 'engine' => 'sqlite']);
         \WP_CLI::reset();
 
         $cmd->list_([], ['format' => 'json']);
@@ -146,7 +146,7 @@ class RudelCommandTest extends RudelTestCase
     public function testListMapsSizeField(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Size Test']);
+        $cmd->create([], ['name' => 'Size Test', 'engine' => 'sqlite']);
         \WP_CLI::reset();
 
         $cmd->list_([], []);
@@ -165,7 +165,7 @@ class RudelCommandTest extends RudelTestCase
     public function testInfoDisplaysSandboxDataAsTable(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Info Test']);
+        $cmd->create([], ['name' => 'Info Test', 'engine' => 'sqlite']);
         $id = str_replace('Sandbox created: ', '', \WP_CLI::$successes[0]);
         \WP_CLI::reset();
 
@@ -188,7 +188,7 @@ class RudelCommandTest extends RudelTestCase
     public function testInfoWithJsonFormat(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Json Info']);
+        $cmd->create([], ['name' => 'Json Info', 'engine' => 'sqlite']);
         $id = str_replace('Sandbox created: ', '', \WP_CLI::$successes[0]);
         \WP_CLI::reset();
 
@@ -218,7 +218,7 @@ class RudelCommandTest extends RudelTestCase
     public function testDestroyWithForceSucceeds(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Destroy Force']);
+        $cmd->create([], ['name' => 'Destroy Force', 'engine' => 'sqlite']);
         $id = str_replace('Sandbox created: ', '', \WP_CLI::$successes[0]);
         \WP_CLI::reset();
 
@@ -234,7 +234,7 @@ class RudelCommandTest extends RudelTestCase
     public function testDestroyWithoutForceCallsConfirm(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['name' => 'Destroy Confirm']);
+        $cmd->create([], ['name' => 'Destroy Confirm', 'engine' => 'sqlite']);
         $id = str_replace('Sandbox created: ', '', \WP_CLI::$successes[0]);
         \WP_CLI::reset();
 

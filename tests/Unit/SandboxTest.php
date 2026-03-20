@@ -252,11 +252,67 @@ class SandboxTest extends RudelTestCase
         $this->assertStringEndsNotWith('/', $sandbox->path);
     }
 
+    // Engine helpers
+
+    public function testDefaultEngineIsMysql(): void
+    {
+        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01');
+        $this->assertSame('mysql', $sandbox->engine);
+        $this->assertTrue($sandbox->is_mysql());
+        $this->assertFalse($sandbox->is_sqlite());
+    }
+
+    public function testSqliteEngine(): void
+    {
+        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'sqlite');
+        $this->assertSame('sqlite', $sandbox->engine);
+        $this->assertFalse($sandbox->is_mysql());
+        $this->assertTrue($sandbox->is_sqlite());
+    }
+
+    public function testGetTablePrefix(): void
+    {
+        $sandbox = new Sandbox('test-id', 'name', '/tmp/test', '2026-01-01');
+        $expected = 'wp_' . substr(md5('test-id'), 0, 6) . '_';
+        $this->assertSame($expected, $sandbox->get_table_prefix());
+    }
+
+    public function testFromPathReadsEngineField(): void
+    {
+        $path = $this->createFakeSandbox('engine-test', 'test', ['engine' => 'sqlite']);
+        $sandbox = Sandbox::from_path($path);
+        $this->assertNotNull($sandbox);
+        $this->assertSame('sqlite', $sandbox->engine);
+    }
+
+    public function testFromPathDefaultsEngineToMysql(): void
+    {
+        $path = $this->createFakeSandbox('no-engine', 'test');
+        $sandbox = Sandbox::from_path($path);
+        $this->assertNotNull($sandbox);
+        $this->assertSame('mysql', $sandbox->engine);
+    }
+
+    public function testToArrayIncludesEngineForBoth(): void
+    {
+        $mysql = new Sandbox('id', 'name', '/tmp/test', '2026-01-01');
+        $this->assertSame('mysql', $mysql->to_array()['engine']);
+
+        $sqlite = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'sqlite');
+        $this->assertSame('sqlite', $sqlite->to_array()['engine']);
+    }
+
     // getDbPath() / getWpContentPath()
 
-    public function testGetDbPath(): void
+    public function testGetDbPathReturnNullForMysql(): void
     {
         $sandbox = new Sandbox('id', 'name', '/sandboxes/my-test', '2026-01-01');
+        $this->assertNull($sandbox->get_db_path());
+    }
+
+    public function testGetDbPathForSqlite(): void
+    {
+        $sandbox = new Sandbox('id', 'name', '/sandboxes/my-test', '2026-01-01', engine: 'sqlite');
         $this->assertSame('/sandboxes/my-test/wordpress.db', $sandbox->get_db_path());
     }
 
@@ -345,6 +401,7 @@ class SandboxTest extends RudelTestCase
             'created_at' => '2026-01-01',
             'template' => 'blank',
             'status' => 'active',
+            'engine' => 'mysql',
         ], $arr);
     }
 

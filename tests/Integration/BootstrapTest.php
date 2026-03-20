@@ -546,13 +546,64 @@ class BootstrapTest extends RudelTestCase
         $this->assertSame('wp-content/uploads', $result['uploads']);
     }
 
+    // MySQL engine
+
+    public function testMysqlEngineSkipsSqliteConstants(): void
+    {
+        $this->createFakeSandboxInDir('mysql-box', 'mysql');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'mysql-box',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('mysql-box', $result['sandbox_id']);
+        $this->assertNull($result['db_dir']);
+        $this->assertNull($result['db_file']);
+        $this->assertNull($result['database_type']);
+        $this->assertNotNull($result['table_prefix']);
+        $this->assertNotNull($result['wp_content_dir']);
+        $this->assertNotNull($result['auth_key']);
+    }
+
+    public function testSqliteEngineSetsSqliteConstants(): void
+    {
+        $this->createFakeSandboxInDir('sqlite-box', 'sqlite');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'sqlite-box',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('sqlite-box', $result['sandbox_id']);
+        $this->assertNotNull($result['db_dir']);
+        $this->assertSame('wordpress.db', $result['db_file']);
+        $this->assertSame('sqlite', $result['database_type']);
+    }
+
+    public function testMissingEngineDefaultsToMysql(): void
+    {
+        $path = $this->sandboxesDir . '/no-engine-box';
+        mkdir($path, 0755, true);
+        file_put_contents($path . '/.rudel.json', json_encode(['id' => 'no-engine-box', 'name' => 'test']));
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'no-engine-box',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('no-engine-box', $result['sandbox_id']);
+        $this->assertNull($result['db_dir']);
+        $this->assertNull($result['db_file']);
+    }
+
     // Helpers
 
-    private function createFakeSandboxInDir(string $id): string
+    private function createFakeSandboxInDir(string $id, string $engine = 'sqlite'): string
     {
         $path = $this->sandboxesDir . '/' . $id;
         mkdir($path, 0755, true);
-        file_put_contents($path . '/.rudel.json', json_encode(['id' => $id, 'name' => $id]));
+        file_put_contents($path . '/.rudel.json', json_encode(['id' => $id, 'name' => $id, 'engine' => $engine]));
         return $path;
     }
 }

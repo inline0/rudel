@@ -12,12 +12,7 @@ if (defined('RUDEL_SANDBOX_ID')) {
     return;
 }
 
-// SQLite database
-define('DB_DIR', $sandbox_path);
-define('DB_FILE', 'wordpress.db');
-define('DATABASE_TYPE', 'sqlite');
-define('DB_ENGINE', 'sqlite');
-
+{{sqlite_block}}
 // WP content directories
 define('WP_CONTENT_DIR', $sandbox_path . '/wp-content');
 define('WP_PLUGIN_DIR', $sandbox_path . '/wp-content/plugins');

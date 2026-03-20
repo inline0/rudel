@@ -205,11 +205,25 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	// phpcs:ignore WordPress.PHP.IniSet.Risky -- Intentional open_basedir jail for sandbox isolation.
 	ini_set( 'open_basedir', $allowed_paths );
 
-	// SQLite database constants.
-	$def( 'DB_DIR', $sandbox_path );
-	$def( 'DB_FILE', 'wordpress.db' ); // phpcs:ignore WordPress.WP.CapitalPDangit.Misspelled -- Filename.
-	$def( 'DATABASE_TYPE', 'sqlite' );
-	$def( 'DB_ENGINE', 'sqlite' );
+	// Read engine from sandbox metadata (must happen before SQLite constants).
+	$_rudel_engine    = 'mysql';
+	$_rudel_meta_file = $sandbox_path . '/.rudel.json';
+	if ( file_exists( $_rudel_meta_file ) ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
+		$_rudel_meta_raw = file_get_contents( $_rudel_meta_file );
+		$_rudel_meta     = json_decode( $_rudel_meta_raw, true );
+		if ( is_array( $_rudel_meta ) && isset( $_rudel_meta['engine'] ) ) {
+			$_rudel_engine = $_rudel_meta['engine'];
+		}
+	}
+
+	// SQLite database constants (only for sqlite engine).
+	if ( 'sqlite' === $_rudel_engine ) {
+		$def( 'DB_DIR', $sandbox_path );
+		$def( 'DB_FILE', 'wordpress.db' ); // phpcs:ignore WordPress.WP.CapitalPDangit.Misspelled -- Filename.
+		$def( 'DATABASE_TYPE', 'sqlite' );
+		$def( 'DB_ENGINE', 'sqlite' );
+	}
 
 	// WP content directories.
 	$def( 'WP_CONTENT_DIR', $sandbox_path . '/wp-content' );
@@ -250,12 +264,9 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$def( 'LOGGED_IN_SALT', hash( 'sha256', $sandbox_id . 'LOGGED_IN_SALT' ) );
 	$def( 'NONCE_SALT', hash( 'sha256', $sandbox_id . 'NONCE_SALT' ) );
 
-	// Multisite constants: read from sandbox metadata.
-	$meta_file = $sandbox_path . '/.rudel.json';
-	if ( file_exists( $meta_file ) ) {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
-		$meta_json = json_decode( file_get_contents( $meta_file ), true );
-		if ( ! empty( $meta_json['multisite'] ) ) {
+	// Multisite constants: reuse metadata already parsed above.
+	if ( is_array( $_rudel_meta ) ) {
+		if ( ! empty( $_rudel_meta['multisite'] ) ) {
 			$def( 'WP_ALLOW_MULTISITE', true );
 			$def( 'MULTISITE', true );
 			$def( 'SUBDOMAIN_INSTALL', false );
