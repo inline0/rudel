@@ -107,10 +107,11 @@ class MockWpdb
     }
 
     /**
-     * Simulate $wpdb->get_results() for SELECT * queries with LIMIT/OFFSET.
+     * Simulate $wpdb->get_results() for SELECT queries.
      */
     public function get_results(string $query, $output = null): array
     {
+        // SELECT * FROM table LIMIT N OFFSET N
         if (preg_match('/SELECT \* FROM `?(\w+)`?\s+LIMIT\s+(\d+)\s+OFFSET\s+(\d+)/i', $query, $m)) {
             $table = $m[1];
             $limit = (int) $m[2];
@@ -122,6 +123,191 @@ class MockWpdb
 
             return array_slice($this->tables[$table]['rows'], $offset, $limit);
         }
+
+        // SELECT `pk`, `col` FROM table WHERE `col` LIKE '%search%'
+        if (preg_match('/SELECT `(\w+)`, `(\w+)` FROM `(\w+)` WHERE `\w+` LIKE/i', $query, $m)) {
+            $pk = $m[1];
+            $col = $m[2];
+            $table = $m[3];
+
+            if (! isset($this->tables[$table])) {
+                return [];
+            }
+
+            // Extract the LIKE pattern value.
+            if (preg_match("/LIKE '([^']+)'/", $query, $lm)) {
+                $search = str_replace(['%', '_'], ['', ''], stripslashes($lm[1]));
+                $results = [];
+                foreach ($this->tables[$table]['rows'] as $row) {
+                    if (isset($row[$col]) && str_contains((string) $row[$col], $search)) {
+                        $results[] = [$pk => $row[$pk], $col => $row[$col]];
+                    }
+                }
+                return $results;
+            }
+
+            return [];
+        }
+
+        // SELECT COUNT(*) FROM table
+        if (preg_match('/SELECT COUNT\(\*\) FROM `?(\w+)`?/i', $query, $m)) {
+            $table = $m[1];
+            return isset($this->tables[$table]) ? [['COUNT(*)' => count($this->tables[$table]['rows'])]] : [['COUNT(*)' => 0]];
+        }
+
         return [];
+    }
+
+    /**
+     * Simulate $wpdb->get_var() for SHOW TABLES LIKE and COUNT queries.
+     */
+    public function get_var(string $query)
+    {
+        // SHOW TABLES LIKE 'pattern'
+        if (preg_match("/SHOW TABLES LIKE '([^']+)'/i", $query, $m)) {
+            $like = stripslashes($m[1]);
+            $pattern = str_replace(['\\%', '\\_', '%', '_'], ['%', '_', '.*', '.'], $like);
+            $pattern = '/^' . $pattern . '$/i';
+            foreach (array_keys($this->tables) as $t) {
+                if (preg_match($pattern, $t)) {
+                    return $t;
+                }
+            }
+            return null;
+        }
+
+        // SELECT COUNT(*) FROM table
+        if (preg_match('/SELECT COUNT\(\*\) FROM `?(\w+)`?/i', $query, $m)) {
+            $table = $m[1];
+            return isset($this->tables[$table]) ? (string) count($this->tables[$table]['rows']) : '0';
+        }
+
+        return null;
+    }
+
+    /**
+     * Simulate $wpdb->query() for DDL and DML statements.
+     * Tracks executed queries for assertion.
+     */
+    public array $queriesExecuted = [];
+
+    public function query(string $query): bool
+    {
+        $this->queriesExecuted[] = $query;
+
+        // CREATE TABLE target LIKE source
+        if (preg_match('/CREATE TABLE `(\w+)` LIKE `(\w+)`/i', $query, $m)) {
+            $target = $m[1];
+            $source = $m[2];
+            if (isset($this->tables[$source])) {
+                $this->tables[$target] = [
+                    'ddl' => str_replace($source, $target, $this->tables[$source]['ddl']),
+                    'rows' => [],
+                ];
+            }
+            return true;
+        }
+
+        // INSERT INTO target SELECT * FROM source
+        if (preg_match('/INSERT INTO `(\w+)` SELECT \* FROM `(\w+)`/i', $query, $m)) {
+            $target = $m[1];
+            $source = $m[2];
+            if (isset($this->tables[$source]) && isset($this->tables[$target])) {
+                $this->tables[$target]['rows'] = $this->tables[$source]['rows'];
+            }
+            return true;
+        }
+
+        // DROP TABLE IF EXISTS
+        if (preg_match('/DROP TABLE IF EXISTS `(\w+)`/i', $query, $m)) {
+            unset($this->tables[$m[1]]);
+            return true;
+        }
+
+        // UPDATE with REPLACE (URL rewriting)
+        if (preg_match('/UPDATE `(\w+)` SET `(\w+)` = REPLACE\(`\w+`,/i', $query, $m)) {
+            $table = $m[1];
+            $col = $m[2];
+            if (isset($this->tables[$table])) {
+                // Extract search and replace values from the prepared query.
+                if (preg_match_all("/'([^']*)'/", $query, $vals)) {
+                    $search = stripslashes($vals[1][0] ?? '');
+                    $replace = stripslashes($vals[1][1] ?? '');
+                    if ($search !== '' && $replace !== '') {
+                        foreach ($this->tables[$table]['rows'] as &$row) {
+                            if (isset($row[$col])) {
+                                $row[$col] = str_replace($search, $replace, $row[$col]);
+                            }
+                        }
+                        unset($row);
+                    }
+                }
+            }
+            return true;
+        }
+
+        // UPDATE single row (URL rewrite for serialized data)
+        if (preg_match('/UPDATE `(\w+)` SET `(\w+)` = \'(.*?)\' WHERE `(\w+)` = \'(.*?)\'/s', $query, $m)) {
+            $table = $m[1];
+            $col = $m[2];
+            $newVal = stripslashes($m[3]);
+            $pkCol = $m[4];
+            $pkVal = stripslashes($m[5]);
+            if (isset($this->tables[$table])) {
+                foreach ($this->tables[$table]['rows'] as &$row) {
+                    if (isset($row[$pkCol]) && (string) $row[$pkCol] === $pkVal) {
+                        $row[$col] = $newVal;
+                    }
+                }
+                unset($row);
+            }
+            return true;
+        }
+
+        return true;
+    }
+
+    /**
+     * Simulate $wpdb->insert().
+     */
+    public function insert(string $table, array $data): bool
+    {
+        if (! isset($this->tables[$table])) {
+            $this->tables[$table] = ['ddl' => '', 'rows' => []];
+        }
+        $this->tables[$table]['rows'][] = $data;
+        return true;
+    }
+
+    /**
+     * Simulate $wpdb->get_charset_collate().
+     */
+    public function get_charset_collate(): string
+    {
+        return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+    }
+
+    /**
+     * Get all registered table names.
+     */
+    public function getTableNames(): array
+    {
+        return array_keys($this->tables);
+    }
+
+    /**
+     * Get rows for a table.
+     */
+    public function getTableRows(string $table): array
+    {
+        return $this->tables[$table]['rows'] ?? [];
+    }
+
+    /**
+     * Check if a table exists.
+     */
+    public function hasTable(string $table): bool
+    {
+        return isset($this->tables[$table]);
     }
 }

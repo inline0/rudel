@@ -190,18 +190,36 @@ else
     fail "Alpha sandbox directory missing" "$ALPHA_DIR_EXISTS"
 fi
 
-ALPHA_DB_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/wordpress.db && echo yes || echo no" | tail -1)
-if [[ "$ALPHA_DB_EXISTS" == "yes" ]]; then
-    pass "Alpha wordpress.db exists"
+# Default engine is MySQL: no wordpress.db, no db.php drop-in
+ALPHA_NO_DB=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/wordpress.db && echo exists || echo none" | tail -1)
+if [[ "$ALPHA_NO_DB" == "none" ]]; then
+    pass "Alpha has no wordpress.db (MySQL engine)"
 else
-    fail "Alpha wordpress.db missing" "$ALPHA_DB_EXISTS"
+    fail "Alpha has wordpress.db but should use MySQL" "$ALPHA_NO_DB"
 fi
 
-ALPHA_DROPIN_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/wp-content/db.php && echo yes || echo no" | tail -1)
-if [[ "$ALPHA_DROPIN_EXISTS" == "yes" ]]; then
-    pass "Alpha db.php drop-in exists"
+ALPHA_NO_DROPIN=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/wp-content/db.php && echo exists || echo none" | tail -1)
+if [[ "$ALPHA_NO_DROPIN" == "none" ]]; then
+    pass "Alpha has no db.php drop-in (MySQL engine)"
 else
-    fail "Alpha db.php drop-in missing" "$ALPHA_DROPIN_EXISTS"
+    fail "Alpha has db.php but should use MySQL" "$ALPHA_NO_DROPIN"
+fi
+
+# Engine should be mysql in metadata
+ALPHA_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
+if [[ "$ALPHA_ENGINE" == "mysql" ]]; then
+    pass "Alpha engine is mysql in .rudel.json"
+else
+    fail "Alpha engine wrong" "Got: $ALPHA_ENGINE"
+fi
+
+# MySQL tables should exist with sandbox prefix
+ALPHA_PREFIX=$(wpenv_run bash -c "php -r \"echo 'wp_' . substr(md5('${ALPHA_ID}'), 0, 6) . '_';\"" | tail -1)
+ALPHA_TABLE_COUNT=$(wpenv_run bash -c "mysql -u root -ppassword -h tests-mysql wordpress -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='wordpress' AND table_name LIKE '${ALPHA_PREFIX}%'\"" 2>/dev/null | tail -1)
+if [[ "$ALPHA_TABLE_COUNT" -gt 0 ]]; then
+    pass "Alpha MySQL tables exist (${ALPHA_TABLE_COUNT} tables with prefix ${ALPHA_PREFIX})"
+else
+    fail "Alpha MySQL tables missing" "Count: $ALPHA_TABLE_COUNT, Prefix: $ALPHA_PREFIX"
 fi
 
 echo ""
@@ -404,6 +422,14 @@ else
     fail "Alpha directory still exists" "$ALPHA_DIR_GONE"
 fi
 
+# Verify MySQL tables are dropped after destroy
+ALPHA_TABLES_GONE=$(wpenv_run bash -c "mysql -u root -ppassword -h tests-mysql wordpress -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='wordpress' AND table_name LIKE '${ALPHA_PREFIX}%'\"" 2>/dev/null | tail -1)
+if [[ "$ALPHA_TABLES_GONE" == "0" ]]; then
+    pass "Alpha MySQL tables dropped after destroy"
+else
+    fail "Alpha MySQL tables still exist" "Count: $ALPHA_TABLES_GONE"
+fi
+
 # Beta should still work
 BETA_STILL_WORKS=$(sandbox_cli "$BETA_ID" option get blogname | tail -1)
 if [[ "$BETA_STILL_WORKS" == "Beta Site" ]]; then
@@ -425,6 +451,86 @@ if echo "$LIST_FINAL" | grep -q "No sandboxes found"; then
 else
     fail "Sandboxes still listed" "$LIST_FINAL"
 fi
+
+# SQLite engine test
+echo ""
+echo -e "${BOLD}SQLite engine${NC}"
+
+SQLITE_OUTPUT=$(wp_cli rudel create --name=sqlite-test --engine=sqlite)
+SQLITE_ID=$(parse_sandbox_id "$SQLITE_OUTPUT")
+if [[ -n "$SQLITE_ID" ]]; then
+    SANDBOX_IDS+=("$SQLITE_ID")
+    pass "Created SQLite sandbox: $SQLITE_ID"
+else
+    fail "Failed to create SQLite sandbox" "$SQLITE_OUTPUT"
+fi
+
+SQLITE_DB_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${SQLITE_ID}/wordpress.db && echo yes || echo no" | tail -1)
+if [[ "$SQLITE_DB_EXISTS" == "yes" ]]; then
+    pass "SQLite sandbox has wordpress.db"
+else
+    fail "SQLite sandbox missing wordpress.db" "$SQLITE_DB_EXISTS"
+fi
+
+SQLITE_DROPIN_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${SQLITE_ID}/wp-content/db.php && echo yes || echo no" | tail -1)
+if [[ "$SQLITE_DROPIN_EXISTS" == "yes" ]]; then
+    pass "SQLite sandbox has db.php drop-in"
+else
+    fail "SQLite sandbox missing db.php" "$SQLITE_DROPIN_EXISTS"
+fi
+
+SQLITE_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-sandboxes/${SQLITE_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
+if [[ "$SQLITE_ENGINE" == "sqlite" ]]; then
+    pass "SQLite engine in .rudel.json"
+else
+    fail "SQLite engine wrong" "Got: $SQLITE_ENGINE"
+fi
+
+sandbox_cli "$SQLITE_ID" option update blogname "SQLite Site" > /dev/null 2>&1
+SQLITE_BLOGNAME=$(sandbox_cli "$SQLITE_ID" option get blogname | tail -1)
+if [[ "$SQLITE_BLOGNAME" == "SQLite Site" ]]; then
+    pass "SQLite sandbox blogname works"
+else
+    fail "SQLite blogname failed" "Got: $SQLITE_BLOGNAME"
+fi
+
+DESTROY_SQLITE=$(wp_cli rudel destroy "$SQLITE_ID" --force)
+if echo "$DESTROY_SQLITE" | grep -q "Success"; then
+    pass "SQLite sandbox destroyed"
+    SANDBOX_IDS=("${SANDBOX_IDS[@]/$SQLITE_ID}")
+else
+    fail "SQLite destroy failed" "$DESTROY_SQLITE"
+fi
+
+# Engine in list output
+echo ""
+echo -e "${BOLD}Engine in list output${NC}"
+
+MYSQL_BOX=$(wp_cli rudel create --name=list-mysql)
+MYSQL_BOX_ID=$(parse_sandbox_id "$MYSQL_BOX")
+SANDBOX_IDS+=("$MYSQL_BOX_ID")
+
+SQLITE_BOX=$(wp_cli rudel create --name=list-sqlite --engine=sqlite)
+SQLITE_BOX_ID=$(parse_sandbox_id "$SQLITE_BOX")
+SANDBOX_IDS+=("$SQLITE_BOX_ID")
+
+LIST_CSV=$(wp_cli rudel list --format=csv)
+if echo "$LIST_CSV" | grep -q "$MYSQL_BOX_ID.*mysql"; then
+    pass "List shows mysql engine for MySQL sandbox"
+else
+    fail "List missing mysql engine" "$LIST_CSV"
+fi
+
+if echo "$LIST_CSV" | grep -q "$SQLITE_BOX_ID.*sqlite"; then
+    pass "List shows sqlite engine for SQLite sandbox"
+else
+    fail "List missing sqlite engine" "$LIST_CSV"
+fi
+
+wp_cli rudel destroy "$MYSQL_BOX_ID" --force > /dev/null 2>&1
+wp_cli rudel destroy "$SQLITE_BOX_ID" --force > /dev/null 2>&1
+SANDBOX_IDS=("${SANDBOX_IDS[@]/$MYSQL_BOX_ID}")
+SANDBOX_IDS=("${SANDBOX_IDS[@]/$SQLITE_BOX_ID}")
 
 # Clear destroyed IDs so cleanup trap doesn't try again
 SANDBOX_IDS=()
