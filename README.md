@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  WordPress sandboxes powered by SQLite
+  Sandboxed WordPress environments
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 ## What is Rudel?
 
-Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox gets its own SQLite database, `wp-content` directory, and WP-CLI scope.
+Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox gets its own database (MySQL by default, or SQLite), `wp-content` directory, and WP-CLI scope.
 
 **Use cases:**
 - Test plugin and theme changes without touching your live site
@@ -34,7 +34,6 @@ Rudel is a WordPress plugin that creates fully isolated sandbox environments wit
 **Prerequisites:**
 - PHP 8.0+
 - WordPress 6.4+
-- PDO SQLite PHP extension
 
 ```bash
 composer require rudel/rudel
@@ -58,18 +57,21 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 
 ## Features
 
-- **Instant creation** — sandboxes are created in under 2 seconds
-- **Full isolation** — each sandbox gets its own SQLite database and wp-content
-- **Database cloning** — clone your host MySQL into a sandbox SQLite database
-- **Snapshots** — point-in-time snapshots with instant restore
-- **Templates** — save sandboxes as reusable starting points
-- **Export & Import** — package sandboxes as zip archives
-- **Auto cleanup** — configurable expiry and automatic removal of stale sandboxes
-- **Agent ready** — scoped WP-CLI and CLAUDE.md support per sandbox
+- **Instant creation** -- sandboxes are created in under 2 seconds
+- **Full isolation** -- each sandbox gets its own database and wp-content
+- **Dual engine** -- MySQL (default) for full compatibility, SQLite for portable isolation
+- **Database cloning** -- clone your host database into a sandbox with automatic URL rewriting
+- **Snapshots** -- point-in-time snapshots with instant restore
+- **Templates** -- save sandboxes as reusable starting points
+- **Export & Import** -- package sandboxes as zip archives
+- **Auto cleanup** -- configurable expiry and automatic removal of stale sandboxes
+- **Agent ready** -- scoped WP-CLI and CLAUDE.md support per sandbox
 
 ## How It Works
 
-On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects sandbox context from the incoming request and sets all WordPress constants to point to an isolated sandbox folder. When no sandbox is active, WordPress boots normally with zero overhead.
+On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects sandbox context from the incoming request and sets all WordPress constants to point to an isolated sandbox. When no sandbox is active, WordPress boots normally with zero overhead.
+
+By default, sandboxes use MySQL with an isolated table prefix. Pass `--engine=sqlite` for file-based SQLite isolation.
 
 Each sandbox is a self-contained directory:
 
@@ -78,7 +80,7 @@ Each sandbox is a self-contained directory:
 ├── .rudel.json       # Sandbox metadata
 ├── wp-cli.yml        # Auto-scopes all WP-CLI commands
 ├── bootstrap.php     # Sets WP constants for this sandbox
-├── wordpress.db      # SQLite database
+├── wordpress.db      # SQLite database (only with --engine=sqlite)
 ├── CLAUDE.md         # Agent instructions (optional)
 ├── wp-content/       # Isolated themes, plugins, uploads
 ├── snapshots/        # Named snapshots (on demand)
@@ -90,6 +92,7 @@ Each sandbox is a self-contained directory:
 | Command | Description |
 |---------|-------------|
 | `wp rudel create --name=<name>` | Create a new sandbox |
+| `wp rudel create --name=<name> --engine=sqlite` | Create with SQLite engine |
 | `wp rudel create --name=<name> --clone-all` | Clone host DB + wp-content |
 | `wp rudel create --name=<name> --clone-from=<id>` | Clone from existing sandbox |
 | `wp rudel create --name=<name> --template=<name>` | Create from template |

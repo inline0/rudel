@@ -43,7 +43,7 @@ require_once __DIR__ . '/wp-content/plugins/rudel/bootstrap.php';
 
 This bootstrap file runs before `wp-settings.php` and detects sandbox context from the incoming request. When no sandbox is active, WordPress boots normally with zero overhead.
 
-Rudel also downloads the [SQLite Database Integration](https://github.com/WordPress/sqlite-database-integration) into its `lib/` directory automatically.
+When using the SQLite engine (`--engine=sqlite`), Rudel downloads the [SQLite Database Integration](https://github.com/WordPress/sqlite-database-integration) into its `lib/` directory automatically.
 
 ## Configuration
 
@@ -80,7 +80,7 @@ This shows:
 wp rudel create --name="my-first-sandbox"
 ```
 
-This creates a blank sandbox with a fresh SQLite database and empty wp-content directory. The output includes the sandbox path and access URL.
+This creates a blank sandbox with its own database and empty wp-content directory. By default, sandboxes use MySQL with an isolated table prefix. The output includes the sandbox path and access URL.
 
 To start using the sandbox via WP-CLI:
 
@@ -99,7 +99,7 @@ To clone your host site's database and content into a sandbox:
 wp rudel create --name="full-clone" --clone-all
 ```
 
-This copies the host MySQL database into an SQLite database, along with all themes, plugins, and uploads. See [Creating Sandboxes](/docs/sandboxes/creating) for all available options.
+This clones the host database along with all themes, plugins, and uploads into an isolated sandbox. See [Creating Sandboxes](/docs/sandboxes/creating) for all available options.
 
 ## Access a sandbox in the browser
 

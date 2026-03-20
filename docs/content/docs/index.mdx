@@ -1,11 +1,11 @@
 ---
 title: Introduction
-description: Rudel creates fully isolated WordPress sandbox environments powered by SQLite.
+description: Rudel creates fully isolated WordPress sandbox environments.
 ---
 
 # Introduction
 
-Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox runs its own SQLite database, has its own `wp-content` directory, and is fully scoped for WP-CLI.
+Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox gets its own isolated database (MySQL by default, or SQLite), its own `wp-content` directory, and is fully scoped for WP-CLI.
 
 ## Why Rudel?
 
@@ -13,13 +13,15 @@ WordPress development and AI-assisted coding lack a safe, disposable environment
 
 - Testing plugin or theme changes on a live site is risky.
 - Setting up local dev environments (Docker, MAMP, Valet) is slow and heavy.
-- MySQL-based staging environments are complex to provision and tear down.
+- Staging environments are complex to provision and tear down.
 - AI coding agents have no safe, scoped WordPress context to operate in.
 - There is no self-hosted, single-plugin solution for disposable WordPress environments.
 
 ## How it works
 
-Rudel installs as a standard WordPress plugin. On activation, it adds a single `require` line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap file detects sandbox context from the incoming request and sets all relevant WordPress constants (database path, content directory, plugin directory, uploads) to point to an isolated sandbox folder.
+Rudel installs as a standard WordPress plugin. On activation, it adds a single `require` line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap file detects sandbox context from the incoming request and sets all relevant WordPress constants (database, content directory, plugin directory, uploads) to point to an isolated sandbox.
+
+By default, sandboxes use MySQL with an isolated table prefix in the same database. Optionally, sandboxes can use SQLite for portable, file-based isolation via `--engine=sqlite`.
 
 Each sandbox is a self-contained directory:
 
@@ -28,10 +30,10 @@ Each sandbox is a self-contained directory:
 ├── .rudel.json           # Sandbox metadata (source of truth)
 ├── wp-cli.yml            # Auto-scopes all WP-CLI commands
 ├── bootstrap.php         # Sets WP constants for this sandbox
-├── wordpress.db          # SQLite database (the entire DB)
+├── wordpress.db          # SQLite database (only with --engine=sqlite)
 ├── CLAUDE.md             # Agent instructions (optional)
 ├── wp-content/
-│   ├── db.php            # SQLite drop-in
+│   ├── db.php            # SQLite drop-in (only with --engine=sqlite)
 │   ├── themes/           # Sandbox-specific themes
 │   ├── plugins/          # Sandbox-specific plugins
 │   ├── uploads/          # Isolated media
@@ -45,8 +47,9 @@ WordPress core files (`wp-includes/`, `wp-admin/`, root files) are always shared
 ## Key features
 
 - **Instant creation**: Sandboxes are created in under 2 seconds.
-- **Full isolation**: Each sandbox gets its own SQLite database and wp-content directory.
-- **Database cloning**: Clone your host MySQL database into a sandbox SQLite database.
+- **Full isolation**: Each sandbox gets its own database and wp-content directory.
+- **Database cloning**: Clone your host database into a sandbox with automatic URL rewriting.
+- **Dual engine**: MySQL (default) for full compatibility, or SQLite for portable file-based isolation.
 - **Snapshots**: Point-in-time snapshots with instant restore.
 - **Templates**: Save sandboxes as reusable templates for rapid provisioning.
 - **Export/Import**: Package sandboxes as zip archives for sharing.
@@ -58,5 +61,5 @@ WordPress core files (`wp-includes/`, `wp-admin/`, root files) are always shared
 
 - PHP 8.0+
 - WordPress 6.4+
-- PDO SQLite PHP extension (built into most PHP installations)
 - Write access to `wp-config.php`
+- PDO SQLite PHP extension (only required for `--engine=sqlite`, built into most PHP installations)

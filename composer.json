@@ -1,6 +1,6 @@
 {
     "name": "rudel/rudel",
-    "description": "Sandboxed WordPress environments powered by SQLite",
+    "description": "Sandboxed WordPress environments with isolated databases and content",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "require": {

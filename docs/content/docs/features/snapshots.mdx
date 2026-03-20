@@ -5,7 +5,7 @@ description: Create point-in-time snapshots and restore sandboxes instantly.
 
 # Snapshots
 
-Snapshots capture the complete state of a sandbox at a point in time: the SQLite database and the entire wp-content directory.
+Snapshots capture the complete state of a sandbox at a point in time: the database and the entire wp-content directory. For MySQL sandboxes, the snapshot copies the sandbox's tables; for SQLite sandboxes, it copies the database file.
 
 ## Create a snapshot
 

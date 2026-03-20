@@ -36,7 +36,8 @@ Displays detailed information about a specific sandbox:
 | template | Template used to create it |
 | created_at | Creation timestamp |
 | size | Total disk usage |
-| db_path | Path to the SQLite database |
+| engine | Database engine (mysql or sqlite) |
+| db_path | Path to the database file (SQLite) or N/A (MySQL) |
 | url | Access URL |
 | wp_content | Path to wp-content directory |
 
@@ -62,4 +63,8 @@ There is no undo. If you want to preserve the sandbox state before destroying it
 wp rudel status
 ```
 
-Shows overall Rudel configuration and health: whether the bootstrap is installed, the sandboxes directory path, active sandbox count, SQLite integration status, and PHP extension availability.
+Shows overall Rudel configuration and health: whether the bootstrap is installed, the sandboxes directory path, active sandbox count, and PHP extension availability.
+
+## Destroy a MySQL sandbox
+
+When you destroy a MySQL sandbox, Rudel drops all tables with the sandbox's prefix from the host database, then removes the sandbox directory. This cleanup is automatic.

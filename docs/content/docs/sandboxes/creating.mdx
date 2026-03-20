@@ -9,7 +9,7 @@ Rudel offers several ways to create sandboxes, depending on how much of your hos
 
 ## Blank sandbox
 
-Creates an empty sandbox with a fresh SQLite database and minimal wp-content:
+Creates an empty sandbox with a fresh database and minimal wp-content:
 
 ```bash
 wp rudel create --name="my-sandbox"
@@ -25,7 +25,7 @@ Clones the host MySQL database and all wp-content into the sandbox:
 wp rudel create --name="full-clone" --clone-all
 ```
 
-The `--clone-all` flag is equivalent to passing `--clone-db --clone-themes --clone-plugins --clone-uploads` together. The database cloner converts MySQL data to SQLite and rewrites URLs automatically.
+The `--clone-all` flag is equivalent to passing `--clone-db --clone-themes --clone-plugins --clone-uploads` together. The database cloner copies the data and rewrites URLs automatically.
 
 ## Clone database only
 
@@ -53,7 +53,7 @@ Available flags:
 
 | Flag | What it clones |
 |---|---|
-| `--clone-db` | Host MySQL database to sandbox SQLite |
+| `--clone-db` | Host database into sandbox |
 | `--clone-themes` | Host themes directory |
 | `--clone-plugins` | Host plugins directory |
 | `--clone-uploads` | Host uploads directory |
@@ -67,7 +67,7 @@ Create a new sandbox by copying an existing one:
 wp rudel create --name="copy" --clone-from=my-sandbox-a1b2
 ```
 
-This copies the source sandbox's SQLite database and wp-content directory into a new sandbox. The `--clone-from` flag is mutually exclusive with `--clone-db`, `--clone-themes`, `--clone-plugins`, `--clone-uploads`, and `--clone-all`.
+This copies the source sandbox's database and wp-content directory into a new sandbox. Both sandboxes must use the same engine. The `--clone-from` flag is mutually exclusive with `--clone-db`, `--clone-themes`, `--clone-plugins`, `--clone-uploads`, and `--clone-all`.
 
 ## Create from a template
 
@@ -85,7 +85,7 @@ When you create a sandbox, Rudel:
 
 1. Generates a unique sandbox ID from the name (e.g., `my-sandbox-a1b2`).
 2. Creates the sandbox directory with `wp-content`, `tmp`, and subdirectories.
-3. Copies or creates the SQLite database.
+3. Sets up the database (MySQL tables with sandbox prefix, or SQLite file).
 4. Generates `wp-cli.yml` scoped to the sandbox.
 5. Generates `bootstrap.php` with the sandbox's WordPress constants.
 6. Optionally clones content based on the flags provided.

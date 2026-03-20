@@ -6,7 +6,7 @@ const iconClass = "h-5 w-5 text-fd-primary";
 
 export default defineConfig({
   title: "Rudel",
-  description: "WordPress sandboxes powered by SQLite.",
+  description: "Sandboxed WordPress environments with isolated databases and content.",
   logo: {
     light: "/logo-light.svg",
     dark: "/logo-dark.svg",
@@ -26,13 +26,13 @@ export default defineConfig({
       {
         title: "Sandboxes",
         description:
-          "Isolated WordPress environments with their own SQLite database and wp-content directory.",
+          "Isolated WordPress environments with their own database and wp-content directory.",
         icon: <Box className={iconClass} />,
       },
       {
         title: "Database Cloning",
         description:
-          "Clone your host MySQL database into a sandbox SQLite database with automatic URL rewriting.",
+          "Clone your host database into a sandbox with automatic URL rewriting.",
         icon: <Database className={iconClass} />,
       },
       {
