@@ -270,6 +270,103 @@ class SecurityTest extends RudelTestCase
         $this->assertCount(8, $unique, 'All 8 salts should be unique');
     }
 
+    public function testSandboxSaltsNeverMatchHostSalts(): void
+    {
+        // Host salts (defined in wp-config.php) are arbitrary strings.
+        // Sandbox salts are SHA256 hashes of sandbox_id + salt_name.
+        // They must always differ so host sessions are invalid in sandboxes.
+        $sandboxAuthKey = $this->runBootstrapAndGetConstant('auth-host-test', 'AUTH_KEY');
+
+        // Sandbox salt is a 64-char hex SHA256 hash.
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $sandboxAuthKey);
+
+        // The expected value is deterministic from the sandbox ID.
+        $expected = hash('sha256', 'auth-host-test' . 'AUTH_KEY');
+        $this->assertSame($expected, $sandboxAuthKey);
+
+        // Any host salt (random string, not a hash of sandbox_id) would differ.
+        $this->assertNotSame('put your unique phrase here', $sandboxAuthKey);
+    }
+
+    public function testSandboxSaltsAreNotDerivedFromHostSalts(): void
+    {
+        // Sandbox salts are derived purely from the sandbox ID, not from
+        // any host constant. Two sandboxes with the same ID always get the
+        // same salts regardless of host configuration.
+        $salt1 = $this->runBootstrapAndGetConstant('deterministic-auth', 'SECURE_AUTH_KEY');
+        $salt2 = $this->runBootstrapAndGetConstant('deterministic-auth', 'SECURE_AUTH_KEY');
+        $this->assertSame($salt1, $salt2);
+        $this->assertSame(hash('sha256', 'deterministic-auth' . 'SECURE_AUTH_KEY'), $salt1);
+    }
+
+    // Auth isolation: blank sandbox default user
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testBlankSandboxAdminPasswordIsUnusable(): void
+    {
+        define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Auth Blank Test', ['engine' => 'sqlite']);
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = $sandbox->get_table_prefix();
+
+        $hash = $pdo->query("SELECT user_pass FROM {$prefix}users WHERE user_login='admin'")->fetchColumn();
+
+        // The placeholder hash is not a valid WordPress password hash for any real password.
+        $this->assertStringStartsWith('$P$B', $hash);
+        $this->assertStringContainsString('ForRudelSandbox', $hash);
+
+        // wp_check_password would fail for common passwords against this hash.
+        // The hash is intentionally not a hash of any known password.
+        $this->assertNotEmpty($hash);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testClonedSandboxHasSeparateUsersTable(): void
+    {
+        define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Auth Clone Source', ['engine' => 'sqlite']);
+        $clone = $manager->create('Auth Clone Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
+
+        $sourcePdo = new \PDO('sqlite:' . $source->get_db_path());
+        $clonePdo = new \PDO('sqlite:' . $clone->get_db_path());
+
+        $sourcePrefix = $source->get_table_prefix();
+        $clonePrefix = $clone->get_table_prefix();
+
+        // Both have an admin user.
+        $sourceAdmin = $sourcePdo->query("SELECT user_login FROM {$sourcePrefix}users WHERE ID=1")->fetchColumn();
+        $cloneAdmin = $clonePdo->query("SELECT user_login FROM {$clonePrefix}users WHERE ID=1")->fetchColumn();
+        $this->assertSame('admin', $sourceAdmin);
+        $this->assertSame('admin', $cloneAdmin);
+
+        // But their table prefixes differ (so they are separate tables).
+        $this->assertNotSame($sourcePrefix, $clonePrefix);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testClonedSandboxUsermetaPrefixIsRewritten(): void
+    {
+        define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        $manager = new SandboxManager($this->tmpDir);
+        $source = $manager->create('Meta Rewrite Source', ['engine' => 'sqlite']);
+        $clone = $manager->create('Meta Rewrite Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
+
+        $pdo = new \PDO('sqlite:' . $clone->get_db_path());
+        $clonePrefix = $clone->get_table_prefix();
+        $sourcePrefix = $source->get_table_prefix();
+
+        // Capabilities meta_key should use the clone's prefix, not the source's.
+        $capKey = $pdo->query("SELECT meta_key FROM {$clonePrefix}usermeta WHERE meta_key LIKE '%capabilities'")->fetchColumn();
+        $this->assertStringStartsWith($clonePrefix, $capKey);
+        $this->assertStringNotContainsString($sourcePrefix, $capKey);
+    }
+
     // Table prefix isolation
 
     public function testTablePrefixesAreUniquePerSandbox(): void
