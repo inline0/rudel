@@ -23,7 +23,8 @@ class Sandbox {
 	 * @param string     $status       Current status (active, paused).
 	 * @param array|null $clone_source Clone source metadata, or null if not cloned.
 	 * @param bool       $multisite    Whether this sandbox was cloned from a multisite host.
-	 * @param string     $engine       Database engine: 'mysql' or 'sqlite'.
+	 * @param string     $engine       Database engine: 'mysql', 'sqlite', or 'subsite'.
+	 * @param int|null   $blog_id      Multisite blog ID (subsite engine only).
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -35,6 +36,7 @@ class Sandbox {
 		public readonly ?array $clone_source = null,
 		public readonly bool $multisite = false,
 		public readonly string $engine = 'mysql',
+		public readonly ?int $blog_id = null,
 	) {}
 
 	/**
@@ -65,6 +67,7 @@ class Sandbox {
 			clone_source: $data['clone_source'] ?? null,
 			multisite: ! empty( $data['multisite'] ),
 			engine: $data['engine'] ?? 'mysql',
+			blog_id: isset( $data['blog_id'] ) ? (int) $data['blog_id'] : null,
 		);
 	}
 
@@ -87,12 +90,21 @@ class Sandbox {
 	}
 
 	/**
+	 * Check if this sandbox uses the subsite engine.
+	 *
+	 * @return bool True if subsite.
+	 */
+	public function is_subsite(): bool {
+		return 'subsite' === $this->engine;
+	}
+
+	/**
 	 * Get the path to the sandbox SQLite database file.
 	 *
-	 * @return string|null Absolute path to the database file, or null for MySQL sandboxes.
+	 * @return string|null Absolute path to the database file, or null for MySQL/subsite sandboxes.
 	 */
 	public function get_db_path(): ?string {
-		if ( $this->is_mysql() ) {
+		if ( ! $this->is_sqlite() ) {
 			return null;
 		}
 		return $this->path . '/wordpress.db';
@@ -104,6 +116,12 @@ class Sandbox {
 	 * @return string Table prefix string.
 	 */
 	public function get_table_prefix(): string {
+		if ( $this->is_subsite() && null !== $this->blog_id ) {
+			global $wpdb;
+			if ( isset( $wpdb ) && $wpdb ) {
+				return $wpdb->base_prefix . $this->blog_id . '_';
+			}
+		}
 		return 'wp_' . substr( md5( $this->id ), 0, 6 ) . '_';
 	}
 
@@ -168,6 +186,10 @@ class Sandbox {
 
 		if ( $this->multisite ) {
 			$data['multisite'] = true;
+		}
+
+		if ( null !== $this->blog_id ) {
+			$data['blog_id'] = $this->blog_id;
 		}
 
 		return $data;

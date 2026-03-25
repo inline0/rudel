@@ -902,6 +902,20 @@ class SandboxManagerTest extends RudelTestCase
         $manager->create('MySQL Target', ['engine' => 'mysql', 'clone_from' => $source->id]);
     }
 
+    // Subsite engine validation
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateSubsiteRejectsNonMultisite(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('multisite installation');
+        $manager->create('Subsite Test', ['engine' => 'subsite']);
+    }
+
     // cleanup
 
     #[RunInSeparateProcess]

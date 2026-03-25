@@ -597,6 +597,27 @@ class BootstrapTest extends RudelTestCase
         $this->assertNull($result['db_file']);
     }
 
+    // Subsite engine
+
+    public function testSubsiteEngineReturnsEarlyWithoutSettingConstants(): void
+    {
+        $this->createFakeSandboxInDir('subsite-box', 'subsite');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'subsite-box',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        // Subsite bootstrap sets sandbox markers but skips all other constants.
+        $this->assertSame('subsite-box', $result['sandbox_id']);
+        $this->assertNull($result['db_dir']);
+        $this->assertNull($result['db_file']);
+        $this->assertNull($result['database_type']);
+        // WP_CONTENT_DIR is NOT overridden for subsite (multisite handles it).
+        // table_prefix is NOT overridden for subsite.
+        $this->assertNull($result['table_prefix']);
+    }
+
     // Helpers
 
     private function createFakeSandboxInDir(string $id, string $engine = 'sqlite'): string

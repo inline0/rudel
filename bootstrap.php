@@ -217,6 +217,13 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		}
 	}
 
+	// Subsite engine: multisite handles routing natively, no Rudel constants needed.
+	if ( 'subsite' === $_rudel_engine ) {
+		$def( 'RUDEL_SANDBOX_ID', $sandbox_id );
+		$def( 'RUDEL_SANDBOX_PATH', $sandbox_path );
+		return;
+	}
+
 	// SQLite database constants (only for sqlite engine).
 	if ( 'sqlite' === $_rudel_engine ) {
 		$def( 'DB_DIR', $sandbox_path );

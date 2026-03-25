@@ -59,7 +59,7 @@ class SnapshotManager {
 			throw new \RuntimeException( sprintf( 'Failed to create snapshot directory: %s', $snapshot_path ) );
 		}
 
-		if ( $this->sandbox->is_mysql() ) {
+		if ( $this->sandbox->is_mysql() || $this->sandbox->is_subsite() ) {
 			$mysql_cloner  = new MySQLCloner();
 			$source_prefix = $this->sandbox->get_table_prefix();
 			$snap_prefix   = $source_prefix . 'snap_' . substr( md5( $name ), 0, 6 ) . '_';
@@ -70,7 +70,7 @@ class SnapshotManager {
 				$snapshot_path . '/db_snapshot.json',
 				json_encode(
 					array(
-						'engine'       => 'mysql',
+						'engine'       => $this->sandbox->engine,
 						'table_prefix' => $snap_prefix,
 					),
 					JSON_PRETTY_PRINT
@@ -85,8 +85,11 @@ class SnapshotManager {
 			}
 		}
 
-		$content_cloner = new ContentCloner();
-		$content_cloner->copy_directory( $this->sandbox->get_wp_content_path(), $snapshot_path . '/wp-content' );
+		// Subsite sandboxes share wp-content via the network; only copy for isolated engines.
+		if ( ! $this->sandbox->is_subsite() ) {
+			$content_cloner = new ContentCloner();
+			$content_cloner->copy_directory( $this->sandbox->get_wp_content_path(), $snapshot_path . '/wp-content' );
+		}
 
 		$meta = array(
 			'name'       => $name,
@@ -153,7 +156,7 @@ class SnapshotManager {
 			throw new \RuntimeException( sprintf( 'Snapshot not found: %s', $name ) );
 		}
 
-		if ( $this->sandbox->is_mysql() ) {
+		if ( $this->sandbox->is_mysql() || $this->sandbox->is_subsite() ) {
 			$db_meta_file = $snapshot_path . '/db_snapshot.json';
 			if ( file_exists( $db_meta_file ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading snapshot metadata.
@@ -179,13 +182,15 @@ class SnapshotManager {
 			}
 		}
 
-		$sandbox_content  = $this->sandbox->get_wp_content_path();
-		$snapshot_content = $snapshot_path . '/wp-content';
+		if ( ! $this->sandbox->is_subsite() ) {
+			$sandbox_content  = $this->sandbox->get_wp_content_path();
+			$snapshot_content = $snapshot_path . '/wp-content';
 
-		if ( is_dir( $snapshot_content ) ) {
-			$this->delete_directory( $sandbox_content );
-			$content_cloner = new ContentCloner();
-			$content_cloner->copy_directory( $snapshot_content, $sandbox_content );
+			if ( is_dir( $snapshot_content ) ) {
+				$this->delete_directory( $sandbox_content );
+				$content_cloner = new ContentCloner();
+				$content_cloner->copy_directory( $snapshot_content, $sandbox_content );
+			}
 		}
 	}
 

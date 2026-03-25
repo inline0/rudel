@@ -293,13 +293,64 @@ class SandboxTest extends RudelTestCase
         $this->assertSame('mysql', $sandbox->engine);
     }
 
-    public function testToArrayIncludesEngineForBoth(): void
+    public function testToArrayIncludesEngineForAll(): void
     {
         $mysql = new Sandbox('id', 'name', '/tmp/test', '2026-01-01');
         $this->assertSame('mysql', $mysql->to_array()['engine']);
 
         $sqlite = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'sqlite');
         $this->assertSame('sqlite', $sqlite->to_array()['engine']);
+
+        $subsite = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 5);
+        $this->assertSame('subsite', $subsite->to_array()['engine']);
+    }
+
+    // Subsite engine
+
+    public function testSubsiteEngine(): void
+    {
+        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 42);
+        $this->assertTrue($sandbox->is_subsite());
+        $this->assertFalse($sandbox->is_mysql());
+        $this->assertFalse($sandbox->is_sqlite());
+        $this->assertSame(42, $sandbox->blog_id);
+    }
+
+    public function testGetDbPathReturnNullForSubsite(): void
+    {
+        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 5);
+        $this->assertNull($sandbox->get_db_path());
+    }
+
+    public function testToArrayIncludesBlogId(): void
+    {
+        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 7);
+        $data = $sandbox->to_array();
+        $this->assertSame(7, $data['blog_id']);
+    }
+
+    public function testToArrayExcludesBlogIdWhenNull(): void
+    {
+        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01');
+        $data = $sandbox->to_array();
+        $this->assertArrayNotHasKey('blog_id', $data);
+    }
+
+    public function testFromPathReadsBlogId(): void
+    {
+        $path = $this->createFakeSandbox('subsite-test', 'test', ['engine' => 'subsite', 'blog_id' => 12]);
+        $sandbox = Sandbox::from_path($path);
+        $this->assertNotNull($sandbox);
+        $this->assertSame('subsite', $sandbox->engine);
+        $this->assertSame(12, $sandbox->blog_id);
+        $this->assertTrue($sandbox->is_subsite());
+    }
+
+    public function testFromPathBlogIdNullWhenMissing(): void
+    {
+        $path = $this->createFakeSandbox('no-blogid', 'test', ['engine' => 'mysql']);
+        $sandbox = Sandbox::from_path($path);
+        $this->assertNull($sandbox->blog_id);
     }
 
     // getDbPath() / getWpContentPath()

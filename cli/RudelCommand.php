@@ -64,12 +64,13 @@ class RudelCommand extends \WP_CLI_Command {
 	 * ---
 	 *
 	 * [--engine=<engine>]
-	 * : Database engine for the sandbox.
+	 * : Database engine for the sandbox. Use 'subsite' on multisite installations to create a sub-site.
 	 * ---
 	 * default: mysql
 	 * options:
 	 *   - mysql
 	 *   - sqlite
+	 *   - subsite
 	 * ---
 	 *
 	 * [--clone-db]
@@ -278,11 +279,15 @@ class RudelCommand extends \WP_CLI_Command {
 			WP_CLI::error( "Sandbox not found: {$id}" );
 		}
 
-		$data               = $sandbox->to_array();
-		$data['size']       = $this->format_size( $sandbox->get_size() );
-		$data['db_path']    = $sandbox->get_db_path() ?? 'N/A (MySQL)';
+		$data         = $sandbox->to_array();
+		$data['size'] = $this->format_size( $sandbox->get_size() );
+		if ( $sandbox->is_subsite() ) {
+			$data['db_path'] = 'N/A (multisite sub-site)';
+		} else {
+			$data['db_path'] = $sandbox->get_db_path() ?? 'N/A (MySQL)';
+		}
 		$data['url']        = $sandbox->get_url();
-		$data['wp_content'] = $sandbox->get_wp_content_path();
+		$data['wp_content'] = $sandbox->is_subsite() ? 'shared (network)' : $sandbox->get_wp_content_path();
 
 		$format = $assoc_args['format'] ?? 'table';
 
