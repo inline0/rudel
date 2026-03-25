@@ -8,15 +8,15 @@
 namespace Rudel;
 
 /**
- * Handles multisite sub-site creation, deletion, and content activation for subsite-engine sandboxes.
+ * Handles multisite sub-site creation, deletion, and database cloning for subsite-engine sandboxes.
  */
 class SubsiteCloner {
 
 	/**
 	 * Create a new multisite sub-site.
 	 *
-	 * @param string $sandbox_id   Sandbox identifier (used for the sub-site slug).
-	 * @param string $title        Human-readable title for the sub-site.
+	 * @param string $sandbox_id    Sandbox identifier (used for the sub-site slug).
+	 * @param string $title         Human-readable title for the sub-site.
 	 * @param int    $admin_user_id User ID for the sub-site admin.
 	 * @return int The new blog ID.
 	 *
@@ -51,8 +51,6 @@ class SubsiteCloner {
 	 *
 	 * @param int $blog_id Blog ID to delete.
 	 * @return void
-	 *
-	 * @throws \RuntimeException If deletion fails.
 	 */
 	public function delete_subsite( int $blog_id ): void {
 		if ( ! function_exists( 'wpmu_delete_blog' ) ) {
@@ -61,34 +59,6 @@ class SubsiteCloner {
 
 		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.delete_blog -- Sandbox cleanup.
 		wpmu_delete_blog( $blog_id, true );
-	}
-
-	/**
-	 * Activate plugins on a sub-site.
-	 *
-	 * @param int      $blog_id Blog ID.
-	 * @param string[] $plugins Array of plugin basenames (e.g., 'akismet/akismet.php').
-	 * @return void
-	 */
-	public function activate_plugins_for_blog( int $blog_id, array $plugins ): void {
-		switch_to_blog( $blog_id );
-		foreach ( $plugins as $plugin ) {
-			activate_plugin( $plugin );
-		}
-		restore_current_blog();
-	}
-
-	/**
-	 * Activate a theme on a sub-site.
-	 *
-	 * @param int    $blog_id    Blog ID.
-	 * @param string $stylesheet Theme stylesheet name.
-	 * @return void
-	 */
-	public function activate_theme_for_blog( int $blog_id, string $stylesheet ): void {
-		switch_to_blog( $blog_id );
-		switch_theme( $stylesheet );
-		restore_current_blog();
 	}
 
 	/**
@@ -108,41 +78,6 @@ class SubsiteCloner {
 	}
 
 	/**
-	 * Clone host content to a sub-site based on options.
-	 *
-	 * @param int   $blog_id Blog ID of the target sub-site.
-	 * @param array $options Clone options: clone_themes, clone_plugins, clone_uploads.
-	 * @return array Clone metadata.
-	 */
-	public function clone_host_content( int $blog_id, array $options ): array {
-		$clone_themes  = ! empty( $options['clone_themes'] );
-		$clone_plugins = ! empty( $options['clone_plugins'] );
-		$clone_uploads = ! empty( $options['clone_uploads'] );
-
-		if ( $clone_themes ) {
-			$active_theme = get_stylesheet();
-			$this->activate_theme_for_blog( $blog_id, $active_theme );
-		}
-
-		if ( $clone_plugins ) {
-			$active_plugins = get_option( 'active_plugins', array() );
-			if ( ! empty( $active_plugins ) ) {
-				$this->activate_plugins_for_blog( $blog_id, $active_plugins );
-			}
-		}
-
-		if ( $clone_uploads ) {
-			$this->copy_uploads_to_subsite( $blog_id );
-		}
-
-		return array(
-			'themes_activated'  => $clone_themes,
-			'plugins_activated' => $clone_plugins,
-			'uploads_copied'    => $clone_uploads,
-		);
-	}
-
-	/**
 	 * Clone the host's per-blog database tables into a sub-site.
 	 *
 	 * @param int $blog_id Target sub-site blog ID.
@@ -156,7 +91,6 @@ class SubsiteCloner {
 
 		$mysql_cloner = new MySQLCloner();
 
-		// Only clone the per-blog tables (posts, options, etc.), not global tables.
 		$per_blog_suffixes = array(
 			'posts',
 			'postmeta',
@@ -178,7 +112,6 @@ class SubsiteCloner {
 			$source_table = $source_prefix . $suffix;
 			$target_table = $target_prefix . $suffix;
 
-			// Drop default target table content (wpmu_create_blog creates empty tables).
 			$wpdb->query( "TRUNCATE TABLE `{$target_table}`" );
 			$wpdb->query( "INSERT INTO `{$target_table}` SELECT * FROM `{$source_table}`" );
 
@@ -188,7 +121,6 @@ class SubsiteCloner {
 		}
 		// phpcs:enable
 
-		// Rewrite the siteurl and home in the sub-site options.
 		$subsite_url = $this->get_subsite_url( $blog_id );
 		$host_url    = rtrim( home_url(), '/' );
 		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $host_url, rtrim( $subsite_url, '/' ) );
@@ -197,27 +129,6 @@ class SubsiteCloner {
 			'tables_cloned' => $table_count,
 			'rows_cloned'   => $total_rows,
 		);
-	}
-
-	/**
-	 * Copy host uploads to a sub-site's upload directory.
-	 *
-	 * @param int $blog_id Blog ID.
-	 * @return void
-	 */
-	private function copy_uploads_to_subsite( int $blog_id ): void {
-		$host_uploads = wp_upload_dir();
-		$host_basedir = $host_uploads['basedir'];
-
-		switch_to_blog( $blog_id );
-		$subsite_uploads = wp_upload_dir();
-		$subsite_basedir = $subsite_uploads['basedir'];
-		restore_current_blog();
-
-		if ( is_dir( $host_basedir ) && $host_basedir !== $subsite_basedir ) {
-			$cloner = new ContentCloner();
-			$cloner->copy_directory( $host_basedir, $subsite_basedir );
-		}
 	}
 
 	/**

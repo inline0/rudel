@@ -95,25 +95,20 @@ class SandboxManager {
 			$blog_id = null;
 
 		try {
-			if ( 'subsite' !== $engine ) {
-				// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
-				mkdir( $path . '/wp-content', 0755 );
-				mkdir( $path . '/wp-content/themes', 0755 );
-				mkdir( $path . '/wp-content/plugins', 0755 );
-				mkdir( $path . '/wp-content/uploads', 0755 );
-				mkdir( $path . '/wp-content/mu-plugins', 0755 );
-				// phpcs:enable
-			}
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating sandbox tmp directory.
+			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
+			mkdir( $path . '/wp-content', 0755 );
+			mkdir( $path . '/wp-content/themes', 0755 );
+			mkdir( $path . '/wp-content/plugins', 0755 );
+			mkdir( $path . '/wp-content/uploads', 0755 );
+			mkdir( $path . '/wp-content/mu-plugins', 0755 );
 			mkdir( $path . '/tmp', 0755 );
+			// phpcs:enable
 
 			if ( 'sqlite' === $engine ) {
 				$this->ensure_sqlite_integration();
 				$this->write_db_drop_in( $path );
 			}
-			if ( 'subsite' !== $engine ) {
-				$this->write_sandbox_bootstrap( $id, $path, false, $engine );
-			}
+			$this->write_sandbox_bootstrap( $id, $path, false, $engine );
 			$this->write_wp_cli_yml( $path, $engine, $id );
 			$this->write_claude_md( $id, $name, $path );
 
@@ -143,19 +138,16 @@ class SandboxManager {
 					);
 				}
 
-				if ( $clone_themes || $clone_plugins || $clone_uploads ) {
-					$subsite_cloner->clone_host_content( $blog_id, $options );
-					if ( ! $clone_source ) {
-						$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-						$clone_source = array(
-							'host_url'       => $site_url,
-							'cloned_at'      => gmdate( 'c' ),
-							'db_cloned'      => false,
-							'themes_cloned'  => $clone_themes,
-							'plugins_cloned' => $clone_plugins,
-							'uploads_cloned' => $clone_uploads,
-						);
-					}
+				if ( $has_clone && ! $clone_source ) {
+					$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+					$clone_source = array(
+						'host_url'       => $site_url,
+						'cloned_at'      => gmdate( 'c' ),
+						'db_cloned'      => false,
+						'themes_cloned'  => $clone_themes,
+						'plugins_cloned' => $clone_plugins,
+						'uploads_cloned' => $clone_uploads,
+					);
 				}
 			} elseif ( $is_from_template ) {
 				$this->initialize_from_template( $template, $id, $path, $engine );
@@ -215,7 +207,7 @@ class SandboxManager {
 					$this->create_blank_mysql_database( $id );
 				}
 
-				if ( $has_clone && 'subsite' !== $engine ) {
+				if ( $has_clone ) {
 					$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 					$clone_source = array(
 						'host_url'       => $site_url,
@@ -228,7 +220,7 @@ class SandboxManager {
 				}
 			}
 
-			if ( 'subsite' !== $engine && ( $clone_themes || $clone_plugins || $clone_uploads ) ) {
+			if ( $clone_themes || $clone_plugins || $clone_uploads ) {
 				$content_cloner = new ContentCloner();
 				$content_cloner->clone_content(
 					$path . '/wp-content',

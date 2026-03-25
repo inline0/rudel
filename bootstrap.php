@@ -217,13 +217,6 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		}
 	}
 
-	// Subsite engine: multisite handles routing natively, no Rudel constants needed.
-	if ( 'subsite' === $_rudel_engine ) {
-		$def( 'RUDEL_SANDBOX_ID', $sandbox_id );
-		$def( 'RUDEL_SANDBOX_PATH', $sandbox_path );
-		return;
-	}
-
 	// SQLite database constants (only for sqlite engine).
 	if ( 'sqlite' === $_rudel_engine ) {
 		$def( 'DB_DIR', $sandbox_path );
@@ -256,10 +249,12 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );
 	$def( 'UPLOADS', 'wp-content/uploads' );
 
-	// Per-sandbox table prefix (stored as constant so wp-config.php can't overwrite it).
-	$_rudel_prefix           = 'wp_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
-	$GLOBALS['table_prefix'] = $_rudel_prefix;
-	$def( 'RUDEL_TABLE_PREFIX', $_rudel_prefix );
+	// Per-sandbox table prefix (subsite engine uses multisite's own prefix via blog_id).
+	if ( 'subsite' !== $_rudel_engine ) {
+		$_rudel_prefix           = 'wp_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
+		$GLOBALS['table_prefix'] = $_rudel_prefix;
+		$def( 'RUDEL_TABLE_PREFIX', $_rudel_prefix );
+	}
 
 	// Per-sandbox auth salts (deterministic).
 	$def( 'AUTH_KEY', hash( 'sha256', $sandbox_id . 'AUTH_KEY' ) );

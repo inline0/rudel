@@ -85,11 +85,8 @@ class SnapshotManager {
 			}
 		}
 
-		// Subsite sandboxes share wp-content via the network; only copy for isolated engines.
-		if ( ! $this->sandbox->is_subsite() ) {
-			$content_cloner = new ContentCloner();
-			$content_cloner->copy_directory( $this->sandbox->get_wp_content_path(), $snapshot_path . '/wp-content' );
-		}
+		$content_cloner = new ContentCloner();
+		$content_cloner->copy_directory( $this->sandbox->get_wp_content_path(), $snapshot_path . '/wp-content' );
 
 		$meta = array(
 			'name'       => $name,
@@ -182,15 +179,13 @@ class SnapshotManager {
 			}
 		}
 
-		if ( ! $this->sandbox->is_subsite() ) {
-			$sandbox_content  = $this->sandbox->get_wp_content_path();
-			$snapshot_content = $snapshot_path . '/wp-content';
+		$sandbox_content  = $this->sandbox->get_wp_content_path();
+		$snapshot_content = $snapshot_path . '/wp-content';
 
-			if ( is_dir( $snapshot_content ) ) {
-				$this->delete_directory( $sandbox_content );
-				$content_cloner = new ContentCloner();
-				$content_cloner->copy_directory( $snapshot_content, $sandbox_content );
-			}
+		if ( is_dir( $snapshot_content ) ) {
+			$this->delete_directory( $sandbox_content );
+			$content_cloner = new ContentCloner();
+			$content_cloner->copy_directory( $snapshot_content, $sandbox_content );
 		}
 	}
 
