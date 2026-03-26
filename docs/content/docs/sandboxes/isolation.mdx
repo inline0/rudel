@@ -72,7 +72,7 @@ WordPress admin files (`/wp-admin/*.php`) are real PHP files served directly by 
 
 This means visiting a sandbox URL in the browser is enough to "enter" that sandbox. All subsequent page loads, including the admin dashboard, will operate in the sandbox's context until you exit.
 
-To exit, visit `/__rudel/exit/` (or your configured prefix + `/exit/`). This clears the cookie and redirects to the host.
+To exit, append `?adminExit` to any URL (e.g., `example.com/?adminExit`). This clears the cookie and redirects to the host.
 
 ## open_basedir restriction
 

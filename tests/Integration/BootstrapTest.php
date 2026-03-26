@@ -649,19 +649,32 @@ class BootstrapTest extends RudelTestCase
         $this->assertSame('path-auto', $result['sandbox_id']);
     }
 
-    public function testExitPathDoesNotActivateSandbox(): void
+    public function testAdminExitParamDoesNotActivateSandbox(): void
     {
-        $this->createFakeSandboxInDir('should-not-match');
+        $this->createFakeSandboxInDir('some-sandbox');
 
+        // ?adminExit is handled before sandbox detection in web mode.
+        // In CLI mode it's skipped, so we just verify it doesn't interfere.
         $result = $this->runBootstrap([
-            'REQUEST_URI' => '/__rudel/exit/',
+            'REQUEST_URI' => '/?adminExit',
             'HTTP_HOST' => 'localhost',
         ]);
 
-        // The exit path should not match any sandbox (it's a special route).
-        // In CLI mode the exit handler doesn't fire, so it falls through.
-        // The ID "exit" is not a sandbox directory, so no sandbox should be detected.
         $this->assertNull($result['sandbox_id'] ?? null);
+    }
+
+    public function testAdminExitDoesNotAffectCookieDetectionInCli(): void
+    {
+        $this->createFakeSandboxInDir('cookie-exit-test');
+
+        // In CLI mode, ?adminExit is ignored, cookie detection still works.
+        $result = $this->runBootstrap(
+            ['HTTP_HOST' => 'localhost', 'REQUEST_URI' => '/?adminExit'],
+            ['rudel_sandbox' => 'cookie-exit-test'],
+        );
+
+        // CLI mode: adminExit handler doesn't fire, cookie takes effect.
+        $this->assertSame('cookie-exit-test', $result['sandbox_id']);
     }
 
     // Helpers

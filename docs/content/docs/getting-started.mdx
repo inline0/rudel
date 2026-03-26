@@ -116,10 +116,10 @@ The path prefix method works out of the box with no DNS configuration.
 
 When you visit a sandbox URL in the browser, Rudel automatically sets a `rudel_sandbox` cookie. This means you can navigate to `/wp-admin/` and it will load in the sandbox's context, using the sandbox's database and content.
 
-To switch back to the host site, visit:
+To switch back to the host site, append `?adminExit` to any URL:
 
 ```
-example.com/__rudel/exit/
+example.com/?adminExit
 ```
 
 This clears the sandbox cookie and redirects you to the host homepage.

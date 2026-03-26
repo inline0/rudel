@@ -139,20 +139,18 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		}
 	}
 
-	// Exit sandbox: /__rudel/exit/ clears the cookie and redirects to host.
-	if ( 'cli' !== php_sapi_name() && ! $sandbox_id ) {
-		$uri = $_SERVER['REQUEST_URI'] ?? '';
-		if ( preg_match( '#^/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/exit/?(\?|$)#', $uri ) ) {
-			setcookie( 'rudel_sandbox', '', time() - 3600, '/' );
-			unset( $_COOKIE['rudel_sandbox'] );
-			$protocol = 'http';
-			if ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
-				$protocol = 'https';
-			}
-			$redirect = $protocol . '://' . ( $_SERVER['HTTP_HOST'] ?? 'localhost' ) . '/';
-			header( 'Location: ' . $redirect, true, 302 );
-			exit;
+	// Exit sandbox: ?adminExit clears the cookie and redirects to host.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stateless exit action, no side effects beyond clearing a cookie.
+	if ( 'cli' !== php_sapi_name() && isset( $_GET['adminExit'] ) ) {
+		setcookie( 'rudel_sandbox', '', time() - 3600, '/' );
+		unset( $_COOKIE['rudel_sandbox'] );
+		$protocol = 'http';
+		if ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
+			$protocol = 'https';
 		}
+		$redirect = $protocol . '://' . ( $_SERVER['HTTP_HOST'] ?? 'localhost' ) . '/';
+		header( 'Location: ' . $redirect, true, 302 );
+		exit;
 	}
 
 	// 4. Path prefix: /__rudel/{id}/.

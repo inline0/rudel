@@ -413,14 +413,13 @@ else
     fail "wp-admin failed with sandbox cookie" "HTTP $ADMIN_CODE"
 fi
 
-# The exit endpoint should clear the cookie.
-curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/__rudel/exit/"
+# The ?adminExit param should clear the cookie.
+curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/?adminExit"
 COOKIE_AFTER_EXIT=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}')
 if [[ -z "$COOKIE_AFTER_EXIT" || "$COOKIE_AFTER_EXIT" == '""' || "$COOKIE_AFTER_EXIT" == "0" ]]; then
-    pass "Exit endpoint cleared sandbox cookie"
+    pass "?adminExit cleared sandbox cookie"
 else
-    # Check if the cookie value is empty (expired cookies show differently).
-    fail "Exit endpoint did not clear cookie" "Got: $COOKIE_AFTER_EXIT"
+    fail "?adminExit did not clear cookie" "Got: $COOKIE_AFTER_EXIT"
 fi
 
 # After exit, /wp-admin/ should load the host (not sandbox).
@@ -429,6 +428,16 @@ if ! echo "$ADMIN_HOST" | grep -qi "Alpha Site"; then
     pass "wp-admin shows host after exit (not sandbox)"
 else
     fail "wp-admin still shows sandbox after exit" ""
+fi
+
+# ?adminExit should work from any URL.
+curl -s -o /dev/null -c "$COOKIE_JAR" "http://localhost:8888/__rudel/${ALPHA_ID}/"
+curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/wp-admin/?adminExit"
+COOKIE_FROM_ADMIN=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}')
+if [[ -z "$COOKIE_FROM_ADMIN" || "$COOKIE_FROM_ADMIN" == '""' || "$COOKIE_FROM_ADMIN" == "0" ]]; then
+    pass "?adminExit works from /wp-admin/ URL too"
+else
+    fail "?adminExit from /wp-admin/ did not clear cookie" "Got: $COOKIE_FROM_ADMIN"
 fi
 
 rm -f "$COOKIE_JAR"

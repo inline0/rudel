@@ -122,7 +122,7 @@ Sandboxes can be accessed via:
 
 The path prefix method works out of the box with no DNS configuration.
 
-Visiting a sandbox URL automatically sets a cookie, so `/wp-admin/` works in sandbox context. Visit `/__rudel/exit/` to return to the host.
+Visiting a sandbox URL automatically sets a cookie, so `/wp-admin/` works in sandbox context. Append `?adminExit` to any URL to return to the host.
 
 ## Development
 
