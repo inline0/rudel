@@ -46,3 +46,13 @@ This empties the log file without deleting it. Useful when you want a clean slat
 The log file lives at `{sandbox}/wp-content/debug.log`. If you prefer to work with it directly, you can `cat`, `grep`, or open it in any editor. The `wp rudel logs` command is just a convenience wrapper.
 
 Since sandboxes set `WP_DEBUG_DISPLAY` to `false`, errors won't break the frontend output even when debug mode is on. This makes it safe to leave logging enabled permanently, which is the intended behavior for disposable environments.
+
+## Blocked emails
+
+Sandboxes block outbound email by default. When an email would have been sent, it's logged to the sandbox's `debug.log` instead, with the recipient and subject line:
+
+```
+Rudel: email blocked in sandbox my-sandbox-a1b2 (to: user@example.com, subject: Password Reset)
+```
+
+This means `wp rudel logs` shows both PHP errors and blocked email attempts in one place.

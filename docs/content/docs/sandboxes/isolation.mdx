@@ -39,6 +39,16 @@ The bootstrap restricts PHP's `open_basedir` to a minimal allowlist: the sandbox
 
 In CLI mode, the WP-CLI tool's own directory is added to the allowlist so that phar-based installations work correctly.
 
+## Object cache
+
+If the host uses a persistent object cache like Redis or Memcached, cached data could leak between sandboxes without proper key separation. Rudel sets `WP_CACHE_KEY_SALT` to a unique value per sandbox (`rudel_{sandbox-id}_`), ensuring that each sandbox's cache keys are namespaced and cannot collide with the host or other sandboxes.
+
+## Email
+
+By default, sandboxes block all outbound email. A test notification or password reset triggered from a sandbox will not reach any real inbox. Instead, the blocked email is logged to the sandbox's `debug.log` with the recipient and subject line, so you can verify what would have been sent.
+
+To allow a sandbox to send real email, define `RUDEL_DISABLE_EMAIL` as `false` in `wp-config.php` before the bootstrap loads.
+
 ## WP-CLI scoping
 
 Each sandbox includes a `wp-cli.yml` file that points to the host's WordPress core path and requires the sandbox's `bootstrap.php`. Any `wp` command executed from within the sandbox directory automatically uses that sandbox's database and content. No flags needed.
@@ -52,4 +62,6 @@ Each sandbox includes a `wp-cli.yml` file that points to the host's WordPress co
 | Cross-sandbox access | Each sandbox's `open_basedir` only includes its own path |
 | Tampering with sandbox config | `bootstrap.php` and `wp-cli.yml` are set to read-only |
 | Session hijacking across sandboxes | Per-sandbox deterministic auth salts |
+| Cache data leaking | Per-sandbox `WP_CACHE_KEY_SALT` |
+| Accidental email from sandbox | Outbound email blocked and logged by default |
 | Prompt injection via sandbox files | Agent instructions in read-only `CLAUDE.md`; sandboxes are disposable |

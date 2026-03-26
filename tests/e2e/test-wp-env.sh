@@ -588,6 +588,110 @@ wp_cli rudel destroy "$SQLITE_BOX_ID" --force > /dev/null 2>&1
 SANDBOX_IDS=("${SANDBOX_IDS[@]/$MYSQL_BOX_ID}")
 SANDBOX_IDS=("${SANDBOX_IDS[@]/$SQLITE_BOX_ID}")
 
+# Debug logging and isolation
+echo ""
+echo -e "${BOLD}Debug logging and isolation${NC}"
+
+LOG_BOX=$(wp_cli rudel create --name=log-test)
+LOG_BOX_ID=$(parse_sandbox_id "$LOG_BOX")
+SANDBOX_IDS+=("$LOG_BOX_ID")
+
+# Trigger a PHP notice by accessing a nonexistent option with a warning-level call.
+sandbox_cli "$LOG_BOX_ID" eval 'trigger_error("rudel_test_notice", E_USER_NOTICE);' > /dev/null 2>&1
+
+LOG_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${LOG_BOX_ID}/wp-content/debug.log && echo yes || echo no" | tail -1)
+if [[ "$LOG_EXISTS" == "yes" ]]; then
+    pass "Sandbox debug.log created"
+else
+    fail "Sandbox debug.log not created" "$LOG_EXISTS"
+fi
+
+LOG_CONTENT=$(wp_cli rudel logs "$LOG_BOX_ID" --lines=10)
+if echo "$LOG_CONTENT" | grep -q "rudel_test_notice"; then
+    pass "wp rudel logs shows sandbox errors"
+else
+    fail "wp rudel logs missing error" "$LOG_CONTENT"
+fi
+
+# Verify host debug.log does not contain sandbox errors.
+HOST_LOG=$(wpenv_run bash -c "test -f /var/www/html/wp-content/debug.log && grep -c 'rudel_test_notice' /var/www/html/wp-content/debug.log 2>/dev/null || echo 0" | tail -1)
+if [[ "$HOST_LOG" == "0" ]]; then
+    pass "Host debug.log does not contain sandbox errors"
+else
+    fail "Host debug.log has sandbox errors" "Count: $HOST_LOG"
+fi
+
+# Cache key salt isolation
+CACHE_SALT=$(sandbox_cli "$LOG_BOX_ID" eval 'echo WP_CACHE_KEY_SALT;' | tail -1)
+if echo "$CACHE_SALT" | grep -q "rudel_"; then
+    pass "Sandbox has unique WP_CACHE_KEY_SALT"
+else
+    fail "Sandbox missing cache key salt" "Got: $CACHE_SALT"
+fi
+
+# Email blocking
+sandbox_cli "$LOG_BOX_ID" eval 'wp_mail("test@example.com", "Test Subject", "body");' > /dev/null 2>&1
+EMAIL_LOG=$(wp_cli rudel logs "$LOG_BOX_ID" --lines=10)
+if echo "$EMAIL_LOG" | grep -q "email blocked"; then
+    pass "Outbound email blocked and logged"
+else
+    fail "Email blocking not working" "$EMAIL_LOG"
+fi
+
+# Clear log
+wp_cli rudel logs "$LOG_BOX_ID" --clear > /dev/null 2>&1
+LOG_AFTER_CLEAR=$(wpenv_run bash -c "wc -c < /var/www/html/wp-content/rudel-sandboxes/${LOG_BOX_ID}/wp-content/debug.log" | tail -1)
+if [[ "$LOG_AFTER_CLEAR" == "0" ]]; then
+    pass "wp rudel logs --clear empties log"
+else
+    fail "Log not cleared" "Size: $LOG_AFTER_CLEAR"
+fi
+
+wp_cli rudel destroy "$LOG_BOX_ID" --force > /dev/null 2>&1
+SANDBOX_IDS=("${SANDBOX_IDS[@]/$LOG_BOX_ID}")
+
+# Snapshot and restore
+echo ""
+echo -e "${BOLD}Snapshot and restore${NC}"
+
+SNAP_BOX=$(wp_cli rudel create --name=snap-test)
+SNAP_BOX_ID=$(parse_sandbox_id "$SNAP_BOX")
+SANDBOX_IDS+=("$SNAP_BOX_ID")
+
+sandbox_cli "$SNAP_BOX_ID" option update blogname "Before Snapshot" > /dev/null 2>&1
+
+SNAP_CREATE=$(wp_cli rudel snapshot "$SNAP_BOX_ID" --name=v1)
+if echo "$SNAP_CREATE" | grep -q "Success"; then
+    pass "Snapshot v1 created"
+else
+    fail "Snapshot creation failed" "$SNAP_CREATE"
+fi
+
+sandbox_cli "$SNAP_BOX_ID" option update blogname "After Snapshot" > /dev/null 2>&1
+AFTER_NAME=$(sandbox_cli "$SNAP_BOX_ID" option get blogname | tail -1)
+if [[ "$AFTER_NAME" == "After Snapshot" ]]; then
+    pass "Blogname changed after snapshot"
+else
+    fail "Blogname not changed" "Got: $AFTER_NAME"
+fi
+
+SNAP_RESTORE=$(wp_cli rudel restore "$SNAP_BOX_ID" --snapshot=v1 --force)
+if echo "$SNAP_RESTORE" | grep -q "Success"; then
+    pass "Snapshot v1 restored"
+else
+    fail "Snapshot restore failed" "$SNAP_RESTORE"
+fi
+
+RESTORED_NAME=$(sandbox_cli "$SNAP_BOX_ID" option get blogname | tail -1)
+if [[ "$RESTORED_NAME" == "Before Snapshot" ]]; then
+    pass "Blogname restored to pre-snapshot value"
+else
+    fail "Blogname not restored" "Expected 'Before Snapshot', got: $RESTORED_NAME"
+fi
+
+wp_cli rudel destroy "$SNAP_BOX_ID" --force > /dev/null 2>&1
+SANDBOX_IDS=("${SANDBOX_IDS[@]/$SNAP_BOX_ID}")
+
 # Clear destroyed IDs so cleanup trap doesn't try again
 SANDBOX_IDS=()
 
