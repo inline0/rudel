@@ -21,7 +21,7 @@
 
 ## What is Rudel?
 
-Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox gets its own database (MySQL by default, or SQLite), `wp-content` directory, and WP-CLI scope.
+Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox gets its own database (MySQL by default, SQLite, or multisite sub-site), `wp-content` directory, and WP-CLI scope.
 
 **Use cases:**
 - Test plugin and theme changes without touching your live site
@@ -59,7 +59,7 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 
 - **Instant creation** -- sandboxes are created in under 2 seconds
 - **Full isolation** -- each sandbox gets its own database and wp-content
-- **Dual engine** -- MySQL (default) for full compatibility, SQLite for portable isolation
+- **Three engines** -- MySQL (default), SQLite for portable isolation, multisite sub-site for network environments
 - **Database cloning** -- clone your host database into a sandbox with automatic URL rewriting
 - **Snapshots** -- point-in-time snapshots with instant restore
 - **Templates** -- save sandboxes as reusable starting points
@@ -71,7 +71,7 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 
 On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects sandbox context from the incoming request and sets all WordPress constants to point to an isolated sandbox. When no sandbox is active, WordPress boots normally with zero overhead.
 
-By default, sandboxes use MySQL with an isolated table prefix. Pass `--engine=sqlite` for file-based SQLite isolation.
+By default, sandboxes use MySQL with an isolated table prefix. Pass `--engine=sqlite` for file-based SQLite isolation, or `--engine=subsite` on multisite installations to create sandboxes as native sub-sites.
 
 Each sandbox is a self-contained directory:
 

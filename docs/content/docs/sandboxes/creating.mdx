@@ -79,13 +79,36 @@ wp rudel create --name="from-template" --template=starter
 
 Templates are pre-configured snapshots saved from existing sandboxes. See [Templates](/docs/features/templates) for how to create and manage them.
 
+## Database engine
+
+By default, sandboxes use MySQL with an isolated table prefix. You can choose a different engine:
+
+```bash
+# MySQL (default)
+wp rudel create --name="my-sandbox"
+
+# SQLite: portable, file-based database
+wp rudel create --name="portable" --engine=sqlite
+
+# Subsite: multisite sub-site (requires multisite host)
+wp rudel create --name="network-sandbox" --engine=subsite
+```
+
+| Engine | Database | Best for |
+|---|---|---|
+| `mysql` | Isolated table prefix in host MySQL | Full plugin compatibility, fast cloning |
+| `sqlite` | Standalone `wordpress.db` file | Portable environments, export/import |
+| `subsite` | WordPress multisite sub-site | Multisite networks, shared user management |
+
+All three engines provide the same wp-content isolation: each sandbox gets its own themes, plugins, and uploads directory.
+
 ## What happens during creation
 
 When you create a sandbox, Rudel:
 
 1. Generates a unique sandbox ID from the name (e.g., `my-sandbox-a1b2`).
 2. Creates the sandbox directory with `wp-content`, `tmp`, and subdirectories.
-3. Sets up the database (MySQL tables with sandbox prefix, or SQLite file).
+3. Sets up the database (MySQL tables with sandbox prefix, SQLite file, or multisite sub-site).
 4. Generates `wp-cli.yml` scoped to the sandbox.
 5. Generates `bootstrap.php` with the sandbox's WordPress constants.
 6. Optionally clones content based on the flags provided.

@@ -26,12 +26,13 @@ Only the WP-CLI command name is affected. Internal identifiers like the `rudel_s
 Create a new sandbox.
 
 ```bash
-wp rudel create --name=<name> [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
+wp rudel create --name=<name> [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
 ```
 
 | Option | Description |
 |---|---|
 | `--name=<name>` | Human-readable name for the sandbox (required) |
+| `--engine=<engine>` | Database engine: `mysql` (default), `sqlite`, or `subsite` (multisite only) |
 | `--template=<template>` | Template to use (default: `blank`) |
 | `--clone-db` | Clone the host database into the sandbox |
 | `--clone-themes` | Copy host themes into the sandbox |
@@ -55,6 +56,12 @@ wp rudel create --name="copy" --clone-from=my-sandbox-a1b2
 
 # Create from template
 wp rudel create --name="from-template" --template=starter
+
+# SQLite engine
+wp rudel create --name="portable" --engine=sqlite
+
+# Multisite sub-site (requires multisite host)
+wp rudel create --name="subsite-sandbox" --engine=subsite
 ```
 
 ### `wp rudel list`

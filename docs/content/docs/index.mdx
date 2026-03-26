@@ -21,7 +21,7 @@ WordPress development and AI-assisted coding lack a safe, disposable environment
 
 Rudel installs as a standard WordPress plugin. On activation, it adds a single `require` line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap file detects sandbox context from the incoming request and sets all relevant WordPress constants (database, content directory, plugin directory, uploads) to point to an isolated sandbox.
 
-By default, sandboxes use MySQL with an isolated table prefix in the same database. Optionally, sandboxes can use SQLite for portable, file-based isolation via `--engine=sqlite`.
+By default, sandboxes use MySQL with an isolated table prefix in the same database. Optionally, sandboxes can use SQLite for portable, file-based isolation via `--engine=sqlite`, or multisite sub-sites via `--engine=subsite` on multisite installations.
 
 Each sandbox is a self-contained directory:
 
@@ -49,7 +49,7 @@ WordPress core files (`wp-includes/`, `wp-admin/`, root files) are always shared
 - **Instant creation**: Sandboxes are created in under 2 seconds.
 - **Full isolation**: Each sandbox gets its own database and wp-content directory.
 - **Database cloning**: Clone your host database into a sandbox with automatic URL rewriting.
-- **Dual engine**: MySQL (default) for full compatibility, or SQLite for portable file-based isolation.
+- **Three engines**: MySQL (default), SQLite for portable isolation, or multisite sub-site for network environments.
 - **Snapshots**: Point-in-time snapshots with instant restore.
 - **Templates**: Save sandboxes as reusable templates for rapid provisioning.
 - **Export/Import**: Package sandboxes as zip archives for sharing.

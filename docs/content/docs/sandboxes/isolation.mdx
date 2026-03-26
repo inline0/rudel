@@ -9,7 +9,7 @@ Each Rudel sandbox is fully isolated from the host WordPress installation and fr
 
 ## Database isolation
 
-Rudel supports two database engines for sandboxes:
+Rudel supports three database engines for sandboxes:
 
 ### MySQL (default)
 
@@ -28,6 +28,16 @@ With `--engine=sqlite`, each sandbox gets its own SQLite database file (`wordpre
 - **No credentials**: No connection strings or passwords.
 
 The SQLite integration is handled by the [WordPress SQLite Database Integration](https://github.com/WordPress/sqlite-database-integration), which translates WordPress's MySQL queries to SQLite on the fly.
+
+### Subsite (multisite only)
+
+With `--engine=subsite` on a WordPress multisite installation, each sandbox is created as a native multisite sub-site via `wpmu_create_blog()`. Benefits:
+
+- **Native multisite**: Uses WordPress's built-in per-site table structure (`wp_N_posts`, `wp_N_options`, etc.).
+- **Shared users**: The multisite user table is shared across the network.
+- **Clean destruction**: `wpmu_delete_blog()` handles all table cleanup.
+
+The subsite engine requires the host to be a multisite installation. All three engines provide the same wp-content isolation: each sandbox gets its own themes, plugins, and uploads directory.
 
 ## wp-content directory
 
