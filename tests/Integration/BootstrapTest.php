@@ -75,6 +75,9 @@ class BootstrapTest extends RudelTestCase
         $script .= '  "uploads" => defined("UPLOADS") ? UPLOADS : null,' . "\n";
         $script .= '  "table_prefix_caller_scope" => isset($table_prefix) ? $table_prefix : null,' . "\n";
         $script .= '  "cookie_sandbox" => $_COOKIE["rudel_sandbox"] ?? null,' . "\n";
+        $script .= '  "wp_debug" => defined("WP_DEBUG") ? WP_DEBUG : null,' . "\n";
+        $script .= '  "wp_debug_log" => defined("WP_DEBUG_LOG") ? WP_DEBUG_LOG : null,' . "\n";
+        $script .= '  "wp_debug_display" => defined("WP_DEBUG_DISPLAY") ? WP_DEBUG_DISPLAY : null,' . "\n";
         $script .= ']);' . "\n";
 
         $tmpScript = $this->tmpDir . '/bootstrap-test-' . uniqid() . '.php';
@@ -675,6 +678,34 @@ class BootstrapTest extends RudelTestCase
 
         // CLI mode: adminExit handler doesn't fire, cookie takes effect.
         $this->assertSame('cookie-exit-test', $result['sandbox_id']);
+    }
+
+    // Debug logging
+
+    public function testSandboxEnablesDebugLogging(): void
+    {
+        $this->createFakeSandboxInDir('debug-test');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'debug-test',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('debug-test', $result['sandbox_id']);
+        $this->assertTrue($result['wp_debug']);
+        $this->assertTrue($result['wp_debug_log']);
+        $this->assertFalse($result['wp_debug_display']);
+    }
+
+    public function testNoSandboxDoesNotSetDebugConstants(): void
+    {
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/wp-admin/',
+            'HTTP_HOST' => 'example.com',
+        ]);
+
+        $this->assertNull($result['sandbox_id'] ?? null);
+        $this->assertNull($result['wp_debug']);
     }
 
     // Helpers

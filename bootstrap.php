@@ -273,6 +273,11 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );
 	$def( 'UPLOADS', 'wp-content/uploads' );
 
+	// Per-sandbox debug logging (sandboxes are dev environments).
+	$def( 'WP_DEBUG', true );
+	$def( 'WP_DEBUG_LOG', true );
+	$def( 'WP_DEBUG_DISPLAY', false );
+
 	// Per-sandbox table prefix (subsite engine uses multisite's own prefix via blog_id).
 	if ( 'subsite' !== $_rudel_engine ) {
 		$_rudel_prefix           = 'wp_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';

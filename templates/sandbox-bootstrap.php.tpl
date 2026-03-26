@@ -34,6 +34,11 @@ if (! defined('WP_CONTENT_URL')) {
 }
 unset($_rudel_host, $_rudel_sandbox_url);
 {{multisite_block}}
+// Per-sandbox debug logging
+if (! defined('WP_DEBUG')) { define('WP_DEBUG', true); }
+if (! defined('WP_DEBUG_LOG')) { define('WP_DEBUG_LOG', true); }
+if (! defined('WP_DEBUG_DISPLAY')) { define('WP_DEBUG_DISPLAY', false); }
+
 // Per-sandbox table prefix
 $_rudel_prefix = 'wp_' . substr(md5($sandbox_id), 0, 6) . '_';
 $GLOBALS['table_prefix'] = $_rudel_prefix;
