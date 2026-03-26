@@ -9,47 +9,37 @@ Rudel offers several ways to create sandboxes, depending on how much of your hos
 
 ## Blank sandbox
 
-Creates an empty sandbox with a fresh database and minimal wp-content:
+The simplest option. Creates an empty sandbox with a fresh database and a bare `wp-content` directory:
 
 ```bash
 wp rudel create --name="my-sandbox"
 ```
 
-This is the fastest option. The sandbox gets the default WordPress tables but no content, no themes beyond the default, and no plugins.
+The sandbox gets the default WordPress tables, an admin user, and a "Hello World" post, but no themes, plugins, or uploads from the host. This is the fastest option and the right choice when you want to start from scratch.
 
-## Clone everything
+## Cloning from the host
 
-Clones the host MySQL database and all wp-content into the sandbox:
+If you want your sandbox to mirror the host site, you can clone the database, content, or both.
+
+Clone everything at once:
 
 ```bash
 wp rudel create --name="full-clone" --clone-all
 ```
 
-The `--clone-all` flag is equivalent to passing `--clone-db --clone-themes --clone-plugins --clone-uploads` together. The database cloner copies the data and rewrites URLs automatically.
+This is equivalent to `--clone-db --clone-themes --clone-plugins --clone-uploads`. The database cloner copies the data and rewrites all URLs to point to the sandbox automatically.
 
-## Clone database only
-
-Clones just the host database without any wp-content files:
+You can also be selective. Clone just the database when you want the host's posts and settings but plan to set up themes and plugins fresh:
 
 ```bash
 wp rudel create --name="db-only" --clone-db
 ```
 
-Useful when you want the host's posts, options, and users but plan to install themes and plugins fresh.
-
-## Selective cloning
-
-Pick exactly what to clone:
+Or clone specific content types without the database:
 
 ```bash
-# Clone themes and plugins, but not uploads or database
 wp rudel create --name="themes-plugins" --clone-themes --clone-plugins
-
-# Clone database and themes only
-wp rudel create --name="db-themes" --clone-db --clone-themes
 ```
-
-Available flags:
 
 | Flag | What it clones |
 |---|---|
@@ -59,59 +49,45 @@ Available flags:
 | `--clone-uploads` | Host uploads directory |
 | `--clone-all` | All of the above |
 
-## Clone from an existing sandbox
+## Cloning from another sandbox
 
-Create a new sandbox by copying an existing one:
+You can also create a new sandbox by copying an existing one:
 
 ```bash
 wp rudel create --name="copy" --clone-from=my-sandbox-a1b2
 ```
 
-This copies the source sandbox's database and wp-content directory into a new sandbox. Both sandboxes must use the same engine. The `--clone-from` flag is mutually exclusive with `--clone-db`, `--clone-themes`, `--clone-plugins`, `--clone-uploads`, and `--clone-all`.
+This duplicates the source sandbox's database and `wp-content` directory, then rewrites all URLs and table prefixes for the new sandbox. Both sandboxes must use the same engine.
 
-## Create from a template
+## Creating from a template
 
-Use a saved template as the starting point:
+Templates are frozen snapshots of a sandbox that you've saved as a reusable starting point:
 
 ```bash
-wp rudel create --name="from-template" --template=starter
+wp rudel create --name="new-project" --template=starter
 ```
 
-Templates are pre-configured snapshots saved from existing sandboxes. See [Templates](/docs/features/templates) for how to create and manage them.
+The new sandbox starts with the template's database and content, ready to go immediately. See [Templates](/docs/features/templates) for how to create and manage them.
 
-## Database engine
+## Choosing a database engine
 
-By default, sandboxes use MySQL with an isolated table prefix. You can choose a different engine:
+By default, sandboxes use MySQL with an isolated table prefix. This gives you full plugin compatibility and fast native cloning. Two alternative engines are available for specific use cases.
 
 ```bash
-# MySQL (default)
+# MySQL (default): isolated table prefix in the host database
 wp rudel create --name="my-sandbox"
 
-# SQLite: portable, file-based database
+# SQLite: standalone database file, portable and exportable
 wp rudel create --name="portable" --engine=sqlite
 
-# Subsite: multisite sub-site (requires multisite host)
+# Subsite: WordPress multisite sub-site (requires multisite host)
 wp rudel create --name="network-sandbox" --engine=subsite
 ```
 
-| Engine | Database | Best for |
+| Engine | How it works | Best for |
 |---|---|---|
 | `mysql` | Isolated table prefix in host MySQL | Full plugin compatibility, fast cloning |
 | `sqlite` | Standalone `wordpress.db` file | Portable environments, export/import |
 | `subsite` | WordPress multisite sub-site | Multisite networks, shared user management |
 
-All three engines provide the same wp-content isolation: each sandbox gets its own themes, plugins, and uploads directory.
-
-## What happens during creation
-
-When you create a sandbox, Rudel:
-
-1. Generates a unique sandbox ID from the name (e.g., `my-sandbox-a1b2`).
-2. Creates the sandbox directory with `wp-content`, `tmp`, and subdirectories.
-3. Sets up the database (MySQL tables with sandbox prefix, SQLite file, or multisite sub-site).
-4. Generates `wp-cli.yml` scoped to the sandbox.
-5. Generates `bootstrap.php` with the sandbox's WordPress constants.
-6. Optionally clones content based on the flags provided.
-7. Writes `.rudel.json` metadata to the sandbox directory.
-
-The sandbox is ready to use immediately after creation.
+All three engines provide the same `wp-content` isolation. Each sandbox always gets its own themes, plugins, and uploads directory regardless of which engine is used.

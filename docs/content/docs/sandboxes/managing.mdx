@@ -1,70 +1,40 @@
 ---
 title: Managing Sandboxes
-description: List, inspect, and destroy sandboxes.
+description: List, inspect, destroy, and maintain sandboxes.
 ---
 
 # Managing Sandboxes
 
-## List all sandboxes
+## Listing sandboxes
 
 ```bash
 wp rudel list
 ```
 
-Output includes the sandbox ID, name, status, template, creation date, and size. Supports multiple output formats:
+This shows all sandboxes with their ID, name, engine, status, template, creation date, and disk size. The output format can be changed with `--format=json`, `--format=csv`, `--format=yaml`, or `--format=count`.
 
-```bash
-wp rudel list --format=json
-wp rudel list --format=csv
-wp rudel list --format=yaml
-wp rudel list --format=count
-```
-
-## Show sandbox details
+## Inspecting a sandbox
 
 ```bash
 wp rudel info my-sandbox-a1b2
 ```
 
-Displays detailed information about a specific sandbox:
+This shows detailed information about a single sandbox, including its engine, database path (or N/A for MySQL), access URL, and `wp-content` path. Supports `--format=json` and `--format=yaml` for machine-readable output.
 
-| Field | Description |
-|---|---|
-| id | Unique sandbox identifier |
-| name | Human-readable name |
-| status | Current status |
-| template | Template used to create it |
-| created_at | Creation timestamp |
-| size | Total disk usage |
-| engine | Database engine (mysql or sqlite) |
-| db_path | Path to the database file (SQLite) or N/A (MySQL) |
-| url | Access URL |
-| wp_content | Path to wp-content directory |
-
-Supports `--format=json` and `--format=yaml` for machine-readable output.
-
-## Destroy a sandbox
+## Destroying a sandbox
 
 ```bash
 wp rudel destroy my-sandbox-a1b2
 ```
 
-This permanently deletes the sandbox directory and all its contents. You will be prompted for confirmation unless you pass `--force`:
+This permanently removes the sandbox. You'll be prompted for confirmation unless you pass `--force`. For MySQL sandboxes, Rudel drops all tables with the sandbox's prefix before removing the directory. For subsite sandboxes, the multisite sub-site is deleted. There is no undo.
 
-```bash
-wp rudel destroy my-sandbox-a1b2 --force
-```
+If you want to preserve the sandbox's state before destroying it, create a [snapshot](/docs/features/snapshots) or [export](/docs/features/export-import) first.
 
-There is no undo. If you want to preserve the sandbox state before destroying it, create a [snapshot](/docs/features/snapshots) or [export](/docs/features/export-import) first.
-
-## Check Rudel status
+## Checking Rudel status
 
 ```bash
 wp rudel status
 ```
 
-Shows overall Rudel configuration and health: whether the bootstrap is installed, the sandboxes directory path, active sandbox count, and PHP extension availability.
-
-## Destroy a MySQL sandbox
-
-When you destroy a MySQL sandbox, Rudel drops all tables with the sandbox's prefix from the host database, then removes the sandbox directory. This cleanup is automatic.
+Shows whether the bootstrap is installed in `wp-config.php`, where sandboxes are stored, how many are active, and the state of PHP extensions needed for SQLite support.

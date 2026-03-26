@@ -1,119 +1,55 @@
 ---
 title: How Isolation Works
-description: Database isolation, wp-content directories, and security boundaries.
+description: The mechanisms that keep sandboxes isolated from each other and the host.
 ---
 
 # How Isolation Works
 
-Each Rudel sandbox is fully isolated from the host WordPress installation and from other sandboxes. This page explains the mechanisms that make this possible.
+Every sandbox is fully isolated from the host WordPress installation and from other sandboxes. This page explains the mechanisms that make this possible.
 
-## Database isolation
+## Database
 
-Rudel supports three database engines for sandboxes:
+Each sandbox operates on its own set of database tables, completely separate from the host and from other sandboxes.
 
-### MySQL (default)
+With the default MySQL engine, the sandbox gets a unique table prefix (e.g., `wp_a1b2c3_`) derived from its ID. The host tables are untouched. With the SQLite engine, the sandbox gets its own standalone database file. With the subsite engine, isolation is handled by WordPress multisite's native per-site table structure.
 
-Each sandbox gets its own table prefix (e.g., `wp_a1b2c3_`) within the host MySQL database. The host's tables are untouched; the sandbox only reads and writes its own prefixed tables. Benefits:
+Regardless of engine, the sandbox never reads or writes the host's data.
 
-- **Full compatibility**: All WordPress plugins and queries work without translation.
-- **Fast cloning**: Tables are copied natively within MySQL using `CREATE TABLE ... LIKE`.
-- **No extra dependencies**: Uses the existing MySQL connection.
+## Content directory
 
-### SQLite (experimental)
+Each sandbox has its own `wp-content` directory with isolated themes, plugins, uploads, and mu-plugins. WordPress core files (`wp-includes/`, `wp-admin/`) are shared from the host installation since they're read-only and identical across all sandboxes.
 
-With `--engine=sqlite`, each sandbox gets its own SQLite database file (`wordpress.db`). Benefits:
+When you clone themes or plugins from the host, the files are physically copied into the sandbox's directory. Changes to a sandbox's themes or plugins do not affect the host or other sandboxes.
 
-- **Portable**: The entire database is a single file that can be copied or exported.
-- **No shared state**: Completely separate from the host MySQL database.
-- **No credentials**: No connection strings or passwords.
+## Bootstrap
 
-The SQLite integration is handled by the [WordPress SQLite Database Integration](https://github.com/WordPress/sqlite-database-integration), which translates WordPress's MySQL queries to SQLite on the fly.
+The global `bootstrap.php` runs before WordPress boots and handles sandbox detection. When a sandbox is identified (via path prefix, cookie, header, or subdomain), the bootstrap rewires WordPress's constants to point to the sandbox's content directory, sets a unique table prefix, and generates deterministic authentication salts.
 
-### Subsite (multisite only)
+The per-sandbox `bootstrap.php` does the same thing but is loaded by `wp-cli.yml` when you run WP-CLI commands from within the sandbox directory. This is how `cd sandbox-dir && wp post list` automatically scopes to the right sandbox.
 
-With `--engine=subsite` on a WordPress multisite installation, each sandbox is created as a native multisite sub-site via `wpmu_create_blog()`. Benefits:
+## Authentication
 
-- **Native multisite**: Uses WordPress's built-in per-site table structure (`wp_N_posts`, `wp_N_options`, etc.).
-- **Shared users**: The multisite user table is shared across the network.
-- **Clean destruction**: `wpmu_delete_blog()` handles all table cleanup.
+Each sandbox gets its own set of authentication salts, deterministically derived from the sandbox ID. This means a session cookie from the host is not valid in any sandbox, and a session from one sandbox is not valid in another. You always need to log in separately.
 
-The subsite engine requires the host to be a multisite installation. All three engines provide the same wp-content isolation: each sandbox gets its own themes, plugins, and uploads directory.
+When you visit a sandbox URL in the browser, Rudel automatically sets a `rudel_sandbox` cookie so that subsequent page loads (including `/wp-admin/`) stay in the sandbox context. To return to the host, append `?adminExit` to any URL.
 
-## wp-content directory
+## Filesystem jail
 
-Each sandbox has its own `wp-content` directory containing:
+The bootstrap restricts PHP's `open_basedir` to a minimal allowlist: the sandbox directory itself, the shared WordPress core path, the Rudel plugin directory, and the system temp directory. Once set, any attempt to read or write files outside these paths fails silently. The host's `wp-config.php`, other sandboxes, and the host's database files are all inaccessible from within a sandbox.
 
-- `themes/`: Sandbox-specific themes (copied from host)
-- `plugins/`: Sandbox-specific plugins
-- `uploads/`: Isolated media uploads
-- `mu-plugins/`: Sandbox must-use plugins
-
-WordPress core files (`wp-includes/`, `wp-admin/`) are shared from the host installation. Only the content layer is isolated.
-
-## Table prefix
-
-Each sandbox uses its own table prefix derived from the sandbox ID. For MySQL sandboxes, this is the primary isolation mechanism. For SQLite sandboxes, it provides defense-in-depth.
-
-## Bootstrap mechanism
-
-The `bootstrap.php` file in each sandbox sets WordPress constants before WordPress boots:
-
-- `WP_CONTENT_DIR` and `WP_CONTENT_URL`: Point to the sandbox's wp-content.
-- `WP_PLUGIN_DIR` and `WPMU_PLUGIN_DIR`: Sandbox plugin directories.
-- `WP_TEMP_DIR`: Sandbox temp directory.
-- `UPLOADS`: Sandbox upload path.
-- `DB_DIR` and `DB_FILE`: Point to the sandbox's SQLite database (SQLite engine only).
-
-These constants are set before `wp-settings.php` runs, so WordPress sees the sandbox as its entire world.
-
-## Auto-cookie for wp-admin
-
-WordPress admin files (`/wp-admin/*.php`) are real PHP files served directly by the web server, not routed through `index.php`. To make `/wp-admin/` work with sandbox context, Rudel automatically sets a `rudel_sandbox` cookie when a sandbox is detected via path prefix, header, or subdomain. On subsequent requests (including `/wp-admin/`), the bootstrap reads the cookie and activates the correct sandbox.
-
-This means visiting a sandbox URL in the browser is enough to "enter" that sandbox. All subsequent page loads, including the admin dashboard, will operate in the sandbox's context until you exit.
-
-To exit, append `?adminExit` to any URL (e.g., `example.com/?adminExit`). This clears the cookie and redirects to the host.
-
-## open_basedir restriction
-
-The bootstrap sets PHP's `open_basedir` to restrict file access:
-
-```php
-ini_set('open_basedir', implode(PATH_SEPARATOR, [
-    $sandbox_path,          // Sandbox directory (read/write)
-    $wp_core_path,          // Shared WP core (read)
-    $rudel_plugin_dir,      // Rudel plugin directory (read)
-    sys_get_temp_dir(),     // PHP temp directory
-    '/tmp',                 // Fallback temp directory
-]));
-```
-
-In CLI mode, the WP-CLI tool's own directory is also added to the allowlist.
-
-Once set, any file operation outside these paths fails silently. The host's `wp-config.php`, other sandboxes, and the host database files are all inaccessible from within a sandbox.
-
-## Authentication salts
-
-Each sandbox gets its own set of authentication salts, deterministically derived from the sandbox ID at boot time. This means sessions and cookies from one sandbox are not valid in another, preventing cross-sandbox session hijacking.
+In CLI mode, the WP-CLI tool's own directory is added to the allowlist so that phar-based installations work correctly.
 
 ## WP-CLI scoping
 
-Each sandbox includes a `wp-cli.yml` file:
+Each sandbox includes a `wp-cli.yml` file that points to the host's WordPress core path and requires the sandbox's `bootstrap.php`. Any `wp` command executed from within the sandbox directory automatically uses that sandbox's database and content. No flags needed.
 
-```yaml
-path: /var/www/html
-require:
-  - /path/to/sandboxes/sandbox-{id}/bootstrap.php
-```
-
-Any `wp` command executed from within the sandbox directory automatically uses that sandbox's database and content. No flags needed.
-
-## Security model summary
+## Security boundaries
 
 | Attack vector | Defense |
 |---|---|
-| Path traversal (`../../`) | `open_basedir` blocks access outside allowlist |
-| Sandbox escape to host DB | MySQL: table prefix isolation; SQLite: file-based, `open_basedir` restricts access |
+| Path traversal | `open_basedir` blocks access outside the allowlist |
+| Sandbox escape to host database | Table prefix isolation (MySQL) or file-based separation (SQLite) |
 | Cross-sandbox access | Each sandbox's `open_basedir` only includes its own path |
-| Agent modifies its own jail | `bootstrap.php` and `wp-cli.yml` are read-only |
-| Prompt injection via DB/files | Agent instructions in read-only `CLAUDE.md`; sandbox is disposable |
+| Tampering with sandbox config | `bootstrap.php` and `wp-cli.yml` are set to read-only |
+| Session hijacking across sandboxes | Per-sandbox deterministic auth salts |
+| Prompt injection via sandbox files | Agent instructions in read-only `CLAUDE.md`; sandboxes are disposable |

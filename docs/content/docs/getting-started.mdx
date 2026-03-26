@@ -41,38 +41,22 @@ On activation, Rudel adds a single line to your `wp-config.php`:
 require_once __DIR__ . '/wp-content/plugins/rudel/bootstrap.php';
 ```
 
-This bootstrap file runs before `wp-settings.php` and detects sandbox context from the incoming request. When no sandbox is active, WordPress boots normally with zero overhead.
+This bootstrap file runs before `wp-settings.php` and handles all sandbox detection and isolation. When no sandbox is active, it does nothing and WordPress boots normally with zero overhead.
 
-When using the SQLite engine (`--engine=sqlite`), Rudel downloads the [SQLite Database Integration](https://github.com/WordPress/sqlite-database-integration) into its `lib/` directory automatically.
-
-## Configuration
-
-Rudel works out of the box with sensible defaults. The following optional constants can be defined in `wp-config.php` before the plugin loads:
-
-| Constant | Default | Description |
-|---|---|---|
-| `RUDEL_CLI_COMMAND` | `rudel` | WP-CLI command name. Set to e.g. `sandbox` for white-label use. |
-| `RUDEL_PATH_PREFIX` | `__rudel` | URL path prefix for sandbox access. Change to customize the URL structure. |
-
-## Verify installation
-
-Check that everything is set up correctly:
+You can verify everything is in place with:
 
 ```bash
 wp rudel status
 ```
 
-This shows:
+## Configuration
 
-| Field | Description |
-|---|---|
-| Bootstrap installed | Whether the `wp-config.php` line is in place |
-| Sandboxes directory | Where sandboxes are stored |
-| Active sandboxes | Number of existing sandboxes |
-| SQLite integration | Whether the SQLite library is installed |
-| PHP version | Current PHP version |
-| SQLite3 extension | Whether the SQLite3 PHP extension is available |
-| PDO SQLite | Whether PDO SQLite is available |
+Rudel works out of the box with sensible defaults. If you need to customize the CLI command name or the URL path prefix, define these constants in `wp-config.php` before the plugin loads:
+
+| Constant | Default | Description |
+|---|---|---|
+| `RUDEL_CLI_COMMAND` | `rudel` | WP-CLI command name. Set to e.g. `sandbox` for white-label use. |
+| `RUDEL_PATH_PREFIX` | `__rudel` | URL path prefix for sandbox access. Change to customize the URL structure. |
 
 ## Create your first sandbox
 
@@ -80,46 +64,39 @@ This shows:
 wp rudel create --name="my-first-sandbox"
 ```
 
-This creates a blank sandbox with its own database and empty wp-content directory. By default, sandboxes use MySQL with an isolated table prefix. The output includes the sandbox path and access URL.
+This creates a blank sandbox with its own database and an empty `wp-content` directory. The output includes the sandbox ID, filesystem path, and access URL.
 
-To start using the sandbox via WP-CLI:
+To work with the sandbox via WP-CLI, just `cd` into its directory:
 
 ```bash
 cd /path/to/sandboxes/my-first-sandbox-a1b2
 wp post list
 ```
 
-Any `wp` command run from within the sandbox directory is automatically scoped to that sandbox's database and content, thanks to the `wp-cli.yml` file.
+Any `wp` command run from within the sandbox directory is automatically scoped to that sandbox's database and content, thanks to the auto-generated `wp-cli.yml`.
 
-## Create a sandbox with cloned content
-
-To clone your host site's database and content into a sandbox:
+If you'd rather start with a copy of your host site, use `--clone-all`:
 
 ```bash
 wp rudel create --name="full-clone" --clone-all
 ```
 
-This clones the host database along with all themes, plugins, and uploads into an isolated sandbox. See [Creating Sandboxes](/docs/sandboxes/creating) for all available options.
+This clones the host database along with all themes, plugins, and uploads. See [Creating Sandboxes](/docs/sandboxes/creating) for all the available options.
 
-## Access a sandbox in the browser
+## Accessing sandboxes in the browser
 
-Sandboxes can be accessed via:
+Sandboxes are accessible via a path prefix that works without any DNS or server configuration:
 
-- **Path prefix**: `example.com/__rudel/sandbox-123/` (no DNS required, prefix configurable via `RUDEL_PATH_PREFIX`)
-- **Subdomain**: `sandbox-123.example.com` (requires wildcard DNS)
-- **Header**: `X-Rudel-Sandbox: sandbox-123` (for programmatic access)
-- **Cookie**: `rudel_sandbox=sandbox-123` (for browser sessions)
+```
+example.com/__rudel/my-first-sandbox-a1b2/
+```
 
-The path prefix method works out of the box with no DNS configuration.
+When you visit a sandbox URL, Rudel automatically sets a browser cookie so that subsequent requests, including `/wp-admin/`, stay in the sandbox context. You can browse the sandbox frontend, log into the admin, and manage content as if it were a standalone site.
 
-## Accessing wp-admin
-
-When you visit a sandbox URL in the browser, Rudel automatically sets a `rudel_sandbox` cookie. This means you can navigate to `/wp-admin/` and it will load in the sandbox's context, using the sandbox's database and content.
-
-To switch back to the host site, append `?adminExit` to any URL:
+To switch back to the host, append `?adminExit` to any URL:
 
 ```
 example.com/?adminExit
 ```
 
-This clears the sandbox cookie and redirects you to the host homepage.
+Sandboxes can also be accessed via subdomains (`sandbox-id.example.com`, requires wildcard DNS), the `X-Rudel-Sandbox` header (for programmatic access), or the `rudel_sandbox` cookie directly.

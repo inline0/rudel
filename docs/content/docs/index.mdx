@@ -1,65 +1,34 @@
 ---
 title: Introduction
-description: Rudel creates fully isolated WordPress sandbox environments.
+description: Welcome to the Rudel documentation.
 ---
 
 # Introduction
 
-Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox gets its own isolated database (MySQL by default, or SQLite), its own `wp-content` directory, and is fully scoped for WP-CLI.
+Rudel lets you create fully isolated WordPress sandbox environments from within an existing WordPress installation. Each sandbox gets its own database, its own `wp-content` directory, and its own WP-CLI scope. Create one in under two seconds, use it however you like, and destroy it when you're done.
 
 ## Why Rudel?
 
-WordPress development and AI-assisted coding lack a safe, disposable environment:
+WordPress doesn't have a good answer for disposable environments. Testing a plugin change on a live site is risky. Spinning up Docker or a local dev stack is heavy. Staging environments are expensive to maintain and slow to provision.
 
-- Testing plugin or theme changes on a live site is risky.
-- Setting up local dev environments (Docker, MAMP, Valet) is slow and heavy.
-- Staging environments are complex to provision and tear down.
-- AI coding agents have no safe, scoped WordPress context to operate in.
-- There is no self-hosted, single-plugin solution for disposable WordPress environments.
+If you're working with AI coding agents, the problem is even sharper. Agents need a safe, scoped WordPress context where they can make changes, run commands, and iterate without risk to real data. That doesn't exist out of the box.
+
+Rudel solves this with a single plugin. Install it, create a sandbox, and you have a fully isolated WordPress environment that shares the host's core files but nothing else. No Docker, no DNS, no separate database server.
 
 ## How it works
 
-Rudel installs as a standard WordPress plugin. On activation, it adds a single `require` line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap file detects sandbox context from the incoming request and sets all relevant WordPress constants (database, content directory, plugin directory, uploads) to point to an isolated sandbox.
+On activation, Rudel adds one line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects whether the incoming request is targeting a sandbox, and if so, rewires all the relevant WordPress constants to point to that sandbox's isolated environment. When no sandbox is active, the bootstrap does nothing and WordPress boots normally.
 
-By default, sandboxes use MySQL with an isolated table prefix in the same database. Optionally, sandboxes can use SQLite for portable, file-based isolation via `--engine=sqlite`, or multisite sub-sites via `--engine=subsite` on multisite installations.
+Each sandbox lives in its own directory under `wp-content/rudel-sandboxes/`. The directory contains a `wp-cli.yml` that auto-scopes CLI commands, a `bootstrap.php` that sets the sandbox's constants, and an isolated `wp-content/` with its own themes, plugins, and uploads.
 
-Each sandbox is a self-contained directory:
-
-```
-/sandboxes/sandbox-{id}/
-├── .rudel.json           # Sandbox metadata (source of truth)
-├── wp-cli.yml            # Auto-scopes all WP-CLI commands
-├── bootstrap.php         # Sets WP constants for this sandbox
-├── wordpress.db          # SQLite database (only with --engine=sqlite)
-├── CLAUDE.md             # Agent instructions (optional)
-├── wp-content/
-│   ├── db.php            # SQLite drop-in (only with --engine=sqlite)
-│   ├── themes/           # Sandbox-specific themes
-│   ├── plugins/          # Sandbox-specific plugins
-│   ├── uploads/          # Isolated media
-│   └── mu-plugins/       # Sandbox mu-plugins
-├── snapshots/            # Named snapshots (created on demand)
-└── tmp/                  # Sandbox temp directory
-```
-
-WordPress core files (`wp-includes/`, `wp-admin/`, root files) are always shared via the host installation. Sandboxes only isolate the content layer.
+The database layer is configurable. By default, sandboxes use MySQL with an isolated table prefix in the same database as the host. You can also use SQLite for portable, file-based isolation, or create sandboxes as multisite sub-sites on multisite installations.
 
 ## Key features
 
-- **Instant creation**: Sandboxes are created in under 2 seconds.
-- **Full isolation**: Each sandbox gets its own database and wp-content directory.
-- **Database cloning**: Clone your host database into a sandbox with automatic URL rewriting.
-- **Three engines**: MySQL (default), SQLite for portable isolation, or multisite sub-site for network environments.
-- **Snapshots**: Point-in-time snapshots with instant restore.
-- **Templates**: Save sandboxes as reusable templates for rapid provisioning.
-- **Export/Import**: Package sandboxes as zip archives for sharing.
-- **Auto cleanup**: Configurable expiry and automatic removal of stale sandboxes.
-- **WP-CLI integration**: Full command-line interface for all operations.
-- **Agent-ready**: Built for AI coding agents like Claude Code, with scoped WP-CLI and `CLAUDE.md` support.
+Rudel is designed around a few principles: sandboxes should be instant to create, fully isolated from each other and the host, and disposable without cleanup headaches.
+
+Beyond basic creation and destruction, Rudel supports point-in-time snapshots for easy rollback, reusable templates for standardized starting points, zip-based export and import for sharing environments, and configurable auto-cleanup for stale sandboxes. Everything is driven through WP-CLI, and every sandbox includes a `CLAUDE.md` file so AI coding agents have the context they need.
 
 ## Requirements
 
-- PHP 8.0+
-- WordPress 6.4+
-- Write access to `wp-config.php`
-- PDO SQLite PHP extension (only required for `--engine=sqlite`, built into most PHP installations)
+Rudel requires PHP 8.0 or later, WordPress 6.4 or later, and write access to `wp-config.php` for the initial bootstrap installation. If you plan to use the SQLite engine, you'll also need the PDO SQLite PHP extension, which is built into most PHP installations.

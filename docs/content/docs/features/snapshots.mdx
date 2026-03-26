@@ -5,33 +5,32 @@ description: Create point-in-time snapshots and restore sandboxes instantly.
 
 # Snapshots
 
-Snapshots capture the complete state of a sandbox at a point in time: the database and the entire wp-content directory. For MySQL sandboxes, the snapshot copies the sandbox's tables; for SQLite sandboxes, it copies the database file.
+Snapshots capture the complete state of a sandbox at a point in time. They're useful before risky changes, for A/B testing different states, or as checkpoints for AI coding agents.
 
-## Create a snapshot
+## Creating a snapshot
 
 ```bash
 wp rudel snapshot my-sandbox-a1b2 --name=before-update
 ```
 
-This copies the sandbox's database and wp-content into a named snapshot stored within the sandbox directory. Snapshots are fast because they are simple file copies.
+This copies the sandbox's database and `wp-content` into a named snapshot stored within the sandbox directory. For MySQL and subsite sandboxes, the database tables are duplicated. For SQLite sandboxes, the database file is copied. In both cases, the operation is fast.
 
-## Restore from a snapshot
+## Restoring from a snapshot
 
 ```bash
 wp rudel restore my-sandbox-a1b2 --snapshot=before-update
 ```
 
-This replaces the sandbox's current database and wp-content with the snapshot's contents. You will be prompted for confirmation unless you pass `--force`:
+This replaces the sandbox's current state with the snapshot. The current database and `wp-content` are overwritten. You'll be prompted for confirmation unless you pass `--force`.
 
-```bash
-wp rudel restore my-sandbox-a1b2 --snapshot=before-update --force
-```
+Restoring is destructive to the current state. If you want to preserve it, create another snapshot first.
 
-Restoring is destructive to the current state. If you want to preserve the current state before restoring, create another snapshot first.
+## Typical workflows
 
-## Use cases
+**Before risky changes.** Snapshot before running a migration, updating a plugin, or making a large refactor. If something breaks, restore in seconds.
 
-- **Before risky changes**: Snapshot before running migrations, updating plugins, or making large code changes.
-- **A/B testing**: Create multiple snapshots at different states and switch between them.
-- **Agent checkpoints**: Let AI coding agents snapshot before attempting changes, enabling easy rollback.
-- **Demo environments**: Snapshot a clean state and restore after each demo.
+**A/B testing.** Create snapshots at different states and switch between them to compare behavior.
+
+**Agent checkpoints.** AI coding agents can snapshot before attempting changes, giving them a reliable rollback point.
+
+**Demo resets.** Snapshot a clean state and restore after each demo to start fresh every time.

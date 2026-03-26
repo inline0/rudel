@@ -5,32 +5,26 @@ description: Automatic and manual cleanup of stale sandboxes.
 
 # Cleanup
 
-Sandboxes are disposable by design. Rudel provides both automatic and manual cleanup mechanisms to prevent disk usage from growing unbounded.
+Sandboxes are disposable by design. Rudel provides cleanup mechanisms to prevent disk usage from growing unbounded.
 
-## Manual cleanup
+## Running cleanup
 
-Remove sandboxes older than the configured `max_age_days`:
+Remove all sandboxes older than the configured maximum age:
 
 ```bash
 wp rudel cleanup
 ```
 
-Preview what would be removed without actually deleting:
+To see what would be removed without actually deleting anything:
 
 ```bash
 wp rudel cleanup --dry-run
 ```
 
-Override the configured max age:
+You can override the configured max age for a single run:
 
 ```bash
-wp rudel cleanup --max-age-days=7
-```
-
-Combine dry run with a custom age to see which sandboxes are older than 7 days:
-
-```bash
-wp rudel cleanup --dry-run --max-age-days=7
+wp rudel cleanup --max-age-days=7 --dry-run
 ```
 
 ## Configuration
@@ -39,18 +33,10 @@ Cleanup behavior is controlled by the Rudel configuration file (`rudel-config.js
 
 | Setting | Description | Default |
 |---|---|---|
-| `max_sandboxes` | Maximum number of active sandboxes (enforced at creation time) | 0 (no limit) |
+| `max_sandboxes` | Maximum number of active sandboxes | 0 (no limit) |
 | `max_age_days` | Sandboxes older than this are eligible for cleanup | 0 (disabled) |
-| `max_disk_mb` | Maximum total disk usage for all sandboxes in MB (enforced at creation time) | 0 (no limit) |
+| `max_disk_mb` | Maximum total disk usage for all sandboxes in MB | 0 (no limit) |
 
-The `max_age_days` setting is enforced during `wp rudel cleanup`. The `max_sandboxes` and `max_disk_mb` limits are enforced when creating new sandboxes, not during cleanup.
+The `max_age_days` setting is enforced when you run `wp rudel cleanup`. The `max_sandboxes` and `max_disk_mb` limits are enforced at creation time, preventing new sandboxes from being created when the limit is reached.
 
-## Cleanup behavior
-
-When `wp rudel cleanup` runs:
-
-1. If `max_age_days` is 0 (the default) and no `--max-age-days` override is provided, cleanup returns immediately with no removals.
-2. Sandboxes older than `max_age_days` are removed.
-3. Errors during removal are reported but do not stop the cleanup process.
-
-The `--dry-run` flag shows what would be removed without making changes, so you can verify before committing.
+If `max_age_days` is 0 and no `--max-age-days` override is provided, cleanup returns immediately with no removals.
