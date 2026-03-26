@@ -11,7 +11,7 @@ export default defineConfig({
     light: "/logo-light.svg",
     dark: "/logo-dark.svg",
   },
-  icon: { light: "/icon.png", dark: "/icon-dark.png" },
+  icon: "/icon.png",
   nav: {
     github: "inline0/rudel",
   },

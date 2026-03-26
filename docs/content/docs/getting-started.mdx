@@ -111,3 +111,15 @@ Sandboxes can be accessed via:
 - **Cookie**: `rudel_sandbox=sandbox-123` (for browser sessions)
 
 The path prefix method works out of the box with no DNS configuration.
+
+## Accessing wp-admin
+
+When you visit a sandbox URL in the browser, Rudel automatically sets a `rudel_sandbox` cookie. This means you can navigate to `/wp-admin/` and it will load in the sandbox's context, using the sandbox's database and content.
+
+To switch back to the host site, visit:
+
+```
+example.com/__rudel/exit/
+```
+
+This clears the sandbox cookie and redirects you to the host homepage.

@@ -66,6 +66,14 @@ The `bootstrap.php` file in each sandbox sets WordPress constants before WordPre
 
 These constants are set before `wp-settings.php` runs, so WordPress sees the sandbox as its entire world.
 
+## Auto-cookie for wp-admin
+
+WordPress admin files (`/wp-admin/*.php`) are real PHP files served directly by the web server, not routed through `index.php`. To make `/wp-admin/` work with sandbox context, Rudel automatically sets a `rudel_sandbox` cookie when a sandbox is detected via path prefix, header, or subdomain. On subsequent requests (including `/wp-admin/`), the bootstrap reads the cookie and activates the correct sandbox.
+
+This means visiting a sandbox URL in the browser is enough to "enter" that sandbox. All subsequent page loads, including the admin dashboard, will operate in the sandbox's context until you exit.
+
+To exit, visit `/__rudel/exit/` (or your configured prefix + `/exit/`). This clears the cookie and redirects to the host.
+
 ## open_basedir restriction
 
 The bootstrap sets PHP's `open_basedir` to restrict file access:

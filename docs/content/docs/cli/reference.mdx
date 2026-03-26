@@ -216,3 +216,13 @@ wp rudel template delete <name> [--force]
 |---|---|
 | `<name>` | Template name (required) |
 | `--force` | Skip confirmation prompt |
+
+## Browser endpoints
+
+### Exit sandbox
+
+```
+/__rudel/exit/
+```
+
+Clears the `rudel_sandbox` cookie and redirects to the host homepage. Use this to switch back from a sandbox to the host site in the browser.
