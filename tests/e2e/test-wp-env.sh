@@ -386,6 +386,53 @@ else
     fail "Beta HTML missing theme reference" ""
 fi
 
+# Auto-cookie for wp-admin access
+echo ""
+echo -e "${BOLD}Auto-cookie for wp-admin${NC}"
+
+# Visiting a sandbox URL should set the rudel_sandbox cookie.
+COOKIE_JAR="$RUDEL_DIR/.cookie-test"
+rm -f "$COOKIE_JAR"
+curl -s -o /dev/null -c "$COOKIE_JAR" "http://localhost:8888/__rudel/${ALPHA_ID}/"
+if grep -q "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null; then
+    COOKIE_VALUE=$(grep "rudel_sandbox" "$COOKIE_JAR" | awk '{print $NF}')
+    if [[ "$COOKIE_VALUE" == "$ALPHA_ID" ]]; then
+        pass "Auto-cookie set with correct sandbox ID"
+    else
+        fail "Auto-cookie has wrong value" "Expected: $ALPHA_ID, Got: $COOKIE_VALUE"
+    fi
+else
+    fail "Auto-cookie not set after visiting sandbox URL" ""
+fi
+
+# With the cookie, /wp-admin/ should load in sandbox context.
+ADMIN_CODE=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" "http://localhost:8888/wp-admin/")
+if [[ "$ADMIN_CODE" =~ ^(200|301|302)$ ]]; then
+    pass "wp-admin responds with sandbox cookie (HTTP $ADMIN_CODE)"
+else
+    fail "wp-admin failed with sandbox cookie" "HTTP $ADMIN_CODE"
+fi
+
+# The exit endpoint should clear the cookie.
+curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/__rudel/exit/"
+COOKIE_AFTER_EXIT=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}')
+if [[ -z "$COOKIE_AFTER_EXIT" || "$COOKIE_AFTER_EXIT" == '""' || "$COOKIE_AFTER_EXIT" == "0" ]]; then
+    pass "Exit endpoint cleared sandbox cookie"
+else
+    # Check if the cookie value is empty (expired cookies show differently).
+    fail "Exit endpoint did not clear cookie" "Got: $COOKIE_AFTER_EXIT"
+fi
+
+# After exit, /wp-admin/ should load the host (not sandbox).
+ADMIN_HOST=$(curl -s -L "http://localhost:8888/wp-admin/" | head -50)
+if ! echo "$ADMIN_HOST" | grep -qi "Alpha Site"; then
+    pass "wp-admin shows host after exit (not sandbox)"
+else
+    fail "wp-admin still shows sandbox after exit" ""
+fi
+
+rm -f "$COOKIE_JAR"
+
 # Host unaffected
 echo ""
 echo -e "${BOLD}Host unaffected${NC}"

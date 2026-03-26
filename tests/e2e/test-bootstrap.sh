@@ -91,6 +91,7 @@ echo json_encode([
     'table_prefix' => $GLOBALS['table_prefix'] ?? null,
     'auth_key' => defined('AUTH_KEY') ? AUTH_KEY : null,
     'open_basedir' => ini_get('open_basedir'),
+    'cookie_sandbox' => $_COOKIE['rudel_sandbox'] ?? null,
 ]);
 INNEREOF
 

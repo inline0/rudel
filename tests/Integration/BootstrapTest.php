@@ -74,6 +74,7 @@ class BootstrapTest extends RudelTestCase
         $script .= '  "wp_home" => defined("WP_HOME") ? WP_HOME : null,' . "\n";
         $script .= '  "uploads" => defined("UPLOADS") ? UPLOADS : null,' . "\n";
         $script .= '  "table_prefix_caller_scope" => isset($table_prefix) ? $table_prefix : null,' . "\n";
+        $script .= '  "cookie_sandbox" => $_COOKIE["rudel_sandbox"] ?? null,' . "\n";
         $script .= ']);' . "\n";
 
         $tmpScript = $this->tmpDir . '/bootstrap-test-' . uniqid() . '.php';
@@ -619,6 +620,48 @@ class BootstrapTest extends RudelTestCase
         $this->assertNotNull($result['auth_key']);
         // Table prefix is NOT overridden (multisite handles it via blog_id).
         $this->assertNull($result['table_prefix']);
+    }
+
+    // Auto-cookie (CLI mode: cookie is not set via setcookie but $_COOKIE is updated)
+
+    public function testCookieDetectionStillWorks(): void
+    {
+        $this->createFakeSandboxInDir('cookie-auto');
+
+        $result = $this->runBootstrap(
+            ['HTTP_HOST' => 'localhost'],
+            ['rudel_sandbox' => 'cookie-auto'],
+        );
+
+        $this->assertSame('cookie-auto', $result['sandbox_id']);
+        $this->assertSame('cookie-auto', $result['cookie_sandbox']);
+    }
+
+    public function testPathPrefixDetectionSetsContext(): void
+    {
+        $this->createFakeSandboxInDir('path-auto');
+
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/__rudel/path-auto/wp-admin/',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('path-auto', $result['sandbox_id']);
+    }
+
+    public function testExitPathDoesNotActivateSandbox(): void
+    {
+        $this->createFakeSandboxInDir('should-not-match');
+
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/__rudel/exit/',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        // The exit path should not match any sandbox (it's a special route).
+        // In CLI mode the exit handler doesn't fire, so it falls through.
+        // The ID "exit" is not a sandbox directory, so no sandbox should be detected.
+        $this->assertNull($result['sandbox_id'] ?? null);
     }
 
     // Helpers

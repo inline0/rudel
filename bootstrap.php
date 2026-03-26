@@ -139,6 +139,22 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		}
 	}
 
+	// Exit sandbox: /__rudel/exit/ clears the cookie and redirects to host.
+	if ( 'cli' !== php_sapi_name() && ! $sandbox_id ) {
+		$uri = $_SERVER['REQUEST_URI'] ?? '';
+		if ( preg_match( '#^/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/exit/?(\?|$)#', $uri ) ) {
+			setcookie( 'rudel_sandbox', '', time() - 3600, '/' );
+			unset( $_COOKIE['rudel_sandbox'] );
+			$protocol = 'http';
+			if ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
+				$protocol = 'https';
+			}
+			$redirect = $protocol . '://' . ( $_SERVER['HTTP_HOST'] ?? 'localhost' ) . '/';
+			header( 'Location: ' . $redirect, true, 302 );
+			exit;
+		}
+	}
+
 	// 4. Path prefix: /__rudel/{id}/.
 	if ( ! $sandbox_id ) {
 		$uri = $_SERVER['REQUEST_URI'] ?? '';
@@ -173,6 +189,16 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 	if ( ! $sandbox_id || ! $sandbox_path ) {
 		return;
+	}
+
+	// Auto-set the sandbox cookie in web context so wp-admin and other
+	// real PHP files (not routed through index.php) maintain sandbox context.
+	if ( 'cli' !== php_sapi_name() ) {
+		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
+		if ( $cookie_id !== $sandbox_id ) {
+			setcookie( 'rudel_sandbox', $sandbox_id, 0, '/' );
+			$_COOKIE['rudel_sandbox'] = $sandbox_id;
+		}
 	}
 
 	// Safe define helper.
