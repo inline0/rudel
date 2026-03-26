@@ -78,6 +78,8 @@ class BootstrapTest extends RudelTestCase
         $script .= '  "wp_debug" => defined("WP_DEBUG") ? WP_DEBUG : null,' . "\n";
         $script .= '  "wp_debug_log" => defined("WP_DEBUG_LOG") ? WP_DEBUG_LOG : null,' . "\n";
         $script .= '  "wp_debug_display" => defined("WP_DEBUG_DISPLAY") ? WP_DEBUG_DISPLAY : null,' . "\n";
+        $script .= '  "cache_key_salt" => defined("WP_CACHE_KEY_SALT") ? WP_CACHE_KEY_SALT : null,' . "\n";
+        $script .= '  "disable_email" => defined("RUDEL_DISABLE_EMAIL") ? RUDEL_DISABLE_EMAIL : null,' . "\n";
         $script .= ']);' . "\n";
 
         $tmpScript = $this->tmpDir . '/bootstrap-test-' . uniqid() . '.php';
@@ -706,6 +708,73 @@ class BootstrapTest extends RudelTestCase
 
         $this->assertNull($result['sandbox_id'] ?? null);
         $this->assertNull($result['wp_debug']);
+    }
+
+    // Cache isolation
+
+    public function testSandboxSetsCacheKeySalt(): void
+    {
+        $this->createFakeSandboxInDir('cache-test');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'cache-test',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('cache-test', $result['sandbox_id']);
+        $this->assertSame('rudel_cache-test_', $result['cache_key_salt']);
+    }
+
+    public function testCacheKeySaltDiffersBetweenSandboxes(): void
+    {
+        $this->createFakeSandboxInDir('cache-a');
+        $this->createFakeSandboxInDir('cache-b');
+
+        $resultA = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'cache-a',
+            'HTTP_HOST' => 'localhost',
+        ]);
+        $resultB = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'cache-b',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertNotSame($resultA['cache_key_salt'], $resultB['cache_key_salt']);
+    }
+
+    public function testNoSandboxDoesNotSetCacheKeySalt(): void
+    {
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => 'example.com',
+        ]);
+
+        $this->assertNull($result['cache_key_salt']);
+    }
+
+    // Email isolation
+
+    public function testSandboxDisablesEmailByDefault(): void
+    {
+        $this->createFakeSandboxInDir('email-test');
+
+        $result = $this->runBootstrap([
+            'HTTP_X_RUDEL_SANDBOX' => 'email-test',
+            'HTTP_HOST' => 'localhost',
+        ]);
+
+        $this->assertSame('email-test', $result['sandbox_id']);
+        $this->assertTrue($result['disable_email']);
+    }
+
+    public function testNoSandboxDoesNotDisableEmail(): void
+    {
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => 'example.com',
+        ]);
+
+        $this->assertNull($result['disable_email']);
     }
 
     // Helpers

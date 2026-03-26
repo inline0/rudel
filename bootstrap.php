@@ -278,6 +278,12 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$def( 'WP_DEBUG_LOG', true );
 	$def( 'WP_DEBUG_DISPLAY', false );
 
+	// Per-sandbox object cache isolation (prevents Redis/Memcached data leaking between sandboxes).
+	$def( 'WP_CACHE_KEY_SALT', 'rudel_' . $sandbox_id . '_' );
+
+	// Disable outbound email by default (sandboxes should not send real mail).
+	$def( 'RUDEL_DISABLE_EMAIL', true );
+
 	// Per-sandbox table prefix (subsite engine uses multisite's own prefix via blog_id).
 	if ( 'subsite' !== $_rudel_engine ) {
 		$_rudel_prefix           = 'wp_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';

@@ -367,6 +367,21 @@ class SecurityTest extends RudelTestCase
         $this->assertStringNotContainsString($sourcePrefix, $capKey);
     }
 
+    // Cache key isolation
+
+    public function testCacheKeySaltContainsSandboxId(): void
+    {
+        $salt = $this->runBootstrapAndGetConstant('cache-iso-test', 'WP_CACHE_KEY_SALT');
+        $this->assertStringContainsString('cache-iso-test', $salt);
+    }
+
+    public function testCacheKeySaltsDifferBetweenSandboxes(): void
+    {
+        $saltA = $this->runBootstrapAndGetConstant('cache-sandbox-a', 'WP_CACHE_KEY_SALT');
+        $saltB = $this->runBootstrapAndGetConstant('cache-sandbox-b', 'WP_CACHE_KEY_SALT');
+        $this->assertNotSame($saltA, $saltB);
+    }
+
     // Table prefix isolation
 
     public function testTablePrefixesAreUniquePerSandbox(): void

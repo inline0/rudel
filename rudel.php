@@ -58,3 +58,19 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND, Rudel\CLI\RudelCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }
+
+// Disable outbound email in sandbox context when RUDEL_DISABLE_EMAIL is true.
+if ( defined( 'RUDEL_SANDBOX_ID' ) && defined( 'RUDEL_DISABLE_EMAIL' ) && RUDEL_DISABLE_EMAIL ) {
+	add_filter(
+		'pre_wp_mail',
+		function ( $null, $atts ) {
+			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
+				error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_SANDBOX_ID, $atts['to'], $atts['subject'] ) );
+			}
+			return true;
+		},
+		10,
+		2
+	);
+}
