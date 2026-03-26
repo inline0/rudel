@@ -110,6 +110,21 @@ Show Rudel status and configuration.
 wp rudel status
 ```
 
+### `wp rudel logs`
+
+View a sandbox's error log.
+
+```bash
+wp rudel logs <id> [--lines=<lines>] [--follow] [--clear]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--lines=<lines>` | Number of lines to show from the end (default: 50) |
+| `--follow` | Watch for new entries in real time (like `tail -f`) |
+| `--clear` | Clear the log file |
+
 ### `wp rudel snapshot`
 
 Create a point-in-time snapshot of a sandbox.
