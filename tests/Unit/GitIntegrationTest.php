@@ -31,6 +31,8 @@ class GitIntegrationTest extends RudelTestCase
         file_put_contents($path . '/file.txt', 'initial');
         exec('git -C ' . escapeshellarg($path) . ' add -A 2>&1');
         exec('git -C ' . escapeshellarg($path) . ' commit -m "init" 2>&1');
+        // Ensure default branch is 'main' regardless of git config.
+        exec('git -C ' . escapeshellarg($path) . ' branch -M main 2>&1');
         return $path;
     }
 
