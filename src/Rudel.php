@@ -284,6 +284,16 @@ class Rudel {
 	}
 
 	/**
+	 * Clean up sandboxes whose git branches have been merged.
+	 *
+	 * @param array $options Options: 'dry_run' (bool).
+	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
+	 */
+	public static function cleanup_merged( array $options = array() ): array {
+		return self::manager()->cleanup_merged( $options );
+	}
+
+	/**
 	 * Get the sandboxes directory path.
 	 *
 	 * @return string Absolute path.

@@ -92,7 +92,8 @@ class SandboxManager {
 			throw new \RuntimeException( 'Subsite engine requires a WordPress multisite installation.' );
 		}
 
-			$blog_id = null;
+			$blog_id   = null;
+		$git_worktrees = array();
 
 		try {
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
@@ -221,15 +222,31 @@ class SandboxManager {
 			}
 
 			if ( $clone_themes || $clone_plugins || $clone_uploads ) {
-				$content_cloner = new ContentCloner();
-				$content_cloner->clone_content(
+				$content_cloner  = new ContentCloner();
+				$content_results = $content_cloner->clone_content(
 					$path . '/wp-content',
 					array(
 						'themes'  => $clone_themes,
 						'plugins' => $clone_plugins,
 						'uploads' => $clone_uploads,
-					)
+					),
+					$id
 				);
+
+				// Collect git worktree info for metadata.
+				$git_worktrees = array();
+				foreach ( $content_results as $dir => $result ) {
+					if ( is_array( $result ) && ! empty( $result['worktrees'] ) ) {
+						foreach ( $result['worktrees'] as $repo_name => $branch ) {
+							$git_worktrees[] = array(
+								'type'   => $dir,
+								'name'   => $repo_name,
+								'branch' => $branch,
+								'repo'   => $this->get_host_wp_content_dir() . '/' . $dir . '/' . $repo_name,
+							);
+						}
+					}
+				}
 			}
 		} catch ( \Throwable $e ) {
 			if ( 'mysql' === $engine ) {
@@ -250,6 +267,11 @@ class SandboxManager {
 
 		if ( $is_multisite && 'subsite' !== $engine ) {
 			$this->write_sandbox_bootstrap( $id, $path, true, $engine );
+		}
+
+		// Store git worktree metadata if any were created.
+		if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
+			$clone_source['git_worktrees'] = $git_worktrees;
 		}
 
 		$sandbox = new Sandbox(
@@ -740,6 +762,66 @@ class SandboxManager {
 	}
 
 	/**
+	 * Clean up sandboxes whose git branches have been merged.
+	 *
+	 * @param array $options Options: 'dry_run' (bool).
+	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
+	 */
+	public function cleanup_merged( array $options = array() ): array {
+		$dry_run = ! empty( $options['dry_run'] );
+		$git     = new GitIntegration();
+		$result  = array(
+			'removed' => array(),
+			'skipped' => array(),
+			'errors'  => array(),
+		);
+
+		$sandboxes = $this->list();
+
+		foreach ( $sandboxes as $sandbox ) {
+			$worktrees = $sandbox->clone_source['git_worktrees'] ?? array();
+			if ( empty( $worktrees ) ) {
+				$result['skipped'][] = $sandbox->id;
+				continue;
+			}
+
+			$all_merged = true;
+			foreach ( $worktrees as $wt ) {
+				$default_branch = $git->get_default_branch( $wt['repo'] );
+				if ( ! $git->is_branch_merged( $wt['repo'], $wt['branch'], $default_branch ) ) {
+					$all_merged = false;
+					break;
+				}
+			}
+
+			if ( ! $all_merged ) {
+				$result['skipped'][] = $sandbox->id;
+				continue;
+			}
+
+			if ( $dry_run ) {
+				$result['removed'][] = $sandbox->id;
+				continue;
+			}
+
+			// Clean up worktrees and branches before destroying.
+			foreach ( $worktrees as $wt ) {
+				$worktree_path = $sandbox->get_wp_content_path() . '/' . $wt['type'] . '/' . $wt['name'];
+				$git->remove_worktree( $wt['repo'], $worktree_path );
+				$git->delete_branch( $wt['repo'], $wt['branch'] );
+			}
+
+			if ( $this->destroy( $sandbox->id ) ) {
+				$result['removed'][] = $sandbox->id;
+			} else {
+				$result['errors'][] = $sandbox->id;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Check configured limits before creating a new sandbox.
 	 *
 	 * @param RudelConfig|null $config Optional config instance for testing.
@@ -801,6 +883,18 @@ class SandboxManager {
 			return rtrim( ABSPATH, '/' );
 		}
 		return dirname( __DIR__, 3 );
+	}
+
+	/**
+	 * Get the host WordPress wp-content directory path.
+	 *
+	 * @return string Absolute path without trailing slash.
+	 */
+	private function get_host_wp_content_dir(): string {
+		if ( defined( 'WP_CONTENT_DIR' ) ) {
+			return rtrim( WP_CONTENT_DIR, '/' );
+		}
+		return $this->get_wp_core_path() . '/wp-content';
 	}
 
 	/**

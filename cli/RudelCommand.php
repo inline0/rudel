@@ -498,7 +498,7 @@ class RudelCommand extends \WP_CLI_Command {
 	}
 
 	/**
-	 * Clean up expired sandboxes.
+	 * Clean up expired or merged sandboxes.
 	 *
 	 * ## OPTIONS
 	 *
@@ -508,13 +508,19 @@ class RudelCommand extends \WP_CLI_Command {
 	 * [--max-age-days=<days>]
 	 * : Override the configured max age in days.
 	 *
+	 * [--merged]
+	 * : Remove sandboxes whose git branches have been merged into main.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     $ wp rudel cleanup --max-age-days=30
 	 *     Removed 2 sandbox(es).
 	 *
-	 *     $ wp rudel cleanup --dry-run --max-age-days=7
-	 *     Would remove 3 sandbox(es).
+	 *     $ wp rudel cleanup --merged
+	 *     Removed 1 sandbox(es) with merged branches.
+	 *
+	 *     $ wp rudel cleanup --merged --dry-run
+	 *     Would remove 1 sandbox(es) with merged branches.
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -523,25 +529,31 @@ class RudelCommand extends \WP_CLI_Command {
 	 * @when after_wp_load
 	 */
 	public function cleanup( $args, $assoc_args ): void {
-		$options = array(
-			'dry_run'      => \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false ),
-			'max_age_days' => (int) ( $assoc_args['max-age-days'] ?? 0 ),
-		);
+		$dry_run = \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false );
+		$merged  = \WP_CLI\Utils\get_flag_value( $assoc_args, 'merged', false );
 
-		$result = $this->manager->cleanup( $options );
-
-		if ( $options['dry_run'] ) {
-			$count = count( $result['removed'] );
-			WP_CLI::log( "Would remove {$count} sandbox(es)." );
-			foreach ( $result['removed'] as $id ) {
-				WP_CLI::log( "  {$id}" );
-			}
+		if ( $merged ) {
+			$result = $this->manager->cleanup_merged( array( 'dry_run' => $dry_run ) );
+			$label  = 'with merged branches';
 		} else {
-			$count = count( $result['removed'] );
-			WP_CLI::success( "Removed {$count} sandbox(es)." );
-			foreach ( $result['removed'] as $id ) {
-				WP_CLI::log( "  {$id}" );
-			}
+			$result = $this->manager->cleanup(
+				array(
+					'dry_run'      => $dry_run,
+					'max_age_days' => (int) ( $assoc_args['max-age-days'] ?? 0 ),
+				)
+			);
+			$label  = '';
+		}
+
+		$count = count( $result['removed'] );
+		if ( $dry_run ) {
+			WP_CLI::log( "Would remove {$count} sandbox(es) {$label}." );
+		} else {
+			WP_CLI::success( "Removed {$count} sandbox(es) {$label}." );
+		}
+
+		foreach ( $result['removed'] as $id ) {
+			WP_CLI::log( "  {$id}" );
 		}
 
 		if ( ! empty( $result['errors'] ) ) {

@@ -20,9 +20,18 @@ class ContentCloner {
 	 * @param array  $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
 	 * @return array<string, string> Status per directory: 'copied', 'skipped', or 'missing'.
 	 */
-	public function clone_content( string $sandbox_wp_content, array $options = array() ): array {
+	/**
+	 * Clone wp-content subdirectories from the host to the sandbox.
+	 *
+	 * @param string $sandbox_wp_content Absolute path to the sandbox wp-content directory.
+	 * @param array  $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
+	 * @param string $sandbox_id         Optional sandbox ID for git worktree branch naming.
+	 * @return array<string, mixed> Status per directory.
+	 */
+	public function clone_content( string $sandbox_wp_content, array $options = array(), string $sandbox_id = '' ): array {
 		$host_wp_content = $this->get_host_wp_content_dir();
 		$results         = array();
+		$use_git         = '' !== $sandbox_id;
 
 		$directories = array( 'themes', 'plugins', 'uploads' );
 
@@ -45,8 +54,20 @@ class ContentCloner {
 				$this->delete_directory( $target );
 			}
 
-			$this->copy_directory( $source, $target );
-			$results[ $dir ] = 'copied';
+			// Use git worktrees for themes/plugins if sandbox_id is provided.
+			// Uploads are never git-tracked, always plain copy.
+			if ( $use_git && 'uploads' !== $dir ) {
+				$git             = new GitIntegration();
+				$git_results     = $git->clone_with_worktrees( $source, $target, $sandbox_id );
+				$results[ $dir ] = array(
+					'status'    => 'copied',
+					'worktrees' => $git_results['worktrees'],
+					'copied'    => $git_results['copied'],
+				);
+			} else {
+				$this->copy_directory( $source, $target );
+				$results[ $dir ] = 'copied';
+			}
 		}
 
 		return $results;
