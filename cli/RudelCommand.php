@@ -54,8 +54,11 @@ class RudelCommand extends \WP_CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * --name=<name>
-	 * : Human-readable name for the sandbox.
+	 * [--name=<name>]
+	 * : Human-readable name. Auto-generated from --github repo or random if omitted.
+	 *
+	 * [--github=<repo>]
+	 * : GitHub repository (owner/repo). Creates a branch and downloads files into the sandbox.
 	 *
 	 * [--template=<template>]
 	 * : Template to use. Default: blank.
@@ -93,23 +96,37 @@ class RudelCommand extends \WP_CLI_Command {
 	 *
 	 * ## EXAMPLES
 	 *
+	 *     $ wp rudel create
+	 *     Success: Sandbox created: sandbox-a1b2
+	 *
 	 *     $ wp rudel create --name="my-sandbox"
 	 *     Success: Sandbox created: my-sandbox-a1b2
 	 *
-	 *     $ wp rudel create --name="full-clone" --clone-all
-	 *     Success: Sandbox created: full-clone-c3d4
+	 *     $ wp rudel create --github=inline0/my-theme
+	 *     Success: Sandbox created: my-theme-c3d4
 	 *
-	 *     $ wp rudel create --name="db-only" --clone-db
-	 *     Success: Sandbox created: db-only-e5f6
+	 *     $ wp rudel create --clone-all
+	 *     Success: Sandbox created: sandbox-e5f6
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 * @return void
 	 *
+	 * @throws \RuntimeException If sandbox creation fails.
 	 * @when after_wp_load
 	 */
 	public function create( $args, $assoc_args ): void {
-		$name     = $assoc_args['name'];
+		$github_repo = $assoc_args['github'] ?? null;
+
+		// Derive name: explicit > GitHub repo name > "sandbox".
+		if ( ! empty( $assoc_args['name'] ) ) {
+			$name = $assoc_args['name'];
+		} elseif ( $github_repo ) {
+			$name = basename( $github_repo );
+		} else {
+			$name = 'sandbox';
+		}
+
 		$template = $assoc_args['template'] ?? 'blank';
 
 		$engine     = $assoc_args['engine'] ?? 'mysql';
@@ -173,6 +190,48 @@ class RudelCommand extends \WP_CLI_Command {
 			}
 			if ( ! empty( $src['uploads_cloned'] ) ) {
 				WP_CLI::log( '    Uploads: copied' );
+			}
+		}
+
+		// GitHub worktree: create branch and download repo files.
+		if ( $github_repo ) {
+			try {
+				$github    = new \Rudel\GitHubIntegration( $github_repo );
+				$branch    = $sandbox->get_git_branch();
+				$repo_name = basename( $github_repo );
+
+				WP_CLI::log( '' );
+				WP_CLI::log( "  GitHub: {$github_repo}" );
+
+				// Create branch.
+				try {
+					$github->create_branch( $branch );
+					WP_CLI::log( "  Branch: {$branch} (created)" );
+				} catch ( \RuntimeException $e ) {
+					if ( str_contains( $e->getMessage(), 'Reference already exists' ) ) {
+						WP_CLI::log( "  Branch: {$branch} (exists)" );
+					} else {
+						throw $e;
+					}
+				}
+
+				// Download repo files into sandbox wp-content/themes/{repo-name}/ by default.
+				$download_dir = $sandbox->get_wp_content_path() . '/themes/' . $repo_name;
+				if ( ! is_dir( $download_dir ) ) {
+					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating directory for GitHub download.
+					mkdir( $download_dir, 0755, true );
+				}
+
+				$file_count = $github->download( $branch, $download_dir );
+				WP_CLI::log( "  Downloaded: {$file_count} files into themes/{$repo_name}/" );
+
+				// Store GitHub metadata.
+				$clone_source                = $sandbox->clone_source ?? array();
+				$clone_source['github_repo'] = $github_repo;
+				$sandbox->update_meta( 'clone_source', $clone_source );
+			} catch ( \Throwable $e ) {
+				WP_CLI::warning( "GitHub setup failed: {$e->getMessage()}" );
+				WP_CLI::warning( 'Sandbox was created but GitHub worktree was not set up.' );
 			}
 		}
 
