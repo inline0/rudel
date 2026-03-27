@@ -194,16 +194,17 @@ wp rudel import <file> --name=<name>
 
 ### `wp rudel cleanup`
 
-Clean up expired sandboxes.
+Clean up expired or merged sandboxes.
 
 ```bash
-wp rudel cleanup [--dry-run] [--max-age-days=<days>]
+wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--merged]
 ```
 
 | Option | Description |
 |---|---|
 | `--dry-run` | Show what would be removed without deleting |
 | `--max-age-days=<days>` | Override the configured max age in days |
+| `--merged` | Remove sandboxes whose git branches have been merged into main |
 
 ## Template commands
 

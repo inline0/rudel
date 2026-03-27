@@ -40,3 +40,21 @@ Cleanup behavior is controlled by the Rudel configuration file (`rudel-config.js
 The `max_age_days` setting is enforced when you run `wp rudel cleanup`. The `max_sandboxes` and `max_disk_mb` limits are enforced at creation time, preventing new sandboxes from being created when the limit is reached.
 
 If `max_age_days` is 0 and no `--max-age-days` override is provided, cleanup returns immediately with no removals.
+
+## Merge-based cleanup
+
+If you use Rudel's [git integration](/docs/features/git), sandboxes can be cleaned up automatically when their branches are merged. This is separate from age-based cleanup:
+
+```bash
+wp rudel cleanup --merged
+```
+
+This checks each sandbox that has git worktrees. If all of a sandbox's branches have been merged into the default branch (usually `main`), the sandbox is destroyed, the worktrees are removed, and the branches are deleted.
+
+Preview first with `--dry-run`:
+
+```bash
+wp rudel cleanup --merged --dry-run
+```
+
+This is the cleanest way to manage sandbox lifecycles when working with git: create a sandbox, do the work, merge the PR, and the sandbox disappears on the next cleanup run.

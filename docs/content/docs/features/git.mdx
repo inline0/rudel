@@ -1,0 +1,58 @@
+---
+title: Git Integration
+description: Branch-based workflows with automatic worktrees for git-tracked themes and plugins.
+---
+
+# Git Integration
+
+When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of copying files into the sandbox, it creates a git worktree on a dedicated branch. This means changes made in the sandbox are regular git commits that can be merged back via a pull request.
+
+## How it works
+
+When you create a sandbox with `--clone-themes` or `--clone-plugins`, Rudel checks each theme and plugin directory for a `.git` folder. If it finds one, it creates a git worktree in the sandbox's wp-content on a new branch named `rudel/{sandbox-id}`. Directories without git are copied normally, and uploads are always copied since they're not typically version-controlled.
+
+```bash
+wp rudel create --name=feature-x --clone-themes --clone-plugins
+```
+
+If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox gets a worktree at `wp-content/rudel-sandboxes/feature-x-a1b2/wp-content/themes/my-theme` on the `rudel/feature-x-a1b2` branch.
+
+## Working in the sandbox
+
+From the sandbox's theme directory, you're on a regular git branch. You can commit, push, and create pull requests just like any other feature branch.
+
+```bash
+cd /path/to/sandboxes/feature-x-a1b2/wp-content/themes/my-theme
+git status
+git add .
+git commit -m "Add new template"
+git push origin rudel/feature-x-a1b2
+```
+
+AI coding agents working in the sandbox can commit their changes directly. The sandbox's `CLAUDE.md` includes the branch name so agents have the context they need.
+
+## Merging and cleanup
+
+Once the branch is merged into main, the sandbox has served its purpose. Instead of manually destroying it, run:
+
+```bash
+wp rudel cleanup --merged
+```
+
+This checks every sandbox that has git worktrees. If all of a sandbox's branches have been merged into the default branch, the sandbox is destroyed, the worktrees are removed, and the branches are cleaned up.
+
+To preview what would be removed without actually deleting:
+
+```bash
+wp rudel cleanup --merged --dry-run
+```
+
+## What gets git-tracked
+
+Only themes and plugins are eligible for git worktrees. The decision is per-directory: if `wp-content/themes/my-theme/.git` exists, that theme gets a worktree. If `wp-content/themes/other-theme/.git` doesn't exist, that theme is file-copied. Uploads are always file-copied.
+
+The database side of the sandbox (posts, options, settings) is not part of git. That's the disposable part. The code changes in themes and plugins are the part that should be preserved, and git handles that naturally.
+
+## Without git
+
+If none of your themes or plugins are git repos, this feature does nothing. Sandboxes work exactly the same as before, with plain file copying. Git integration is purely additive.
