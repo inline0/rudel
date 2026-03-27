@@ -94,6 +94,15 @@ class RudelCommand extends \WP_CLI_Command {
 	 * [--clone-from=<id>]
 	 * : Clone from an existing sandbox. Mutually exclusive with --clone-db/--clone-all.
 	 *
+	 * [--type=<type>]
+	 * : Content type for --github downloads: 'theme' or 'plugin'.
+	 * ---
+	 * default: theme
+	 * options:
+	 *   - theme
+	 *   - plugin
+	 * ---
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     $ wp rudel create
@@ -215,19 +224,22 @@ class RudelCommand extends \WP_CLI_Command {
 					}
 				}
 
-				// Download repo files into sandbox wp-content/themes/{repo-name}/ by default.
-				$download_dir = $sandbox->get_wp_content_path() . '/themes/' . $repo_name;
+				// Download repo files into sandbox wp-content.
+				$content_type = $assoc_args['type'] ?? 'theme';
+				$type_dir     = 'plugin' === $content_type ? 'plugins' : 'themes';
+				$download_dir = $sandbox->get_wp_content_path() . '/' . $type_dir . '/' . $repo_name;
 				if ( ! is_dir( $download_dir ) ) {
 					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating directory for GitHub download.
 					mkdir( $download_dir, 0755, true );
 				}
 
 				$file_count = $github->download( $branch, $download_dir );
-				WP_CLI::log( "  Downloaded: {$file_count} files into themes/{$repo_name}/" );
+				WP_CLI::log( "  Downloaded: {$file_count} files into {$type_dir}/{$repo_name}/" );
 
 				// Store GitHub metadata.
 				$clone_source                = $sandbox->clone_source ?? array();
 				$clone_source['github_repo'] = $github_repo;
+				$clone_source['github_dir']  = $type_dir . '/' . $repo_name;
 				$sandbox->update_meta( 'clone_source', $clone_source );
 			} catch ( \Throwable $e ) {
 				WP_CLI::warning( "GitHub setup failed: {$e->getMessage()}" );
@@ -430,10 +442,16 @@ class RudelCommand extends \WP_CLI_Command {
 			? RUDEL_PLUGIN_DIR . 'lib/sqlite-database-integration'
 			: dirname( __DIR__ ) . '/lib/sqlite-database-integration';
 
+		$active_sandbox = \Rudel\Rudel::is_sandbox() ? \Rudel\Rudel::id() : 'none';
+
 		$items = array(
 			array(
 				'Field' => 'Bootstrap installed',
 				'Value' => $writer->is_installed() ? 'yes' : 'no',
+			),
+			array(
+				'Field' => 'Current sandbox',
+				'Value' => $active_sandbox,
 			),
 			array(
 				'Field' => 'Sandboxes directory',
@@ -442,6 +460,10 @@ class RudelCommand extends \WP_CLI_Command {
 			array(
 				'Field' => 'Active sandboxes',
 				'Value' => (string) count( $sandboxes ),
+			),
+			array(
+				'Field' => 'Multisite',
+				'Value' => function_exists( 'is_multisite' ) && is_multisite() ? 'yes' : 'no',
 			),
 			array(
 				'Field' => 'SQLite integration',
@@ -831,7 +853,7 @@ class RudelCommand extends \WP_CLI_Command {
 		}
 
 		$message = $assoc_args['message'] ?? 'Update from Rudel sandbox';
-		$subdir  = $assoc_args['dir'] ?? '';
+		$subdir  = $assoc_args['dir'] ?? $sandbox->clone_source['github_dir'] ?? '';
 		$branch  = $sandbox->get_git_branch();
 
 		$local_dir = $sandbox->get_wp_content_path();
