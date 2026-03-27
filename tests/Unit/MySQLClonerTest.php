@@ -76,15 +76,15 @@ class MySQLClonerTest extends RudelTestCase
     public function testDropTablesRemovesAllWithPrefix(): void
     {
         $this->setGlobalWpdb();
-        $this->mockWpdb->addTable('wp_abc_posts', 'CREATE TABLE wp_abc_posts (ID int)', []);
-        $this->mockWpdb->addTable('wp_abc_options', 'CREATE TABLE wp_abc_options (option_id int)', []);
+        $this->mockWpdb->addTable('rudel_abc_posts', 'CREATE TABLE rudel_abc_posts (ID int)', []);
+        $this->mockWpdb->addTable('rudel_abc_options', 'CREATE TABLE rudel_abc_options (option_id int)', []);
         $this->mockWpdb->addTable('wp_posts', 'CREATE TABLE wp_posts (ID int)', []);
 
-        $count = $this->cloner->drop_tables('wp_abc_');
+        $count = $this->cloner->drop_tables('rudel_abc_');
 
         $this->assertSame(2, $count);
-        $this->assertFalse($this->mockWpdb->hasTable('wp_abc_posts'));
-        $this->assertFalse($this->mockWpdb->hasTable('wp_abc_options'));
+        $this->assertFalse($this->mockWpdb->hasTable('rudel_abc_posts'));
+        $this->assertFalse($this->mockWpdb->hasTable('rudel_abc_options'));
         $this->assertTrue($this->mockWpdb->hasTable('wp_posts'));
     }
 
@@ -93,10 +93,29 @@ class MySQLClonerTest extends RudelTestCase
         $this->setGlobalWpdb();
         $this->mockWpdb->addTable('wp_posts', 'CREATE TABLE wp_posts (ID int)', []);
 
-        $count = $this->cloner->drop_tables('wp_nonexistent_');
+        $count = $this->cloner->drop_tables('rudel_nonexistent_');
 
         $this->assertSame(0, $count);
         $this->assertTrue($this->mockWpdb->hasTable('wp_posts'));
+    }
+
+    public function testDropTablesRefusesNonRudelPrefix(): void
+    {
+        $this->setGlobalWpdb();
+        $this->mockWpdb->addTable('wp_posts', 'CREATE TABLE wp_posts (ID int)', []);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Refusing to drop tables');
+        $this->cloner->drop_tables('wp_');
+    }
+
+    public function testDropTablesRefusesCustomPrefix(): void
+    {
+        $this->setGlobalWpdb();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('only rudel_* prefixes are allowed');
+        $this->cloner->drop_tables('custom_prefix_');
     }
 
     // copy_tables()
@@ -347,16 +366,16 @@ class MySQLClonerTest extends RudelTestCase
             define('WP_HOME', 'http://example.com');
         }
 
-        $result = $this->cloner->clone_database('wp_sbx_', 'http://example.com/__rudel/test-1234');
+        $result = $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test-1234');
 
         $this->assertSame(3, $result['tables_cloned']);
         $this->assertGreaterThan(0, $result['rows_cloned']);
         $this->assertFalse($result['is_multisite']);
 
         // Target tables exist.
-        $this->assertTrue($this->mockWpdb->hasTable('wp_sbx_posts'));
-        $this->assertTrue($this->mockWpdb->hasTable('wp_sbx_options'));
-        $this->assertTrue($this->mockWpdb->hasTable('wp_sbx_usermeta'));
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_sbx_posts'));
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_sbx_options'));
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_sbx_usermeta'));
 
         // Source tables still exist.
         $this->assertTrue($this->mockWpdb->hasTable('wp_posts'));
@@ -377,7 +396,7 @@ class MySQLClonerTest extends RudelTestCase
             define('WP_HOME', 'http://example.com');
         }
 
-        $result = $this->cloner->clone_database('wp_sbx_', 'http://example.com/__rudel/test-1234');
+        $result = $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test-1234');
 
         $this->assertTrue($result['is_multisite']);
     }
@@ -390,7 +409,7 @@ class MySQLClonerTest extends RudelTestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('No tables found');
-        $this->cloner->clone_database('wp_sbx_', 'http://example.com/__rudel/test');
+        $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test');
     }
 
     #[RunInSeparateProcess]
@@ -401,7 +420,7 @@ class MySQLClonerTest extends RudelTestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('$wpdb is not available');
-        $this->cloner->clone_database('wp_sbx_', 'http://example.com/__rudel/test');
+        $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test');
     }
 
     // Integration: clone then drop
@@ -422,15 +441,15 @@ class MySQLClonerTest extends RudelTestCase
             define('WP_HOME', 'http://example.com');
         }
 
-        $this->cloner->clone_database('wp_sbx_', 'http://sandbox.local');
+        $this->cloner->clone_database('rudel_sbx_', 'http://sandbox.local');
 
-        $this->assertTrue($this->mockWpdb->hasTable('wp_sbx_posts'));
-        $this->assertTrue($this->mockWpdb->hasTable('wp_sbx_options'));
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_sbx_posts'));
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_sbx_options'));
 
-        $dropped = $this->cloner->drop_tables('wp_sbx_');
+        $dropped = $this->cloner->drop_tables('rudel_sbx_');
         $this->assertSame(2, $dropped);
-        $this->assertFalse($this->mockWpdb->hasTable('wp_sbx_posts'));
-        $this->assertFalse($this->mockWpdb->hasTable('wp_sbx_options'));
+        $this->assertFalse($this->mockWpdb->hasTable('rudel_sbx_posts'));
+        $this->assertFalse($this->mockWpdb->hasTable('rudel_sbx_options'));
 
         // Originals untouched.
         $this->assertTrue($this->mockWpdb->hasTable('wp_posts'));

@@ -163,7 +163,7 @@ class SandboxManager {
 				}
 				$clone_source = $this->clone_from_sandbox( $source, $id, $path, $engine );
 			} elseif ( $clone_db ) {
-				$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
+				$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
 				$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 				$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
@@ -235,7 +235,7 @@ class SandboxManager {
 			if ( 'mysql' === $engine ) {
 				global $wpdb;
 				if ( isset( $wpdb ) && $wpdb ) {
-					$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
+					$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
 					$mysql_cloner = new MySQLCloner();
 					$mysql_cloner->drop_tables( $table_prefix );
 				}
@@ -631,8 +631,8 @@ class SandboxManager {
 		// Rewrite URLs and prefix in the database.
 		$db_path = $new_path . '/wordpress.db';
 		if ( file_exists( $db_path ) ) {
-			$old_prefix = 'wp_' . substr( md5( $old_id ), 0, 6 ) . '_';
-			$new_prefix = 'wp_' . substr( md5( $new_id ), 0, 6 ) . '_';
+			$old_prefix = 'rudel_' . substr( md5( $old_id ), 0, 6 ) . '_';
+			$new_prefix = 'rudel_' . substr( md5( $new_id ), 0, 6 ) . '_';
 
 			$site_url = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 			$old_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $old_id;
@@ -1024,7 +1024,7 @@ class SandboxManager {
 	 */
 	private function create_blank_database( string $id, string $path ): void {
 		$db_path      = $path . '/wordpress.db';
-		$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
+		$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
 
 		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database creation requires PDO; $wpdb is unavailable.
 		$pdo = new \PDO( 'sqlite:' . $db_path );
@@ -1126,7 +1126,7 @@ class SandboxManager {
 	private function create_blank_mysql_database( string $id ): void {
 		global $wpdb;
 
-		$table_prefix = 'wp_' . substr( md5( $id ), 0, 6 ) . '_';
+		$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
 		$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 		$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
@@ -1807,8 +1807,8 @@ class SandboxManager {
 		$site_url      = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 		$sandbox_url   = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $target_id;
 		$source_id     = $meta['source_sandbox_id'] ?? '';
-		$source_prefix = 'wp_' . substr( md5( $source_id ), 0, 6 ) . '_';
-		$target_prefix = 'wp_' . substr( md5( $target_id ), 0, 6 ) . '_';
+		$source_prefix = 'rudel_' . substr( md5( $source_id ), 0, 6 ) . '_';
+		$target_prefix = 'rudel_' . substr( md5( $target_id ), 0, 6 ) . '_';
 
 		if ( file_exists( $target_db ) ) {
 			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO for template initialization.
@@ -1866,7 +1866,7 @@ class SandboxManager {
 	 */
 	private function clone_from_sandbox( Sandbox $source, string $target_id, string $target_path, string $engine = 'mysql' ): array {
 		$source_prefix = $source->get_table_prefix();
-		$target_prefix = 'wp_' . substr( md5( $target_id ), 0, 6 ) . '_';
+		$target_prefix = 'rudel_' . substr( md5( $target_id ), 0, 6 ) . '_';
 
 		$site_url    = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 		$source_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $source->id;

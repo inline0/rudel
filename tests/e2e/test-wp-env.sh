@@ -214,7 +214,7 @@ else
 fi
 
 # MySQL tables should exist with sandbox prefix
-ALPHA_PREFIX=$(wpenv_run bash -c "php -r \"echo 'wp_' . substr(md5('${ALPHA_ID}'), 0, 6) . '_';\"" | tail -1)
+ALPHA_PREFIX=$(wpenv_run bash -c "php -r \"echo 'rudel_' . substr(md5('${ALPHA_ID}'), 0, 6) . '_';\"" | tail -1)
 ALPHA_TABLE_COUNT=$(wpenv_run bash -c "mysql -u root -ppassword -h tests-mysql wordpress -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='wordpress' AND table_name LIKE '${ALPHA_PREFIX}%'\"" 2>/dev/null | tail -1)
 if [[ "$ALPHA_TABLE_COUNT" -gt 0 ]]; then
     pass "Alpha MySQL tables exist (${ALPHA_TABLE_COUNT} tables with prefix ${ALPHA_PREFIX})"

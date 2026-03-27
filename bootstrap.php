@@ -286,7 +286,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 	// Per-sandbox table prefix (subsite engine uses multisite's own prefix via blog_id).
 	if ( 'subsite' !== $_rudel_engine ) {
-		$_rudel_prefix           = 'wp_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
+		$_rudel_prefix           = 'rudel_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
 		$GLOBALS['table_prefix'] = $_rudel_prefix;
 		$def( 'RUDEL_TABLE_PREFIX', $_rudel_prefix );
 	}

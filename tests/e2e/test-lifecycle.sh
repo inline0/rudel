@@ -233,7 +233,7 @@ else
 fi
 
 # Check for admin user
-PREFIX="wp_$(php -r "echo substr(md5('$SANDBOX_ID'), 0, 6);")_"
+PREFIX="rudel_$(php -r "echo substr(md5('$SANDBOX_ID'), 0, 6);")_"
 ADMIN_USER=$(sqlite3 "$SANDBOX_PATH/wordpress.db" "SELECT user_login FROM ${PREFIX}users WHERE ID=1;" 2>&1)
 if [[ "$ADMIN_USER" == "admin" ]]; then
     pass "Admin user exists"

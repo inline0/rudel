@@ -208,7 +208,7 @@ class BootstrapTest extends RudelTestCase
             'HTTP_HOST' => 'localhost',
         ]);
 
-        $expected_prefix = 'wp_' . substr(md5('prefix-test'), 0, 6) . '_';
+        $expected_prefix = 'rudel_' . substr(md5('prefix-test'), 0, 6) . '_';
         $this->assertSame($expected_prefix, $result['table_prefix']);
     }
 
@@ -495,7 +495,7 @@ class BootstrapTest extends RudelTestCase
             'HTTP_HOST' => 'localhost',
         ]);
 
-        $expected = 'wp_' . substr(md5('tprefix-box'), 0, 6) . '_';
+        $expected = 'rudel_' . substr(md5('tprefix-box'), 0, 6) . '_';
         $this->assertSame($expected, $result['rudel_table_prefix']);
     }
 
@@ -521,7 +521,7 @@ class BootstrapTest extends RudelTestCase
             'HTTP_HOST' => 'localhost',
         ]);
 
-        $expected = 'wp_' . substr(md5('scope-box'), 0, 6) . '_';
+        $expected = 'rudel_' . substr(md5('scope-box'), 0, 6) . '_';
         $this->assertSame($expected, $result['table_prefix_caller_scope']);
     }
 

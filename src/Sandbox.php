@@ -122,7 +122,7 @@ class Sandbox {
 				return $wpdb->base_prefix . $this->blog_id . '_';
 			}
 		}
-		return 'wp_' . substr( md5( $this->id ), 0, 6 ) . '_';
+		return 'rudel_' . substr( md5( $this->id ), 0, 6 ) . '_';
 	}
 
 	/**

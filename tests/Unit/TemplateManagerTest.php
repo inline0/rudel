@@ -157,7 +157,7 @@ class TemplateManagerTest extends RudelTestCase
         $newSandbox = $sbManager->create('From Template', ['engine' => 'sqlite', 'template' => 'mytemplate']);
 
         $pdo = new \PDO('sqlite:' . $newSandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($newSandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($newSandbox->id), 0, 6) . '_';
         $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
 
         $this->assertStringContainsString($newSandbox->id, $siteurl);

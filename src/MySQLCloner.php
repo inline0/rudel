@@ -103,10 +103,19 @@ class MySQLCloner {
 	/**
 	 * Drop all tables with the given prefix.
 	 *
-	 * @param string $prefix Table prefix to match.
+	 * @param string $prefix Table prefix to match. Must start with 'rudel_'.
 	 * @return int Number of tables dropped.
+	 *
+	 * @throws \RuntimeException If the prefix does not start with 'rudel_'.
 	 */
 	public function drop_tables( string $prefix ): int {
+		// Safety: never drop tables that don't start with 'rudel_' or 'rudel_backup_'.
+		if ( ! str_starts_with( $prefix, 'rudel_' ) ) {
+			throw new \RuntimeException(
+				sprintf( 'Refusing to drop tables with prefix "%s": only rudel_* prefixes are allowed.', $prefix )
+			);
+		}
+
 		global $wpdb;
 
 		$tables = $this->discover_tables( $wpdb, $prefix );

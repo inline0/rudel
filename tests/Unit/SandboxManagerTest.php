@@ -193,7 +193,7 @@ class SandboxManagerTest extends RudelTestCase
         $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
             ->fetchAll(\PDO::FETCH_COLUMN);
 
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
         $expected = [
             $prefix . 'commentmeta',
             $prefix . 'comments',
@@ -221,7 +221,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('User Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $user = $pdo->query("SELECT user_login, user_email FROM {$prefix}users WHERE ID=1")->fetch(\PDO::FETCH_ASSOC);
         $this->assertSame('admin', $user['user_login']);
@@ -237,7 +237,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Caps Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $caps = $pdo->query("SELECT meta_value FROM {$prefix}usermeta WHERE user_id=1 AND meta_key='{$prefix}capabilities'")->fetchColumn();
         $this->assertNotFalse($caps);
@@ -254,7 +254,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Options Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $requiredOptions = ['siteurl', 'home', 'blogname', 'blogdescription', 'permalink_structure', 'active_plugins', 'template', 'stylesheet', $prefix . 'user_roles'];
 
@@ -273,7 +273,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Url Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
         $this->assertStringContainsString($sandbox->id, $siteurl);
@@ -288,7 +288,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Post Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $title = $pdo->query("SELECT post_title FROM {$prefix}posts WHERE ID=1")->fetchColumn();
         $this->assertSame('Hello world!', $title);
@@ -303,7 +303,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Term Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $name = $pdo->query("SELECT name FROM {$prefix}terms WHERE term_id=1")->fetchColumn();
         $this->assertSame('Uncategorized', $name);
@@ -318,7 +318,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Roles Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $roles = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='{$prefix}user_roles'")->fetchColumn();
         $rolesArray = unserialize($roles);
@@ -348,8 +348,8 @@ class SandboxManagerTest extends RudelTestCase
         $tables2 = $pdo2->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")->fetchAll(\PDO::FETCH_COLUMN);
 
         // Tables should have different prefixes
-        $prefix1 = 'wp_' . substr(md5($sandbox1->id), 0, 6) . '_';
-        $prefix2 = 'wp_' . substr(md5($sandbox2->id), 0, 6) . '_';
+        $prefix1 = 'rudel_' . substr(md5($sandbox1->id), 0, 6) . '_';
+        $prefix2 = 'rudel_' . substr(md5($sandbox2->id), 0, 6) . '_';
         $this->assertNotSame($prefix1, $prefix2);
 
         // Verify each sandbox uses its own prefix
@@ -583,7 +583,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Page Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $page = $pdo->query("SELECT post_title, post_type, post_status FROM {$prefix}posts WHERE ID=2")->fetch(\PDO::FETCH_ASSOC);
         $this->assertSame('Sample Page', $page['post_title']);
@@ -600,7 +600,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandbox = $manager->create('Comment Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
-        $prefix = 'wp_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
 
         $comment = $pdo->query("SELECT comment_author, comment_content, comment_approved FROM {$prefix}comments WHERE comment_ID=1")->fetch(\PDO::FETCH_ASSOC);
         $this->assertSame('A WordPress Commenter', $comment['comment_author']);
@@ -725,7 +725,7 @@ class SandboxManagerTest extends RudelTestCase
         $clone = $manager->create('Url Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
 
         $pdo = new \PDO('sqlite:' . $clone->get_db_path());
-        $prefix = 'wp_' . substr(md5($clone->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($clone->id), 0, 6) . '_';
         $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
         $this->assertStringContainsString($clone->id, $siteurl);
         $this->assertStringNotContainsString($source->id, $siteurl);
@@ -742,8 +742,8 @@ class SandboxManagerTest extends RudelTestCase
         $clone = $manager->create('Prefix Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
 
         $pdo = new \PDO('sqlite:' . $clone->get_db_path());
-        $sourcePrefix = 'wp_' . substr(md5($source->id), 0, 6) . '_';
-        $clonePrefix = 'wp_' . substr(md5($clone->id), 0, 6) . '_';
+        $sourcePrefix = 'rudel_' . substr(md5($source->id), 0, 6) . '_';
+        $clonePrefix = 'rudel_' . substr(md5($clone->id), 0, 6) . '_';
 
         $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
             ->fetchAll(\PDO::FETCH_COLUMN);
@@ -1136,7 +1136,7 @@ class SandboxManagerTest extends RudelTestCase
         $imported = $manager->import($zipPath, 'Rewritten Import');
 
         $pdo = new \PDO('sqlite:' . $imported->get_db_path());
-        $prefix = 'wp_' . substr(md5($imported->id), 0, 6) . '_';
+        $prefix = 'rudel_' . substr(md5($imported->id), 0, 6) . '_';
 
         $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
             ->fetchAll(\PDO::FETCH_COLUMN);

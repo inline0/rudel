@@ -46,7 +46,7 @@ if (! defined('WP_CACHE_KEY_SALT')) { define('WP_CACHE_KEY_SALT', 'rudel_' . $sa
 if (! defined('RUDEL_DISABLE_EMAIL')) { define('RUDEL_DISABLE_EMAIL', true); }
 
 // Per-sandbox table prefix
-$_rudel_prefix = 'wp_' . substr(md5($sandbox_id), 0, 6) . '_';
+$_rudel_prefix = 'rudel_' . substr(md5($sandbox_id), 0, 6) . '_';
 $GLOBALS['table_prefix'] = $_rudel_prefix;
 if (! defined('RUDEL_TABLE_PREFIX')) {
     define('RUDEL_TABLE_PREFIX', $_rudel_prefix);

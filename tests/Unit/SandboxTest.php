@@ -273,7 +273,7 @@ class SandboxTest extends RudelTestCase
     public function testGetTablePrefix(): void
     {
         $sandbox = new Sandbox('test-id', 'name', '/tmp/test', '2026-01-01');
-        $expected = 'wp_' . substr(md5('test-id'), 0, 6) . '_';
+        $expected = 'rudel_' . substr(md5('test-id'), 0, 6) . '_';
         $this->assertSame($expected, $sandbox->get_table_prefix());
     }
 

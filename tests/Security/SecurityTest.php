@@ -230,12 +230,12 @@ class SecurityTest extends RudelTestCase
 
         // Modify data in sandbox A's database
         $pdoA = new \PDO('sqlite:' . $sandboxA->get_db_path());
-        $prefixA = 'wp_' . substr(md5($sandboxA->id), 0, 6) . '_';
+        $prefixA = 'rudel_' . substr(md5($sandboxA->id), 0, 6) . '_';
         $pdoA->exec("INSERT INTO {$prefixA}posts (post_author, post_date, post_date_gmt, post_content, post_title, post_status, post_name, post_type, post_modified, post_modified_gmt) VALUES (1, datetime('now'), datetime('now'), 'Secret content', 'Secret Post', 'publish', 'secret', 'post', datetime('now'), datetime('now'))");
 
         // Verify sandbox B doesn't see it
         $pdoB = new \PDO('sqlite:' . $sandboxB->get_db_path());
-        $prefixB = 'wp_' . substr(md5($sandboxB->id), 0, 6) . '_';
+        $prefixB = 'rudel_' . substr(md5($sandboxB->id), 0, 6) . '_';
         $count = $pdoB->query("SELECT COUNT(*) FROM {$prefixB}posts WHERE post_title='Secret Post'")->fetchColumn();
         $this->assertSame(0, (int) $count, 'Sandbox B should not see Sandbox A posts');
     }
@@ -395,7 +395,7 @@ class SecurityTest extends RudelTestCase
     public function testTablePrefixFormatIsConsistent(): void
     {
         $prefix = $this->runBootstrapAndGetConstant('test-format', 'RUDEL_TABLE_PREFIX');
-        $this->assertMatchesRegularExpression('/^wp_[a-f0-9]{6}_$/', $prefix);
+        $this->assertMatchesRegularExpression('/^rudel_[a-f0-9]{6}_$/', $prefix);
     }
 
     /**
