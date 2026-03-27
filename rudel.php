@@ -59,18 +59,57 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }
 
-// Disable outbound email in sandbox context when RUDEL_DISABLE_EMAIL is true.
-if ( defined( 'RUDEL_SANDBOX_ID' ) && defined( 'RUDEL_DISABLE_EMAIL' ) && RUDEL_DISABLE_EMAIL ) {
-	add_filter(
-		'pre_wp_mail',
-		function ( $null, $atts ) {
-			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
-				error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_SANDBOX_ID, $atts['to'], $atts['subject'] ) );
-			}
-			return true;
+// Sandbox-specific hooks (only when a sandbox is active).
+if ( Rudel\Rudel::is_sandbox() ) {
+
+	// Disable outbound email when RUDEL_DISABLE_EMAIL is true.
+	if ( Rudel\Rudel::is_email_disabled() ) {
+		add_filter(
+			'pre_wp_mail',
+			function ( $null, $atts ) {
+				if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
+					error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_SANDBOX_ID, $atts['to'], $atts['subject'] ) );
+				}
+				return true;
+			},
+			10,
+			2
+		);
+	}
+
+	// Admin bar indicator: show current sandbox with exit link.
+	add_action(
+		'admin_bar_menu',
+		function ( $wp_admin_bar ) {
+			$wp_admin_bar->add_node(
+				array(
+					'id'    => 'rudel-sandbox',
+					'title' => '&#9632; Sandbox: ' . Rudel\Rudel::id(),
+					'href'  => Rudel\Rudel::exit_url(),
+					'meta'  => array( 'title' => 'Click to exit sandbox and return to host' ),
+				)
+			);
 		},
-		10,
-		2
+		1
 	);
+
+	// Style the admin bar indicator.
+	add_action(
+		'wp_head',
+		'rudel_admin_bar_styles'
+	);
+	add_action(
+		'admin_head',
+		'rudel_admin_bar_styles'
+	);
+}
+
+/**
+ * Output admin bar styles for the sandbox indicator.
+ *
+ * @return void
+ */
+function rudel_admin_bar_styles() {
+	echo '<style>#wp-admin-bar-rudel-sandbox > a { background: #d63638 !important; color: #fff !important; font-weight: 600 !important; }</style>';
 }
