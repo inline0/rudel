@@ -262,6 +262,40 @@ foreach ( $snapshots as $snap ) {
 }
 ```
 
+## GitHub
+
+### `Rudel::github( $repo, $token )`
+
+Returns a `GitHubIntegration` instance for low-level API access. The token falls back to the `RUDEL_GITHUB_TOKEN` constant if not provided.
+
+```php
+$gh = Rudel::github( 'owner/my-theme' );
+$gh->download( 'main', '/local/dir' );
+$gh->create_branch( 'feature/new-header' );
+$gh->is_branch_merged( 'feature/new-header' );
+```
+
+### `Rudel::push( $sandbox_id, $repo, $message, $subdir )`
+
+Pushes a sandbox's files to a GitHub branch. Creates the branch if needed. The repo is stored in metadata after the first push, so subsequent calls don't need it.
+
+```php
+// First push: specify repo
+Rudel::push( 'my-sandbox-a1b2', 'owner/my-theme', 'Add header template', 'themes/my-theme' );
+
+// Subsequent pushes: repo is remembered
+Rudel::push( 'my-sandbox-a1b2', '', 'Fix typo' );
+```
+
+### `Rudel::pr( $sandbox_id, $title, $repo, $body )`
+
+Creates a GitHub pull request from the sandbox's branch. The repo is read from metadata if omitted.
+
+```php
+$pr = Rudel::pr( 'my-sandbox-a1b2', 'New header template' );
+echo $pr['html_url']; // https://github.com/owner/my-theme/pull/4
+```
+
 ## Admin bar
 
 When a sandbox is active in the browser, Rudel automatically adds a red indicator to the WordPress admin bar showing the sandbox ID with an exit link. This requires no code from the developer. It works on both the frontend and wp-admin.

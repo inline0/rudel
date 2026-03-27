@@ -26,12 +26,13 @@ Only the WP-CLI command name is affected. Internal identifiers like the `rudel_s
 Create a new sandbox.
 
 ```bash
-wp rudel create --name=<name> [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
+wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
 ```
 
 | Option | Description |
 |---|---|
-| `--name=<name>` | Human-readable name for the sandbox (required) |
+| `--name=<name>` | Human-readable name. Auto-generated from `--github` repo or random if omitted. |
+| `--github=<repo>` | GitHub repository (`owner/repo`). Creates a branch and downloads files. |
 | `--engine=<engine>` | Database engine: `mysql` (default), `sqlite`, or `subsite` (multisite only) |
 | `--template=<template>` | Template to use (default: `blank`) |
 | `--clone-db` | Clone the host database into the sandbox |
@@ -42,26 +43,23 @@ wp rudel create --name=<name> [--engine=<engine>] [--template=<template>] [--clo
 | `--clone-from=<id>` | Clone from an existing sandbox |
 
 ```bash
-# Blank sandbox
+# Blank sandbox (name auto-generated)
+wp rudel create
+
+# Named sandbox
 wp rudel create --name="my-sandbox"
 
+# GitHub worktree: creates branch, downloads repo
+wp rudel create --github=inline0/my-theme
+
 # Full clone of host
-wp rudel create --name="full-clone" --clone-all
-
-# Clone database only
-wp rudel create --name="db-only" --clone-db
-
-# Clone from existing sandbox
-wp rudel create --name="copy" --clone-from=my-sandbox-a1b2
-
-# Create from template
-wp rudel create --name="from-template" --template=starter
+wp rudel create --clone-all
 
 # SQLite engine
-wp rudel create --name="portable" --engine=sqlite
+wp rudel create --engine=sqlite
 
 # Multisite sub-site (requires multisite host)
-wp rudel create --name="subsite-sandbox" --engine=subsite
+wp rudel create --engine=subsite
 ```
 
 ### `wp rudel list`
@@ -213,13 +211,13 @@ wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--merged]
 Push sandbox file changes to a GitHub branch. No git binary required.
 
 ```bash
-wp rudel push <id> --github=<repo> [--message=<message>] [--dir=<dir>]
+wp rudel push <id> [--github=<repo>] [--message=<message>] [--dir=<dir>]
 ```
 
 | Option | Description |
 |---|---|
 | `<id>` | Sandbox ID (required) |
-| `--github=<repo>` | GitHub repository in `owner/repo` format (required) |
+| `--github=<repo>` | GitHub repository (`owner/repo`). Remembered after first use. |
 | `--message=<message>` | Commit message (default: "Update from Rudel sandbox") |
 | `--dir=<dir>` | Subdirectory within wp-content to push (e.g. `themes/my-theme`) |
 
@@ -230,13 +228,13 @@ Requires `RUDEL_GITHUB_TOKEN` to be defined in `wp-config.php`.
 Create a GitHub pull request from a sandbox branch.
 
 ```bash
-wp rudel pr <id> --github=<repo> [--title=<title>] [--body=<body>]
+wp rudel pr <id> [--github=<repo>] [--title=<title>] [--body=<body>]
 ```
 
 | Option | Description |
 |---|---|
 | `<id>` | Sandbox ID (required) |
-| `--github=<repo>` | GitHub repository in `owner/repo` format (required) |
+| `--github=<repo>` | GitHub repository. Uses stored repo from previous push if omitted. |
 | `--title=<title>` | PR title (defaults to sandbox name) |
 | `--body=<body>` | PR description |
 
