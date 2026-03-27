@@ -165,6 +165,40 @@ class Sandbox {
 	}
 
 	/**
+	 * Get the git branch name for this sandbox.
+	 *
+	 * @return string Branch name in rudel/{id} format.
+	 */
+	public function get_git_branch(): string {
+		return 'rudel/' . $this->id;
+	}
+
+	/**
+	 * Get the GitHub repository associated with this sandbox, if any.
+	 *
+	 * @return string|null GitHub repo in owner/repo format, or null.
+	 */
+	public function get_github_repo(): ?string {
+		return $this->clone_source['github_repo'] ?? null;
+	}
+
+	/**
+	 * Update a key in the sandbox metadata and persist to disk.
+	 *
+	 * @param string $key   Top-level key in .rudel.json.
+	 * @param mixed  $value Value to set.
+	 * @return void
+	 */
+	public function update_meta( string $key, $value ): void {
+		$meta_file = $this->path . '/.rudel.json';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local metadata.
+		$data         = json_decode( file_get_contents( $meta_file ), true ) ?? array();
+		$data[ $key ] = $value;
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing local metadata.
+		file_put_contents( $meta_file, json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
+	}
+
+	/**
 	 * Convert sandbox to an associative array.
 	 *
 	 * @return array<string, mixed> Sandbox data.

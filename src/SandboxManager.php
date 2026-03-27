@@ -779,22 +779,44 @@ class SandboxManager {
 		$sandboxes = $this->list();
 
 		foreach ( $sandboxes as $sandbox ) {
-			$worktrees = $sandbox->clone_source['git_worktrees'] ?? array();
-			if ( empty( $worktrees ) ) {
+			$branch      = $sandbox->get_git_branch();
+			$github_repo = $sandbox->get_github_repo();
+			$worktrees   = $sandbox->clone_source['git_worktrees'] ?? array();
+			$has_git     = ! empty( $worktrees );
+			$has_github  = ! empty( $github_repo );
+
+			if ( ! $has_git && ! $has_github ) {
 				$result['skipped'][] = $sandbox->id;
 				continue;
 			}
 
-			$all_merged = true;
-			foreach ( $worktrees as $wt ) {
-				$default_branch = $git->get_default_branch( $wt['repo'] );
-				if ( ! $git->is_branch_merged( $wt['repo'], $wt['branch'], $default_branch ) ) {
-					$all_merged = false;
-					break;
+			$is_merged = false;
+
+			// Check GitHub API first (works on shared hosts without git).
+			if ( $has_github ) {
+				try {
+					$github    = new GitHubIntegration( $github_repo );
+					$is_merged = $github->is_branch_merged( $branch );
+				} catch ( \RuntimeException $e ) {
+					// No token or API error: fall through to local git check.
+					$is_merged = false;
 				}
 			}
 
-			if ( ! $all_merged ) {
+			// Fall back to local git check for worktrees.
+			if ( ! $is_merged && $has_git ) {
+				$all_local_merged = true;
+				foreach ( $worktrees as $wt ) {
+					$default_branch = $git->get_default_branch( $wt['repo'] );
+					if ( ! $git->is_branch_merged( $wt['repo'], $wt['branch'], $default_branch ) ) {
+						$all_local_merged = false;
+						break;
+					}
+				}
+				$is_merged = $all_local_merged;
+			}
+
+			if ( ! $is_merged ) {
 				$result['skipped'][] = $sandbox->id;
 				continue;
 			}
@@ -804,11 +826,21 @@ class SandboxManager {
 				continue;
 			}
 
-			// Clean up worktrees and branches before destroying.
+			// Clean up local worktrees and branches before destroying.
 			foreach ( $worktrees as $wt ) {
 				$worktree_path = $sandbox->get_wp_content_path() . '/' . $wt['type'] . '/' . $wt['name'];
 				$git->remove_worktree( $wt['repo'], $worktree_path );
 				$git->delete_branch( $wt['repo'], $wt['branch'] );
+			}
+
+			// Clean up GitHub branch.
+			if ( $has_github ) {
+				try {
+					$github = new GitHubIntegration( $github_repo );
+					$github->delete_branch( $branch );
+				} catch ( \RuntimeException $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Best-effort cleanup; failure is acceptable.
+					unset( $e );
+				}
 			}
 
 			if ( $this->destroy( $sandbox->id ) ) {

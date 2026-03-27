@@ -731,8 +731,8 @@ class RudelCommand extends \WP_CLI_Command {
 	 * <id>
 	 * : Sandbox ID.
 	 *
-	 * --github=<repo>
-	 * : GitHub repository (owner/repo).
+	 * [--github=<repo>]
+	 * : GitHub repository (owner/repo). Remembered after first use.
 	 *
 	 * [--message=<message>]
 	 * : Commit message.
@@ -747,6 +747,9 @@ class RudelCommand extends \WP_CLI_Command {
 	 *
 	 *     $ wp rudel push my-sandbox-a1b2 --github=inline0/my-theme --dir=themes/my-theme --message="Add header template"
 	 *     Success: Pushed to rudel/my-sandbox-a1b2 (abc1234)
+	 *
+	 *     # Subsequent pushes remember the repo:
+	 *     $ wp rudel push my-sandbox-a1b2 --message="Fix typo"
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -763,10 +766,14 @@ class RudelCommand extends \WP_CLI_Command {
 			WP_CLI::error( "Sandbox not found: {$id}" );
 		}
 
-		$repo    = $assoc_args['github'];
+		$repo = $assoc_args['github'] ?? $sandbox->get_github_repo();
+		if ( ! $repo ) {
+			WP_CLI::error( 'GitHub repo required. Pass --github=owner/repo (only needed on first push).' );
+		}
+
 		$message = $assoc_args['message'] ?? 'Update from Rudel sandbox';
 		$subdir  = $assoc_args['dir'] ?? '';
-		$branch  = 'rudel/' . $sandbox->id;
+		$branch  = $sandbox->get_git_branch();
 
 		$local_dir = $sandbox->get_wp_content_path();
 		if ( '' !== $subdir ) {
@@ -797,6 +804,12 @@ class RudelCommand extends \WP_CLI_Command {
 			$sha = $github->push( $branch, $local_dir, $message );
 
 			if ( $sha ) {
+				// Remember the repo for future push/pr commands.
+				if ( ! $sandbox->get_github_repo() ) {
+					$clone_source                = $sandbox->clone_source ?? array();
+					$clone_source['github_repo'] = $repo;
+					$sandbox->update_meta( 'clone_source', $clone_source );
+				}
 				WP_CLI::success( "Pushed to {$branch} ({$sha})" );
 			} else {
 				WP_CLI::log( 'No changes to push.' );
@@ -814,8 +827,8 @@ class RudelCommand extends \WP_CLI_Command {
 	 * <id>
 	 * : Sandbox ID.
 	 *
-	 * --github=<repo>
-	 * : GitHub repository (owner/repo).
+	 * [--github=<repo>]
+	 * : GitHub repository (owner/repo). Uses stored repo from previous push if omitted.
 	 *
 	 * [--title=<title>]
 	 * : PR title. Defaults to the sandbox name.
@@ -827,6 +840,9 @@ class RudelCommand extends \WP_CLI_Command {
 	 *
 	 *     $ wp rudel pr my-sandbox-a1b2 --github=inline0/my-theme --title="Add header template"
 	 *     Success: PR #3 created: https://github.com/inline0/my-theme/pull/3
+	 *
+	 *     # If repo was stored from a previous push:
+	 *     $ wp rudel pr my-sandbox-a1b2 --title="Add header template"
 	 *
 	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -843,8 +859,12 @@ class RudelCommand extends \WP_CLI_Command {
 			WP_CLI::error( "Sandbox not found: {$id}" );
 		}
 
-		$repo   = $assoc_args['github'];
-		$branch = 'rudel/' . $sandbox->id;
+		$repo = $assoc_args['github'] ?? $sandbox->get_github_repo();
+		if ( ! $repo ) {
+			WP_CLI::error( 'GitHub repo required. Pass --github=owner/repo or push first to store it.' );
+		}
+
+		$branch = $sandbox->get_git_branch();
 		$title  = $assoc_args['title'] ?? $sandbox->name;
 		$body   = $assoc_args['body'] ?? "Created from Rudel sandbox `{$sandbox->id}`";
 
