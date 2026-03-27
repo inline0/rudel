@@ -11,7 +11,9 @@ Every sandbox is fully isolated from the host WordPress installation and from ot
 
 Each sandbox operates on its own set of database tables, completely separate from the host and from other sandboxes.
 
-With the default MySQL engine, the sandbox gets a unique table prefix (e.g., `wp_a1b2c3_`) derived from its ID. The host tables are untouched. With the SQLite engine, the sandbox gets its own standalone database file. With the subsite engine, isolation is handled by WordPress multisite's native per-site table structure.
+With the default MySQL engine, the sandbox gets a unique table prefix (e.g., `rudel_a1b2c3_`) derived from its ID. The `rudel_` prefix is used deliberately so sandbox tables can never be confused with the host's `wp_` tables. The host tables are untouched. With the SQLite engine, the sandbox gets its own standalone database file. With the subsite engine, isolation is handled by WordPress multisite's native per-site table structure.
+
+As an additional safeguard, the table cleanup code refuses to drop any tables that don't start with `rudel_`. Even if a bug occurred in the prefix generation, it would be impossible for Rudel to accidentally delete host data.
 
 Regardless of engine, the sandbox never reads or writes the host's data.
 
@@ -58,7 +60,7 @@ Each sandbox includes a `wp-cli.yml` file that points to the host's WordPress co
 | Attack vector | Defense |
 |---|---|
 | Path traversal | `open_basedir` blocks access outside the allowlist |
-| Sandbox escape to host database | Table prefix isolation (MySQL) or file-based separation (SQLite) |
+| Sandbox escape to host database | `rudel_` table prefix (MySQL) or file-based separation (SQLite); drop guard rejects non-`rudel_` prefixes |
 | Cross-sandbox access | Each sandbox's `open_basedir` only includes its own path |
 | Tampering with sandbox config | `bootstrap.php` and `wp-cli.yml` are set to read-only |
 | Session hijacking across sandboxes | Per-sandbox deterministic auth salts |
