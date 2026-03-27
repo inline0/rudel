@@ -354,4 +354,100 @@ class Rudel {
 		$snap_manager = new SnapshotManager( $sandbox );
 		return $snap_manager->list_snapshots();
 	}
+
+	// GitHub integration.
+
+	/**
+	 * Get a GitHubIntegration instance for a repository.
+	 *
+	 * @param string      $repo  GitHub repository (owner/repo).
+	 * @param string|null $token GitHub token. Falls back to RUDEL_GITHUB_TOKEN.
+	 * @return GitHubIntegration
+	 *
+	 * @throws \RuntimeException If no token is available.
+	 */
+	public static function github( string $repo, ?string $token = null ): GitHubIntegration {
+		return new GitHubIntegration( $repo, $token );
+	}
+
+	/**
+	 * Push a sandbox's files to GitHub.
+	 *
+	 * @param string $sandbox_id Sandbox identifier.
+	 * @param string $repo       GitHub repository (owner/repo). Optional if stored in metadata.
+	 * @param string $message    Commit message.
+	 * @param string $subdir     Subdirectory within wp-content to push (e.g. 'themes/my-theme').
+	 * @return string|null Commit SHA on success, null if no changes.
+	 *
+	 * @throws \RuntimeException If the sandbox is not found or push fails.
+	 */
+	public static function push( string $sandbox_id, string $repo = '', string $message = 'Update from Rudel', string $subdir = '' ): ?string {
+		$sandbox = self::get( $sandbox_id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		}
+
+		$repo = '' !== $repo ? $repo : $sandbox->get_github_repo();
+		if ( ! $repo ) {
+			throw new \RuntimeException( 'GitHub repo required. Pass $repo or push via CLI first.' );
+		}
+
+		$github = new GitHubIntegration( $repo );
+		$branch = $sandbox->get_git_branch();
+
+		// Create branch if needed.
+		try {
+			$github->create_branch( $branch );
+		} catch ( \RuntimeException $e ) {
+			if ( ! str_contains( $e->getMessage(), 'Reference already exists' ) ) {
+				throw $e;
+			}
+		}
+
+		$local_dir = $sandbox->get_wp_content_path();
+		if ( '' !== $subdir ) {
+			$local_dir .= '/' . ltrim( $subdir, '/' );
+		}
+
+		$sha = $github->push( $branch, $local_dir, $message );
+
+		// Store repo in metadata if not already stored.
+		if ( $sha && ! $sandbox->get_github_repo() ) {
+			$clone_source                = $sandbox->clone_source ?? array();
+			$clone_source['github_repo'] = $repo;
+			$sandbox->update_meta( 'clone_source', $clone_source );
+		}
+
+		return $sha;
+	}
+
+	/**
+	 * Create a GitHub pull request from a sandbox branch.
+	 *
+	 * @param string $sandbox_id Sandbox identifier.
+	 * @param string $title      PR title. Defaults to sandbox name.
+	 * @param string $repo       GitHub repository. Optional if stored in metadata.
+	 * @param string $body       PR description.
+	 * @return array{number: int, url: string, html_url: string} PR data.
+	 *
+	 * @throws \RuntimeException If the sandbox is not found or PR creation fails.
+	 */
+	public static function pr( string $sandbox_id, string $title = '', string $repo = '', string $body = '' ): array {
+		$sandbox = self::get( $sandbox_id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		}
+
+		$repo = '' !== $repo ? $repo : $sandbox->get_github_repo();
+		if ( ! $repo ) {
+			throw new \RuntimeException( 'GitHub repo required. Pass $repo or push via CLI first.' );
+		}
+
+		$github = new GitHubIntegration( $repo );
+		$branch = $sandbox->get_git_branch();
+		$title  = '' !== $title ? $title : $sandbox->name;
+		$body   = '' !== $body ? $body : sprintf( 'Created from Rudel sandbox `%s`', $sandbox->id );
+
+		return $github->create_pr( $branch, $title, $body );
+	}
 }
