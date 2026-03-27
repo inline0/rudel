@@ -724,6 +724,141 @@ class RudelCommand extends \WP_CLI_Command {
 	}
 
 	/**
+	 * Push sandbox file changes to GitHub.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : Sandbox ID.
+	 *
+	 * --github=<repo>
+	 * : GitHub repository (owner/repo).
+	 *
+	 * [--message=<message>]
+	 * : Commit message.
+	 * ---
+	 * default: Update from Rudel sandbox
+	 * ---
+	 *
+	 * [--dir=<dir>]
+	 * : Subdirectory within wp-content to push (e.g. themes/my-theme). Defaults to all of wp-content.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     $ wp rudel push my-sandbox-a1b2 --github=inline0/my-theme --dir=themes/my-theme --message="Add header template"
+	 *     Success: Pushed to rudel/my-sandbox-a1b2 (abc1234)
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @throws \RuntimeException If the sandbox is not found or push fails.
+	 * @when after_wp_load
+	 */
+	public function push( $args, $assoc_args ): void {
+		$id      = $args[0];
+		$sandbox = $this->manager->get( $id );
+
+		if ( ! $sandbox ) {
+			WP_CLI::error( "Sandbox not found: {$id}" );
+		}
+
+		$repo    = $assoc_args['github'];
+		$message = $assoc_args['message'] ?? 'Update from Rudel sandbox';
+		$subdir  = $assoc_args['dir'] ?? '';
+		$branch  = 'rudel/' . $sandbox->id;
+
+		$local_dir = $sandbox->get_wp_content_path();
+		if ( '' !== $subdir ) {
+			$local_dir .= '/' . ltrim( $subdir, '/' );
+		}
+
+		if ( ! is_dir( $local_dir ) ) {
+			WP_CLI::error( "Directory not found: {$local_dir}" );
+		}
+
+		try {
+			$github = new \Rudel\GitHubIntegration( $repo );
+
+			// Create branch if it doesn't exist.
+			WP_CLI::log( "Ensuring branch {$branch} exists..." );
+			try {
+				$github->create_branch( $branch );
+				WP_CLI::log( '  Branch created.' );
+			} catch ( \RuntimeException $e ) {
+				if ( str_contains( $e->getMessage(), 'Reference already exists' ) ) {
+					WP_CLI::log( '  Branch already exists.' );
+				} else {
+					throw $e;
+				}
+			}
+
+			WP_CLI::log( 'Pushing changes...' );
+			$sha = $github->push( $branch, $local_dir, $message );
+
+			if ( $sha ) {
+				WP_CLI::success( "Pushed to {$branch} ({$sha})" );
+			} else {
+				WP_CLI::log( 'No changes to push.' );
+			}
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+	}
+
+	/**
+	 * Create a GitHub pull request from a sandbox branch.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : Sandbox ID.
+	 *
+	 * --github=<repo>
+	 * : GitHub repository (owner/repo).
+	 *
+	 * [--title=<title>]
+	 * : PR title. Defaults to the sandbox name.
+	 *
+	 * [--body=<body>]
+	 * : PR description.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     $ wp rudel pr my-sandbox-a1b2 --github=inline0/my-theme --title="Add header template"
+	 *     Success: PR #3 created: https://github.com/inline0/my-theme/pull/3
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @subcommand pr
+	 * @when after_wp_load
+	 */
+	public function pr( $args, $assoc_args ): void {
+		$id      = $args[0];
+		$sandbox = $this->manager->get( $id );
+
+		if ( ! $sandbox ) {
+			WP_CLI::error( "Sandbox not found: {$id}" );
+		}
+
+		$repo   = $assoc_args['github'];
+		$branch = 'rudel/' . $sandbox->id;
+		$title  = $assoc_args['title'] ?? $sandbox->name;
+		$body   = $assoc_args['body'] ?? "Created from Rudel sandbox `{$sandbox->id}`";
+
+		try {
+			$github = new \Rudel\GitHubIntegration( $repo );
+			$pr     = $github->create_pr( $branch, $title, $body );
+
+			WP_CLI::success( "PR #{$pr['number']} created: {$pr['html_url']}" );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+	}
+
+	/**
 	 * Export a sandbox as a zip archive.
 	 *
 	 * ## OPTIONS
