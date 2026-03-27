@@ -342,6 +342,189 @@ class SandboxManager {
 	}
 
 	/**
+	 * Promote a sandbox to replace the host site.
+	 *
+	 * Copies the sandbox's database tables and wp-content to the host,
+	 * rewriting URLs and table prefixes. Creates a backup first.
+	 *
+	 * @param string $id         Sandbox identifier.
+	 * @param string $backup_dir Directory to store the host backup.
+	 * @return array{backup_path: string, tables_copied: int} Promotion results.
+	 *
+	 * @throws \RuntimeException If the sandbox is not found or promotion fails.
+	 */
+	public function promote( string $id, string $backup_dir ): array {
+		global $wpdb;
+
+		$sandbox = $this->get( $id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $id ) );
+		}
+
+		if ( $sandbox->is_subsite() ) {
+			throw new \RuntimeException( 'Promote is not supported for subsite-engine sandboxes.' );
+		}
+
+		if ( ! isset( $wpdb ) || ! $wpdb ) {
+			throw new \RuntimeException( 'Promote requires a running WordPress environment.' );
+		}
+
+		$host_prefix  = $wpdb->prefix;
+		$host_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+		$sandbox_url  = $host_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox->id;
+		$host_content = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
+
+		// Step 1: Backup host database tables.
+		if ( ! is_dir( $backup_dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating backup directory.
+			mkdir( $backup_dir, 0755, true );
+		}
+
+		$backup_prefix = 'rudel_backup_' . gmdate( 'Ymd_His' ) . '_';
+		$mysql_cloner  = new MySQLCloner();
+		$host_tables   = $mysql_cloner->discover_tables( $wpdb, $host_prefix );
+		$backup_count  = 0;
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names for host backup.
+		foreach ( $host_tables as $table ) {
+			$backup_table = $backup_prefix . substr( $table, strlen( $host_prefix ) );
+			$wpdb->query( "CREATE TABLE `{$backup_table}` LIKE `{$table}`" );
+			$wpdb->query( "INSERT INTO `{$backup_table}` SELECT * FROM `{$table}`" );
+			++$backup_count;
+		}
+		// phpcs:enable
+
+		// Backup wp-content.
+		$backup_content = $backup_dir . '/wp-content';
+		$content_cloner = new ContentCloner();
+		$content_cloner->copy_directory( $host_content, $backup_content );
+
+		// Store backup metadata.
+		$backup_meta = array(
+			'created_at'    => gmdate( 'c' ),
+			'sandbox_id'    => $sandbox->id,
+			'host_prefix'   => $host_prefix,
+			'backup_prefix' => $backup_prefix,
+			'tables_backed' => $backup_count,
+		);
+		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing backup metadata.
+		file_put_contents(
+			$backup_dir . '/backup.json',
+			json_encode( $backup_meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n"
+		);
+		// phpcs:enable
+
+		// Step 2: Replace host tables with sandbox tables.
+		if ( $sandbox->is_sqlite() ) {
+			$this->promote_sqlite_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
+		} else {
+			$this->promote_mysql_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
+		}
+
+		// Step 3: Sync wp-content.
+		$sandbox_content = $sandbox->get_wp_content_path();
+		if ( is_dir( $sandbox_content ) ) {
+			// Remove host themes/plugins/uploads and replace with sandbox's.
+			foreach ( array( 'themes', 'plugins', 'uploads' ) as $subdir ) {
+				$host_sub    = $host_content . '/' . $subdir;
+				$sandbox_sub = $sandbox_content . '/' . $subdir;
+				if ( is_dir( $sandbox_sub ) ) {
+					if ( is_dir( $host_sub ) ) {
+						$this->delete_directory( $host_sub );
+					}
+					$content_cloner->copy_directory( $sandbox_sub, $host_sub );
+				}
+			}
+		}
+
+		return array(
+			'backup_path'   => $backup_dir,
+			'backup_prefix' => $backup_prefix,
+			'tables_copied' => $backup_count,
+		);
+	}
+
+	/**
+	 * Promote a MySQL sandbox's tables to the host prefix.
+	 *
+	 * @param Sandbox $sandbox     The sandbox to promote.
+	 * @param string  $host_prefix Host table prefix.
+	 * @param string  $sandbox_url Sandbox URL.
+	 * @param string  $host_url    Host URL.
+	 * @return void
+	 */
+	private function promote_mysql_to_host( Sandbox $sandbox, string $host_prefix, string $sandbox_url, string $host_url ): void {
+		global $wpdb;
+
+		$sandbox_prefix = $sandbox->get_table_prefix();
+		$mysql_cloner   = new MySQLCloner();
+		$sandbox_tables = $mysql_cloner->discover_tables( $wpdb, $sandbox_prefix );
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names for promotion.
+		// Drop existing host tables and replace with sandbox tables.
+		foreach ( $sandbox_tables as $table ) {
+			$suffix     = substr( $table, strlen( $sandbox_prefix ) );
+			$host_table = $host_prefix . $suffix;
+			$wpdb->query( "DROP TABLE IF EXISTS `{$host_table}`" );
+			$wpdb->query( "CREATE TABLE `{$host_table}` LIKE `{$table}`" );
+			$wpdb->query( "INSERT INTO `{$host_table}` SELECT * FROM `{$table}`" );
+		}
+		// phpcs:enable
+
+		// Rewrite URLs and prefix references.
+		$mysql_cloner->rewrite_urls( $wpdb, $host_prefix, $sandbox_url, $host_url );
+		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $host_prefix, $sandbox_prefix, $host_prefix );
+	}
+
+	/**
+	 * Promote a SQLite sandbox's database to the host MySQL.
+	 *
+	 * @param Sandbox $sandbox     The sandbox to promote.
+	 * @param string  $host_prefix Host table prefix.
+	 * @param string  $sandbox_url Sandbox URL.
+	 * @param string  $host_url    Host URL.
+	 * @return void
+	 */
+	private function promote_sqlite_to_host( Sandbox $sandbox, string $host_prefix, string $sandbox_url, string $host_url ): void {
+		global $wpdb;
+
+		$sandbox_prefix = $sandbox->get_table_prefix();
+
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- Reading SQLite database for promotion.
+		$pdo = new \PDO( 'sqlite:' . $sandbox->get_db_path() );
+		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+		$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$sandbox_prefix}%'" )
+			->fetchAll( \PDO::FETCH_COLUMN );
+		// phpcs:enable
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names for SQLite to MySQL promotion.
+		foreach ( $tables as $sqlite_table ) {
+			$suffix     = substr( $sqlite_table, strlen( $sandbox_prefix ) );
+			$host_table = $host_prefix . $suffix;
+
+			// Get column info from the host table (if it exists) or create from scratch.
+			$wpdb->query( "TRUNCATE TABLE `{$host_table}`" );
+
+			// Read all rows from SQLite and insert into MySQL.
+			$stmt = $pdo->query( "SELECT * FROM `{$sqlite_table}`" );
+			// phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO fetch.
+			$rows = $stmt->fetchAll( \PDO::FETCH_ASSOC );
+
+			foreach ( $rows as $row ) {
+				$wpdb->insert( $host_table, $row );
+			}
+		}
+		// phpcs:enable
+
+		$pdo = null;
+
+		// Rewrite URLs and prefix references in the host MySQL tables.
+		$mysql_cloner = new MySQLCloner();
+		$mysql_cloner->rewrite_urls( $wpdb, $host_prefix, $sandbox_url, $host_url );
+		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $host_prefix, $sandbox_prefix, $host_prefix );
+	}
+
+	/**
 	 * Export a sandbox as a zip archive.
 	 *
 	 * @param string $id          Sandbox identifier.

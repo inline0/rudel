@@ -1181,6 +1181,86 @@ class SandboxManagerTest extends RudelTestCase
         $manager->import($zipPath, 'No Meta Import');
     }
 
+    // Promote
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPromoteThrowsOnNonexistentSandbox(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Sandbox not found');
+        $manager->promote('nonexistent', $this->tmpDir . '/backup');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPromoteThrowsOnSubsiteSandbox(): void
+    {
+        $this->defineConstants();
+        $manager = new SandboxManager($this->tmpDir);
+
+        // Create a fake subsite sandbox by writing metadata directly.
+        $id = 'subsite-promote-test';
+        $path = $this->tmpDir . '/' . $id;
+        mkdir($path, 0755, true);
+        mkdir($path . '/wp-content', 0755);
+        mkdir($path . '/tmp', 0755);
+        file_put_contents($path . '/.rudel.json', json_encode([
+            'id' => $id,
+            'name' => 'Subsite Test',
+            'path' => $path,
+            'created_at' => gmdate('c'),
+            'engine' => 'subsite',
+            'blog_id' => 99,
+        ]));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('not supported for subsite');
+        $manager->promote($id, $this->tmpDir . '/backup');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPromoteSqliteSandboxCreatesBackup(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'http://example.com');
+        if (! defined('ABSPATH')) {
+            define('ABSPATH', $this->tmpDir . '/wordpress/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir . '/wordpress/wp-content');
+            mkdir(WP_CONTENT_DIR, 0755, true);
+        }
+
+        // We need $wpdb for promote. Use MockWpdb.
+        require_once dirname(__DIR__) . '/Stubs/MockWpdb.php';
+        $mockWpdb = new \MockWpdb();
+        $mockWpdb->prefix = 'wp_';
+        $mockWpdb->addTable('wp_posts', 'CREATE TABLE wp_posts (ID int)', [
+            ['ID' => '1', 'post_title' => 'Host Post'],
+        ]);
+        $mockWpdb->addTable('wp_options', 'CREATE TABLE wp_options (option_id int)', [
+            ['option_id' => '1', 'option_name' => 'siteurl', 'option_value' => 'http://example.com'],
+        ]);
+        $GLOBALS['wpdb'] = $mockWpdb;
+
+        $manager = new SandboxManager($this->tmpDir);
+        $sandbox = $manager->create('Promote Test', ['engine' => 'sqlite']);
+
+        $backupDir = $this->tmpDir . '/backup';
+        $result = $manager->promote($sandbox->id, $backupDir);
+
+        $this->assertDirectoryExists($backupDir);
+        $this->assertFileExists($backupDir . '/backup.json');
+        $this->assertDirectoryExists($backupDir . '/wp-content');
+        $this->assertArrayHasKey('backup_prefix', $result);
+        $this->assertGreaterThan(0, $result['tables_copied']);
+    }
+
     // Helpers
 
     private function defineConstants(): void

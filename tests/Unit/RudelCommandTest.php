@@ -344,6 +344,21 @@ class RudelCommandTest extends RudelTestCase
 
     // status()
 
+    // promote()
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPromoteNonexistentSandboxCallsError(): void
+    {
+        $cmd = $this->createCommand();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Sandbox not found');
+        $cmd->promote(['nonexistent'], ['force' => true]);
+    }
+
+    // status()
+
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
     public function testStatusDisplaysConfigurationInfo(): void
