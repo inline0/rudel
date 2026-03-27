@@ -1,3 +1,3 @@
 {
-  "pages": ["index", "getting-started", "sandboxes", "features", "cli"]
+  "pages": ["index", "getting-started", "sandboxes", "features", "cli", "api"]
 }

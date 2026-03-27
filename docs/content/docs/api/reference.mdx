@@ -1,0 +1,287 @@
+---
+title: PHP API
+description: The Rudel\Rudel class provides a complete PHP API for sandbox management.
+---
+
+# PHP API
+
+Everything in Rudel is accessible through the `Rudel\Rudel` static class. It's the single entry point for checking sandbox context, managing sandboxes, and building UI around them.
+
+```php
+use Rudel\Rudel;
+```
+
+## Context
+
+These methods are safe to call from anywhere, including non-sandbox requests. They return `null` or `false` when no sandbox is active.
+
+### `Rudel::is_sandbox()`
+
+Returns `true` if the current request is running inside a sandbox.
+
+```php
+if ( Rudel::is_sandbox() ) {
+    // We're in a sandbox
+}
+```
+
+### `Rudel::id()`
+
+Returns the current sandbox ID, or `null` if not in a sandbox.
+
+```php
+$id = Rudel::id(); // 'my-sandbox-a1b2' or null
+```
+
+### `Rudel::path()`
+
+Returns the absolute filesystem path to the current sandbox directory.
+
+```php
+$path = Rudel::path(); // '/var/www/html/wp-content/rudel-sandboxes/my-sandbox-a1b2'
+```
+
+### `Rudel::engine()`
+
+Returns the database engine of the current sandbox: `'mysql'`, `'sqlite'`, `'subsite'`, or `null`.
+
+```php
+if ( Rudel::engine() === 'sqlite' ) {
+    // SQLite-specific logic
+}
+```
+
+### `Rudel::table_prefix()`
+
+Returns the current sandbox's table prefix, or `null`.
+
+```php
+$prefix = Rudel::table_prefix(); // 'rudel_abc123_'
+```
+
+### `Rudel::url()`
+
+Returns the current sandbox's access URL.
+
+```php
+$url = Rudel::url(); // 'https://example.com/__rudel/my-sandbox-a1b2/'
+```
+
+### `Rudel::exit_url()`
+
+Returns a URL that clears the sandbox cookie and returns to the host. Works even outside sandbox context.
+
+```php
+echo '<a href="' . Rudel::exit_url() . '">Exit sandbox</a>';
+```
+
+### `Rudel::is_email_disabled()`
+
+Returns `true` if outbound email is blocked in the current sandbox.
+
+### `Rudel::log_path()`
+
+Returns the absolute path to the sandbox's `debug.log` file.
+
+```php
+$log = Rudel::log_path(); // '/path/to/sandbox/wp-content/debug.log'
+```
+
+### `Rudel::version()`
+
+Returns the Rudel plugin version string.
+
+### `Rudel::cli_command()`
+
+Returns the configured WP-CLI command name (default: `'rudel'`).
+
+### `Rudel::path_prefix()`
+
+Returns the configured URL path prefix (default: `'__rudel'`).
+
+### `Rudel::context()`
+
+Returns all context information as an associative array. Useful for debugging or passing to templates.
+
+```php
+$ctx = Rudel::context();
+// [
+//   'is_sandbox'     => true,
+//   'id'             => 'my-sandbox-a1b2',
+//   'path'           => '/path/to/sandbox',
+//   'engine'         => 'mysql',
+//   'table_prefix'   => 'rudel_abc123_',
+//   'url'            => 'https://example.com/__rudel/my-sandbox-a1b2/',
+//   'exit_url'       => 'https://example.com/?adminExit',
+//   'email_disabled' => true,
+//   'log_path'       => '/path/to/sandbox/wp-content/debug.log',
+//   'version'        => '0.1.0',
+//   'cli_command'    => 'rudel',
+//   'path_prefix'    => '__rudel',
+// ]
+```
+
+## Sandbox management
+
+These methods require WordPress to be loaded and manage the full sandbox lifecycle.
+
+### `Rudel::all()`
+
+Returns an array of all sandbox instances.
+
+```php
+$sandboxes = Rudel::all();
+foreach ( $sandboxes as $sandbox ) {
+    echo $sandbox->id . ': ' . $sandbox->name . "\n";
+}
+```
+
+### `Rudel::get( $id )`
+
+Returns a single sandbox by ID, or `null` if not found.
+
+```php
+$sandbox = Rudel::get( 'my-sandbox-a1b2' );
+if ( $sandbox ) {
+    echo $sandbox->engine; // 'mysql'
+    echo $sandbox->name;   // 'My Sandbox'
+}
+```
+
+### `Rudel::create( $name, $options )`
+
+Creates a new sandbox. Returns the `Sandbox` instance.
+
+```php
+// Blank sandbox (MySQL engine by default)
+$sandbox = Rudel::create( 'My Sandbox' );
+
+// SQLite engine with cloned database
+$sandbox = Rudel::create( 'Portable', [
+    'engine'   => 'sqlite',
+    'clone_db' => true,
+] );
+
+// Clone everything from host
+$sandbox = Rudel::create( 'Full Clone', [
+    'clone_db'      => true,
+    'clone_themes'  => true,
+    'clone_plugins' => true,
+    'clone_uploads' => true,
+] );
+```
+
+### `Rudel::destroy( $id )`
+
+Destroys a sandbox. Returns `true` on success. For MySQL sandboxes, drops all `rudel_*` tables. For subsite sandboxes, deletes the sub-site.
+
+```php
+Rudel::destroy( 'my-sandbox-a1b2' );
+```
+
+### `Rudel::promote( $id, $backup_dir )`
+
+Promotes a sandbox to replace the host site. Creates a backup first.
+
+```php
+$result = Rudel::promote( 'my-sandbox-a1b2', '/tmp/backup' );
+echo $result['backup_path'];   // '/tmp/backup'
+echo $result['tables_copied']; // 12
+```
+
+### `Rudel::export( $id, $output_path )`
+
+Exports a sandbox as a zip archive.
+
+```php
+Rudel::export( 'my-sandbox-a1b2', '/tmp/sandbox.zip' );
+```
+
+### `Rudel::import( $zip_path, $name )`
+
+Imports a sandbox from a zip archive. Returns the new `Sandbox` instance.
+
+```php
+$sandbox = Rudel::import( '/tmp/sandbox.zip', 'Imported' );
+```
+
+### `Rudel::cleanup( $options )`
+
+Removes expired sandboxes. Returns arrays of removed, skipped, and errored IDs.
+
+```php
+$result = Rudel::cleanup( [ 'max_age_days' => 7 ] );
+echo count( $result['removed'] ) . ' sandboxes removed';
+
+// Dry run
+$result = Rudel::cleanup( [ 'dry_run' => true, 'max_age_days' => 7 ] );
+```
+
+### `Rudel::sandboxes_dir()`
+
+Returns the absolute path to the sandboxes directory.
+
+## Snapshots
+
+### `Rudel::snapshot( $sandbox_id, $name )`
+
+Creates a named snapshot of a sandbox.
+
+```php
+Rudel::snapshot( 'my-sandbox-a1b2', 'before-update' );
+```
+
+### `Rudel::restore( $sandbox_id, $name )`
+
+Restores a sandbox from a named snapshot.
+
+```php
+Rudel::restore( 'my-sandbox-a1b2', 'before-update' );
+```
+
+### `Rudel::snapshots( $sandbox_id )`
+
+Lists all snapshots for a sandbox.
+
+```php
+$snapshots = Rudel::snapshots( 'my-sandbox-a1b2' );
+foreach ( $snapshots as $snap ) {
+    echo $snap['name'] . ' - ' . $snap['created_at'] . "\n";
+}
+```
+
+## Admin bar
+
+When a sandbox is active in the browser, Rudel automatically adds a red indicator to the WordPress admin bar showing the sandbox ID with an exit link. This requires no code from the developer. It works on both the frontend and wp-admin.
+
+## Building custom UI
+
+Here's a quick example of a custom sandbox switcher widget:
+
+```php
+use Rudel\Rudel;
+
+function render_sandbox_switcher() {
+    if ( Rudel::is_sandbox() ) {
+        echo '<div class="sandbox-active">';
+        echo 'Active: ' . esc_html( Rudel::id() );
+        echo ' <a href="' . esc_url( Rudel::exit_url() ) . '">Exit</a>';
+        echo '</div>';
+        return;
+    }
+
+    $sandboxes = Rudel::all();
+    if ( empty( $sandboxes ) ) {
+        echo '<p>No sandboxes.</p>';
+        return;
+    }
+
+    echo '<ul>';
+    foreach ( $sandboxes as $sandbox ) {
+        echo '<li><a href="' . esc_url( $sandbox->get_url() ) . '">';
+        echo esc_html( $sandbox->name );
+        echo '</a> (' . esc_html( $sandbox->engine ) . ')</li>';
+    }
+    echo '</ul>';
+}
+```
