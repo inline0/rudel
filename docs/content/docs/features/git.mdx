@@ -53,6 +53,30 @@ Only themes and plugins are eligible for git worktrees. The decision is per-dire
 
 The database side of the sandbox (posts, options, settings) is not part of git. That's the disposable part. The code changes in themes and plugins are the part that should be preserved, and git handles that naturally.
 
+## GitHub integration (no git binary needed)
+
+On shared hosting where `git` isn't installed, Rudel can work with GitHub directly via the REST API. This gives you the same branch-based workflow without any local git binary.
+
+Define your GitHub token in `wp-config.php`:
+
+```php
+define( 'RUDEL_GITHUB_TOKEN', 'ghp_your_token_here' );
+```
+
+Then push sandbox changes to GitHub and create PRs:
+
+```bash
+# Push theme changes to a branch on GitHub
+wp rudel push my-sandbox-a1b2 --github=owner/my-theme --dir=themes/my-theme --message="Add header template"
+
+# Create a pull request
+wp rudel pr my-sandbox-a1b2 --github=owner/my-theme --title="New header template"
+```
+
+Rudel creates the branch (`rudel/{sandbox-id}`), uploads all files via the GitHub API, and opens the PR. When the PR is merged, `wp rudel cleanup --merged` detects it and destroys the sandbox.
+
+This works on any host that can make outbound HTTPS requests, which is essentially all of them.
+
 ## Without git
 
-If none of your themes or plugins are git repos, this feature does nothing. Sandboxes work exactly the same as before, with plain file copying. Git integration is purely additive.
+If none of your themes or plugins are git repos and you don't use GitHub integration, these features do nothing. Sandboxes work exactly the same as before, with plain file copying. Git and GitHub integration are purely additive.

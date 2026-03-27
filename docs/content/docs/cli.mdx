@@ -206,6 +206,40 @@ wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--merged]
 | `--max-age-days=<days>` | Override the configured max age in days |
 | `--merged` | Remove sandboxes whose git branches have been merged into main |
 
+## GitHub commands
+
+### `wp rudel push`
+
+Push sandbox file changes to a GitHub branch. No git binary required.
+
+```bash
+wp rudel push <id> --github=<repo> [--message=<message>] [--dir=<dir>]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--github=<repo>` | GitHub repository in `owner/repo` format (required) |
+| `--message=<message>` | Commit message (default: "Update from Rudel sandbox") |
+| `--dir=<dir>` | Subdirectory within wp-content to push (e.g. `themes/my-theme`) |
+
+Requires `RUDEL_GITHUB_TOKEN` to be defined in `wp-config.php`.
+
+### `wp rudel pr`
+
+Create a GitHub pull request from a sandbox branch.
+
+```bash
+wp rudel pr <id> --github=<repo> [--title=<title>] [--body=<body>]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--github=<repo>` | GitHub repository in `owner/repo` format (required) |
+| `--title=<title>` | PR title (defaults to sandbox name) |
+| `--body=<body>` | PR description |
+
 ## Template commands
 
 ### `wp rudel template save`

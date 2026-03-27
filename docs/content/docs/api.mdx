@@ -217,6 +217,18 @@ echo count( $result['removed'] ) . ' sandboxes removed';
 $result = Rudel::cleanup( [ 'dry_run' => true, 'max_age_days' => 7 ] );
 ```
 
+### `Rudel::cleanup_merged( $options )`
+
+Removes sandboxes whose git branches have been merged into the default branch. Works with both local git worktrees and GitHub API.
+
+```php
+$result = Rudel::cleanup_merged();
+echo count( $result['removed'] ) . ' merged sandboxes removed';
+
+// Dry run
+$result = Rudel::cleanup_merged( [ 'dry_run' => true ] );
+```
+
 ### `Rudel::sandboxes_dir()`
 
 Returns the absolute path to the sandboxes directory.
