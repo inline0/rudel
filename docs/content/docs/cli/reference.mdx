@@ -110,6 +110,20 @@ Show Rudel status and configuration.
 wp rudel status
 ```
 
+### `wp rudel promote`
+
+Replace the host site with a sandbox's state.
+
+```bash
+wp rudel promote <id> [--force] [--backup-dir=<path>]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID to promote (required) |
+| `--force` | Skip confirmation prompt |
+| `--backup-dir=<path>` | Custom directory for the host backup |
+
 ### `wp rudel logs`
 
 View a sandbox's error log.

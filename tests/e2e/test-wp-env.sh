@@ -692,6 +692,55 @@ fi
 wp_cli rudel destroy "$SNAP_BOX_ID" --force > /dev/null 2>&1
 SANDBOX_IDS=("${SANDBOX_IDS[@]/$SNAP_BOX_ID}")
 
+# Promote sandbox to host
+echo ""
+echo -e "${BOLD}Promote sandbox to host${NC}"
+
+# Save original host blogname.
+ORIGINAL_HOST_NAME=$(wp_cli option get blogname | tail -1)
+
+PROMO_BOX=$(wp_cli rudel create --name=promote-test)
+PROMO_BOX_ID=$(parse_sandbox_id "$PROMO_BOX")
+SANDBOX_IDS+=("$PROMO_BOX_ID")
+
+sandbox_cli "$PROMO_BOX_ID" option update blogname "Promoted Site" > /dev/null 2>&1
+sandbox_cli "$PROMO_BOX_ID" post create --post_title="Promoted Post" --post_status=publish > /dev/null 2>&1
+
+PROMOTE_OUTPUT=$(wp_cli rudel promote "$PROMO_BOX_ID" --force)
+if echo "$PROMOTE_OUTPUT" | grep -q "Success"; then
+    pass "Sandbox promoted to host"
+else
+    fail "Promote failed" "$PROMOTE_OUTPUT"
+fi
+
+if echo "$PROMOTE_OUTPUT" | grep -q "Backup:"; then
+    pass "Promote created a backup"
+else
+    fail "Promote missing backup info" "$PROMOTE_OUTPUT"
+fi
+
+# Host should now have the sandbox's blogname.
+HOST_AFTER_PROMOTE=$(wp_cli option get blogname | tail -1)
+if [[ "$HOST_AFTER_PROMOTE" == "Promoted Site" ]]; then
+    pass "Host blogname is now 'Promoted Site'"
+else
+    fail "Host blogname not promoted" "Expected 'Promoted Site', got: $HOST_AFTER_PROMOTE"
+fi
+
+# Host should have the promoted post.
+HOST_POSTS_AFTER=$(wp_cli post list --post_type=post --post_status=publish --format=csv --fields=post_title)
+if echo "$HOST_POSTS_AFTER" | grep -q "Promoted Post"; then
+    pass "Host has the promoted post"
+else
+    fail "Host missing promoted post" "$HOST_POSTS_AFTER"
+fi
+
+# Restore original host blogname for subsequent tests.
+wp_cli option update blogname "$ORIGINAL_HOST_NAME" > /dev/null 2>&1
+
+wp_cli rudel destroy "$PROMO_BOX_ID" --force > /dev/null 2>&1
+SANDBOX_IDS=("${SANDBOX_IDS[@]/$PROMO_BOX_ID}")
+
 # Clear destroyed IDs so cleanup trap doesn't try again
 SANDBOX_IDS=()
 
