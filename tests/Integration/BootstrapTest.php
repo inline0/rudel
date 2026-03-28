@@ -8,7 +8,7 @@ use Rudel\Tests\RudelTestCase;
  * Tests for bootstrap.php -- the pre-boot sandbox resolver.
  *
  * Each test runs in a separate process because bootstrap.php defines constants
- * (RUDEL_SANDBOX_ID, DB_DIR, etc.) that can only be defined once per process.
+ * (RUDEL_ID, DB_DIR, etc.) that can only be defined once per process.
  *
  * We test bootstrap.php by including it in a controlled environment with
  * specific superglobal values set, then checking which constants were defined.
@@ -22,7 +22,7 @@ class BootstrapTest extends RudelTestCase
     {
         parent::setUp();
         $this->bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
-        $this->sandboxesDir = $this->tmpDir . '/rudel-sandboxes';
+        $this->sandboxesDir = $this->tmpDir . '/rudel-environments';
         mkdir($this->sandboxesDir, 0755, true);
     }
 
@@ -57,8 +57,8 @@ class BootstrapTest extends RudelTestCase
 
         // Output state
         $script .= 'echo json_encode([' . "\n";
-        $script .= '  "sandbox_id" => defined("RUDEL_SANDBOX_ID") ? RUDEL_SANDBOX_ID : null,' . "\n";
-        $script .= '  "sandbox_path" => defined("RUDEL_SANDBOX_PATH") ? RUDEL_SANDBOX_PATH : null,' . "\n";
+        $script .= '  "sandbox_id" => defined("RUDEL_ID") ? RUDEL_ID : null,' . "\n";
+        $script .= '  "sandbox_path" => defined("RUDEL_PATH") ? RUDEL_PATH : null,' . "\n";
         $script .= '  "db_dir" => defined("DB_DIR") ? DB_DIR : null,' . "\n";
         $script .= '  "db_file" => defined("DB_FILE") ? DB_FILE : null,' . "\n";
         $script .= '  "database_type" => defined("DATABASE_TYPE") ? DATABASE_TYPE : null,' . "\n";
@@ -332,7 +332,7 @@ class BootstrapTest extends RudelTestCase
                 'HTTP_X_RUDEL_SANDBOX' => 'should-skip',
                 'HTTP_HOST' => 'localhost',
             ],
-            extraDefines: ['RUDEL_SANDBOX_ID' => 'already-set'],
+            extraDefines: ['RUDEL_ID' => 'already-set'],
         );
 
         // WP_CONTENT_DIR is set by our test harness, not by bootstrap
@@ -420,7 +420,7 @@ class BootstrapTest extends RudelTestCase
                 'HTTP_X_RUDEL_SANDBOX' => 'const-test',
                 'HTTP_HOST' => 'localhost',
             ],
-            extraDefines: ['RUDEL_SANDBOXES_DIR' => $customDir],
+            extraDefines: ['RUDEL_ENVIRONMENTS_DIR' => $customDir],
             skipWpContentDir: true,
         );
 
@@ -430,9 +430,9 @@ class BootstrapTest extends RudelTestCase
     public function testSandboxesDirFromAbspathFallback(): void
     {
         $absDir = $this->tmpDir . '/wproot';
-        mkdir($absDir . '/wp-content/rudel-sandboxes/abs-test', 0755, true);
+        mkdir($absDir . '/wp-content/rudel-environments/abs-test', 0755, true);
         file_put_contents(
-            $absDir . '/wp-content/rudel-sandboxes/abs-test/.rudel.json',
+            $absDir . '/wp-content/rudel-environments/abs-test/.rudel.json',
             json_encode(['id' => 'abs-test', 'name' => 'abs-test'])
         );
 

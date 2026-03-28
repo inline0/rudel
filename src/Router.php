@@ -17,15 +17,15 @@ class Router {
 	 *
 	 * @var string
 	 */
-	private string $sandboxes_dir;
+	private string $environments_dir;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param string|null $sandboxes_dir Optional override for the sandboxes directory.
+	 * @param string|null $environments_dir Optional override for the sandboxes directory.
 	 */
-	public function __construct( ?string $sandboxes_dir = null ) {
-		$this->sandboxes_dir = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
+	public function __construct( ?string $environments_dir = null ) {
+		$this->environments_dir = $environments_dir ?? $this->get_default_environments_dir();
 	}
 
 	/**
@@ -140,11 +140,11 @@ class Router {
 	 * @return string|null Validated ID or null.
 	 */
 	private function validate_and_return( ?string $id ): ?string {
-		if ( ! $id || ! Sandbox::validate_id( $id ) ) {
+		if ( ! $id || ! Environment::validate_id( $id ) ) {
 			return null;
 		}
 
-		$sandbox_path = $this->sandboxes_dir . '/' . $id;
+		$sandbox_path = $this->environments_dir . '/' . $id;
 		if ( ! $this->validate_path( $sandbox_path ) ) {
 			return null;
 		}
@@ -168,7 +168,7 @@ class Router {
 			return false;
 		}
 
-		$base = realpath( $this->sandboxes_dir );
+		$base = realpath( $this->environments_dir );
 		if ( false === $base ) {
 			return false;
 		}
@@ -182,15 +182,15 @@ class Router {
 	 *
 	 * @return string Absolute path.
 	 */
-	private function get_default_sandboxes_dir(): string {
-		if ( defined( 'RUDEL_SANDBOXES_DIR' ) ) {
-			return RUDEL_SANDBOXES_DIR;
+	private function get_default_environments_dir(): string {
+		if ( defined( 'RUDEL_ENVIRONMENTS_DIR' ) ) {
+			return RUDEL_ENVIRONMENTS_DIR;
 		}
 		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			return WP_CONTENT_DIR . '/rudel-sandboxes';
+			return WP_CONTENT_DIR . '/rudel-environments';
 		}
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
-		return $abspath . 'wp-content/rudel-sandboxes';
+		return $abspath . 'wp-content/rudel-environments';
 	}
 
 	/**
@@ -198,7 +198,7 @@ class Router {
 	 *
 	 * @return string Absolute path.
 	 */
-	public function get_sandboxes_dir(): string {
-		return $this->sandboxes_dir;
+	public function get_environments_dir(): string {
+		return $this->environments_dir;
 	}
 }

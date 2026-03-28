@@ -7,7 +7,7 @@
 
 namespace Rudel\CLI;
 
-use Rudel\SandboxManager;
+use Rudel\EnvironmentManager;
 use Rudel\SnapshotManager;
 use WP_CLI;
 
@@ -36,17 +36,17 @@ class RudelCommand extends \WP_CLI_Command {
 	/**
 	 * Sandbox manager instance.
 	 *
-	 * @var SandboxManager
+	 * @var EnvironmentManager
 	 */
-	private SandboxManager $manager;
+	private EnvironmentManager $manager;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param SandboxManager|null $manager Optional manager instance for dependency injection.
+	 * @param EnvironmentManager|null $manager Optional manager instance for dependency injection.
 	 */
-	public function __construct( ?SandboxManager $manager = null ) {
-		$this->manager = $manager ?? new SandboxManager();
+	public function __construct( ?EnvironmentManager $manager = null ) {
+		$this->manager = $manager ?? new EnvironmentManager();
 	}
 
 	/**
@@ -455,7 +455,7 @@ class RudelCommand extends \WP_CLI_Command {
 			),
 			array(
 				'Field' => 'Sandboxes directory',
-				'Value' => $this->manager->get_sandboxes_dir(),
+				'Value' => $this->manager->get_environments_dir(),
 			),
 			array(
 				'Field' => 'Active sandboxes',
@@ -749,7 +749,7 @@ class RudelCommand extends \WP_CLI_Command {
 	 * : Skip confirmation prompt.
 	 *
 	 * [--backup-dir=<path>]
-	 * : Directory for the host backup. Default: {sandboxes_dir}/_backups/{timestamp}
+	 * : Directory for the host backup. Default: {environments_dir}/_backups/{timestamp}
 	 *
 	 * ## EXAMPLES
 	 *
@@ -785,7 +785,7 @@ class RudelCommand extends \WP_CLI_Command {
 			WP_CLI::confirm( 'Are you sure?', $assoc_args );
 		}
 
-		$backup_dir = $assoc_args['backup-dir'] ?? $this->manager->get_sandboxes_dir() . '/_backups/' . gmdate( 'Ymd_His' );
+		$backup_dir = $assoc_args['backup-dir'] ?? $this->manager->get_environments_dir() . '/_backups/' . gmdate( 'Ymd_His' );
 
 		WP_CLI::log( 'Backing up host...' );
 

@@ -36,7 +36,7 @@ class RouterTest extends RudelTestCase
     public function testConstructorWithExplicitDir(): void
     {
         $router = new Router('/custom/path');
-        $this->assertSame('/custom/path', $router->get_sandboxes_dir());
+        $this->assertSame('/custom/path', $router->get_environments_dir());
     }
 
     // resolveFromHeader()
@@ -316,7 +316,7 @@ class RouterTest extends RudelTestCase
     {
         define('WP_CONTENT_DIR', '/var/www/wp-content');
         $router = new Router();
-        $this->assertSame('/var/www/wp-content/rudel-sandboxes', $router->get_sandboxes_dir());
+        $this->assertSame('/var/www/wp-content/rudel-environments', $router->get_environments_dir());
     }
 
     #[RunInSeparateProcess]
@@ -324,8 +324,8 @@ class RouterTest extends RudelTestCase
     public function testConstructorDefaultFallback(): void
     {
         $router = new Router();
-        $expected = dirname(__DIR__, 4) . '/wp-content/rudel-sandboxes';
-        $this->assertSame($expected, $router->get_sandboxes_dir());
+        $expected = dirname(__DIR__, 4) . '/wp-content/rudel-environments';
+        $this->assertSame($expected, $router->get_environments_dir());
     }
 
     public function testSymlinkEscapeIsBlocked(): void

@@ -7,7 +7,7 @@
 
 namespace Rudel\CLI;
 
-use Rudel\SandboxManager;
+use Rudel\EnvironmentManager;
 use Rudel\TemplateManager;
 use WP_CLI;
 
@@ -40,19 +40,19 @@ class TemplateCommand extends \WP_CLI_Command {
 	/**
 	 * Sandbox manager instance.
 	 *
-	 * @var SandboxManager
+	 * @var EnvironmentManager
 	 */
-	private SandboxManager $sandbox_manager;
+	private EnvironmentManager $sandbox_manager;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param TemplateManager|null $template_manager Optional template manager for dependency injection.
-	 * @param SandboxManager|null  $sandbox_manager  Optional sandbox manager for dependency injection.
+	 * @param TemplateManager|null    $template_manager Optional template manager for dependency injection.
+	 * @param EnvironmentManager|null $sandbox_manager  Optional sandbox manager for dependency injection.
 	 */
-	public function __construct( ?TemplateManager $template_manager = null, ?SandboxManager $sandbox_manager = null ) {
+	public function __construct( ?TemplateManager $template_manager = null, ?EnvironmentManager $sandbox_manager = null ) {
 		$this->template_manager = $template_manager ?? new TemplateManager();
-		$this->sandbox_manager  = $sandbox_manager ?? new SandboxManager();
+		$this->sandbox_manager  = $sandbox_manager ?? new EnvironmentManager();
 	}
 
 	/**

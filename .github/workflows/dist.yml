@@ -45,7 +45,7 @@ jobs:
       - name: Verify required files
         run: |
           cd dist/rudel
-          for f in rudel.php bootstrap.php src/SandboxManager.php cli/RudelCommand.php vendor/autoload.php; do
+          for f in rudel.php bootstrap.php src/EnvironmentManager.php cli/RudelCommand.php vendor/autoload.php; do
             test -f "$f" || { echo "Missing: $f"; exit 1; }
           done
           test -d templates || { echo "Missing: templates/"; exit 1; }
@@ -68,7 +68,7 @@ jobs:
         run: |
           php -r "
             \$loader = require 'dist/rudel/vendor/autoload.php';
-            \$classes = ['Rudel\\\SandboxManager', 'Rudel\\\CLI\\\RudelCommand'];
+            \$classes = ['Rudel\\\EnvironmentManager', 'Rudel\\\CLI\\\RudelCommand'];
             foreach (\$classes as \$c) {
               if (!\$loader->findFile(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
             }
@@ -158,7 +158,7 @@ jobs:
           cd test-project
           php -r "
             \$loader = require 'vendor/autoload.php';
-            \$classes = ['Rudel\\\SandboxManager', 'Rudel\\\CLI\\\RudelCommand'];
+            \$classes = ['Rudel\\\EnvironmentManager', 'Rudel\\\CLI\\\RudelCommand'];
             foreach (\$classes as \$c) {
               if (!\$loader->findFile(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
             }
@@ -236,7 +236,7 @@ jobs:
           cd test-project
           php -r "
             \$loader = require 'vendor/autoload.php';
-            \$classes = ['Rudel\\\SandboxManager', 'Rudel\\\CLI\\\RudelCommand'];
+            \$classes = ['Rudel\\\EnvironmentManager', 'Rudel\\\CLI\\\RudelCommand'];
             foreach (\$classes as \$c) {
               if (!\$loader->findFile(\$c)) { echo \"Class not found: \$c\n\"; exit(1); }
             }

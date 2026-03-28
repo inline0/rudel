@@ -23,7 +23,7 @@ if ( 'cli' !== php_sapi_name() && isset( $_SERVER['SCRIPT_FILENAME'] ) && realpa
 }
 
 // Already resolved (e.g. per-sandbox bootstrap loaded via wp-cli.yml).
-if ( defined( 'RUDEL_SANDBOX_ID' ) ) {
+if ( defined( 'RUDEL_ID' ) ) {
 	return;
 }
 
@@ -35,20 +35,20 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 }
 
 ( function () use ( &$_rudel_prefix ) {
-	$plugin_dir    = __DIR__;
-	$sandboxes_dir = null;
+	$plugin_dir       = __DIR__;
+	$environments_dir = null;
 
 	// Determine sandboxes directory.
-	if ( defined( 'RUDEL_SANDBOXES_DIR' ) ) {
-		$sandboxes_dir = RUDEL_SANDBOXES_DIR;
+	if ( defined( 'RUDEL_ENVIRONMENTS_DIR' ) ) {
+		$environments_dir = RUDEL_ENVIRONMENTS_DIR;
 	} elseif ( defined( 'WP_CONTENT_DIR' ) ) {
-		$sandboxes_dir = WP_CONTENT_DIR . '/rudel-sandboxes';
+		$environments_dir = WP_CONTENT_DIR . '/rudel-environments';
 	} else {
-		$abspath       = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 2 ) . '/';
-		$sandboxes_dir = $abspath . 'wp-content/rudel-sandboxes';
+		$abspath          = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 2 ) . '/';
+		$environments_dir = $abspath . 'wp-content/rudel-environments';
 	}
 
-	if ( ! is_dir( $sandboxes_dir ) ) {
+	if ( ! is_dir( $environments_dir ) ) {
 		return;
 	}
 
@@ -62,8 +62,8 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	/**
 	 * Validate sandbox path (prevent traversal).
 	 */
-	$validate_path = function ( string $id ) use ( $sandboxes_dir ): ?string {
-		$path = $sandboxes_dir . '/' . $id;
+	$validate_path = function ( string $id ) use ( $environments_dir ): ?string {
+		$path = $environments_dir . '/' . $id;
 		if ( ! is_dir( $path ) ) {
 			return null;
 		}
@@ -71,7 +71,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		if ( false === $real ) {
 			return null;
 		}
-		$base = realpath( $sandboxes_dir );
+		$base = realpath( $environments_dir );
 		if ( false === $base ) {
 			return null;
 		}
@@ -318,8 +318,8 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	}
 
 	// Rudel sandbox markers.
-	$def( 'RUDEL_SANDBOX_ID', $sandbox_id );
-	$def( 'RUDEL_SANDBOX_PATH', $sandbox_path );
+	$def( 'RUDEL_ID', $sandbox_id );
+	$def( 'RUDEL_PATH', $sandbox_path );
 } )();
 
 // Also set $table_prefix in the caller's scope for WP-CLI eval compatibility.

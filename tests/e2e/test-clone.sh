@@ -237,7 +237,7 @@ else
 fi
 
 # Verify wp-content was copied (themes should be present)
-CLONE_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-sandboxes/${CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
+CLONE_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-environments/${CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
 if [[ -n "$CLONE_THEMES" ]]; then
     pass "Clone has themes in wp-content"
 else
@@ -245,7 +245,7 @@ else
 fi
 
 # Verify clone metadata in .rudel.json
-CLONE_META=$(wpenv_run bash -c "cat /var/www/html/wp-content/rudel-sandboxes/${CLONE_ID}/.rudel.json" | tail -30)
+CLONE_META=$(wpenv_run bash -c "cat /var/www/html/wp-content/rudel-environments/${CLONE_ID}/.rudel.json" | tail -30)
 if echo "$CLONE_META" | grep -q "clone_source"; then
     pass "Clone metadata has clone_source"
 else
@@ -279,7 +279,7 @@ else
 fi
 
 # DB-only clone should have empty themes
-DB_CLONE_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-sandboxes/${DB_CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
+DB_CLONE_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-environments/${DB_CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
 if [[ -z "$DB_CLONE_THEMES" || "$DB_CLONE_THEMES" =~ ^[[:space:]]*$ ]]; then
     pass "DB-only clone has empty themes directory"
 else
@@ -308,7 +308,7 @@ else
 fi
 
 # But should have themes copied
-THEME_CLONE_HAS_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-sandboxes/${THEME_CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
+THEME_CLONE_HAS_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-environments/${THEME_CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
 if [[ -n "$THEME_CLONE_HAS_THEMES" ]]; then
     pass "Themes-only clone has themes copied"
 else
@@ -316,7 +316,7 @@ else
 fi
 
 # Verify clone_source metadata
-THEME_META=$(wpenv_run bash -c "cat /var/www/html/wp-content/rudel-sandboxes/${THEME_CLONE_ID}/.rudel.json" | tail -30)
+THEME_META=$(wpenv_run bash -c "cat /var/www/html/wp-content/rudel-environments/${THEME_CLONE_ID}/.rudel.json" | tail -30)
 if echo "$THEME_META" | grep -q '"db_cloned": false'; then
     pass "Themes-only metadata shows db_cloned: false"
 else

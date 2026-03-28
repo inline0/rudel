@@ -5,13 +5,13 @@ namespace Rudel\Tests\Unit;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use Rudel\RudelConfig;
-use Rudel\Sandbox;
-use Rudel\SandboxManager;
+use Rudel\Environment;
+use Rudel\EnvironmentManager;
 use Rudel\Tests\RudelTestCase;
 
-class SandboxManagerTest extends RudelTestCase
+class EnvironmentManagerTest extends RudelTestCase
 {
-    // All tests run in separate processes because SandboxManager reads constants.
+    // All tests run in separate processes because EnvironmentManager reads constants.
 
     // create() -- directory structure
 
@@ -20,7 +20,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateBuildsCorrectDirectoryStructure(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Structure Test', ['engine' => 'sqlite']);
 
         $this->assertDirectoryExists($sandbox->path);
@@ -37,7 +37,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateGeneratesAllRequiredFiles(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Files Test', ['engine' => 'sqlite']);
 
         $this->assertFileExists($sandbox->path . '/.rudel.json');
@@ -53,7 +53,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateReturnsSandboxWithCorrectMetadata(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Meta Test', ['engine' => 'sqlite', 'template' => 'blank']);
 
         $this->assertNotEmpty($sandbox->id);
@@ -61,7 +61,7 @@ class SandboxManagerTest extends RudelTestCase
         $this->assertSame('blank', $sandbox->template);
         $this->assertSame('active', $sandbox->status);
         $this->assertNotEmpty($sandbox->created_at);
-        $this->assertTrue(Sandbox::validate_id($sandbox->id));
+        $this->assertTrue(Environment::validate_id($sandbox->id));
     }
 
     #[RunInSeparateProcess]
@@ -72,7 +72,7 @@ class SandboxManagerTest extends RudelTestCase
         $sandboxesDir = $this->tmpDir . '/nested/sandboxes';
         $this->assertDirectoryDoesNotExist($sandboxesDir);
 
-        $manager = new SandboxManager($sandboxesDir);
+        $manager = new EnvironmentManager($sandboxesDir);
         $sandbox = $manager->create('Auto Dir Test', ['engine' => 'sqlite']);
 
         $this->assertDirectoryExists($sandboxesDir);
@@ -86,7 +86,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateWpCliYmlContainsCorrectPath(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('WpCli Test', ['engine' => 'sqlite']);
 
         $yml = file_get_contents($sandbox->path . '/wp-cli.yml');
@@ -100,13 +100,13 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateBootstrapContainsSandboxId(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Bootstrap Test', ['engine' => 'sqlite']);
 
         $bootstrap = file_get_contents($sandbox->path . '/bootstrap.php');
         $this->assertStringContainsString("'" . $sandbox->id . "'", $bootstrap);
         $this->assertStringContainsString($sandbox->path, $bootstrap);
-        $this->assertStringContainsString('RUDEL_SANDBOX_ID', $bootstrap);
+        $this->assertStringContainsString('RUDEL_ID', $bootstrap);
     }
 
     #[RunInSeparateProcess]
@@ -114,7 +114,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDbDropInPointsToSharedSqlite(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('DbDropIn Test', ['engine' => 'sqlite']);
 
         $db = file_get_contents($sandbox->path . '/wp-content/db.php');
@@ -127,7 +127,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateClaudeMdContainsSandboxInfo(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Claude Test', ['engine' => 'sqlite']);
 
         $md = file_get_contents($sandbox->path . '/CLAUDE.md');
@@ -141,7 +141,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateRudelJsonIsValidAndReadable(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Json Test', ['engine' => 'sqlite']);
 
         $raw = file_get_contents($sandbox->path . '/.rudel.json');
@@ -159,7 +159,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateSetsReadOnlyPermissionsOnCriticalFiles(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Perms Test', ['engine' => 'sqlite']);
 
         // bootstrap.php, wp-cli.yml, CLAUDE.md should be 0444 (read-only)
@@ -173,7 +173,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateSetsDatabasePermissions(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('DbPerms Test', ['engine' => 'sqlite']);
 
         $this->assertSame('0664', substr(sprintf('%o', fileperms($sandbox->get_db_path())), -4));
@@ -186,7 +186,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasAllWordPressTables(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Tables Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -217,7 +217,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasAdminUser(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('User Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -233,7 +233,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasAdminCapabilities(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Caps Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -250,7 +250,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasRequiredOptions(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Options Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -269,7 +269,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseSiteurlContainsSandboxId(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Url Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -284,7 +284,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasHelloWorldPost(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Post Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -299,7 +299,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasUncategorizedTerm(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Term Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -314,7 +314,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasUserRoles(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Roles Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -336,7 +336,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateUsesDifferentTablePrefixPerSandbox(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $sandbox1 = $manager->create('Prefix Test A', ['engine' => 'sqlite']);
         $sandbox2 = $manager->create('Prefix Test B', ['engine' => 'sqlite']);
@@ -369,7 +369,7 @@ class SandboxManagerTest extends RudelTestCase
     {
         $this->defineConstants();
         mkdir($this->tmpDir . '/sandboxes', 0755);
-        $manager = new SandboxManager($this->tmpDir . '/sandboxes');
+        $manager = new EnvironmentManager($this->tmpDir . '/sandboxes');
 
         $this->assertSame([], $manager->list());
     }
@@ -379,7 +379,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testListReturnsEmptyWhenDirNotExists(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir . '/nonexistent');
+        $manager = new EnvironmentManager($this->tmpDir . '/nonexistent');
 
         $this->assertSame([], $manager->list());
     }
@@ -389,7 +389,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testListReturnsAllSandboxes(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox1 = $manager->create('List Test A', ['engine' => 'sqlite']);
         $sandbox2 = $manager->create('List Test B', ['engine' => 'sqlite']);
 
@@ -406,7 +406,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testListSkipsDirsWithoutMetaFile(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Real Sandbox', ['engine' => 'sqlite']);
 
         // Create a junk directory with no .rudel.json
@@ -421,7 +421,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testListSkipsRegularFiles(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Real Sandbox', ['engine' => 'sqlite']);
 
         // Create a regular file (not a directory)
@@ -438,7 +438,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testGetReturnsSandboxById(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Get Test', ['engine' => 'sqlite']);
 
         $got = $manager->get($sandbox->id);
@@ -453,7 +453,7 @@ class SandboxManagerTest extends RudelTestCase
     {
         $this->defineConstants();
         mkdir($this->tmpDir . '/sandboxes', 0755);
-        $manager = new SandboxManager($this->tmpDir . '/sandboxes');
+        $manager = new EnvironmentManager($this->tmpDir . '/sandboxes');
 
         $this->assertNull($manager->get('nonexistent-id'));
     }
@@ -463,7 +463,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testGetReturnsNullForInvalidId(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $this->assertNull($manager->get('../../../etc'));
         $this->assertNull($manager->get(''));
@@ -477,7 +477,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testDestroyRemovesSandboxDirectory(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Destroy Test', ['engine' => 'sqlite']);
 
         $this->assertDirectoryExists($sandbox->path);
@@ -493,7 +493,7 @@ class SandboxManagerTest extends RudelTestCase
     {
         $this->defineConstants();
         mkdir($this->tmpDir . '/sandboxes', 0755);
-        $manager = new SandboxManager($this->tmpDir . '/sandboxes');
+        $manager = new EnvironmentManager($this->tmpDir . '/sandboxes');
 
         $this->assertFalse($manager->destroy('nonexistent'));
     }
@@ -503,7 +503,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testDestroyHandlesReadOnlyFiles(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('ReadOnly Destroy', ['engine' => 'sqlite']);
 
         // Verify read-only files exist
@@ -521,7 +521,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testDestroyRemovedFromList(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Gone Test', ['engine' => 'sqlite']);
 
         $this->assertCount(1, $manager->list());
@@ -536,7 +536,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateThrowsRuntimeExceptionWhenDirectoryExists(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Collision Test', ['engine' => 'sqlite']);
 
         // Destroy the sandbox but recreate just the directory (no metadata).
@@ -548,15 +548,15 @@ class SandboxManagerTest extends RudelTestCase
         // Instead, create a subclass that forces the same ID.
         $forcedId = $sandbox->id;
         $testDir = $this->tmpDir;
-        $managerClass = new class($testDir, $forcedId) extends SandboxManager {
+        $managerClass = new class($testDir, $forcedId) extends EnvironmentManager {
             private string $forcedId;
             public function __construct(string $dir, string $id) {
                 parent::__construct($dir);
                 $this->forcedId = $id;
             }
-            public function create(string $name, array $options = array()): \Rudel\Sandbox {
+            public function create(string $name, array $options = array()): \Rudel\Environment {
                 // Use reflection to call the parent with a forced ID.
-                $path = (new \ReflectionProperty(SandboxManager::class, 'sandboxes_dir'))->getValue($this);
+                $path = (new \ReflectionProperty(EnvironmentManager::class, 'environments_dir'))->getValue($this);
                 $path .= '/' . $this->forcedId;
                 if (is_dir($path)) {
                     throw new \RuntimeException(
@@ -579,7 +579,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasSamplePage(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Page Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -596,7 +596,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateDatabaseHasDefaultComment(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Comment Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -615,7 +615,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testFullCreateListGetDestroyCycle(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         // Create
         $sandbox = $manager->create('Lifecycle Test', ['engine' => 'sqlite']);
@@ -642,7 +642,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testMultipleSandboxesAreIsolated(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $a = $manager->create('Sandbox A', ['engine' => 'sqlite']);
         $b = $manager->create('Sandbox B', ['engine' => 'sqlite']);
@@ -666,9 +666,9 @@ class SandboxManagerTest extends RudelTestCase
     public function testConstructorDefaultUsesRudelSandboxesDirConstant(): void
     {
         $this->defineConstants();
-        define('RUDEL_SANDBOXES_DIR', '/custom/sandboxes');
-        $manager = new SandboxManager();
-        $this->assertSame('/custom/sandboxes', $manager->get_sandboxes_dir());
+        define('RUDEL_ENVIRONMENTS_DIR', '/custom/sandboxes');
+        $manager = new EnvironmentManager();
+        $this->assertSame('/custom/sandboxes', $manager->get_environments_dir());
     }
 
     #[RunInSeparateProcess]
@@ -677,8 +677,8 @@ class SandboxManagerTest extends RudelTestCase
     {
         $this->defineConstants();
         define('WP_CONTENT_DIR', '/var/www/wp-content');
-        $manager = new SandboxManager();
-        $this->assertSame('/var/www/wp-content/rudel-sandboxes', $manager->get_sandboxes_dir());
+        $manager = new EnvironmentManager();
+        $this->assertSame('/var/www/wp-content/rudel-environments', $manager->get_environments_dir());
     }
 
     #[RunInSeparateProcess]
@@ -687,7 +687,7 @@ class SandboxManagerTest extends RudelTestCase
     {
         $this->defineConstants();
         define('ABSPATH', $this->tmpDir . '/wordpress/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Abspath Test', ['engine' => 'sqlite']);
 
         $wpCliYml = file_get_contents($sandbox->path . '/wp-cli.yml');
@@ -701,7 +701,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCloneFromSandboxCopiesDatabase(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Clone Source', ['engine' => 'sqlite']);
 
         $clone = $manager->create('Clone Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
@@ -719,7 +719,7 @@ class SandboxManagerTest extends RudelTestCase
     {
         $this->defineConstants();
         define('WP_HOME', 'http://example.com');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Url Source', ['engine' => 'sqlite']);
 
         $clone = $manager->create('Url Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
@@ -736,7 +736,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCloneFromSandboxRewritesPrefix(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Prefix Source', ['engine' => 'sqlite']);
 
         $clone = $manager->create('Prefix Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
@@ -759,7 +759,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCloneFromSandboxCopiesWpContent(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Content Source', ['engine' => 'sqlite']);
 
         // Add a file to source wp-content.
@@ -776,7 +776,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCloneFromSandboxThrowsOnMissingSource(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Source sandbox not found');
@@ -788,7 +788,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCloneFromSandboxRejectsConflictingOptions(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Conflict Source', ['engine' => 'sqlite']);
 
         $this->expectException(\InvalidArgumentException::class);
@@ -800,7 +800,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCloneFromSandboxSetsCloneSourceMeta(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Meta Source', ['engine' => 'sqlite']);
 
         $clone = $manager->create('Meta Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
@@ -817,7 +817,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateRejectsInvalidEngine(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid engine');
@@ -829,7 +829,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateSqliteSandboxHasEngineInMeta(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Engine Meta', ['engine' => 'sqlite']);
 
         $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
@@ -843,7 +843,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateSqliteSandboxWritesDbDropIn(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('SQLite DropIn', ['engine' => 'sqlite']);
 
         $this->assertFileExists($sandbox->path . '/wp-content/db.php');
@@ -855,7 +855,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateSqliteBootstrapContainsSqliteConstants(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('SQLite Bootstrap', ['engine' => 'sqlite']);
 
         $bootstrap = file_get_contents($sandbox->path . '/bootstrap.php');
@@ -870,11 +870,11 @@ class SandboxManagerTest extends RudelTestCase
         $this->defineConstants();
         // MySQL create will fail without $wpdb, but the bootstrap is written before DB ops.
         // So we test by creating sqlite first then checking a mysql-engine bootstrap.
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('MySQL Bootstrap Check', ['engine' => 'sqlite']);
 
         // Rewrite the bootstrap as if it were mysql engine.
-        $tplPath = dirname(__DIR__, 2) . '/templates/sandbox-bootstrap.php.tpl';
+        $tplPath = dirname(__DIR__, 2) . '/templates/environment-bootstrap.php.tpl';
         $template = file_get_contents($tplPath);
         $content = strtr($template, [
             '{{sandbox_id}}' => $sandbox->id,
@@ -894,7 +894,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCloneFromRejectsCrossEngine(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('SQLite Source', ['engine' => 'sqlite']);
 
         $this->expectException(\InvalidArgumentException::class);
@@ -909,7 +909,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCreateSubsiteRejectsNonMultisite(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('multisite installation');
@@ -923,7 +923,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCleanupRemovesExpiredSandboxes(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         // Create a sandbox with an old created_at.
         $sandbox = $manager->create('Old Sandbox', ['engine' => 'sqlite', 'skip_limits' => true]);
@@ -942,7 +942,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCleanupDryRunDoesNotDestroy(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $sandbox = $manager->create('DryRun Sandbox', ['engine' => 'sqlite', 'skip_limits' => true]);
         $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
@@ -960,7 +960,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCleanupSkipsRecentSandboxes(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Recent Sandbox', ['engine' => 'sqlite', 'skip_limits' => true]);
 
         $result = $manager->cleanup(['max_age_days' => 30]);
@@ -974,7 +974,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCleanupReturnsEmptyWhenNoMaxAge(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('No Cleanup', ['engine' => 'sqlite', 'skip_limits' => true]);
 
         $result = $manager->cleanup(['max_age_days' => 0]);
@@ -990,7 +990,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCheckLimitsThrowsWhenMaxSandboxesExceeded(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Limit A', ['engine' => 'sqlite', 'skip_limits' => true]);
         $manager->create('Limit B', ['engine' => 'sqlite', 'skip_limits' => true]);
 
@@ -1007,7 +1007,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCheckLimitsPassesWhenUnderLimit(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Under Limit', ['engine' => 'sqlite', 'skip_limits' => true]);
 
         $config = new RudelConfig($this->tmpDir . '/config.json');
@@ -1023,7 +1023,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testCheckLimitsSkipsWhenZero(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Unlimited', ['engine' => 'sqlite', 'skip_limits' => true]);
 
         $config = new RudelConfig($this->tmpDir . '/config.json');
@@ -1041,7 +1041,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testExportCreatesZipWithExpectedFiles(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Export Test', ['engine' => 'sqlite']);
 
         $zipPath = $this->tmpDir . '/export.zip';
@@ -1066,7 +1066,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testExportExcludesSnapshots(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Export Snap Test', ['engine' => 'sqlite']);
 
         // Create a snapshot directory.
@@ -1094,7 +1094,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testExportThrowsOnMissingSandbox(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Sandbox not found');
@@ -1106,7 +1106,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testImportCreatesSandboxWithNewId(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Import Source', ['engine' => 'sqlite']);
 
         $zipPath = $this->tmpDir . '/import.zip';
@@ -1127,7 +1127,7 @@ class SandboxManagerTest extends RudelTestCase
         $this->defineConstants();
         define('WP_HOME', 'http://import-test.com');
 
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Import Rewrite', ['engine' => 'sqlite']);
 
         $zipPath = $this->tmpDir . '/import-rw.zip';
@@ -1153,7 +1153,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testImportThrowsOnInvalidZip(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $badZip = $this->tmpDir . '/bad.zip';
         file_put_contents($badZip, 'not a zip');
@@ -1167,7 +1167,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testImportThrowsOnMissingRudelJson(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         // Create a zip without .rudel.json.
         $zipPath = $this->tmpDir . '/no-meta.zip';
@@ -1188,7 +1188,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testPromoteThrowsOnNonexistentSandbox(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Sandbox not found');
@@ -1200,7 +1200,7 @@ class SandboxManagerTest extends RudelTestCase
     public function testPromoteThrowsOnSubsiteSandbox(): void
     {
         $this->defineConstants();
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         // Create a fake subsite sandbox by writing metadata directly.
         $id = 'subsite-promote-test';
@@ -1248,7 +1248,7 @@ class SandboxManagerTest extends RudelTestCase
         ]);
         $GLOBALS['wpdb'] = $mockWpdb;
 
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Promote Test', ['engine' => 'sqlite']);
 
         $backupDir = $this->tmpDir . '/backup';

@@ -49,7 +49,7 @@ class ContentCloner {
 				continue;
 			}
 
-			// Remove the empty directory created by SandboxManager scaffolding.
+			// Remove the empty directory created by EnvironmentManager scaffolding.
 			if ( is_dir( $target ) ) {
 				$this->delete_directory( $target );
 			}

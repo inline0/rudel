@@ -72,7 +72,7 @@ copy_theme() {
     local id="$1"
     local theme="$2"
     npx wp-env run cli -- bash -c \
-        "cp -r /var/www/html/wp-content/themes/${theme} /var/www/html/wp-content/rudel-sandboxes/${id}/wp-content/themes/" 2>&1 | strip_wpenv
+        "cp -r /var/www/html/wp-content/themes/${theme} /var/www/html/wp-content/rudel-environments/${id}/wp-content/themes/" 2>&1 | strip_wpenv
 }
 
 cleanup() {
@@ -183,7 +183,7 @@ fi
 echo ""
 echo -e "${BOLD}Directory structure${NC}"
 
-ALPHA_DIR_EXISTS=$(wpenv_run bash -c "test -d /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID} && echo yes || echo no" | tail -1)
+ALPHA_DIR_EXISTS=$(wpenv_run bash -c "test -d /var/www/html/wp-content/rudel-environments/${ALPHA_ID} && echo yes || echo no" | tail -1)
 if [[ "$ALPHA_DIR_EXISTS" == "yes" ]]; then
     pass "Alpha sandbox directory exists"
 else
@@ -191,14 +191,14 @@ else
 fi
 
 # Default engine is MySQL: no wordpress.db, no db.php drop-in
-ALPHA_NO_DB=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/wordpress.db && echo exists || echo none" | tail -1)
+ALPHA_NO_DB=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-environments/${ALPHA_ID}/wordpress.db && echo exists || echo none" | tail -1)
 if [[ "$ALPHA_NO_DB" == "none" ]]; then
     pass "Alpha has no wordpress.db (MySQL engine)"
 else
     fail "Alpha has wordpress.db but should use MySQL" "$ALPHA_NO_DB"
 fi
 
-ALPHA_NO_DROPIN=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/wp-content/db.php && echo exists || echo none" | tail -1)
+ALPHA_NO_DROPIN=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-environments/${ALPHA_ID}/wp-content/db.php && echo exists || echo none" | tail -1)
 if [[ "$ALPHA_NO_DROPIN" == "none" ]]; then
     pass "Alpha has no db.php drop-in (MySQL engine)"
 else
@@ -206,7 +206,7 @@ else
 fi
 
 # Engine should be mysql in metadata
-ALPHA_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
+ALPHA_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-environments/${ALPHA_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
 if [[ "$ALPHA_ENGINE" == "mysql" ]]; then
     pass "Alpha engine is mysql in .rudel.json"
 else
@@ -471,7 +471,7 @@ else
     fail "Alpha destroy failed" "$DESTROY_ALPHA"
 fi
 
-ALPHA_DIR_GONE=$(wpenv_run bash -c "test -d /var/www/html/wp-content/rudel-sandboxes/${ALPHA_ID} && echo exists || echo gone" | tail -1)
+ALPHA_DIR_GONE=$(wpenv_run bash -c "test -d /var/www/html/wp-content/rudel-environments/${ALPHA_ID} && echo exists || echo gone" | tail -1)
 if [[ "$ALPHA_DIR_GONE" == "gone" ]]; then
     pass "Alpha directory removed"
 else
@@ -521,21 +521,21 @@ else
     fail "Failed to create SQLite sandbox" "$SQLITE_OUTPUT"
 fi
 
-SQLITE_DB_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${SQLITE_ID}/wordpress.db && echo yes || echo no" | tail -1)
+SQLITE_DB_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-environments/${SQLITE_ID}/wordpress.db && echo yes || echo no" | tail -1)
 if [[ "$SQLITE_DB_EXISTS" == "yes" ]]; then
     pass "SQLite sandbox has wordpress.db"
 else
     fail "SQLite sandbox missing wordpress.db" "$SQLITE_DB_EXISTS"
 fi
 
-SQLITE_DROPIN_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${SQLITE_ID}/wp-content/db.php && echo yes || echo no" | tail -1)
+SQLITE_DROPIN_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-environments/${SQLITE_ID}/wp-content/db.php && echo yes || echo no" | tail -1)
 if [[ "$SQLITE_DROPIN_EXISTS" == "yes" ]]; then
     pass "SQLite sandbox has db.php drop-in"
 else
     fail "SQLite sandbox missing db.php" "$SQLITE_DROPIN_EXISTS"
 fi
 
-SQLITE_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-sandboxes/${SQLITE_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
+SQLITE_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-environments/${SQLITE_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
 if [[ "$SQLITE_ENGINE" == "sqlite" ]]; then
     pass "SQLite engine in .rudel.json"
 else
@@ -599,7 +599,7 @@ SANDBOX_IDS+=("$LOG_BOX_ID")
 # Trigger a PHP notice by accessing a nonexistent option with a warning-level call.
 sandbox_cli "$LOG_BOX_ID" eval 'trigger_error("rudel_test_notice", E_USER_NOTICE);' > /dev/null 2>&1
 
-LOG_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-sandboxes/${LOG_BOX_ID}/wp-content/debug.log && echo yes || echo no" | tail -1)
+LOG_EXISTS=$(wpenv_run bash -c "test -f /var/www/html/wp-content/rudel-environments/${LOG_BOX_ID}/wp-content/debug.log && echo yes || echo no" | tail -1)
 if [[ "$LOG_EXISTS" == "yes" ]]; then
     pass "Sandbox debug.log created"
 else
@@ -640,7 +640,7 @@ fi
 
 # Clear log
 wp_cli rudel logs "$LOG_BOX_ID" --clear > /dev/null 2>&1
-LOG_AFTER_CLEAR=$(wpenv_run bash -c "wc -c < /var/www/html/wp-content/rudel-sandboxes/${LOG_BOX_ID}/wp-content/debug.log" | tail -1)
+LOG_AFTER_CLEAR=$(wpenv_run bash -c "wc -c < /var/www/html/wp-content/rudel-environments/${LOG_BOX_ID}/wp-content/debug.log" | tail -1)
 if [[ "$LOG_AFTER_CLEAR" == "0" ]]; then
     pass "wp rudel logs --clear empties log"
 else

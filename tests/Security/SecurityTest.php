@@ -5,8 +5,8 @@ namespace Rudel\Tests\Security;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use Rudel\Router;
-use Rudel\Sandbox;
-use Rudel\SandboxManager;
+use Rudel\Environment;
+use Rudel\EnvironmentManager;
 use Rudel\Tests\RudelTestCase;
 
 /**
@@ -38,27 +38,27 @@ class SecurityTest extends RudelTestCase
 
     public function testValidateIdRejectsNullByte(): void
     {
-        $this->assertFalse(Sandbox::validate_id("test\x00evil"));
+        $this->assertFalse(Environment::validate_id("test\x00evil"));
     }
 
     public function testValidateIdRejectsNewlines(): void
     {
-        $this->assertFalse(Sandbox::validate_id("test\nevil"));
+        $this->assertFalse(Environment::validate_id("test\nevil"));
     }
 
     public function testValidateIdRejectsCarriageReturn(): void
     {
-        $this->assertFalse(Sandbox::validate_id("test\revil"));
+        $this->assertFalse(Environment::validate_id("test\revil"));
     }
 
     public function testValidateIdRejectsTab(): void
     {
-        $this->assertFalse(Sandbox::validate_id("test\tevil"));
+        $this->assertFalse(Environment::validate_id("test\tevil"));
     }
 
     public function testValidateIdRejectsBackslash(): void
     {
-        $this->assertFalse(Sandbox::validate_id('test\\evil'));
+        $this->assertFalse(Environment::validate_id('test\\evil'));
     }
 
     public function testValidateIdRejectsShellMetachars(): void
@@ -68,7 +68,7 @@ class SecurityTest extends RudelTestCase
             'test>out', 'test<in', 'test\'q\'', 'test"q"',
         ];
         foreach ($metacharIds as $id) {
-            $this->assertFalse(Sandbox::validate_id($id), "Should reject: {$id}");
+            $this->assertFalse(Environment::validate_id($id), "Should reject: {$id}");
         }
     }
 
@@ -78,7 +78,7 @@ class SecurityTest extends RudelTestCase
             "test' OR '1'='1", "test'; DROP TABLE--", "test UNION SELECT",
         ];
         foreach ($sqlIds as $id) {
-            $this->assertFalse(Sandbox::validate_id($id), "Should reject: {$id}");
+            $this->assertFalse(Environment::validate_id($id), "Should reject: {$id}");
         }
     }
 
@@ -159,14 +159,14 @@ class SecurityTest extends RudelTestCase
         unlink($sandboxesDir . '/evil');
     }
 
-    // SandboxManager.get() path validation
+    // EnvironmentManager.get() path validation
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testSandboxManagerGetRejectsTraversal(): void
+    public function testEnvironmentManagerGetRejectsTraversal(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $this->assertNull($manager->get('../../../etc'));
         $this->assertNull($manager->get('..'));
@@ -180,7 +180,7 @@ class SecurityTest extends RudelTestCase
     public function testCriticalFilesAreReadOnly(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Perms Security Test', ['engine' => 'sqlite']);
 
         // These files should be read-only (0444)
@@ -202,7 +202,7 @@ class SecurityTest extends RudelTestCase
     public function testWritableFilesAreWritable(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Writable Test', ['engine' => 'sqlite']);
 
         // Database should be writable
@@ -223,7 +223,7 @@ class SecurityTest extends RudelTestCase
     public function testSandboxDatabasesAreCompletelyIsolated(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
 
         $sandboxA = $manager->create('Isolation A', ['engine' => 'sqlite']);
         $sandboxB = $manager->create('Isolation B', ['engine' => 'sqlite']);
@@ -306,7 +306,7 @@ class SecurityTest extends RudelTestCase
     public function testBlankSandboxAdminPasswordIsUnusable(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Auth Blank Test', ['engine' => 'sqlite']);
 
         $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
@@ -328,7 +328,7 @@ class SecurityTest extends RudelTestCase
     public function testClonedSandboxHasSeparateUsersTable(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Auth Clone Source', ['engine' => 'sqlite']);
         $clone = $manager->create('Auth Clone Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
 
@@ -353,7 +353,7 @@ class SecurityTest extends RudelTestCase
     public function testClonedSandboxUsermetaPrefixIsRewritten(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Meta Rewrite Source', ['engine' => 'sqlite']);
         $clone = $manager->create('Meta Rewrite Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
 
@@ -403,7 +403,7 @@ class SecurityTest extends RudelTestCase
      */
     private function runBootstrapAndGetConstant(string $sandboxId, string $constant): string
     {
-        $sandboxesDir = $this->tmpDir . '/rudel-sandboxes';
+        $sandboxesDir = $this->tmpDir . '/rudel-environments';
         if (! is_dir($sandboxesDir)) {
             mkdir($sandboxesDir, 0755, true);
         }
@@ -435,7 +435,7 @@ class SecurityTest extends RudelTestCase
     public function testDbDropInDoesNotContainRawPlaceholders(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Template Security', ['engine' => 'sqlite']);
 
         $dbPhp = file_get_contents($sandbox->path . '/wp-content/db.php');
@@ -448,7 +448,7 @@ class SecurityTest extends RudelTestCase
     public function testBootstrapDoesNotContainRawPlaceholders(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Placeholder Security', ['engine' => 'sqlite']);
 
         $bootstrap = file_get_contents($sandbox->path . '/bootstrap.php');
@@ -461,7 +461,7 @@ class SecurityTest extends RudelTestCase
     public function testWpCliYmlDoesNotContainRawPlaceholders(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('YML Security', ['engine' => 'sqlite']);
 
         $yml = file_get_contents($sandbox->path . '/wp-cli.yml');
@@ -474,7 +474,7 @@ class SecurityTest extends RudelTestCase
     public function testClaudeMdDoesNotContainRawPlaceholders(): void
     {
         define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('MD Security', ['engine' => 'sqlite']);
 
         $md = file_get_contents($sandbox->path . '/CLAUDE.md');
@@ -486,7 +486,7 @@ class SecurityTest extends RudelTestCase
 
     public function testBootstrapSetsOpenBasedir(): void
     {
-        $sandboxesDir = $this->tmpDir . '/rudel-sandboxes';
+        $sandboxesDir = $this->tmpDir . '/rudel-environments';
         mkdir($sandboxesDir, 0755, true);
         $sandboxPath = $sandboxesDir . '/openbasedir-test';
         mkdir($sandboxPath, 0755);

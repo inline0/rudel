@@ -1,6 +1,6 @@
 <?php
 /**
- * Sandbox CRUD orchestrator.
+ * Environment CRUD orchestrator.
  *
  * @package Rudel
  */
@@ -10,14 +10,14 @@ namespace Rudel;
 /**
  * Creates, lists, retrieves, and destroys sandbox environments.
  */
-class SandboxManager {
+class EnvironmentManager {
 
 	/**
 	 * Absolute path to the sandboxes directory.
 	 *
 	 * @var string
 	 */
-	private string $sandboxes_dir;
+	private string $environments_dir;
 
 	/**
 	 * Absolute path to the Rudel plugin directory.
@@ -29,11 +29,11 @@ class SandboxManager {
 	/**
 	 * Constructor.
 	 *
-	 * @param string|null $sandboxes_dir Optional override for the sandboxes directory.
+	 * @param string|null $environments_dir Optional override for the sandboxes directory.
 	 */
-	public function __construct( ?string $sandboxes_dir = null ) {
-		$this->plugin_dir    = defined( 'RUDEL_PLUGIN_DIR' ) ? RUDEL_PLUGIN_DIR : dirname( __DIR__ ) . '/';
-		$this->sandboxes_dir = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
+	public function __construct( ?string $environments_dir = null ) {
+		$this->plugin_dir       = defined( 'RUDEL_PLUGIN_DIR' ) ? RUDEL_PLUGIN_DIR : dirname( __DIR__ ) . '/';
+		$this->environments_dir = $environments_dir ?? $this->get_default_environments_dir();
 	}
 
 	/**
@@ -41,19 +41,19 @@ class SandboxManager {
 	 *
 	 * @param string $name    Human-readable name.
 	 * @param array  $options Optional settings (template, etc.).
-	 * @return Sandbox The newly created sandbox.
+	 * @return Environment The newly created sandbox.
 	 *
 	 * @throws \RuntimeException If the directory already exists or creation fails.
 	 * @throws \InvalidArgumentException If conflicting clone options are provided.
 	 * @throws \Throwable If any step after directory creation fails (directory is cleaned up).
 	 */
-	public function create( string $name, array $options = array() ): Sandbox {
+	public function create( string $name, array $options = array() ): Environment {
 		if ( empty( $options['skip_limits'] ) ) {
 			$this->check_limits();
 		}
 
-		$id   = Sandbox::generate_id( $name );
-		$path = $this->sandboxes_dir . '/' . $id;
+		$id   = Environment::generate_id( $name );
+		$path = $this->environments_dir . '/' . $id;
 
 		if ( is_dir( $path ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not browser output.
@@ -74,8 +74,8 @@ class SandboxManager {
 		}
 
 		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox scaffolding.
-		if ( ! is_dir( $this->sandboxes_dir ) ) {
-			mkdir( $this->sandboxes_dir, 0755, true );
+		if ( ! is_dir( $this->environments_dir ) ) {
+			mkdir( $this->environments_dir, 0755, true );
 		}
 
 		if ( ! mkdir( $path, 0755 ) ) {
@@ -274,7 +274,7 @@ class SandboxManager {
 			$clone_source['git_worktrees'] = $git_worktrees;
 		}
 
-		$sandbox = new Sandbox(
+		$sandbox = new Environment(
 			id: $id,
 			name: $name,
 			path: $path,
@@ -285,6 +285,8 @@ class SandboxManager {
 			multisite: $is_multisite,
 			engine: $engine,
 			blog_id: $blog_id,
+			type: $options['type'] ?? 'sandbox',
+			domains: $options['domains'] ?? null,
 		);
 		$sandbox->save_meta();
 
@@ -294,27 +296,27 @@ class SandboxManager {
 	/**
 	 * List all sandboxes.
 	 *
-	 * @return Sandbox[] Array of sandbox instances.
+	 * @return Environment[] Array of sandbox instances.
 	 */
 	public function list(): array {
-		if ( ! is_dir( $this->sandboxes_dir ) ) {
+		if ( ! is_dir( $this->environments_dir ) ) {
 			return array();
 		}
 
 		$sandboxes = array();
-		$dirs      = scandir( $this->sandboxes_dir );
+		$dirs      = scandir( $this->environments_dir );
 
 		foreach ( $dirs as $dir ) {
 			if ( '.' === $dir || '..' === $dir ) {
 				continue;
 			}
 
-			$path = $this->sandboxes_dir . '/' . $dir;
+			$path = $this->environments_dir . '/' . $dir;
 			if ( ! is_dir( $path ) ) {
 				continue;
 			}
 
-			$sandbox = Sandbox::from_path( $path );
+			$sandbox = Environment::from_path( $path );
 			if ( $sandbox ) {
 				$sandboxes[] = $sandbox;
 			}
@@ -327,15 +329,15 @@ class SandboxManager {
 	 * Get a single sandbox by ID.
 	 *
 	 * @param string $id Sandbox identifier.
-	 * @return Sandbox|null Sandbox instance or null if not found.
+	 * @return Environment|null Sandbox instance or null if not found.
 	 */
-	public function get( string $id ): ?Sandbox {
-		if ( ! Sandbox::validate_id( $id ) ) {
+	public function get( string $id ): ?Environment {
+		if ( ! Environment::validate_id( $id ) ) {
 			return null;
 		}
 
-		$path = $this->sandboxes_dir . '/' . $id;
-		return Sandbox::from_path( $path );
+		$path = $this->environments_dir . '/' . $id;
+		return Environment::from_path( $path );
 	}
 
 	/**
@@ -469,13 +471,13 @@ class SandboxManager {
 	/**
 	 * Promote a MySQL sandbox's tables to the host prefix.
 	 *
-	 * @param Sandbox $sandbox     The sandbox to promote.
-	 * @param string  $host_prefix Host table prefix.
-	 * @param string  $sandbox_url Sandbox URL.
-	 * @param string  $host_url    Host URL.
+	 * @param Environment $sandbox     The sandbox to promote.
+	 * @param string      $host_prefix Host table prefix.
+	 * @param string      $sandbox_url Sandbox URL.
+	 * @param string      $host_url    Host URL.
 	 * @return void
 	 */
-	private function promote_mysql_to_host( Sandbox $sandbox, string $host_prefix, string $sandbox_url, string $host_url ): void {
+	private function promote_mysql_to_host( Environment $sandbox, string $host_prefix, string $sandbox_url, string $host_url ): void {
 		global $wpdb;
 
 		$sandbox_prefix = $sandbox->get_table_prefix();
@@ -501,13 +503,13 @@ class SandboxManager {
 	/**
 	 * Promote a SQLite sandbox's database to the host MySQL.
 	 *
-	 * @param Sandbox $sandbox     The sandbox to promote.
-	 * @param string  $host_prefix Host table prefix.
-	 * @param string  $sandbox_url Sandbox URL.
-	 * @param string  $host_url    Host URL.
+	 * @param Environment $sandbox     The sandbox to promote.
+	 * @param string      $host_prefix Host table prefix.
+	 * @param string      $sandbox_url Sandbox URL.
+	 * @param string      $host_url    Host URL.
 	 * @return void
 	 */
-	private function promote_sqlite_to_host( Sandbox $sandbox, string $host_prefix, string $sandbox_url, string $host_url ): void {
+	private function promote_sqlite_to_host( Environment $sandbox, string $host_prefix, string $sandbox_url, string $host_url ): void {
 		global $wpdb;
 
 		$sandbox_prefix = $sandbox->get_table_prefix();
@@ -595,11 +597,11 @@ class SandboxManager {
 	 *
 	 * @param string $zip_path Absolute path to the zip file.
 	 * @param string $name     Human-readable name for the imported sandbox.
-	 * @return Sandbox The imported sandbox.
+	 * @return Environment The imported sandbox.
 	 *
 	 * @throws \RuntimeException If the zip is invalid or import fails.
 	 */
-	public function import( string $zip_path, string $name ): Sandbox {
+	public function import( string $zip_path, string $name ): Environment {
 		if ( ! file_exists( $zip_path ) ) {
 			throw new \RuntimeException( sprintf( 'Zip file not found: %s', $zip_path ) );
 		}
@@ -629,16 +631,16 @@ class SandboxManager {
 		}
 
 		$old_id = $old_meta['id'];
-		$new_id = Sandbox::generate_id( $name );
+		$new_id = Environment::generate_id( $name );
 
-		if ( ! is_dir( $this->sandboxes_dir ) ) {
+		if ( ! is_dir( $this->environments_dir ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating sandboxes directory.
-			mkdir( $this->sandboxes_dir, 0755, true );
+			mkdir( $this->environments_dir, 0755, true );
 		}
 
 		$engine = $old_meta['engine'] ?? 'mysql';
 
-		$new_path = $this->sandboxes_dir . '/' . $new_id;
+		$new_path = $this->environments_dir . '/' . $new_id;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Moving extracted sandbox into place.
 		rename( $tmp_dir, $new_path );
 
@@ -687,7 +689,7 @@ class SandboxManager {
 			chmod( $db_path, 0664 );
 		}
 
-		$sandbox = new Sandbox(
+		$sandbox = new Environment(
 			id: $new_id,
 			name: $name,
 			path: $new_path,
@@ -706,8 +708,8 @@ class SandboxManager {
 	 *
 	 * @return string Absolute path.
 	 */
-	public function get_sandboxes_dir(): string {
-		return $this->sandboxes_dir;
+	public function get_environments_dir(): string {
+		return $this->environments_dir;
 	}
 
 	/**
@@ -894,15 +896,15 @@ class SandboxManager {
 	 *
 	 * @return string Absolute path.
 	 */
-	private function get_default_sandboxes_dir(): string {
-		if ( defined( 'RUDEL_SANDBOXES_DIR' ) ) {
-			return RUDEL_SANDBOXES_DIR;
+	private function get_default_environments_dir(): string {
+		if ( defined( 'RUDEL_ENVIRONMENTS_DIR' ) ) {
+			return RUDEL_ENVIRONMENTS_DIR;
 		}
 		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			return WP_CONTENT_DIR . '/rudel-sandboxes';
+			return WP_CONTENT_DIR . '/rudel-environments';
 		}
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
-		return $abspath . 'wp-content/rudel-sandboxes';
+		return $abspath . 'wp-content/rudel-environments';
 	}
 
 	/**
@@ -1047,7 +1049,7 @@ class SandboxManager {
 	 */
 	private function write_sandbox_bootstrap( string $id, string $path, bool $multisite = false, string $engine = 'mysql' ): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
-		$template = file_get_contents( $this->plugin_dir . 'templates/sandbox-bootstrap.php.tpl' );
+		$template = file_get_contents( $this->plugin_dir . 'templates/environment-bootstrap.php.tpl' );
 
 		$multisite_block = '';
 		if ( $multisite ) {
@@ -1982,15 +1984,15 @@ class SandboxManager {
 	/**
 	 * Clone from an existing sandbox: copy its db and wp-content, then rewrite URLs and prefix.
 	 *
-	 * @param Sandbox $source      Source sandbox to clone from.
-	 * @param string  $target_id   New sandbox ID.
-	 * @param string  $target_path New sandbox directory path.
-	 * @param string  $engine      Database engine: 'mysql' or 'sqlite'.
+	 * @param Environment $source      Source sandbox to clone from.
+	 * @param string      $target_id   New sandbox ID.
+	 * @param string      $target_path New sandbox directory path.
+	 * @param string      $engine      Database engine: 'mysql' or 'sqlite'.
 	 * @return array Clone source metadata.
 	 *
 	 * @throws \RuntimeException If the database copy fails.
 	 */
-	private function clone_from_sandbox( Sandbox $source, string $target_id, string $target_path, string $engine = 'mysql' ): array {
+	private function clone_from_sandbox( Environment $source, string $target_id, string $target_path, string $engine = 'mysql' ): array {
 		$source_prefix = $source->get_table_prefix();
 		$target_prefix = 'rudel_' . substr( md5( $target_id ), 0, 6 ) . '_';
 

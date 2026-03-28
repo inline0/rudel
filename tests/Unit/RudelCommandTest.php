@@ -18,7 +18,7 @@ class RudelCommandTest extends RudelTestCase
 
         \WP_CLI::reset();
 
-        $manager = new \Rudel\SandboxManager($this->tmpDir);
+        $manager = new \Rudel\EnvironmentManager($this->tmpDir);
         return new \Rudel\CLI\RudelCommand($manager);
     }
 
@@ -78,11 +78,11 @@ class RudelCommandTest extends RudelTestCase
             define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         }
 
-        $manager = new class extends \Rudel\SandboxManager {
+        $manager = new class extends \Rudel\EnvironmentManager {
             public function __construct() {
                 // Skip parent constructor
             }
-            public function create( string $name, array $options = array() ): \Rudel\Sandbox {
+            public function create( string $name, array $options = array() ): \Rudel\Environment {
                 throw new \RuntimeException( 'Boom' );
             }
         };
@@ -264,12 +264,12 @@ class RudelCommandTest extends RudelTestCase
             define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         }
 
-        $manager = new class extends \Rudel\SandboxManager {
+        $manager = new class extends \Rudel\EnvironmentManager {
             public function __construct() {
                 // Skip parent constructor
             }
-            public function get( string $id ): ?\Rudel\Sandbox {
-                return new \Rudel\Sandbox( 'fail-box', 'Fail', '/tmp/fail', '2026-01-01' );
+            public function get( string $id ): ?\Rudel\Environment {
+                return new \Rudel\Environment( 'fail-box', 'Fail', '/tmp/fail', '2026-01-01' );
             }
             public function destroy( string $id ): bool {
                 return false;
@@ -294,7 +294,7 @@ class RudelCommandTest extends RudelTestCase
         $cmd->create([], ['name' => 'Log Test', 'engine' => 'sqlite']);
         $id = str_replace('Sandbox created: ', '', \WP_CLI::$successes[0]);
 
-        $manager = new \Rudel\SandboxManager($this->tmpDir);
+        $manager = new \Rudel\EnvironmentManager($this->tmpDir);
         $sandbox = $manager->get($id);
         $logPath = $sandbox->get_wp_content_path() . '/debug.log';
         file_put_contents($logPath, "Line 1\nLine 2\nLine 3\n");
@@ -330,7 +330,7 @@ class RudelCommandTest extends RudelTestCase
         $cmd->create([], ['name' => 'Clear Log Test', 'engine' => 'sqlite']);
         $id = str_replace('Sandbox created: ', '', \WP_CLI::$successes[0]);
 
-        $manager = new \Rudel\SandboxManager($this->tmpDir);
+        $manager = new \Rudel\EnvironmentManager($this->tmpDir);
         $sandbox = $manager->get($id);
         $logPath = $sandbox->get_wp_content_path() . '/debug.log';
         file_put_contents($logPath, "Some errors\n");

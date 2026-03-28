@@ -15,16 +15,16 @@ class SnapshotManager {
 	/**
 	 * Sandbox instance.
 	 *
-	 * @var Sandbox
+	 * @var Environment
 	 */
-	private Sandbox $sandbox;
+	private Environment $sandbox;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Sandbox $sandbox The sandbox to manage snapshots for.
+	 * @param Environment $sandbox The sandbox to manage snapshots for.
 	 */
-	public function __construct( Sandbox $sandbox ) {
+	public function __construct( Environment $sandbox ) {
 		$this->sandbox = $sandbox;
 	}
 

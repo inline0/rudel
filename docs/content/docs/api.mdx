@@ -150,7 +150,7 @@ if ( $sandbox ) {
 
 ### `Rudel::create( $name, $options )`
 
-Creates a new sandbox. Returns the `Sandbox` instance.
+Creates a new sandbox. Returns the `Environment` instance.
 
 ```php
 // Blank sandbox (MySQL engine by default)
@@ -199,7 +199,7 @@ Rudel::export( 'my-sandbox-a1b2', '/tmp/sandbox.zip' );
 
 ### `Rudel::import( $zip_path, $name )`
 
-Imports a sandbox from a zip archive. Returns the new `Sandbox` instance.
+Imports a sandbox from a zip archive. Returns the new `Environment` instance.
 
 ```php
 $sandbox = Rudel::import( '/tmp/sandbox.zip', 'Imported' );

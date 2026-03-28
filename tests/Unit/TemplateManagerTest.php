@@ -4,8 +4,8 @@ namespace Rudel\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
-use Rudel\Sandbox;
-use Rudel\SandboxManager;
+use Rudel\Environment;
+use Rudel\EnvironmentManager;
 use Rudel\TemplateManager;
 use Rudel\Tests\RudelTestCase;
 
@@ -137,7 +137,7 @@ class TemplateManagerTest extends RudelTestCase
         $sandboxDir = $this->tmpDir . '/sandboxes';
         $tplDir = $this->tmpDir . '/templates';
 
-        $sbManager = new SandboxManager($sandboxDir);
+        $sbManager = new EnvironmentManager($sandboxDir);
         $source = $sbManager->create('Template Source', ['engine' => 'sqlite']);
 
         $tplManager = new TemplateManager($tplDir);
@@ -145,8 +145,8 @@ class TemplateManagerTest extends RudelTestCase
 
         // Now create a sandbox from the template.
         // We need to make TemplateManager find the right dir, so we use WP_CONTENT_DIR.
-        // Instead, pass the template name through options and let SandboxManager handle it.
-        // Since SandboxManager creates its own TemplateManager with default dir,
+        // Instead, pass the template name through options and let EnvironmentManager handle it.
+        // Since EnvironmentManager creates its own TemplateManager with default dir,
         // we test this differently by using the initialize_from_template path more directly.
         // For a proper integration test, set WP_CONTENT_DIR so TemplateManager resolves correctly.
         define('WP_CONTENT_DIR', $this->tmpDir);
@@ -174,10 +174,10 @@ class TemplateManagerTest extends RudelTestCase
         }
     }
 
-    private function createRealSandbox(string $name): Sandbox
+    private function createRealSandbox(string $name): Environment
     {
         $sandboxDir = $this->tmpDir . '/sandboxes';
-        $manager = new SandboxManager($sandboxDir);
+        $manager = new EnvironmentManager($sandboxDir);
         return $manager->create($name, ['engine' => 'sqlite']);
     }
 }

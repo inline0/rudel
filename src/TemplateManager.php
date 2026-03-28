@@ -31,15 +31,15 @@ class TemplateManager {
 	/**
 	 * Save a sandbox as a template.
 	 *
-	 * @param Sandbox $sandbox     The sandbox to save.
-	 * @param string  $name        Template name.
-	 * @param string  $description Optional description.
+	 * @param Environment $sandbox     The sandbox to save.
+	 * @param string      $name        Template name.
+	 * @param string      $description Optional description.
 	 * @return array Template metadata.
 	 *
 	 * @throws \InvalidArgumentException If the name is invalid or already exists.
 	 * @throws \RuntimeException If template creation fails.
 	 */
-	public function save( Sandbox $sandbox, string $name, string $description = '' ): array {
+	public function save( Environment $sandbox, string $name, string $description = '' ): array {
 		if ( ! self::validate_name( $name ) ) {
 			throw new \InvalidArgumentException( sprintf( 'Invalid template name: %s', $name ) );
 		}

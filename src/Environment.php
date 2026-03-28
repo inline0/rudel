@@ -1,6 +1,6 @@
 <?php
 /**
- * Sandbox model.
+ * Environment model.
  *
  * @package Rudel
  */
@@ -8,9 +8,9 @@
 namespace Rudel;
 
 /**
- * Represents a single Rudel sandbox environment.
+ * Represents a single Rudel environment.
  */
-class Sandbox {
+class Environment {
 
 	/**
 	 * Constructor.
@@ -25,6 +25,8 @@ class Sandbox {
 	 * @param bool       $multisite    Whether this sandbox was cloned from a multisite host.
 	 * @param string     $engine       Database engine: 'mysql', 'sqlite', or 'subsite'.
 	 * @param int|null   $blog_id      Multisite blog ID (subsite engine only).
+	 * @param string     $type         Environment type: 'sandbox' or 'app'.
+	 * @param array|null $domains      Domain names mapped to this environment (app mode).
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -37,6 +39,8 @@ class Sandbox {
 		public readonly bool $multisite = false,
 		public readonly string $engine = 'mysql',
 		public readonly ?int $blog_id = null,
+		public readonly string $type = 'sandbox',
+		public readonly ?array $domains = null,
 	) {}
 
 	/**
@@ -68,6 +72,8 @@ class Sandbox {
 			multisite: ! empty( $data['multisite'] ),
 			engine: $data['engine'] ?? 'mysql',
 			blog_id: isset( $data['blog_id'] ) ? (int) $data['blog_id'] : null,
+			type: $data['type'] ?? 'sandbox',
+			domains: $data['domains'] ?? null,
 		);
 	}
 
@@ -96,6 +102,15 @@ class Sandbox {
 	 */
 	public function is_subsite(): bool {
 		return 'subsite' === $this->engine;
+	}
+
+	/**
+	 * Check if this is an app (permanent environment).
+	 *
+	 * @return bool True if app.
+	 */
+	public function is_app(): bool {
+		return 'app' === $this->type;
 	}
 
 	/**
@@ -158,6 +173,9 @@ class Sandbox {
 	 * @return string URL path or full URL if WP_HOME is defined.
 	 */
 	public function get_url(): string {
+		if ( $this->is_app() && ! empty( $this->domains ) ) {
+			return 'https://' . $this->domains[0] . '/';
+		}
 		if ( defined( 'WP_HOME' ) ) {
 			return rtrim( WP_HOME, '/' ) . '/' . RUDEL_PATH_PREFIX . '/' . $this->id . '/';
 		}
@@ -165,7 +183,7 @@ class Sandbox {
 	}
 
 	/**
-	 * Get the git branch name for this sandbox.
+	 * Get the git branch name for this environment.
 	 *
 	 * @return string Branch name in rudel/{id} format.
 	 */
@@ -174,7 +192,7 @@ class Sandbox {
 	}
 
 	/**
-	 * Get the GitHub repository associated with this sandbox, if any.
+	 * Get the GitHub repository associated with this environment, if any.
 	 *
 	 * @return string|null GitHub repo in owner/repo format, or null.
 	 */
@@ -183,7 +201,7 @@ class Sandbox {
 	}
 
 	/**
-	 * Update a key in the sandbox metadata and persist to disk.
+	 * Update a key in the environment metadata and persist to disk.
 	 *
 	 * @param string $key   Top-level key in .rudel.json.
 	 * @param mixed  $value Value to set.
@@ -212,6 +230,7 @@ class Sandbox {
 			'template'   => $this->template,
 			'status'     => $this->status,
 			'engine'     => $this->engine,
+			'type'       => $this->type,
 		);
 
 		if ( null !== $this->clone_source ) {
@@ -224,6 +243,10 @@ class Sandbox {
 
 		if ( null !== $this->blog_id ) {
 			$data['blog_id'] = $this->blog_id;
+		}
+
+		if ( null !== $this->domains && ! empty( $this->domains ) ) {
+			$data['domains'] = $this->domains;
 		}
 
 		return $data;

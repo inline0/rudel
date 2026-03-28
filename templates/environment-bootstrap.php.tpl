@@ -8,7 +8,7 @@ $sandbox_id = '{{sandbox_id}}';
 $sandbox_path = '{{sandbox_path}}';
 
 // Already resolved (global bootstrap ran first)
-if (defined('RUDEL_SANDBOX_ID')) {
+if (defined('RUDEL_ID')) {
     return;
 }
 
@@ -63,8 +63,8 @@ define('LOGGED_IN_SALT', hash('sha256', $sandbox_id . 'LOGGED_IN_SALT'));
 define('NONCE_SALT', hash('sha256', $sandbox_id . 'NONCE_SALT'));
 
 // Rudel markers
-define('RUDEL_SANDBOX_ID', $sandbox_id);
-define('RUDEL_SANDBOX_PATH', $sandbox_path);
+define('RUDEL_ID', $sandbox_id);
+define('RUDEL_PATH', $sandbox_path);
 
 // Set $table_prefix in caller scope for wp-config.php compatibility.
 $table_prefix = $_rudel_prefix;

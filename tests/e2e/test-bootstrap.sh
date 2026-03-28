@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RUDEL_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BOOTSTRAP="$RUDEL_DIR/bootstrap.php"
 TEST_TMPDIR=$(mktemp -d)
-SANDBOXES_DIR="$TEST_TMPDIR/rudel-sandboxes"
+SANDBOXES_DIR="$TEST_TMPDIR/rudel-environments"
 PASSED=0
 FAILED=0
 TOTAL=0
@@ -80,8 +80,8 @@ define('WP_CONTENT_DIR', getenv('TEST_TMPDIR'));
 require getenv('TEST_BOOTSTRAP');
 
 echo json_encode([
-    'sandbox_id' => defined('RUDEL_SANDBOX_ID') ? RUDEL_SANDBOX_ID : null,
-    'sandbox_path' => defined('RUDEL_SANDBOX_PATH') ? RUDEL_SANDBOX_PATH : null,
+    'sandbox_id' => defined('RUDEL_ID') ? RUDEL_ID : null,
+    'sandbox_path' => defined('RUDEL_PATH') ? RUDEL_PATH : null,
     'db_dir' => defined('DB_DIR') ? DB_DIR : null,
     'db_file' => defined('DB_FILE') ? DB_FILE : null,
     'database_type' => defined('DATABASE_TYPE') ? DATABASE_TYPE : null,
@@ -295,10 +295,10 @@ fi
 echo ""
 echo -e "${BOLD}Already resolved guard${NC}"
 
-RESULT=$(run_bootstrap '{"HTTP_X_RUDEL_SANDBOX":"test-sandbox-001","HTTP_HOST":"localhost"}' '' '{"RUDEL_SANDBOX_ID":"already-set"}')
+RESULT=$(run_bootstrap '{"HTTP_X_RUDEL_SANDBOX":"test-sandbox-001","HTTP_HOST":"localhost"}' '' '{"RUDEL_ID":"already-set"}')
 DB_DIR=$(get_json_field "$RESULT" "db_dir")
 if [[ "$DB_DIR" == "NULL" ]]; then
-    pass "Skips when RUDEL_SANDBOX_ID already defined"
+    pass "Skips when RUDEL_ID already defined"
 else
     fail "Didn't skip when already resolved" "DB_DIR: $DB_DIR"
 fi

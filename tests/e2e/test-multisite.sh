@@ -72,11 +72,11 @@ wpenv_run() {
 sqlite_query() {
     local sandbox_id="$1"
     local query="$2"
-    local db_path="/var/www/html/wp-content/rudel-sandboxes/${sandbox_id}/wordpress.db"
+    local db_path="/var/www/html/wp-content/rudel-environments/${sandbox_id}/wordpress.db"
     npx wp-env run cli -- php -r "\$pdo=new PDO('sqlite:'.\$argv[1]);\$s=\$pdo->query(\$argv[2]);while(\$r=\$s->fetch(PDO::FETCH_NUM))echo implode('|',\$r).PHP_EOL;" "$db_path" "$query" 2>&1 | strip_wpenv
 }
 
-# Compute the sandbox table prefix (mirrors SandboxManager logic).
+# Compute the sandbox table prefix (mirrors EnvironmentManager logic).
 sandbox_prefix() {
     local id="$1"
     npx wp-env run cli -- php -r "echo 'wp_'.substr(md5(\$argv[1]),0,6).'_';" "$id" 2>&1 | strip_wpenv
@@ -419,7 +419,7 @@ else
 fi
 
 # Verify wp-content was copied
-CLONE_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-sandboxes/${CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
+CLONE_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-environments/${CLONE_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
 if [[ -n "$CLONE_THEMES" ]]; then
     pass "Clone has themes in wp-content"
 else
@@ -470,7 +470,7 @@ else
 fi
 
 # DB-only clone should have empty themes
-DB_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-sandboxes/${DB_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
+DB_THEMES=$(wpenv_run bash -c "ls /var/www/html/wp-content/rudel-environments/${DB_ID}/wp-content/themes/ 2>/dev/null" | tail -5)
 if [[ -z "$DB_THEMES" || "$DB_THEMES" =~ ^[[:space:]]*$ ]]; then
     pass "DB-only clone has empty themes directory"
 else

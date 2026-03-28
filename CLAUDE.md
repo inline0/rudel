@@ -1,6 +1,6 @@
 # Rudel
 
-WordPress plugin for sandboxed environments. Each sandbox gets its own isolated database (MySQL by default, SQLite optional, or multisite sub-site), wp-content directory, and wp-cli scope.
+WordPress plugin for isolated environments. Each environment gets its own isolated database (MySQL by default, SQLite optional, or multisite sub-site), wp-content directory, and wp-cli scope.
 
 ## Quick Reference
 
@@ -39,8 +39,8 @@ rudel/
 │   ├── MySQLCloner.php    # Clones host MySQL tables with sandbox prefix
 │   ├── SubsiteCloner.php  # Creates/deletes multisite sub-sites for subsite engine
 │   ├── RudelConfig.php    # JSON config (limits, cleanup settings)
-│   ├── Sandbox.php        # Sandbox model (engine: mysql, sqlite, or subsite)
-│   ├── SandboxManager.php # CRUD orchestrator + export/import/cleanup
+│   ├── Environment.php    # Environment model (engine: mysql, sqlite, or subsite)
+│   ├── EnvironmentManager.php # CRUD orchestrator + export/import/cleanup
 │   ├── SnapshotManager.php # Point-in-time snapshots per sandbox
 │   ├── TemplateManager.php # Reusable sandbox templates
 │   └── Router.php         # Request to sandbox resolution

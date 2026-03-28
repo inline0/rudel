@@ -70,8 +70,8 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testIsSandboxReturnsTrueInSandbox(): void
     {
-        define('RUDEL_SANDBOX_ID', 'test-sandbox');
-        define('RUDEL_SANDBOX_PATH', '/tmp/test-sandbox');
+        define('RUDEL_ID', 'test-sandbox');
+        define('RUDEL_PATH', '/tmp/test-sandbox');
         $this->assertTrue(Rudel::is_sandbox());
     }
 
@@ -79,7 +79,7 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testIdReturnsSandboxId(): void
     {
-        define('RUDEL_SANDBOX_ID', 'my-box-1234');
+        define('RUDEL_ID', 'my-box-1234');
         $this->assertSame('my-box-1234', Rudel::id());
     }
 
@@ -87,7 +87,7 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testPathReturnsSandboxPath(): void
     {
-        define('RUDEL_SANDBOX_PATH', '/var/sandboxes/my-box');
+        define('RUDEL_PATH', '/var/sandboxes/my-box');
         $this->assertSame('/var/sandboxes/my-box', Rudel::path());
     }
 
@@ -99,8 +99,8 @@ class RudelApiTest extends RudelTestCase
         mkdir($path, 0755, true);
         file_put_contents($path . '/.rudel.json', json_encode(['engine' => 'sqlite']));
 
-        define('RUDEL_SANDBOX_ID', 'engine-test');
-        define('RUDEL_SANDBOX_PATH', $path);
+        define('RUDEL_ID', 'engine-test');
+        define('RUDEL_PATH', $path);
 
         $this->assertSame('sqlite', Rudel::engine());
     }
@@ -113,8 +113,8 @@ class RudelApiTest extends RudelTestCase
         mkdir($path, 0755, true);
         file_put_contents($path . '/.rudel.json', json_encode(['id' => 'no-engine']));
 
-        define('RUDEL_SANDBOX_ID', 'no-engine');
-        define('RUDEL_SANDBOX_PATH', $path);
+        define('RUDEL_ID', 'no-engine');
+        define('RUDEL_PATH', $path);
 
         $this->assertSame('mysql', Rudel::engine());
     }
@@ -131,7 +131,7 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testUrlBuildsFromConstants(): void
     {
-        define('RUDEL_SANDBOX_ID', 'url-test');
+        define('RUDEL_ID', 'url-test');
         if (! defined('RUDEL_PATH_PREFIX')) {
             define('RUDEL_PATH_PREFIX', '__rudel');
         }
@@ -152,7 +152,7 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testIsEmailDisabledWhenConstantSet(): void
     {
-        define('RUDEL_SANDBOX_ID', 'email-test');
+        define('RUDEL_ID', 'email-test');
         define('RUDEL_DISABLE_EMAIL', true);
         $this->assertTrue(Rudel::is_email_disabled());
     }
@@ -161,8 +161,8 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testLogPathInSandbox(): void
     {
-        define('RUDEL_SANDBOX_PATH', '/var/sandboxes/log-test');
-        define('RUDEL_SANDBOX_ID', 'log-test');
+        define('RUDEL_PATH', '/var/sandboxes/log-test');
+        define('RUDEL_ID', 'log-test');
         $this->assertSame('/var/sandboxes/log-test/wp-content/debug.log', Rudel::log_path());
     }
 
@@ -170,8 +170,8 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testContextReturnsFullStateInSandbox(): void
     {
-        define('RUDEL_SANDBOX_ID', 'ctx-test');
-        define('RUDEL_SANDBOX_PATH', '/tmp/ctx-test');
+        define('RUDEL_ID', 'ctx-test');
+        define('RUDEL_PATH', '/tmp/ctx-test');
         define('RUDEL_TABLE_PREFIX', 'rudel_abc_');
         define('RUDEL_VERSION', '0.1.0');
 

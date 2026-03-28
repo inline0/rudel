@@ -69,7 +69,7 @@ if ( Rudel\Rudel::is_sandbox() ) {
 			function ( $null, $atts ) {
 				if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
-					error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_SANDBOX_ID, $atts['to'], $atts['subject'] ) );
+					error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_ID, $atts['to'], $atts['subject'] ) );
 				}
 				return true;
 			},

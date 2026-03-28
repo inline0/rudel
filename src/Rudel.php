@@ -28,7 +28,7 @@ class Rudel {
 	 * @return bool
 	 */
 	public static function is_sandbox(): bool {
-		return defined( 'RUDEL_SANDBOX_ID' ) && '' !== RUDEL_SANDBOX_ID;
+		return defined( 'RUDEL_ID' ) && '' !== RUDEL_ID;
 	}
 
 	/**
@@ -37,7 +37,7 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function id(): ?string {
-		return self::is_sandbox() ? RUDEL_SANDBOX_ID : null;
+		return self::is_sandbox() ? RUDEL_ID : null;
 	}
 
 	/**
@@ -46,7 +46,7 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function path(): ?string {
-		return defined( 'RUDEL_SANDBOX_PATH' ) ? RUDEL_SANDBOX_PATH : null;
+		return defined( 'RUDEL_PATH' ) ? RUDEL_PATH : null;
 	}
 
 	/**
@@ -91,10 +91,10 @@ class Rudel {
 		$prefix = defined( 'RUDEL_PATH_PREFIX' ) ? RUDEL_PATH_PREFIX : '__rudel';
 
 		if ( defined( 'WP_HOME' ) ) {
-			return rtrim( WP_HOME, '/' ) . '/' . $prefix . '/' . RUDEL_SANDBOX_ID . '/';
+			return rtrim( WP_HOME, '/' ) . '/' . $prefix . '/' . RUDEL_ID . '/';
 		}
 
-		return '/' . $prefix . '/' . RUDEL_SANDBOX_ID . '/';
+		return '/' . $prefix . '/' . RUDEL_ID . '/';
 	}
 
 	/**
@@ -180,14 +180,14 @@ class Rudel {
 	// Sandbox management.
 
 	/**
-	 * Get the SandboxManager instance.
+	 * Get the EnvironmentManager instance.
 	 *
-	 * @return SandboxManager
+	 * @return EnvironmentManager
 	 */
-	private static function manager(): SandboxManager {
+	private static function manager(): EnvironmentManager {
 		static $manager = null;
 		if ( null === $manager ) {
-			$manager = new SandboxManager();
+			$manager = new EnvironmentManager();
 		}
 		return $manager;
 	}
@@ -195,7 +195,7 @@ class Rudel {
 	/**
 	 * List all sandboxes.
 	 *
-	 * @return Sandbox[] Array of sandbox instances.
+	 * @return Environment[] Array of sandbox instances.
 	 */
 	public static function all(): array {
 		return self::manager()->list();
@@ -205,9 +205,9 @@ class Rudel {
 	 * Get a single sandbox by ID.
 	 *
 	 * @param string $id Sandbox identifier.
-	 * @return Sandbox|null Sandbox instance or null if not found.
+	 * @return Environment|null Sandbox instance or null if not found.
 	 */
-	public static function get( string $id ): ?Sandbox {
+	public static function get( string $id ): ?Environment {
 		return self::manager()->get( $id );
 	}
 
@@ -216,11 +216,11 @@ class Rudel {
 	 *
 	 * @param string $name    Human-readable name.
 	 * @param array  $options Optional settings (engine, template, clone flags).
-	 * @return Sandbox The newly created sandbox.
+	 * @return Environment The newly created sandbox.
 	 *
 	 * @throws \RuntimeException If creation fails.
 	 */
-	public static function create( string $name, array $options = array() ): Sandbox {
+	public static function create( string $name, array $options = array() ): Environment {
 		return self::manager()->create( $name, $options );
 	}
 
@@ -265,11 +265,11 @@ class Rudel {
 	 *
 	 * @param string $zip_path Absolute path to the zip file.
 	 * @param string $name     Human-readable name for the imported sandbox.
-	 * @return Sandbox The imported sandbox.
+	 * @return Environment The imported sandbox.
 	 *
 	 * @throws \RuntimeException If the zip is invalid or import fails.
 	 */
-	public static function import( string $zip_path, string $name ): Sandbox {
+	public static function import( string $zip_path, string $name ): Environment {
 		return self::manager()->import( $zip_path, $name );
 	}
 
@@ -298,8 +298,8 @@ class Rudel {
 	 *
 	 * @return string Absolute path.
 	 */
-	public static function sandboxes_dir(): string {
-		return self::manager()->get_sandboxes_dir();
+	public static function environments_dir(): string {
+		return self::manager()->get_environments_dir();
 	}
 
 	/**

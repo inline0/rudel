@@ -4,163 +4,163 @@ namespace Rudel\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
-use Rudel\Sandbox;
+use Rudel\Environment;
 use Rudel\Tests\RudelTestCase;
 
-class SandboxTest extends RudelTestCase
+class EnvironmentTest extends RudelTestCase
 {
     // validateId()
 
     public function testValidateIdAcceptsSimpleAlphanumeric(): void
     {
-        $this->assertTrue(Sandbox::validate_id('abc123'));
+        $this->assertTrue(Environment::validate_id('abc123'));
     }
 
     public function testValidateIdAcceptsSingleChar(): void
     {
-        $this->assertTrue(Sandbox::validate_id('a'));
+        $this->assertTrue(Environment::validate_id('a'));
     }
 
     public function testValidateIdAcceptsHyphensAndUnderscores(): void
     {
-        $this->assertTrue(Sandbox::validate_id('my-sandbox_2'));
+        $this->assertTrue(Environment::validate_id('my-sandbox_2'));
     }
 
     public function testValidateIdAcceptsUppercase(): void
     {
-        $this->assertTrue(Sandbox::validate_id('MyTest'));
+        $this->assertTrue(Environment::validate_id('MyTest'));
     }
 
     public function testValidateIdAcceptsMaxLength64(): void
     {
         $id = 'a' . str_repeat('b', 63);
         $this->assertSame(64, strlen($id));
-        $this->assertTrue(Sandbox::validate_id($id));
+        $this->assertTrue(Environment::validate_id($id));
     }
 
     public function testValidateIdRejectsEmpty(): void
     {
-        $this->assertFalse(Sandbox::validate_id(''));
+        $this->assertFalse(Environment::validate_id(''));
     }
 
     public function testValidateIdRejectsStartingWithHyphen(): void
     {
-        $this->assertFalse(Sandbox::validate_id('-abc'));
+        $this->assertFalse(Environment::validate_id('-abc'));
     }
 
     public function testValidateIdRejectsStartingWithUnderscore(): void
     {
-        $this->assertFalse(Sandbox::validate_id('_abc'));
+        $this->assertFalse(Environment::validate_id('_abc'));
     }
 
     public function testValidateIdRejectsSpecialChars(): void
     {
-        $this->assertFalse(Sandbox::validate_id('abc!@#'));
+        $this->assertFalse(Environment::validate_id('abc!@#'));
     }
 
     public function testValidateIdRejectsDots(): void
     {
-        $this->assertFalse(Sandbox::validate_id('abc.def'));
+        $this->assertFalse(Environment::validate_id('abc.def'));
     }
 
     public function testValidateIdRejectsSlashes(): void
     {
-        $this->assertFalse(Sandbox::validate_id('abc/def'));
+        $this->assertFalse(Environment::validate_id('abc/def'));
     }
 
     public function testValidateIdRejectsPathTraversal(): void
     {
-        $this->assertFalse(Sandbox::validate_id('../etc'));
+        $this->assertFalse(Environment::validate_id('../etc'));
     }
 
     public function testValidateIdRejectsSpaces(): void
     {
-        $this->assertFalse(Sandbox::validate_id('abc def'));
+        $this->assertFalse(Environment::validate_id('abc def'));
     }
 
     public function testValidateIdRejectsOver64Chars(): void
     {
         $id = 'a' . str_repeat('b', 64);
         $this->assertSame(65, strlen($id));
-        $this->assertFalse(Sandbox::validate_id($id));
+        $this->assertFalse(Environment::validate_id($id));
     }
 
     public function testValidateIdRejectsNullBytes(): void
     {
-        $this->assertFalse(Sandbox::validate_id("abc\x00def"));
+        $this->assertFalse(Environment::validate_id("abc\x00def"));
     }
 
     // generateId()
 
     public function testGenerateIdFormatsAsSlugDashHash(): void
     {
-        $id = Sandbox::generate_id('My Test');
+        $id = Environment::generate_id('My Test');
         $this->assertMatchesRegularExpression('/^my-test-[a-f0-9]{4}$/', $id);
     }
 
     public function testGenerateIdStripsSpecialChars(): void
     {
-        $id = Sandbox::generate_id('Hello World!!! @#$');
+        $id = Environment::generate_id('Hello World!!! @#$');
         $this->assertMatchesRegularExpression('/^hello-world-[a-f0-9]{4}$/', $id);
     }
 
     public function testGenerateIdTrimsLeadingTrailingHyphens(): void
     {
-        $id = Sandbox::generate_id('---test---');
+        $id = Environment::generate_id('---test---');
         $this->assertMatchesRegularExpression('/^test-[a-f0-9]{4}$/', $id);
     }
 
     public function testGenerateIdTruncatesLongNames(): void
     {
         $longName = str_repeat('abcdefghij', 10); // 100 chars
-        $id = Sandbox::generate_id($longName);
+        $id = Environment::generate_id($longName);
         // slug max 48 + '-' + 4 hash = max 53
         $this->assertLessThanOrEqual(53, strlen($id));
     }
 
     public function testGenerateIdHandlesNumericName(): void
     {
-        $id = Sandbox::generate_id('12345');
+        $id = Environment::generate_id('12345');
         $this->assertMatchesRegularExpression('/^12345-[a-f0-9]{4}$/', $id);
     }
 
     public function testGenerateIdProducesUniqueIds(): void
     {
-        $id1 = Sandbox::generate_id('same-name');
-        $id2 = Sandbox::generate_id('same-name');
+        $id1 = Environment::generate_id('same-name');
+        $id2 = Environment::generate_id('same-name');
         $this->assertNotSame($id1, $id2, 'Two calls should produce different IDs (different uniqid)');
     }
 
     public function testGenerateIdResultIsValid(): void
     {
-        $id = Sandbox::generate_id('anything');
-        $this->assertTrue(Sandbox::validate_id($id));
+        $id = Environment::generate_id('anything');
+        $this->assertTrue(Environment::validate_id($id));
     }
 
     public function testGenerateIdHandlesAllSpecialChars(): void
     {
-        $id = Sandbox::generate_id('!@#$%^&*()');
+        $id = Environment::generate_id('!@#$%^&*()');
         // After stripping, slug is empty, so id is just the hash
-        $this->assertTrue(Sandbox::validate_id($id));
+        $this->assertTrue(Environment::validate_id($id));
     }
 
     public function testGenerateIdWithEmptySlugUsesSandboxPrefix(): void
     {
-        $id = Sandbox::generate_id('!@#$%^&*()');
+        $id = Environment::generate_id('!@#$%^&*()');
         $this->assertMatchesRegularExpression('/^sandbox-[a-f0-9]{4}$/', $id);
     }
 
     public function testGenerateIdHandlesUnicode(): void
     {
-        $id = Sandbox::generate_id('café résumé');
-        $this->assertTrue(Sandbox::validate_id($id));
+        $id = Environment::generate_id('café résumé');
+        $this->assertTrue(Environment::validate_id($id));
     }
 
     // Constructor and properties
 
     public function testConstructorSetsAllProperties(): void
     {
-        $sandbox = new Sandbox(
+        $sandbox = new Environment(
             id: 'test-1234',
             name: 'Test',
             path: '/tmp/test',
@@ -179,7 +179,7 @@ class SandboxTest extends RudelTestCase
 
     public function testConstructorDefaults(): void
     {
-        $sandbox = new Sandbox(
+        $sandbox = new Environment(
             id: 'test',
             name: 'Test',
             path: '/tmp/test',
@@ -195,7 +195,7 @@ class SandboxTest extends RudelTestCase
     public function testFromPathReturnsSandboxForValidMeta(): void
     {
         $path = $this->createFakeSandbox('valid-123', 'My Sandbox');
-        $sandbox = Sandbox::from_path($path);
+        $sandbox = Environment::from_path($path);
 
         $this->assertNotNull($sandbox);
         $this->assertSame('valid-123', $sandbox->id);
@@ -208,7 +208,7 @@ class SandboxTest extends RudelTestCase
     {
         $path = $this->tmpDir . '/no-meta';
         mkdir($path, 0755);
-        $this->assertNull(Sandbox::from_path($path));
+        $this->assertNull(Environment::from_path($path));
     }
 
     public function testFromPathReturnsNullForInvalidJson(): void
@@ -216,7 +216,7 @@ class SandboxTest extends RudelTestCase
         $path = $this->tmpDir . '/bad-json';
         mkdir($path, 0755);
         file_put_contents($path . '/.rudel.json', 'not json at all {{{');
-        $this->assertNull(Sandbox::from_path($path));
+        $this->assertNull(Environment::from_path($path));
     }
 
     public function testFromPathReturnsNullForEmptyJson(): void
@@ -224,7 +224,7 @@ class SandboxTest extends RudelTestCase
         $path = $this->tmpDir . '/empty-json';
         mkdir($path, 0755);
         file_put_contents($path . '/.rudel.json', '');
-        $this->assertNull(Sandbox::from_path($path));
+        $this->assertNull(Environment::from_path($path));
     }
 
     public function testFromPathHandlesMissingOptionalFields(): void
@@ -236,7 +236,7 @@ class SandboxTest extends RudelTestCase
             'name' => 'Minimal',
         ]));
 
-        $sandbox = Sandbox::from_path($path);
+        $sandbox = Environment::from_path($path);
         $this->assertNotNull($sandbox);
         $this->assertSame('minimal', $sandbox->id);
         $this->assertSame('', $sandbox->created_at);
@@ -247,7 +247,7 @@ class SandboxTest extends RudelTestCase
     public function testFromPathTrimsTrailingSlash(): void
     {
         $path = $this->createFakeSandbox('trim-test', 'test');
-        $sandbox = Sandbox::from_path($path . '/');
+        $sandbox = Environment::from_path($path . '/');
         $this->assertNotNull($sandbox);
         $this->assertStringEndsNotWith('/', $sandbox->path);
     }
@@ -256,7 +256,7 @@ class SandboxTest extends RudelTestCase
 
     public function testDefaultEngineIsMysql(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01');
+        $sandbox = new Environment('id', 'name', '/tmp/test', '2026-01-01');
         $this->assertSame('mysql', $sandbox->engine);
         $this->assertTrue($sandbox->is_mysql());
         $this->assertFalse($sandbox->is_sqlite());
@@ -264,7 +264,7 @@ class SandboxTest extends RudelTestCase
 
     public function testSqliteEngine(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'sqlite');
+        $sandbox = new Environment('id', 'name', '/tmp/test', '2026-01-01', engine: 'sqlite');
         $this->assertSame('sqlite', $sandbox->engine);
         $this->assertFalse($sandbox->is_mysql());
         $this->assertTrue($sandbox->is_sqlite());
@@ -272,7 +272,7 @@ class SandboxTest extends RudelTestCase
 
     public function testGetTablePrefix(): void
     {
-        $sandbox = new Sandbox('test-id', 'name', '/tmp/test', '2026-01-01');
+        $sandbox = new Environment('test-id', 'name', '/tmp/test', '2026-01-01');
         $expected = 'rudel_' . substr(md5('test-id'), 0, 6) . '_';
         $this->assertSame($expected, $sandbox->get_table_prefix());
     }
@@ -280,7 +280,7 @@ class SandboxTest extends RudelTestCase
     public function testFromPathReadsEngineField(): void
     {
         $path = $this->createFakeSandbox('engine-test', 'test', ['engine' => 'sqlite']);
-        $sandbox = Sandbox::from_path($path);
+        $sandbox = Environment::from_path($path);
         $this->assertNotNull($sandbox);
         $this->assertSame('sqlite', $sandbox->engine);
     }
@@ -288,20 +288,20 @@ class SandboxTest extends RudelTestCase
     public function testFromPathDefaultsEngineToMysql(): void
     {
         $path = $this->createFakeSandbox('no-engine', 'test');
-        $sandbox = Sandbox::from_path($path);
+        $sandbox = Environment::from_path($path);
         $this->assertNotNull($sandbox);
         $this->assertSame('mysql', $sandbox->engine);
     }
 
     public function testToArrayIncludesEngineForAll(): void
     {
-        $mysql = new Sandbox('id', 'name', '/tmp/test', '2026-01-01');
+        $mysql = new Environment('id', 'name', '/tmp/test', '2026-01-01');
         $this->assertSame('mysql', $mysql->to_array()['engine']);
 
-        $sqlite = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'sqlite');
+        $sqlite = new Environment('id', 'name', '/tmp/test', '2026-01-01', engine: 'sqlite');
         $this->assertSame('sqlite', $sqlite->to_array()['engine']);
 
-        $subsite = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 5);
+        $subsite = new Environment('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 5);
         $this->assertSame('subsite', $subsite->to_array()['engine']);
     }
 
@@ -309,7 +309,7 @@ class SandboxTest extends RudelTestCase
 
     public function testSubsiteEngine(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 42);
+        $sandbox = new Environment('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 42);
         $this->assertTrue($sandbox->is_subsite());
         $this->assertFalse($sandbox->is_mysql());
         $this->assertFalse($sandbox->is_sqlite());
@@ -318,20 +318,20 @@ class SandboxTest extends RudelTestCase
 
     public function testGetDbPathReturnNullForSubsite(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 5);
+        $sandbox = new Environment('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 5);
         $this->assertNull($sandbox->get_db_path());
     }
 
     public function testToArrayIncludesBlogId(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 7);
+        $sandbox = new Environment('id', 'name', '/tmp/test', '2026-01-01', engine: 'subsite', blog_id: 7);
         $data = $sandbox->to_array();
         $this->assertSame(7, $data['blog_id']);
     }
 
     public function testToArrayExcludesBlogIdWhenNull(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/tmp/test', '2026-01-01');
+        $sandbox = new Environment('id', 'name', '/tmp/test', '2026-01-01');
         $data = $sandbox->to_array();
         $this->assertArrayNotHasKey('blog_id', $data);
     }
@@ -339,7 +339,7 @@ class SandboxTest extends RudelTestCase
     public function testFromPathReadsBlogId(): void
     {
         $path = $this->createFakeSandbox('subsite-test', 'test', ['engine' => 'subsite', 'blog_id' => 12]);
-        $sandbox = Sandbox::from_path($path);
+        $sandbox = Environment::from_path($path);
         $this->assertNotNull($sandbox);
         $this->assertSame('subsite', $sandbox->engine);
         $this->assertSame(12, $sandbox->blog_id);
@@ -349,7 +349,7 @@ class SandboxTest extends RudelTestCase
     public function testFromPathBlogIdNullWhenMissing(): void
     {
         $path = $this->createFakeSandbox('no-blogid', 'test', ['engine' => 'mysql']);
-        $sandbox = Sandbox::from_path($path);
+        $sandbox = Environment::from_path($path);
         $this->assertNull($sandbox->blog_id);
     }
 
@@ -357,19 +357,19 @@ class SandboxTest extends RudelTestCase
 
     public function testGetDbPathReturnNullForMysql(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/sandboxes/my-test', '2026-01-01');
+        $sandbox = new Environment('id', 'name', '/sandboxes/my-test', '2026-01-01');
         $this->assertNull($sandbox->get_db_path());
     }
 
     public function testGetDbPathForSqlite(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/sandboxes/my-test', '2026-01-01', engine: 'sqlite');
+        $sandbox = new Environment('id', 'name', '/sandboxes/my-test', '2026-01-01', engine: 'sqlite');
         $this->assertSame('/sandboxes/my-test/wordpress.db', $sandbox->get_db_path());
     }
 
     public function testGetWpContentPath(): void
     {
-        $sandbox = new Sandbox('id', 'name', '/sandboxes/my-test', '2026-01-01');
+        $sandbox = new Environment('id', 'name', '/sandboxes/my-test', '2026-01-01');
         $this->assertSame('/sandboxes/my-test/wp-content', $sandbox->get_wp_content_path());
     }
 
@@ -379,7 +379,7 @@ class SandboxTest extends RudelTestCase
     {
         $path = $this->tmpDir . '/empty-sandbox';
         mkdir($path, 0755);
-        $sandbox = new Sandbox('id', 'name', $path, '2026-01-01');
+        $sandbox = new Environment('id', 'name', $path, '2026-01-01');
         $this->assertSame(0, $sandbox->get_size());
     }
 
@@ -390,7 +390,7 @@ class SandboxTest extends RudelTestCase
         $this->createFileWithSize($path . '/file1.txt', 100);
         $this->createFileWithSize($path . '/subdir/file2.txt', 200);
 
-        $sandbox = new Sandbox('id', 'name', $path, '2026-01-01');
+        $sandbox = new Environment('id', 'name', $path, '2026-01-01');
         $this->assertSame(300, $sandbox->get_size());
     }
 
@@ -400,7 +400,7 @@ class SandboxTest extends RudelTestCase
         mkdir($path . '/a/b/c', 0755, true);
         $this->createFileWithSize($path . '/a/b/c/deep.txt', 50);
 
-        $sandbox = new Sandbox('id', 'name', $path, '2026-01-01');
+        $sandbox = new Environment('id', 'name', $path, '2026-01-01');
         $this->assertSame(50, $sandbox->get_size());
     }
 
@@ -408,7 +408,7 @@ class SandboxTest extends RudelTestCase
 
     public function testGetUrlWithoutWpHome(): void
     {
-        $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
+        $sandbox = new Environment('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
         $url = $sandbox->get_url();
         $this->assertSame('/' . RUDEL_PATH_PREFIX . '/my-sandbox-abcd/', $url);
     }
@@ -418,7 +418,7 @@ class SandboxTest extends RudelTestCase
     public function testGetUrlWithWpHomeDefined(): void
     {
         define('WP_HOME', 'https://example.com');
-        $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
+        $sandbox = new Environment('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
         $this->assertSame('https://example.com/' . RUDEL_PATH_PREFIX . '/my-sandbox-abcd/', $sandbox->get_url());
     }
 
@@ -427,7 +427,7 @@ class SandboxTest extends RudelTestCase
     public function testGetUrlWithWpHomeTrimsTrailingSlash(): void
     {
         define('WP_HOME', 'https://example.com/');
-        $sandbox = new Sandbox('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
+        $sandbox = new Environment('my-sandbox-abcd', 'name', '/tmp/test', '2026-01-01');
         $this->assertSame('https://example.com/' . RUDEL_PATH_PREFIX . '/my-sandbox-abcd/', $sandbox->get_url());
     }
 
@@ -435,7 +435,7 @@ class SandboxTest extends RudelTestCase
 
     public function testToArrayReturnsAllFields(): void
     {
-        $sandbox = new Sandbox(
+        $sandbox = new Environment(
             id: 'test-id',
             name: 'Test Name',
             path: '/tmp/test',
@@ -453,6 +453,7 @@ class SandboxTest extends RudelTestCase
             'template' => 'blank',
             'status' => 'active',
             'engine' => 'mysql',
+            'type' => 'sandbox',
         ], $arr);
     }
 
@@ -463,7 +464,7 @@ class SandboxTest extends RudelTestCase
         $path = $this->tmpDir . '/save-meta-test';
         mkdir($path, 0755);
 
-        $sandbox = new Sandbox('save-test', 'Save Test', $path, '2026-01-01');
+        $sandbox = new Environment('save-test', 'Save Test', $path, '2026-01-01');
         $sandbox->save_meta();
 
         $metaPath = $path . '/.rudel.json';
@@ -480,7 +481,7 @@ class SandboxTest extends RudelTestCase
         mkdir($path, 0755);
 
         // Use the same path for both the sandbox path and where saveMeta writes
-        $sandbox = new Sandbox('id', 'name', $path, '2026-01-01');
+        $sandbox = new Environment('id', 'name', $path, '2026-01-01');
         $sandbox->save_meta();
 
         $raw = file_get_contents($path . '/.rudel.json');
@@ -495,10 +496,10 @@ class SandboxTest extends RudelTestCase
         $path = $this->tmpDir . '/roundtrip-test';
         mkdir($path, 0755);
 
-        $original = new Sandbox('roundtrip-abc', 'Roundtrip', $path, '2026-03-01T12:00:00+00:00', 'custom', 'active');
+        $original = new Environment('roundtrip-abc', 'Roundtrip', $path, '2026-03-01T12:00:00+00:00', 'custom', 'active');
         $original->save_meta();
 
-        $loaded = Sandbox::from_path($path);
+        $loaded = Environment::from_path($path);
         $this->assertNotNull($loaded);
         $this->assertSame($original->id, $loaded->id);
         $this->assertSame($original->name, $loaded->name);

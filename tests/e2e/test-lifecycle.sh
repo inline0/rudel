@@ -62,12 +62,12 @@ assert_dir_exists() {
     fi
 }
 
-# Run a PHP snippet that exercises SandboxManager
+# Run a PHP snippet that exercises EnvironmentManager
 run_php() {
     php -r "
         require_once '$RUDEL_DIR/vendor/autoload.php';
         define('RUDEL_PLUGIN_DIR', '$RUDEL_DIR/');
-        define('RUDEL_SANDBOXES_DIR', '$TEST_TMPDIR/sandboxes');
+        define('RUDEL_ENVIRONMENTS_DIR', '$TEST_TMPDIR/sandboxes');
         define('RUDEL_PATH_PREFIX', '__rudel');
         define('WP_HOME', 'http://localhost:8888');
         $1
@@ -86,7 +86,7 @@ echo ""
 echo -e "${BOLD}Create sandbox${NC}"
 
 OUTPUT=$(run_php '
-    $manager = new Rudel\SandboxManager();
+    $manager = new Rudel\EnvironmentManager();
     $sandbox = $manager->create("e2e-test", ["engine" => "sqlite"]);
     echo json_encode($sandbox->to_array());
 ')
@@ -169,10 +169,10 @@ if assert_contains "$BOOTSTRAP" "$SANDBOX_ID"; then
 else
     fail "bootstrap.php missing sandbox ID" ""
 fi
-if assert_contains "$BOOTSTRAP" "RUDEL_SANDBOX_ID"; then
-    pass "bootstrap.php defines RUDEL_SANDBOX_ID"
+if assert_contains "$BOOTSTRAP" "RUDEL_ID"; then
+    pass "bootstrap.php defines RUDEL_ID"
 else
-    fail "bootstrap.php missing RUDEL_SANDBOX_ID" ""
+    fail "bootstrap.php missing RUDEL_ID" ""
 fi
 
 # CLAUDE.md
@@ -264,7 +264,7 @@ echo ""
 echo -e "${BOLD}List sandboxes${NC}"
 
 LIST_COUNT=$(run_php '
-    $manager = new Rudel\SandboxManager();
+    $manager = new Rudel\EnvironmentManager();
     echo count($manager->list());
 ')
 if [[ "$LIST_COUNT" == "1" ]]; then
@@ -280,7 +280,7 @@ echo ""
 echo -e "${BOLD}Get sandbox${NC}"
 
 GOT_NAME=$(run_php "
-    \$manager = new Rudel\SandboxManager();
+    \$manager = new Rudel\EnvironmentManager();
     \$s = \$manager->get('$SANDBOX_ID');
     echo \$s ? \$s->name : 'null';
 ")
@@ -292,7 +292,7 @@ fi
 
 # Get with invalid ID
 GOT_INVALID=$(run_php '
-    $manager = new Rudel\SandboxManager();
+    $manager = new Rudel\EnvironmentManager();
     $s = $manager->get("../../../etc");
     echo $s === null ? "null" : "found";
 ')
@@ -309,7 +309,7 @@ echo ""
 echo -e "${BOLD}Sandbox isolation${NC}"
 
 SECOND_OUTPUT=$(run_php '
-    $manager = new Rudel\SandboxManager();
+    $manager = new Rudel\EnvironmentManager();
     $sandbox = $manager->create("e2e-second", ["engine" => "sqlite"]);
     echo json_encode($sandbox->to_array());
 ')
@@ -322,7 +322,7 @@ else
 fi
 
 LIST_COUNT2=$(run_php '
-    $manager = new Rudel\SandboxManager();
+    $manager = new Rudel\EnvironmentManager();
     echo count($manager->list());
 ')
 if [[ "$LIST_COUNT2" == "2" ]]; then
@@ -338,7 +338,7 @@ echo ""
 echo -e "${BOLD}Destroy sandbox${NC}"
 
 DESTROY_RESULT=$(run_php "
-    \$manager = new Rudel\SandboxManager();
+    \$manager = new Rudel\EnvironmentManager();
     echo \$manager->destroy('$SANDBOX_ID') ? 'true' : 'false';
 ")
 if [[ "$DESTROY_RESULT" == "true" ]]; then
@@ -355,7 +355,7 @@ fi
 
 # Verify the second sandbox is unaffected
 SECOND_EXISTS=$(run_php "
-    \$manager = new Rudel\SandboxManager();
+    \$manager = new Rudel\EnvironmentManager();
     \$s = \$manager->get('$SECOND_ID');
     echo \$s !== null ? 'exists' : 'gone';
 ")
@@ -367,7 +367,7 @@ fi
 
 # Destroy nonexistent
 DESTROY_GHOST=$(run_php '
-    $manager = new Rudel\SandboxManager();
+    $manager = new Rudel\EnvironmentManager();
     echo $manager->destroy("nonexistent") ? "true" : "false";
 ')
 if [[ "$DESTROY_GHOST" == "false" ]]; then
@@ -380,12 +380,12 @@ fi
 # Test 8: Clean up second sandbox
 # --------------------------------------------------------------------------
 run_php "
-    \$manager = new Rudel\SandboxManager();
+    \$manager = new Rudel\EnvironmentManager();
     \$manager->destroy('$SECOND_ID');
 " > /dev/null 2>&1
 
 LIST_FINAL=$(run_php '
-    $manager = new Rudel\SandboxManager();
+    $manager = new Rudel\EnvironmentManager();
     echo count($manager->list());
 ')
 if [[ "$LIST_FINAL" == "0" ]]; then

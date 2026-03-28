@@ -4,8 +4,8 @@ namespace Rudel\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
-use Rudel\Sandbox;
-use Rudel\SandboxManager;
+use Rudel\Environment;
+use Rudel\EnvironmentManager;
 use Rudel\SnapshotManager;
 use Rudel\Tests\RudelTestCase;
 
@@ -183,9 +183,9 @@ class SnapshotManagerTest extends RudelTestCase
         }
     }
 
-    private function createRealSandbox(string $name): Sandbox
+    private function createRealSandbox(string $name): Environment
     {
-        $manager = new SandboxManager($this->tmpDir);
+        $manager = new EnvironmentManager($this->tmpDir);
         return $manager->create($name, ['engine' => 'sqlite']);
     }
 }
