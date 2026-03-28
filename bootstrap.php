@@ -34,7 +34,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	define( 'RUDEL_PATH_PREFIX', '__rudel' );
 }
 
-( function () use ( &$_rudel_prefix ) {
+( function () use ( &$_rudel_prefix, &$_rudel_is_app ) {
 	$plugin_dir       = __DIR__;
 	$environments_dir = null;
 
@@ -48,7 +48,16 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		$environments_dir = $abspath . 'wp-content/rudel-environments';
 	}
 
-	if ( ! is_dir( $environments_dir ) ) {
+	if ( defined( 'RUDEL_APPS_DIR' ) ) {
+		$apps_dir = RUDEL_APPS_DIR;
+	} elseif ( defined( 'WP_CONTENT_DIR' ) ) {
+		$apps_dir = WP_CONTENT_DIR . '/rudel-apps';
+	} else {
+		$abspath  = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 2 ) . '/';
+		$apps_dir = $abspath . 'wp-content/rudel-apps';
+	}
+
+	if ( ! is_dir( $environments_dir ) && ! is_dir( $apps_dir ) ) {
 		return;
 	}
 
@@ -62,49 +71,71 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	/**
 	 * Validate sandbox path (prevent traversal).
 	 */
-	$validate_path = function ( string $id ) use ( $environments_dir ): ?string {
+	$validate_path = function ( string $id ) use ( $environments_dir, $apps_dir ): ?array {
+		// Check environments (sandboxes) directory first.
 		$path = $environments_dir . '/' . $id;
-		if ( ! is_dir( $path ) ) {
-			return null;
+		if ( is_dir( $path ) ) {
+			$real = realpath( $path );
+			$base = realpath( $environments_dir );
+			if ( false !== $real && false !== $base && 0 === strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
+				return array(
+					'path'   => $real,
+					'is_app' => false,
+				);
+			}
 		}
-		$real = realpath( $path );
-		if ( false === $real ) {
-			return null;
+
+		// Then check apps directory.
+		if ( is_dir( $apps_dir ) ) {
+			$path = $apps_dir . '/' . $id;
+			if ( is_dir( $path ) ) {
+				$real = realpath( $path );
+				$base = realpath( $apps_dir );
+				if ( false !== $real && false !== $base && 0 === strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
+					return array(
+						'path'   => $real,
+						'is_app' => true,
+					);
+				}
+			}
 		}
-		$base = realpath( $environments_dir );
-		if ( false === $base ) {
-			return null;
-		}
-		if ( 0 !== strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
-			return null;
-		}
-		return $real;
+
+		return null;
 	};
 
 	$sandbox_id   = null;
 	$sandbox_path = null;
 
+	/**
+	 * Try to resolve an ID and set sandbox_id/sandbox_path/is_app.
+	 */
+	$try_resolve = function ( string $id ) use ( $validate_id, $validate_path, &$sandbox_id, &$sandbox_path, &$_rudel_is_app ): bool {
+		if ( ! $validate_id( $id ) ) {
+			return false;
+		}
+		$result = $validate_path( $id );
+		if ( $result ) {
+			$sandbox_id    = $id;
+			$sandbox_path  = $result['path'];
+			$_rudel_is_app = $result['is_app'];
+			return true;
+		}
+		return false;
+	};
+
 	// 1. X-Rudel-Sandbox header.
 	if ( ! $sandbox_id ) {
 		$header_id = $_SERVER['HTTP_X_RUDEL_SANDBOX'] ?? null;
-		if ( $header_id && $validate_id( $header_id ) ) {
-			$path = $validate_path( $header_id );
-			if ( $path ) {
-				$sandbox_id   = $header_id;
-				$sandbox_path = $path;
-			}
+		if ( $header_id ) {
+			$try_resolve( $header_id );
 		}
 	}
 
 	// 2. rudel_sandbox cookie.
 	if ( ! $sandbox_id ) {
 		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
-		if ( $cookie_id && $validate_id( $cookie_id ) ) {
-			$path = $validate_path( $cookie_id );
-			if ( $path ) {
-				$sandbox_id   = $cookie_id;
-				$sandbox_path = $path;
-			}
+		if ( $cookie_id ) {
+			$try_resolve( $cookie_id );
 		}
 	}
 
@@ -116,22 +147,10 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 				if ( 0 === strpos( $arg, '--url=' ) ) {
 					$url = substr( $arg, 6 );
 					if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $url, $m ) ) {
-						if ( $validate_id( $m[1] ) ) {
-							$path = $validate_path( $m[1] );
-							if ( $path ) {
-								$sandbox_id   = $m[1];
-								$sandbox_path = $path;
-							}
-						}
+						$try_resolve( $m[1] );
 					}
 					if ( ! $sandbox_id && preg_match( '#^https?://([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})\.#', $url, $m ) ) {
-						if ( $validate_id( $m[1] ) ) {
-							$path = $validate_path( $m[1] );
-							if ( $path ) {
-								$sandbox_id   = $m[1];
-								$sandbox_path = $path;
-							}
-						}
+						$try_resolve( $m[1] );
 					}
 					break;
 				}
@@ -153,17 +172,11 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		exit;
 	}
 
-	// 4. Path prefix: /__rudel/{id}/.
+	// 4. Path prefix: /__rudel/{id}/ (resolves both sandboxes and apps).
 	if ( ! $sandbox_id ) {
 		$uri = $_SERVER['REQUEST_URI'] ?? '';
 		if ( preg_match( '#^/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $uri, $m ) ) {
-			if ( $validate_id( $m[1] ) ) {
-				$path = $validate_path( $m[1] );
-				if ( $path ) {
-					$sandbox_id   = $m[1];
-					$sandbox_path = $path;
-				}
-			}
+			$try_resolve( $m[1] );
 		}
 	}
 
@@ -173,14 +186,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		if ( $host ) {
 			$parts = explode( '.', $host );
 			if ( count( $parts ) >= 3 ) {
-				$subdomain = $parts[0];
-				if ( $validate_id( $subdomain ) ) {
-					$path = $validate_path( $subdomain );
-					if ( $path ) {
-						$sandbox_id   = $subdomain;
-						$sandbox_path = $path;
-					}
-				}
+				$try_resolve( $parts[0] );
 			}
 		}
 	}
