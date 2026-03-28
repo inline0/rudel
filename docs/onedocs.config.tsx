@@ -1,5 +1,5 @@
 import { defineConfig } from "onedocs/config";
-import { Box, Database, Camera, Upload, Clock, Terminal, Bot, Layers } from "lucide-react";
+import { Box, Globe, Database, GitBranch, Camera, Shield, Terminal, Bot } from "lucide-react";
 import { HeroLeft } from "./src/components/hero-left";
 
 const iconClass = "h-5 w-5 text-fd-primary";
@@ -26,48 +26,49 @@ export default defineConfig({
       {
         title: "Sandboxes",
         description:
-          "Isolated WordPress environments with their own database and wp-content directory.",
+          "Disposable environments for development, testing, and AI agents. Create and destroy in seconds.",
         icon: <Box className={iconClass} />,
       },
       {
-        title: "Database Cloning",
+        title: "Multi-Tenant Apps",
         description:
-          "Clone your host database into a sandbox with automatic URL rewriting.",
+          "Permanent domain-routed sites on one WordPress install. No multisite overhead.",
+        icon: <Globe className={iconClass} />,
+      },
+      {
+        title: "Three Engines",
+        description:
+          "MySQL for compatibility, SQLite for portability, multisite sub-site for network environments.",
         icon: <Database className={iconClass} />,
+      },
+      {
+        title: "GitHub Integration",
+        description:
+          "Push changes and create PRs via the GitHub API. No git binary needed.",
+        icon: <GitBranch className={iconClass} />,
       },
       {
         title: "Snapshots",
         description:
-          "Point-in-time snapshots for any sandbox. Restore instantly.",
+          "Point-in-time snapshots with instant restore. Rollback any environment in seconds.",
         icon: <Camera className={iconClass} />,
       },
       {
-        title: "Export & Import",
+        title: "Full Isolation",
         description:
-          "Package sandboxes as zip archives. Share and deploy anywhere.",
-        icon: <Upload className={iconClass} />,
+          "Isolated databases, content, auth salts, object cache, and email per environment.",
+        icon: <Shield className={iconClass} />,
       },
       {
-        title: "Auto Cleanup",
+        title: "WP-CLI & PHP API",
         description:
-          "Configurable expiry and automatic cleanup of stale sandboxes.",
-        icon: <Clock className={iconClass} />,
-      },
-      {
-        title: "WP-CLI",
-        description: "Full CLI interface for all sandbox operations.",
+          "Complete CLI and programmatic API. Everything through Rudel\\Rudel.",
         icon: <Terminal className={iconClass} />,
-      },
-      {
-        title: "Templates",
-        description:
-          "Save sandboxes as reusable templates for rapid provisioning of new environments.",
-        icon: <Layers className={iconClass} />,
       },
       {
         title: "Agent Ready",
         description:
-          "Built for AI coding agents with scoped WP-CLI and CLAUDE.md support per sandbox.",
+          "Built for AI coding agents with scoped WP-CLI, error logging, and CLAUDE.md per environment.",
         icon: <Bot className={iconClass} />,
       },
     ],
