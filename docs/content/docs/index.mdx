@@ -5,29 +5,37 @@ description: Welcome to the Rudel documentation.
 
 # Introduction
 
-Rudel lets you create fully isolated WordPress sandbox environments from within an existing WordPress installation. Each sandbox gets its own database, its own `wp-content` directory, and its own WP-CLI scope. Create one in under two seconds, use it however you like, and destroy it when you're done.
+Rudel is a WordPress isolation layer. It creates fully isolated environments within a single WordPress installation, each with their own database, `wp-content` directory, and WP-CLI scope. Environments can be disposable sandboxes for development and testing, or permanent apps that serve real traffic on their own domains.
 
 ## Why Rudel?
 
-WordPress doesn't have a good answer for disposable environments. Testing a plugin change on a live site is risky. Spinning up Docker or a local dev stack is heavy. Staging environments are expensive to maintain and slow to provision.
+WordPress doesn't have a good answer for isolated environments. Testing changes on a live site is risky. Spinning up Docker or a local dev stack is heavy. Staging environments are expensive to maintain. And if you're running multiple client sites, you're managing multiple WordPress installations with separate databases, updates, and backups.
 
-If you're working with AI coding agents, the problem is even sharper. Agents need a safe, scoped WordPress context where they can make changes, run commands, and iterate without risk to real data. That doesn't exist out of the box.
+Rudel solves all of this with a single plugin. One WordPress install can serve any number of isolated environments. Sandboxes for development, apps for production. Each one invisible to the others, each one disposable or permanent as needed.
 
-Rudel solves this with a single plugin. Install it, create a sandbox, and you have a fully isolated WordPress environment that shares the host's core files but nothing else. No Docker, no DNS, no separate database server.
+For AI coding agents, Rudel provides the missing piece: a safe, scoped WordPress context where agents can make changes, run commands, and iterate without risk to real data. Every environment gets a `CLAUDE.md` with the context agents need.
+
+## Two modes
+
+**Sandboxes** are disposable, temporary environments for development, testing, and AI agent workflows. They're accessed via a URL path prefix (`/__rudel/{id}/`) and can be created, snapshotted, promoted to host, and destroyed in seconds. They integrate with git and GitHub for branch-based workflows.
+
+**Apps** are permanent, production-grade environments routed by domain. Point `client-a.com` at your WordPress install, create an app for that domain, and it runs as a fully independent site. No multisite overhead, no shared plugin headaches.
+
+Both modes share the same isolation layer: isolated database tables (with a `rudel_` prefix that can never collide with the host), isolated `wp-content`, per-environment authentication salts, object cache namespacing, and email blocking.
 
 ## How it works
 
-On activation, Rudel adds one line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects whether the incoming request is targeting a sandbox, and if so, rewires all the relevant WordPress constants to point to that sandbox's isolated environment. When no sandbox is active, the bootstrap does nothing and WordPress boots normally.
+On activation, Rudel adds one line to `wp-config.php` that loads a bootstrap file before WordPress boots. For every incoming request, the bootstrap checks whether it targets an environment (via domain, path prefix, cookie, header, or subdomain). If it does, it rewires WordPress's constants to point to that environment's isolated resources. If it doesn't, WordPress boots normally with zero overhead.
 
-Each sandbox lives in its own directory under `wp-content/rudel-sandboxes/`. The directory contains a `wp-cli.yml` that auto-scopes CLI commands, a `bootstrap.php` that sets the sandbox's constants, and an isolated `wp-content/` with its own themes, plugins, and uploads.
-
-The database layer is configurable. By default, sandboxes use MySQL with an isolated table prefix in the same database as the host. You can also use SQLite for portable, file-based isolation, or create sandboxes as multisite sub-sites on multisite installations.
+Each environment lives in its own directory with a `.rudel.json` metadata file, a `wp-cli.yml` that auto-scopes CLI commands, and an isolated `wp-content` with its own themes, plugins, and uploads.
 
 ## Key features
 
-Rudel is designed around a few principles: sandboxes should be instant to create, fully isolated from each other and the host, and disposable without cleanup headaches.
+Rudel is designed around a few principles: environments should be instant to create, fully isolated, and managed entirely through WP-CLI and the PHP API.
 
-Beyond basic creation and destruction, Rudel supports point-in-time snapshots for easy rollback, reusable templates for standardized starting points, zip-based export and import for sharing environments, and configurable auto-cleanup for stale sandboxes. Everything is driven through WP-CLI, and every sandbox includes a `CLAUDE.md` file so AI coding agents have the context they need.
+Beyond basic creation and destruction, sandboxes support point-in-time snapshots, reusable templates, zip-based export and import, promotion to replace the host site, per-environment error logging, and git/GitHub integration for branch-based workflows with merge-based cleanup. Apps support domain mapping with multiple domains per app.
+
+Everything is accessible through the `Rudel\Rudel` static class for programmatic use, and through the `wp rudel` CLI for command-line workflows.
 
 ## Requirements
 

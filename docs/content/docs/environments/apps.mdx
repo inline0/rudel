@@ -1,0 +1,88 @@
+---
+title: Apps
+description: Permanent domain-routed WordPress environments for multi-tenant hosting.
+---
+
+# Apps
+
+Apps are permanent, production-grade environments that serve traffic on their own domains. Unlike sandboxes, which are temporary and accessed via path prefixes, apps own their domain and run as fully independent WordPress sites.
+
+## Creating an app
+
+```bash
+wp rudel app create --domain=client-a.com
+```
+
+This creates an isolated environment, maps the domain to it, and sets up the database tables and `wp-content` directory. The name is derived from the domain automatically, or you can specify one:
+
+```bash
+wp rudel app create --domain=client-a.com --name="Client A Website"
+```
+
+To start with a copy of the host site's data:
+
+```bash
+wp rudel app create --domain=client-a.com --clone-all
+```
+
+## Domain management
+
+Each app has at least one domain. You can add more:
+
+```bash
+wp rudel app domain-add client-a-com-a1b2 --domain=www.client-a.com
+```
+
+And remove them:
+
+```bash
+wp rudel app domain-remove client-a-com-a1b2 --domain=www.client-a.com
+```
+
+An app must always have at least one domain. Domains are stored in the app's `.rudel.json` metadata and compiled into a `domains.json` lookup file that the bootstrap reads on every request.
+
+## How routing works
+
+When a request comes in, the bootstrap checks the `HTTP_HOST` header against the domain map before any sandbox detection runs. If the host matches an app's domain, the environment is activated and WordPress boots in that app's context. The app's `WP_SITEURL` and `WP_HOME` are set to the domain itself, not a path prefix.
+
+This means apps work exactly like standalone WordPress sites from the browser's perspective. No path prefix in URLs, no special cookies. Just a normal domain pointing to a fully isolated WordPress environment.
+
+## Managing apps
+
+List all apps:
+
+```bash
+wp rudel app list
+```
+
+View details:
+
+```bash
+wp rudel app info client-a-com-a1b2
+```
+
+Destroy an app (removes database tables, `wp-content`, and domain mappings):
+
+```bash
+wp rudel app destroy client-a-com-a1b2 --force
+```
+
+## Admin bar
+
+When you're logged into an app's wp-admin, a blue indicator with the app ID appears in the admin bar. Unlike sandboxes, there's no exit link since apps are permanent and don't have a "host" to return to.
+
+## Differences from sandboxes
+
+Apps and sandboxes share the same isolation layer but differ in intent:
+
+| | Sandboxes | Apps |
+|---|---|---|
+| **Lifecycle** | Temporary, disposable | Permanent |
+| **Routing** | Path prefix + cookie | Domain-based |
+| **Snapshots** | Yes | No |
+| **Promote to host** | Yes | No |
+| **Git/GitHub** | Yes | No |
+| **Email** | Blocked by default | Allowed by default |
+| **Use case** | Development, testing, AI agents | Multi-tenant hosting, client sites |
+
+Both use the same `rudel_` table prefix safety guard, the same `wp-content` isolation, and the same authentication salt isolation.

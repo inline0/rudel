@@ -6,7 +6,7 @@ const iconClass = "h-5 w-5 text-fd-primary";
 
 export default defineConfig({
   title: "Rudel",
-  description: "Sandboxed WordPress environments with isolated databases and content.",
+  description: "The WordPress isolation layer for sandboxes and multi-tenant apps.",
   logo: {
     light: "/logo-light.svg",
     dark: "/logo-dark.svg",

@@ -279,6 +279,63 @@ wp rudel template delete <name> [--force]
 | `<name>` | Template name (required) |
 | `--force` | Skip confirmation prompt |
 
+## App commands
+
+### `wp rudel app create`
+
+Create a new app (permanent domain-routed environment).
+
+```bash
+wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-all]
+```
+
+| Option | Description |
+|---|---|
+| `--domain=<domain>` | Primary domain for the app (required) |
+| `--name=<name>` | Human-readable name (derived from domain if omitted) |
+| `--engine=<engine>` | Database engine: `mysql` (default) or `sqlite` |
+| `--clone-all` | Clone host database and content |
+
+### `wp rudel app list`
+
+List all apps.
+
+```bash
+wp rudel app list [--format=<format>]
+```
+
+### `wp rudel app info`
+
+Show app details.
+
+```bash
+wp rudel app info <id> [--format=<format>]
+```
+
+### `wp rudel app destroy`
+
+Destroy an app and remove all domain mappings.
+
+```bash
+wp rudel app destroy <id> [--force]
+```
+
+### `wp rudel app domain-add`
+
+Add a domain to an existing app.
+
+```bash
+wp rudel app domain-add <id> --domain=<domain>
+```
+
+### `wp rudel app domain-remove`
+
+Remove a domain from an app.
+
+```bash
+wp rudel app domain-remove <id> --domain=<domain>
+```
+
 ## Browser endpoints
 
 ### Exit sandbox

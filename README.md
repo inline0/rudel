@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Sandboxed WordPress environments
+  The WordPress isolation layer
 </p>
 
 <p align="center">

@@ -1,11 +1,11 @@
 ---
 title: API
-description: The Rudel\Rudel class provides a complete PHP API for sandbox management.
+description: The Rudel\Rudel class provides a complete PHP API for environment management.
 ---
 
 # PHP API
 
-Everything in Rudel is accessible through the `Rudel\Rudel` static class. It's the single entry point for checking sandbox context, managing sandboxes, and building UI around them.
+Everything in Rudel is accessible through the `Rudel\Rudel` static class. It's the single entry point for checking environment context, managing sandboxes and apps, and building UI around them.
 
 ```php
 use Rudel\Rudel;
@@ -296,9 +296,44 @@ $pr = Rudel::pr( 'my-sandbox-a1b2', 'New header template' );
 echo $pr['html_url']; // https://github.com/owner/my-theme/pull/4
 ```
 
+## App management
+
+### `Rudel::is_app()`
+
+Returns `true` if the current request is running inside an app (permanent environment).
+
+### `Rudel::app_id()`
+
+Returns the current app ID, or `null`.
+
+### `Rudel::apps()`
+
+Returns an array of all app instances.
+
+### `Rudel::app( $id )`
+
+Returns a single app by ID, or `null`.
+
+### `Rudel::create_app( $name, $domains, $options )`
+
+Creates a new app with the given domains.
+
+```php
+$app = Rudel::create_app( 'Client A', [ 'client-a.com', 'www.client-a.com' ] );
+echo $app->get_url(); // https://client-a.com/
+```
+
+### `Rudel::destroy_app( $id )`
+
+Destroys an app and removes all domain mappings.
+
+### `Rudel::apps_dir()`
+
+Returns the absolute path to the apps directory.
+
 ## Admin bar
 
-When a sandbox is active in the browser, Rudel automatically adds a red indicator to the WordPress admin bar showing the sandbox ID with an exit link. This requires no code from the developer. It works on both the frontend and wp-admin.
+When an environment is active in the browser, Rudel adds an indicator to the WordPress admin bar. Sandboxes show a red indicator with the sandbox ID and an exit link. Apps show a blue indicator with the app ID. This requires no code from the developer.
 
 ## Building custom UI
 

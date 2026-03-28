@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: Install Rudel and create your first sandbox.
+description: Install Rudel and create your first environment.
 ---
 
 # Getting Started
@@ -41,9 +41,9 @@ On activation, Rudel adds a single line to your `wp-config.php`:
 require_once __DIR__ . '/wp-content/plugins/rudel/bootstrap.php';
 ```
 
-This bootstrap file runs before `wp-settings.php` and handles all sandbox detection and isolation. When no sandbox is active, it does nothing and WordPress boots normally with zero overhead.
+This bootstrap file runs before `wp-settings.php` and handles all environment detection and isolation. When no environment is active, it does nothing and WordPress boots normally with zero overhead.
 
-You can verify everything is in place with:
+Verify everything is in place:
 
 ```bash
 wp rudel status
@@ -56,57 +56,58 @@ Rudel works out of the box with sensible defaults. If you need to customize the 
 | Constant | Default | Description |
 |---|---|---|
 | `RUDEL_CLI_COMMAND` | `rudel` | WP-CLI command name. Set to e.g. `sandbox` for white-label use. |
-| `RUDEL_PATH_PREFIX` | `__rudel` | URL path prefix for sandbox access. Change to customize the URL structure. |
+| `RUDEL_PATH_PREFIX` | `__rudel` | URL path prefix for sandbox access. |
+| `RUDEL_GITHUB_TOKEN` | (none) | GitHub personal access token for push/PR integration. |
 
-## Create your first sandbox
+## Create a sandbox
 
 ```bash
-wp rudel create --name="my-first-sandbox"
+wp rudel create --name="my-sandbox"
 ```
 
-This creates a blank sandbox with its own database and an empty `wp-content` directory. The output includes the sandbox ID, filesystem path, and access URL.
-
-To work with the sandbox via WP-CLI, just `cd` into its directory:
+This creates a disposable environment with its own database and `wp-content`. To work with it via WP-CLI, `cd` into its directory:
 
 ```bash
-cd /path/to/sandboxes/my-first-sandbox-a1b2
+cd /path/to/environments/my-sandbox-a1b2
 wp post list
 ```
 
-Any `wp` command run from within the sandbox directory is automatically scoped to that sandbox's database and content, thanks to the auto-generated `wp-cli.yml`.
-
-If you'd rather start with a copy of your host site, use `--clone-all`:
+Or clone your entire host site:
 
 ```bash
-wp rudel create --name="full-clone" --clone-all
+wp rudel create --clone-all
 ```
 
-This clones the host database along with all themes, plugins, and uploads. See [Creating Sandboxes](/docs/sandboxes/creating) for all the available options.
+See [Creating Environments](/docs/environments/creating) for all options including database engines and GitHub integration.
 
-## Accessing sandboxes in the browser
+## Create an app
+
+```bash
+wp rudel app create --domain=client-a.com
+```
+
+This creates a permanent environment routed by domain. Point your DNS at the server, and `client-a.com` serves a fully independent WordPress site from the same installation.
+
+See [Apps](/docs/environments/apps) for domain management and configuration.
+
+## Accessing environments in the browser
 
 Sandboxes are accessible via a path prefix that works without any DNS or server configuration:
 
 ```
-example.com/__rudel/my-first-sandbox-a1b2/
+example.com/__rudel/my-sandbox-a1b2/
 ```
 
-When you visit a sandbox URL, Rudel automatically sets a browser cookie so that subsequent requests, including `/wp-admin/`, stay in the sandbox context. You can browse the sandbox frontend, log into the admin, and manage content as if it were a standalone site.
+When you visit a sandbox URL, Rudel automatically sets a browser cookie so that subsequent requests, including `/wp-admin/`, stay in the sandbox context. To switch back to the host, append `?adminExit` to any URL.
 
-To switch back to the host, append `?adminExit` to any URL:
-
-```
-example.com/?adminExit
-```
-
-Sandboxes can also be accessed via subdomains (`sandbox-id.example.com`, requires wildcard DNS), the `X-Rudel-Sandbox` header (for programmatic access), or the `rudel_sandbox` cookie directly.
+Apps are accessed by their domain directly. No path prefix, no cookie needed.
 
 ## What's next
 
-Once you're comfortable creating and using sandboxes, explore the more advanced features:
+Once you're comfortable creating and using environments, explore the more advanced features:
 
 - [Snapshots](/docs/features/snapshots) for point-in-time rollbacks
 - [Templates](/docs/features/templates) for reusable starting points
 - [Git integration](/docs/features/git) for branch-based workflows and GitHub sync
 - [Promote to host](/docs/features/promote) to replace the host site with a sandbox's state
-- [PHP API](/docs/api) for building custom UI and automation around Rudel
+- [PHP API](/docs/api) for building custom UI and automation

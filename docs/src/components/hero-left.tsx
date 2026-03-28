@@ -21,13 +21,14 @@ export async function HeroLeft() {
   return (
     <>
       <h1 className="text-left text-4xl font-medium leading-tight text-fd-foreground sm:text-5xl">
-        Sandboxed WordPress
+        The WordPress
         <br />
-        environments
+        isolation layer
       </h1>
       <p className="text-left max-w-xl leading-normal text-fd-muted-foreground sm:text-lg sm:leading-normal text-balance mt-4">
-        Isolated WordPress environments with their own database, wp-content
-        directory, and WP-CLI scope. Create, snapshot, and destroy in seconds.
+        Isolated environments for sandboxes and multi-tenant apps. One
+        WordPress install, unlimited sites. Create, snapshot, and destroy in
+        seconds.
       </p>
       <div className="mt-8 w-full">
         <CodeBlock
