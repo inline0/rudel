@@ -15,10 +15,13 @@ class AppCommandTest extends RudelTestCase
         if (! defined('RUDEL_PLUGIN_DIR')) {
             define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
         }
+        if (! defined('WP_HOME')) {
+            define('WP_HOME', 'https://host.test');
+        }
 
         \WP_CLI::reset();
 
-        $manager = new \Rudel\AppManager($this->tmpDir);
+        $manager = new \Rudel\AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
         return new \Rudel\CLI\AppCommand($manager);
     }
 
@@ -104,5 +107,57 @@ class AppCommandTest extends RudelTestCase
         $this->assertCount(2, \WP_CLI::$successes);
         $this->assertStringContainsString('Domain added', \WP_CLI::$successes[0]);
         $this->assertStringContainsString('Domain removed', \WP_CLI::$successes[1]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateSandboxOutputsSuccess(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['domain' => 'client-a.com', 'engine' => 'sqlite']);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->create_sandbox([$appId], []);
+
+        $this->assertCount(1, \WP_CLI::$successes);
+        $this->assertStringContainsString('Sandbox created from app', \WP_CLI::$successes[0]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testBackupAndRestoreReportSuccess(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['domain' => 'backup-app.com', 'engine' => 'sqlite']);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->backup([$appId], ['name' => 'baseline']);
+        $cmd->restore([$appId], ['backup' => 'baseline', 'force' => true]);
+
+        $this->assertCount(2, \WP_CLI::$successes);
+        $this->assertStringContainsString('App backup created', \WP_CLI::$successes[0]);
+        $this->assertStringContainsString('App restored from backup', \WP_CLI::$successes[1]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeployReportsSuccessAndBackup(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['domain' => 'deploy-app.com', 'engine' => 'sqlite']);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->create_sandbox([$appId], ['name' => 'Deploy Sandbox']);
+        $sandboxId = preg_replace('/^Sandbox created from app: ([^ ]+)$/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->deploy([$appId], ['from' => $sandboxId, 'backup' => 'before-deploy', 'force' => true]);
+
+        $this->assertCount(1, \WP_CLI::$successes);
+        $this->assertStringContainsString('Sandbox deployed to app', \WP_CLI::$successes[0]);
+        $this->assertContains('  Backup:  before-deploy', array_filter(\WP_CLI::$log, fn($m) => is_string($m)));
     }
 }

@@ -794,7 +794,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Source sandbox not found');
+        $this->expectExceptionMessage('Source environment not found');
         $manager->create('Orphan Clone', ['engine' => 'sqlite', 'clone_from' => 'nonexistent-id']);
     }
 
@@ -823,6 +823,34 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->assertNotNull($clone->clone_source);
         $this->assertSame('sandbox', $clone->clone_source['type']);
         $this->assertSame($source->id, $clone->clone_source['source_id']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromAppCopiesStateIntoSandbox(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $sandboxesDir = $this->tmpDir . '/sandboxes';
+        $appsDir = $this->tmpDir . '/apps';
+        $appManager = new \Rudel\AppManager($appsDir, $sandboxesDir);
+        $sandboxManager = new EnvironmentManager($sandboxesDir, $appsDir);
+
+        $app = $appManager->create('Client App', ['client-a.com'], ['engine' => 'sqlite']);
+        file_put_contents($app->get_wp_content_path() . '/plugins/app-only.txt', 'app');
+
+        $clone = $sandboxManager->create('App Sandbox', ['engine' => 'sqlite', 'clone_from' => $app->id]);
+
+        $pdo = new \PDO('sqlite:' . $clone->get_db_path());
+        $prefix = 'rudel_' . substr(md5($clone->id), 0, 6) . '_';
+        $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
+
+        $this->assertSame('app', file_get_contents($clone->get_wp_content_path() . '/plugins/app-only.txt'));
+        $this->assertStringContainsString($clone->id, $siteurl);
+        $this->assertStringNotContainsString('client-a.com', $siteurl);
+        $this->assertSame('app', $clone->clone_source['type']);
+        $this->assertSame($app->id, $clone->clone_source['source_id']);
     }
 
     // Engine validation

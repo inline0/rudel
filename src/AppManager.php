@@ -8,17 +8,23 @@
 namespace Rudel;
 
 /**
- * Manages apps (permanent isolated WordPress environments routed by domain).
- * Delegates sandbox lifecycle operations to EnvironmentManager.
+ * Manages apps and the lifecycle bridge between apps and sandboxes.
  */
 class AppManager {
 
 	/**
-	 * Sandbox manager instance (handles the actual create/destroy/list).
+	 * App environment manager.
 	 *
 	 * @var EnvironmentManager
 	 */
 	private EnvironmentManager $manager;
+
+	/**
+	 * Sandbox environment manager.
+	 *
+	 * @var EnvironmentManager
+	 */
+	private EnvironmentManager $sandbox_manager;
 
 	/**
 	 * Absolute path to the apps directory.
@@ -28,26 +34,37 @@ class AppManager {
 	private string $apps_dir;
 
 	/**
+	 * Absolute path to the sandboxes directory.
+	 *
+	 * @var string
+	 */
+	private string $sandboxes_dir;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param string|null $apps_dir Optional override for the apps directory.
+	 * @param string|null $sandboxes_dir Optional override for the sandboxes directory.
 	 */
-	public function __construct( ?string $apps_dir = null ) {
-		$this->apps_dir = $apps_dir ?? $this->get_default_apps_dir();
-		$this->manager  = new EnvironmentManager( $this->apps_dir );
+	public function __construct( ?string $apps_dir = null, ?string $sandboxes_dir = null ) {
+		$this->apps_dir      = $apps_dir ?? $this->get_default_apps_dir();
+		$this->sandboxes_dir = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
+		$this->manager       = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir );
+		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir );
 	}
 
 	/**
 	 * Create a new app.
 	 *
-	 * @param string $name    Human-readable name.
+	 * @param string $name Human-readable name.
 	 * @param array  $domains Array of domain names for this app.
-	 * @param array  $options Optional settings (engine, clone flags).
+	 * @param array  $options Optional settings (engine, clone flags, clone source).
 	 * @return Environment The newly created app environment.
-	 *
-	 * @throws \InvalidArgumentException If domains are invalid, conflicting, or subsite engine requested.
 	 */
 	public function create( string $name, array $domains, array $options = array() ): Environment {
+		$domains = Hooks::filter( 'rudel_app_domains', $domains, $name, $this );
+		$options = Hooks::filter( 'rudel_app_create_options', $options, $name, $domains, $this );
+
 		if ( empty( $domains ) ) {
 			throw new \InvalidArgumentException( 'At least one domain is required for an app.' );
 		}
@@ -71,11 +88,23 @@ class AppManager {
 		$options['domains']     = $domains;
 		$options['skip_limits'] = true;
 
-		$app = $this->manager->create( $name, $options );
+		$context = array(
+			'name'    => $name,
+			'domains' => $domains,
+			'options' => $options,
+		);
+		Hooks::action( 'rudel_before_app_create', $context );
 
-		$this->rebuild_domain_map();
+		try {
+			$app = $this->manager->create( $name, $options );
+			$this->rebuild_domain_map();
+			Hooks::action( 'rudel_after_app_create', $app, $context );
 
-		return $app;
+			return $app;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_create_failed', $context, $e );
+			throw $e;
+		}
 	}
 
 	/**
@@ -104,64 +133,244 @@ class AppManager {
 	 * @return bool True on success.
 	 */
 	public function destroy( string $id ): bool {
-		$result = $this->manager->destroy( $id );
-		if ( $result ) {
-			$this->rebuild_domain_map();
+		$app = $this->get( $id );
+		if ( ! $app ) {
+			return false;
 		}
-		return $result;
+
+		$context = array(
+			'app' => $app,
+		);
+		Hooks::action( 'rudel_before_app_destroy', $context );
+
+		try {
+			$result = $this->manager->destroy( $id );
+			if ( $result ) {
+				$this->rebuild_domain_map();
+				Hooks::action( 'rudel_after_app_destroy', $context );
+			}
+
+			return $result;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_destroy_failed', $context, $e );
+			throw $e;
+		}
+	}
+
+	/**
+	 * Create a sandbox from an app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $name Sandbox name.
+	 * @param array  $options Optional sandbox settings.
+	 * @return Environment
+	 */
+	public function create_sandbox( string $app_id, string $name, array $options = array() ): Environment {
+		$app = $this->require_app( $app_id );
+
+		$options             = Hooks::filter( 'rudel_app_create_sandbox_options', $options, $app, $name, $this );
+		$options['clone_from'] = $app->id;
+		$options['engine']     = $options['engine'] ?? $app->engine;
+		unset( $options['type'], $options['domains'], $options['skip_limits'] );
+
+		$context = array(
+			'app'     => $app,
+			'name'    => $name,
+			'options' => $options,
+		);
+		Hooks::action( 'rudel_before_app_create_sandbox', $context );
+
+		try {
+			$sandbox = $this->sandbox_manager->create( $name, $options );
+			Hooks::action( 'rudel_after_app_create_sandbox', $sandbox, $context );
+
+			return $sandbox;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_create_sandbox_failed', $context, $e );
+			throw $e;
+		}
+	}
+
+	/**
+	 * Create a backup of an app.
+	 *
+	 * @param string $id App identifier.
+	 * @param string $name Backup name.
+	 * @return array<string, mixed>
+	 */
+	public function backup( string $id, string $name ): array {
+		$app = $this->require_app( $id );
+
+		$context = array(
+			'app'  => $app,
+			'name' => $name,
+		);
+		Hooks::action( 'rudel_before_app_backup', $context );
+
+		try {
+			$meta = $this->backup_manager( $app )->create( $name );
+			Hooks::action( 'rudel_after_app_backup', $meta, $context );
+
+			return $meta;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_backup_failed', $context, $e );
+			throw $e;
+		}
+	}
+
+	/**
+	 * List backups for an app.
+	 *
+	 * @param string $id App identifier.
+	 * @return array<int, array<string, mixed>>
+	 */
+	public function backups( string $id ): array {
+		$app = $this->require_app( $id );
+		return $this->backup_manager( $app )->list_snapshots();
+	}
+
+	/**
+	 * Restore an app from a backup.
+	 *
+	 * @param string $id App identifier.
+	 * @param string $name Backup name.
+	 * @return void
+	 */
+	public function restore( string $id, string $name ): void {
+		$app = $this->require_app( $id );
+
+		$context = array(
+			'app'  => $app,
+			'name' => $name,
+		);
+		Hooks::action( 'rudel_before_app_restore', $context );
+
+		try {
+			$this->backup_manager( $app )->restore( $name );
+			Hooks::action( 'rudel_after_app_restore', $context );
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_restore_failed', $context, $e );
+			throw $e;
+		}
+	}
+
+	/**
+	 * Deploy a sandbox into an app after creating an app backup.
+	 *
+	 * @param string      $app_id App identifier.
+	 * @param string      $sandbox_id Sandbox identifier.
+	 * @param string|null $backup_name Optional backup name.
+	 * @return array<string, mixed>
+	 */
+	public function deploy( string $app_id, string $sandbox_id, ?string $backup_name = null ): array {
+		$app = $this->require_app( $app_id );
+		$sandbox = $this->sandbox_manager->get( $sandbox_id );
+
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		}
+
+		if ( $sandbox->is_subsite() ) {
+			throw new \InvalidArgumentException( 'Apps cannot be deployed from subsite-engine sandboxes.' );
+		}
+
+		if ( $sandbox->engine !== $app->engine ) {
+			throw new \InvalidArgumentException(
+				sprintf( 'Cannot deploy across engines: sandbox is %s, app is %s.', $sandbox->engine, $app->engine )
+			);
+		}
+
+		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
+		$context = array(
+			'app'         => $app,
+			'sandbox'     => $sandbox,
+			'backup_name' => $backup_name,
+		);
+		Hooks::action( 'rudel_before_app_deploy', $context );
+
+		try {
+			$backup = $this->backup( $app_id, $backup_name );
+			$state  = $this->manager->replace_environment_state( $sandbox, $app );
+
+			$result = array(
+				'app_id'       => $app->id,
+				'sandbox_id'   => $sandbox->id,
+				'backup'       => $backup,
+				'tables_copied' => $state['tables_copied'],
+			);
+			Hooks::action( 'rudel_after_app_deploy', $result, $context );
+
+			return $result;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_deploy_failed', $context, $e );
+			throw $e;
+		}
 	}
 
 	/**
 	 * Add a domain to an existing app.
 	 *
-	 * @param string $id     App identifier.
+	 * @param string $id App identifier.
 	 * @param string $domain Domain name to add.
 	 * @return void
-	 *
-	 * @throws \RuntimeException If the app is not found or domain is invalid.
 	 */
 	public function add_domain( string $id, string $domain ): void {
-		$app = $this->get( $id );
-		if ( ! $app ) {
-			throw new \RuntimeException( sprintf( 'App not found: %s', $id ) );
-		}
+		$app = $this->require_app( $id );
 
 		$domain = $this->normalize_domain( $domain );
 		$this->validate_domain( $domain );
 		$this->check_domain_conflict( $domain, $id );
 
-		$domains   = array_map( array( $this, 'normalize_domain' ), $app->domains ?? array() );
-		$domains[] = $domain;
-		$app->update_meta( 'domains', array_values( array_unique( $domains ) ) );
-		$this->rebuild_domain_map();
+		$context = array(
+			'app'    => $app,
+			'domain' => $domain,
+		);
+		Hooks::action( 'rudel_before_app_domain_add', $context );
+
+		try {
+			$domains   = array_map( array( $this, 'normalize_domain' ), $app->domains ?? array() );
+			$domains[] = $domain;
+			$app->update_meta( 'domains', array_values( array_unique( $domains ) ) );
+			$this->rebuild_domain_map();
+			Hooks::action( 'rudel_after_app_domain_add', $context );
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_domain_add_failed', $context, $e );
+			throw $e;
+		}
 	}
 
 	/**
 	 * Remove a domain from an app.
 	 *
-	 * @param string $id     App identifier.
+	 * @param string $id App identifier.
 	 * @param string $domain Domain name to remove.
 	 * @return void
-	 *
-	 * @throws \RuntimeException If the app is not found.
-	 * @throws \InvalidArgumentException If removing the last domain.
 	 */
 	public function remove_domain( string $id, string $domain ): void {
-		$app = $this->get( $id );
-		if ( ! $app ) {
-			throw new \RuntimeException( sprintf( 'App not found: %s', $id ) );
-		}
+		$app = $this->require_app( $id );
 
 		$domain  = $this->normalize_domain( $domain );
 		$domains = array_map( array( $this, 'normalize_domain' ), $app->domains ?? array() );
-		$domains = array_values( array_filter( $domains, fn( $d ) => $d !== $domain ) );
+		$domains = array_values( array_filter( $domains, fn( $item ) => $item !== $domain ) );
 
 		if ( empty( $domains ) ) {
 			throw new \InvalidArgumentException( 'Cannot remove the last domain from an app.' );
 		}
 
-		$app->update_meta( 'domains', $domains );
-		$this->rebuild_domain_map();
+		$context = array(
+			'app'    => $app,
+			'domain' => $domain,
+		);
+		Hooks::action( 'rudel_before_app_domain_remove', $context );
+
+		try {
+			$app->update_meta( 'domains', $domains );
+			$this->rebuild_domain_map();
+			Hooks::action( 'rudel_after_app_domain_remove', $context );
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_domain_remove_failed', $context, $e );
+			throw $e;
+		}
 	}
 
 	/**
@@ -234,12 +443,43 @@ class AppManager {
 	}
 
 	/**
+	 * Create a backup manager for an app.
+	 *
+	 * @param Environment $app App environment.
+	 * @return SnapshotManager
+	 */
+	private function backup_manager( Environment $app ): SnapshotManager {
+		return new SnapshotManager(
+			$app,
+			array(
+				'kind'         => 'backup',
+				'storage_dir'  => 'backups',
+				'metadata_file' => 'backup.json',
+				'owner_id_key' => 'app_id',
+			)
+		);
+	}
+
+	/**
+	 * Resolve an app or fail.
+	 *
+	 * @param string $id App identifier.
+	 * @return Environment
+	 */
+	private function require_app( string $id ): Environment {
+		$app = $this->get( $id );
+		if ( ! $app ) {
+			throw new \RuntimeException( sprintf( 'App not found: %s', $id ) );
+		}
+
+		return $app;
+	}
+
+	/**
 	 * Validate a domain name.
 	 *
 	 * @param string $domain Domain to validate.
 	 * @return void
-	 *
-	 * @throws \InvalidArgumentException If the domain is invalid.
 	 */
 	private function validate_domain( string $domain ): void {
 		if ( ! preg_match( '/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/', $domain ) ) {
@@ -260,11 +500,9 @@ class AppManager {
 	/**
 	 * Check for domain conflicts with existing apps.
 	 *
-	 * @param string      $domain    Domain to check.
-	 * @param string|null $exclude_id App ID to exclude from the check (for updates).
+	 * @param string      $domain Domain to check.
+	 * @param string|null $exclude_id App ID to exclude from the check.
 	 * @return void
-	 *
-	 * @throws \InvalidArgumentException If the domain is already mapped to another app.
 	 */
 	private function check_domain_conflict( string $domain, ?string $exclude_id = null ): void {
 		$map = $this->get_domain_map();
@@ -289,5 +527,21 @@ class AppManager {
 		}
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
 		return $abspath . 'wp-content/rudel-apps';
+	}
+
+	/**
+	 * Get the default sandboxes directory.
+	 *
+	 * @return string Absolute path.
+	 */
+	private function get_default_sandboxes_dir(): string {
+		if ( defined( 'RUDEL_ENVIRONMENTS_DIR' ) ) {
+			return RUDEL_ENVIRONMENTS_DIR;
+		}
+		if ( defined( 'WP_CONTENT_DIR' ) ) {
+			return WP_CONTENT_DIR . '/rudel-environments';
+		}
+		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
+		return $abspath . 'wp-content/rudel-environments';
 	}
 }

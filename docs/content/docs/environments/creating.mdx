@@ -49,15 +49,15 @@ wp rudel create --name="themes-plugins" --clone-themes --clone-plugins
 | `--clone-uploads` | Host uploads directory |
 | `--clone-all` | All of the above |
 
-## Cloning from another sandbox
+## Cloning from another environment
 
-You can also create a new sandbox by copying an existing one:
+You can also create a new sandbox by copying an existing sandbox or app:
 
 ```bash
 wp rudel create --name="copy" --clone-from=my-sandbox-a1b2
 ```
 
-This duplicates the source sandbox's database and `wp-content` directory, then rewrites all URLs and table prefixes for the new sandbox. Both sandboxes must use the same engine.
+This duplicates the source environment's database and `wp-content` directory, then rewrites all URLs and table prefixes for the new sandbox. The source and target must use the same engine.
 
 ## Creating from a template
 

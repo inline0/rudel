@@ -378,6 +378,18 @@ class Rudel {
 	}
 
 	/**
+	 * Create a sandbox from an app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $name Sandbox name.
+	 * @param array  $options Optional sandbox settings.
+	 * @return Environment
+	 */
+	public static function create_sandbox_from_app( string $app_id, string $name, array $options = array() ): Environment {
+		return self::app_manager()->create_sandbox( $app_id, $name, $options );
+	}
+
+	/**
 	 * Destroy an app by ID.
 	 *
 	 * @param string $id App identifier.
@@ -385,6 +397,50 @@ class Rudel {
 	 */
 	public static function destroy_app( string $id ): bool {
 		return self::app_manager()->destroy( $id );
+	}
+
+	/**
+	 * Create a backup of an app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $name Backup name.
+	 * @return array<string, mixed>
+	 */
+	public static function backup_app( string $app_id, string $name ): array {
+		return self::app_manager()->backup( $app_id, $name );
+	}
+
+	/**
+	 * List backups for an app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function app_backups( string $app_id ): array {
+		return self::app_manager()->backups( $app_id );
+	}
+
+	/**
+	 * Restore an app from a backup.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $name Backup name.
+	 * @return void
+	 */
+	public static function restore_app( string $app_id, string $name ): void {
+		self::app_manager()->restore( $app_id, $name );
+	}
+
+	/**
+	 * Deploy a sandbox into an app.
+	 *
+	 * @param string      $app_id App identifier.
+	 * @param string      $sandbox_id Sandbox identifier.
+	 * @param string|null $backup_name Optional backup name.
+	 * @return array<string, mixed>
+	 */
+	public static function deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null ): array {
+		return self::app_manager()->deploy( $app_id, $sandbox_id, $backup_name );
 	}
 
 	/**
@@ -484,33 +540,48 @@ class Rudel {
 			throw new \RuntimeException( 'GitHub repo required. Pass $repo or push via CLI first.' );
 		}
 
-		$github = new GitHubIntegration( $repo );
-		$branch = $sandbox->get_git_branch();
+		$context = array(
+			'environment' => $sandbox,
+			'repo'        => $repo,
+			'message'     => $message,
+			'subdir'      => $subdir,
+		);
+		Hooks::action( 'rudel_before_environment_push', $context );
 
-		// Repeat pushes are normal, so an existing sandbox branch is not an error.
 		try {
-			$github->create_branch( $branch );
-		} catch ( \RuntimeException $e ) {
-			if ( ! str_contains( $e->getMessage(), 'Reference already exists' ) ) {
-				throw $e;
+			$github = new GitHubIntegration( $repo );
+			$branch = $sandbox->get_git_branch();
+
+			// Repeat pushes are normal, so an existing sandbox branch is not an error.
+			try {
+				$github->create_branch( $branch );
+			} catch ( \RuntimeException $e ) {
+				if ( ! str_contains( $e->getMessage(), 'Reference already exists' ) ) {
+					throw $e;
+				}
 			}
+
+			$local_dir = $sandbox->get_wp_content_path();
+			if ( '' !== $subdir ) {
+				$local_dir .= '/' . ltrim( $subdir, '/' );
+			}
+
+			$sha = $github->push( $branch, $local_dir, $message );
+
+			// Remember the repo after the first successful push so later calls can omit it.
+			if ( $sha && ! $sandbox->get_github_repo() ) {
+				$clone_source                = $sandbox->clone_source ?? array();
+				$clone_source['github_repo'] = $repo;
+				$sandbox->update_meta( 'clone_source', $clone_source );
+			}
+
+			Hooks::action( 'rudel_after_environment_push', $sha, $context );
+
+			return $sha;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_environment_push_failed', $context, $e );
+			throw $e;
 		}
-
-		$local_dir = $sandbox->get_wp_content_path();
-		if ( '' !== $subdir ) {
-			$local_dir .= '/' . ltrim( $subdir, '/' );
-		}
-
-		$sha = $github->push( $branch, $local_dir, $message );
-
-		// Remember the repo after the first successful push so later calls can omit it.
-		if ( $sha && ! $sandbox->get_github_repo() ) {
-			$clone_source                = $sandbox->clone_source ?? array();
-			$clone_source['github_repo'] = $repo;
-			$sandbox->update_meta( 'clone_source', $clone_source );
-		}
-
-		return $sha;
 	}
 
 	/**
@@ -535,11 +606,27 @@ class Rudel {
 			throw new \RuntimeException( 'GitHub repo required. Pass $repo or push via CLI first.' );
 		}
 
-		$github = new GitHubIntegration( $repo );
-		$branch = $sandbox->get_git_branch();
-		$title  = '' !== $title ? $title : $sandbox->name;
-		$body   = '' !== $body ? $body : sprintf( 'Created from Rudel sandbox `%s`', $sandbox->id );
+		$context = array(
+			'environment' => $sandbox,
+			'repo'        => $repo,
+			'title'       => $title,
+			'body'        => $body,
+		);
+		Hooks::action( 'rudel_before_environment_pr', $context );
 
-		return $github->create_pr( $branch, $title, $body );
+		try {
+			$github = new GitHubIntegration( $repo );
+			$branch = $sandbox->get_git_branch();
+			$title  = '' !== $title ? $title : $sandbox->name;
+			$body   = '' !== $body ? $body : sprintf( 'Created from Rudel sandbox `%s`', $sandbox->id );
+
+			$result = $github->create_pr( $branch, $title, $body );
+			Hooks::action( 'rudel_after_environment_pr', $result, $context );
+
+			return $result;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_environment_pr_failed', $context, $e );
+			throw $e;
+		}
 	}
 }

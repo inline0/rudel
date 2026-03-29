@@ -20,6 +20,13 @@ class EnvironmentManager {
 	private string $environments_dir;
 
 	/**
+	 * Absolute path to the related environments directory for cross-type clones.
+	 *
+	 * @var string
+	 */
+	private string $alternate_environments_dir;
+
+	/**
 	 * Absolute path to the Rudel plugin directory.
 	 *
 	 * @var string
@@ -30,10 +37,23 @@ class EnvironmentManager {
 	 * Constructor.
 	 *
 	 * @param string|null $environments_dir Optional override for the sandboxes directory.
+	 * @param string|null $alternate_environments_dir Optional override for the related environments directory.
 	 */
-	public function __construct( ?string $environments_dir = null ) {
+	public function __construct( ?string $environments_dir = null, ?string $alternate_environments_dir = null ) {
 		$this->plugin_dir       = defined( 'RUDEL_PLUGIN_DIR' ) ? RUDEL_PLUGIN_DIR : dirname( __DIR__ ) . '/';
 		$this->environments_dir = $environments_dir ?? $this->get_default_environments_dir();
+
+		if ( null !== $alternate_environments_dir ) {
+			$this->alternate_environments_dir = $alternate_environments_dir;
+			return;
+		}
+
+		if ( $this->get_default_apps_dir() === $this->environments_dir ) {
+			$this->alternate_environments_dir = $this->get_default_environments_dir();
+			return;
+		}
+
+		$this->alternate_environments_dir = $this->get_default_apps_dir();
 	}
 
 	/**
@@ -48,55 +68,67 @@ class EnvironmentManager {
 	 * @throws \Throwable If any step after directory creation fails (directory is cleaned up).
 	 */
 	public function create( string $name, array $options = array() ): Environment {
-		if ( empty( $options['skip_limits'] ) ) {
-			$this->check_limits();
-		}
+		$options = Hooks::filter( 'rudel_environment_create_options', $options, $name, $this );
+		$context = array(
+			'name'                       => $name,
+			'options'                    => $options,
+			'environments_dir'           => $this->environments_dir,
+			'alternate_environments_dir' => $this->alternate_environments_dir,
+		);
+		Hooks::action( 'rudel_before_environment_create', $context );
 
-		$id   = Environment::generate_id( $name );
-		$path = $this->environments_dir . '/' . $id;
-
-		if ( is_dir( $path ) ) {
-			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not browser output.
-			throw new \RuntimeException(
-				sprintf( 'Sandbox directory already exists: %s', $path )
-			);
-		}
-
-		$clone_from    = $options['clone_from'] ?? null;
-		$clone_db      = ! empty( $options['clone_db'] );
-		$clone_themes  = ! empty( $options['clone_themes'] );
-		$clone_plugins = ! empty( $options['clone_plugins'] );
-		$clone_uploads = ! empty( $options['clone_uploads'] );
-		$has_clone     = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
-
-		if ( $clone_from && $has_clone ) {
-			throw new \InvalidArgumentException( 'Cannot combine --clone-from with --clone-db, --clone-themes, --clone-plugins, or --clone-uploads.' );
-		}
-
-		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox scaffolding.
-		if ( ! is_dir( $this->environments_dir ) ) {
-			mkdir( $this->environments_dir, 0755, true );
-		}
-
-		if ( ! mkdir( $path, 0755 ) ) {
-			throw new \RuntimeException( sprintf( 'Failed to create sandbox directory: %s', $path ) );
-		}
-		// phpcs:enable
-
-		$engine = $options['engine'] ?? 'mysql';
-		if ( ! in_array( $engine, array( 'mysql', 'sqlite', 'subsite' ), true ) ) {
-			throw new \InvalidArgumentException( sprintf( 'Invalid engine: %s. Must be "mysql", "sqlite", or "subsite".', $engine ) );
-		}
-
-		if ( 'subsite' === $engine && ( ! function_exists( 'is_multisite' ) || ! is_multisite() ) ) {
-			throw new \RuntimeException( 'Subsite engine requires a WordPress multisite installation.' );
-		}
-
+		$id            = null;
+		$path          = null;
+		$engine        = $options['engine'] ?? 'mysql';
 		$blog_id       = null;
 		$git_worktrees = array();
 
 		try {
-			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
+			if ( empty( $options['skip_limits'] ) ) {
+				$this->check_limits();
+			}
+
+			$id   = Environment::generate_id( $name );
+			$path = $this->environments_dir . '/' . $id;
+
+			if ( is_dir( $path ) ) {
+				throw new \RuntimeException( sprintf( 'Sandbox directory already exists: %s', $path ) );
+			}
+
+			$clone_from    = $options['clone_from'] ?? null;
+			$clone_db      = ! empty( $options['clone_db'] );
+			$clone_themes  = ! empty( $options['clone_themes'] );
+			$clone_plugins = ! empty( $options['clone_plugins'] );
+			$clone_uploads = ! empty( $options['clone_uploads'] );
+			$has_clone     = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
+			$target_type   = $options['type'] ?? 'sandbox';
+			$target_domains = $options['domains'] ?? null;
+
+			if ( $clone_from && $has_clone ) {
+				throw new \InvalidArgumentException( 'Cannot combine --clone-from with --clone-db, --clone-themes, --clone-plugins, or --clone-uploads.' );
+			}
+
+			if ( ! in_array( $target_type, array( 'sandbox', 'app' ), true ) ) {
+				throw new \InvalidArgumentException( sprintf( 'Invalid environment type: %s. Must be "sandbox" or "app".', $target_type ) );
+			}
+
+			if ( ! in_array( $engine, array( 'mysql', 'sqlite', 'subsite' ), true ) ) {
+				throw new \InvalidArgumentException( sprintf( 'Invalid engine: %s. Must be "mysql", "sqlite", or "subsite".', $engine ) );
+			}
+
+			if ( 'subsite' === $engine && ( ! function_exists( 'is_multisite' ) || ! is_multisite() ) ) {
+				throw new \RuntimeException( 'Subsite engine requires a WordPress multisite installation.' );
+			}
+
+			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for environment scaffolding.
+			if ( ! is_dir( $this->environments_dir ) ) {
+				mkdir( $this->environments_dir, 0755, true );
+			}
+
+			if ( ! mkdir( $path, 0755 ) ) {
+				throw new \RuntimeException( sprintf( 'Failed to create sandbox directory: %s', $path ) );
+			}
+
 			mkdir( $path . '/wp-content', 0755 );
 			mkdir( $path . '/wp-content/themes', 0755 );
 			mkdir( $path . '/wp-content/plugins', 0755 );
@@ -151,26 +183,25 @@ class EnvironmentManager {
 			} elseif ( $is_from_template ) {
 				$this->initialize_from_template( $template, $id, $path, $engine );
 			} elseif ( $clone_from ) {
-				$source = $this->get( $clone_from );
+				$source = $this->resolve_clone_source_environment( $clone_from );
 				if ( ! $source ) {
-					throw new \RuntimeException( sprintf( 'Source sandbox not found: %s', $clone_from ) );
+					throw new \RuntimeException( sprintf( 'Source environment not found: %s', $clone_from ) );
 				}
 				if ( $source->engine !== $engine ) {
 					throw new \InvalidArgumentException(
 						sprintf( 'Cannot clone across engines: source is %s, target is %s.', $source->engine, $engine )
 					);
 				}
-				$clone_source = $this->clone_from_sandbox( $source, $id, $path, $engine );
+				$clone_source = $this->clone_from_environment( $source, $id, $path, $engine, $target_type, $target_domains );
 			} elseif ( $clone_db ) {
 				$table_prefix = Environment::table_prefix_for_id( $id );
-				$site_url     = $this->get_host_site_url();
-				$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
+				$target_url   = $this->get_target_environment_url( $id, $target_type, $target_domains );
 
 				if ( 'mysql' === $engine ) {
 					$db_cloner    = new MySQLCloner();
 					$clone_result = $db_cloner->clone_database(
 						$table_prefix,
-						$sandbox_url,
+						$target_url,
 						array( 'chunk_size' => $options['chunk_size'] ?? 500 )
 					);
 				} else {
@@ -178,7 +209,7 @@ class EnvironmentManager {
 					$clone_result = $db_cloner->clone_database(
 						$path . '/wordpress.db',
 						$table_prefix,
-						$sandbox_url,
+						$target_url,
 						array( 'chunk_size' => $options['chunk_size'] ?? 500 )
 					);
 				}
@@ -186,7 +217,7 @@ class EnvironmentManager {
 				$is_multisite = ! empty( $clone_result['is_multisite'] );
 
 				$clone_source = $this->build_clone_source(
-					$site_url,
+					$this->get_host_site_url(),
 					true,
 					$clone_themes,
 					$clone_plugins,
@@ -230,7 +261,6 @@ class EnvironmentManager {
 					$id
 				);
 
-				// Persist worktree origins so later cleanup and GitHub operations can find the right repo and branch.
 				$git_worktrees = array();
 				foreach ( $content_results as $dir => $result ) {
 					if ( is_array( $result ) && ! empty( $result['worktrees'] ) ) {
@@ -245,8 +275,38 @@ class EnvironmentManager {
 					}
 				}
 			}
+
+			if ( $is_multisite && 'subsite' !== $engine ) {
+				$this->write_sandbox_bootstrap( $id, $path, true, $engine );
+			}
+
+			$this->write_runtime_mu_plugin( $path );
+
+			if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
+				$clone_source['git_worktrees'] = $git_worktrees;
+			}
+
+			$environment = new Environment(
+				id: $id,
+				name: $name,
+				path: $path,
+				created_at: gmdate( 'c' ),
+				template: $template,
+				status: 'active',
+				clone_source: $clone_source,
+				multisite: $is_multisite,
+				engine: $engine,
+				blog_id: $blog_id,
+				type: $target_type,
+				domains: $target_domains,
+			);
+			$environment->save_meta();
+
+			Hooks::action( 'rudel_after_environment_create', $environment, $context );
+
+			return $environment;
 		} catch ( \Throwable $e ) {
-			if ( 'mysql' === $engine ) {
+			if ( null !== $id && 'mysql' === $engine ) {
 				global $wpdb;
 				if ( isset( $wpdb ) && $wpdb ) {
 					$table_prefix = Environment::table_prefix_for_id( $id );
@@ -258,37 +318,13 @@ class EnvironmentManager {
 				$subsite_cloner = new SubsiteCloner();
 				$subsite_cloner->delete_subsite( $blog_id );
 			}
-			$this->delete_directory( $path );
+			if ( is_string( $path ) && is_dir( $path ) ) {
+				$this->delete_directory( $path );
+			}
+
+			Hooks::action( 'rudel_environment_create_failed', $context, $e );
 			throw $e;
 		}
-
-		if ( $is_multisite && 'subsite' !== $engine ) {
-			$this->write_sandbox_bootstrap( $id, $path, true, $engine );
-		}
-
-		$this->write_runtime_mu_plugin( $path );
-
-		if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
-			$clone_source['git_worktrees'] = $git_worktrees;
-		}
-
-		$sandbox = new Environment(
-			id: $id,
-			name: $name,
-			path: $path,
-			created_at: gmdate( 'c' ),
-			template: $template,
-			status: 'active',
-			clone_source: $clone_source,
-			multisite: $is_multisite,
-			engine: $engine,
-			blog_id: $blog_id,
-			type: $options['type'] ?? 'sandbox',
-			domains: $options['domains'] ?? null,
-		);
-		$sandbox->save_meta();
-
-		return $sandbox;
 	}
 
 	/**
@@ -350,17 +386,32 @@ class EnvironmentManager {
 			return false;
 		}
 
-		if ( $sandbox->is_mysql() ) {
-			$mysql_cloner = new MySQLCloner();
-			$mysql_cloner->drop_tables( $sandbox->get_table_prefix() );
-		}
+		$context = array(
+			'environment' => $sandbox,
+		);
+		Hooks::action( 'rudel_before_environment_destroy', $context );
 
-		if ( $sandbox->is_subsite() && $sandbox->blog_id ) {
-			$subsite_cloner = new SubsiteCloner();
-			$subsite_cloner->delete_subsite( $sandbox->blog_id );
-		}
+		try {
+			if ( $sandbox->is_mysql() ) {
+				$mysql_cloner = new MySQLCloner();
+				$mysql_cloner->drop_tables( $sandbox->get_table_prefix() );
+			}
 
-		return $this->delete_directory( $sandbox->path );
+			if ( $sandbox->is_subsite() && $sandbox->blog_id ) {
+				$subsite_cloner = new SubsiteCloner();
+				$subsite_cloner->delete_subsite( $sandbox->blog_id );
+			}
+
+			$result = $this->delete_directory( $sandbox->path );
+			if ( $result ) {
+				Hooks::action( 'rudel_after_environment_destroy', $context );
+			}
+
+			return $result;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_environment_destroy_failed', $context, $e );
+			throw $e;
+		}
 	}
 
 	/**
@@ -391,77 +442,91 @@ class EnvironmentManager {
 			throw new \RuntimeException( 'Promote requires a running WordPress environment.' );
 		}
 
-		$host_prefix  = $wpdb->prefix;
-		$host_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		$sandbox_url  = $host_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox->id;
-		$host_content = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
-
-		// Promote is destructive to the host, so capture both DB state and wp-content before touching either.
-		if ( ! is_dir( $backup_dir ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating backup directory.
-			mkdir( $backup_dir, 0755, true );
-		}
-
-		$backup_prefix = 'rudel_backup_' . gmdate( 'Ymd_His' ) . '_';
-		$mysql_cloner  = new MySQLCloner();
-		$host_tables   = $mysql_cloner->discover_tables( $wpdb, $host_prefix );
-		$backup_count  = 0;
-
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names for host backup.
-		foreach ( $host_tables as $table ) {
-			$backup_table = $backup_prefix . substr( $table, strlen( $host_prefix ) );
-			$wpdb->query( "CREATE TABLE `{$backup_table}` LIKE `{$table}`" );
-			$wpdb->query( "INSERT INTO `{$backup_table}` SELECT * FROM `{$table}`" );
-			++$backup_count;
-		}
-		// phpcs:enable
-
-		$backup_content = $backup_dir . '/wp-content';
-		$content_cloner = new ContentCloner();
-		$content_cloner->copy_directory( $host_content, $backup_content );
-
-		$backup_meta = array(
-			'created_at'    => gmdate( 'c' ),
-			'sandbox_id'    => $sandbox->id,
-			'host_prefix'   => $host_prefix,
-			'backup_prefix' => $backup_prefix,
-			'tables_backed' => $backup_count,
+		$context = array(
+			'environment' => $sandbox,
+			'backup_dir'  => $backup_dir,
 		);
-		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing backup metadata.
-		file_put_contents(
-			$backup_dir . '/backup.json',
-			json_encode( $backup_meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n"
-		);
-		// phpcs:enable
+		Hooks::action( 'rudel_before_environment_promote', $context );
 
-		if ( $sandbox->is_sqlite() ) {
-			$this->promote_sqlite_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
-		} else {
-			$this->promote_mysql_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
-		}
+		try {
+			$host_prefix  = $wpdb->prefix;
+			$host_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+			$sandbox_url  = $host_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox->id;
+			$host_content = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
 
-		$sandbox_content = $sandbox->get_wp_content_path();
-		if ( is_dir( $sandbox_content ) ) {
-			// Partial clones should not wipe unrelated host assets, so only non-empty sandbox directories replace host content.
-			foreach ( array( 'themes', 'plugins', 'uploads' ) as $subdir ) {
-				$host_sub    = $host_content . '/' . $subdir;
-				$sandbox_sub = $sandbox_content . '/' . $subdir;
-				if ( is_dir( $sandbox_sub ) && $this->directory_has_entries( $sandbox_sub ) ) {
-					if ( is_dir( $host_sub ) ) {
-						$this->delete_directory( $host_sub );
+			// Promote is destructive to the host, so capture both DB state and wp-content before touching either.
+			if ( ! is_dir( $backup_dir ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating backup directory.
+				mkdir( $backup_dir, 0755, true );
+			}
+
+			$backup_prefix = 'rudel_backup_' . gmdate( 'Ymd_His' ) . '_';
+			$mysql_cloner  = new MySQLCloner();
+			$host_tables   = $mysql_cloner->discover_tables( $wpdb, $host_prefix );
+			$backup_count  = 0;
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names for host backup.
+			foreach ( $host_tables as $table ) {
+				$backup_table = $backup_prefix . substr( $table, strlen( $host_prefix ) );
+				$wpdb->query( "CREATE TABLE `{$backup_table}` LIKE `{$table}`" );
+				$wpdb->query( "INSERT INTO `{$backup_table}` SELECT * FROM `{$table}`" );
+				++$backup_count;
+			}
+			// phpcs:enable
+
+			$backup_content = $backup_dir . '/wp-content';
+			$content_cloner = new ContentCloner();
+			$content_cloner->copy_directory( $host_content, $backup_content );
+
+			$backup_meta = array(
+				'created_at'    => gmdate( 'c' ),
+				'sandbox_id'    => $sandbox->id,
+				'host_prefix'   => $host_prefix,
+				'backup_prefix' => $backup_prefix,
+				'tables_backed' => $backup_count,
+			);
+			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing backup metadata.
+			file_put_contents(
+				$backup_dir . '/backup.json',
+				json_encode( $backup_meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n"
+			);
+			// phpcs:enable
+
+			if ( $sandbox->is_sqlite() ) {
+				$this->promote_sqlite_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
+			} else {
+				$this->promote_mysql_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
+			}
+
+			$sandbox_content = $sandbox->get_wp_content_path();
+			if ( is_dir( $sandbox_content ) ) {
+				// Partial clones should not wipe unrelated host assets, so only non-empty sandbox directories replace host content.
+				foreach ( array( 'themes', 'plugins', 'uploads' ) as $subdir ) {
+					$host_sub    = $host_content . '/' . $subdir;
+					$sandbox_sub = $sandbox_content . '/' . $subdir;
+					if ( is_dir( $sandbox_sub ) && $this->directory_has_entries( $sandbox_sub ) ) {
+						if ( is_dir( $host_sub ) ) {
+							$this->delete_directory( $host_sub );
+						}
+						$content_cloner->copy_directory( $sandbox_sub, $host_sub );
 					}
-					$content_cloner->copy_directory( $sandbox_sub, $host_sub );
 				}
 			}
+
+			$this->preserve_rudel_activation_on_host( $host_prefix );
+
+			$result = array(
+				'backup_path'   => $backup_dir,
+				'backup_prefix' => $backup_prefix,
+				'tables_copied' => $backup_count,
+			);
+			Hooks::action( 'rudel_after_environment_promote', $result, $context );
+
+			return $result;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_environment_promote_failed', $context, $e );
+			throw $e;
 		}
-
-		$this->preserve_rudel_activation_on_host( $host_prefix );
-
-		return array(
-			'backup_path'   => $backup_dir,
-			'backup_prefix' => $backup_prefix,
-			'tables_copied' => $backup_count,
-		);
 	}
 
 	/**
@@ -540,6 +605,62 @@ class EnvironmentManager {
 	}
 
 	/**
+	 * Replace one environment's runtime state with another's.
+	 *
+	 * @param Environment $source Source environment.
+	 * @param Environment $target Target environment.
+	 * @return array{source_id: string, target_id: string, tables_copied: int}
+	 *
+	 * @throws \InvalidArgumentException If engines do not match or either environment uses subsite mode.
+	 * @throws \RuntimeException If a database copy fails.
+	 */
+	public function replace_environment_state( Environment $source, Environment $target ): array {
+		if ( $source->is_subsite() || $target->is_subsite() ) {
+			throw new \InvalidArgumentException( 'Environment state replacement does not support subsite environments.' );
+		}
+
+		if ( $source->engine !== $target->engine ) {
+			throw new \InvalidArgumentException(
+				sprintf( 'Cannot replace environment state across engines: source is %s, target is %s.', $source->engine, $target->engine )
+			);
+		}
+
+		$context = array(
+			'source' => $source,
+			'target' => $target,
+		);
+		Hooks::action( 'rudel_before_environment_replace_state', $context );
+
+		try {
+			$tables_copied = 0;
+			if ( $source->is_mysql() ) {
+				$tables_copied = $this->replace_mysql_environment_state( $source, $target );
+			} else {
+				$this->replace_sqlite_environment_state( $source, $target );
+			}
+
+			$this->replace_environment_content( $source, $target );
+			$this->write_runtime_mu_plugin( $target->path );
+
+			if ( $target->is_sqlite() ) {
+				$this->write_db_drop_in( $target->path );
+			}
+
+			$result = array(
+				'source_id'     => $source->id,
+				'target_id'     => $target->id,
+				'tables_copied' => $tables_copied,
+			);
+			Hooks::action( 'rudel_after_environment_replace_state', $result, $context );
+
+			return $result;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_environment_replace_state_failed', $context, $e );
+			throw $e;
+		}
+	}
+
+	/**
 	 * Export a sandbox as a zip archive.
 	 *
 	 * @param string $id          Sandbox identifier.
@@ -554,33 +675,48 @@ class EnvironmentManager {
 			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $id ) );
 		}
 
-		$zip = new \ZipArchive();
-		if ( true !== $zip->open( $output_path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE ) ) {
-			throw new \RuntimeException( sprintf( 'Failed to create zip archive: %s', $output_path ) );
-		}
-
-		$base_path = $sandbox->path;
-		$iterator  = new \RecursiveIteratorIterator(
-			new \RecursiveDirectoryIterator( $base_path, \FilesystemIterator::SKIP_DOTS ),
-			\RecursiveIteratorIterator::SELF_FIRST
+		$context = array(
+			'environment' => $sandbox,
+			'output_path' => $output_path,
 		);
+		Hooks::action( 'rudel_before_environment_export', $context );
 
-		foreach ( $iterator as $item ) {
-			$relative = substr( $item->getPathname(), strlen( $base_path ) + 1 );
-
-			// Snapshots are internal recovery state; exporting them would bloat archives and recursively re-import old backups.
-			if ( str_starts_with( $relative, 'snapshots/' ) || 'snapshots' === $relative ) {
-				continue;
+		try {
+			$zip = new \ZipArchive();
+			if ( true !== $zip->open( $output_path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE ) ) {
+				throw new \RuntimeException( sprintf( 'Failed to create zip archive: %s', $output_path ) );
 			}
 
-			if ( $item->isDir() ) {
-				$zip->addEmptyDir( $relative );
-			} else {
-				$zip->addFile( $item->getPathname(), $relative );
+			$base_path = $sandbox->path;
+			$iterator  = new \RecursiveIteratorIterator(
+				new \RecursiveDirectoryIterator( $base_path, \FilesystemIterator::SKIP_DOTS ),
+				\RecursiveIteratorIterator::SELF_FIRST
+			);
+
+			foreach ( $iterator as $item ) {
+				$relative = substr( $item->getPathname(), strlen( $base_path ) + 1 );
+
+				// Snapshots are internal recovery state; exporting them would bloat archives and recursively re-import old backups.
+				if (
+					str_starts_with( $relative, 'snapshots/' ) || 'snapshots' === $relative
+					|| str_starts_with( $relative, 'backups/' ) || 'backups' === $relative
+				) {
+					continue;
+				}
+
+				if ( $item->isDir() ) {
+					$zip->addEmptyDir( $relative );
+				} else {
+					$zip->addFile( $item->getPathname(), $relative );
+				}
 			}
+
+			$zip->close();
+			Hooks::action( 'rudel_after_environment_export', $context );
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_environment_export_failed', $context, $e );
+			throw $e;
 		}
-
-		$zip->close();
 	}
 
 	/**
@@ -593,6 +729,12 @@ class EnvironmentManager {
 	 * @throws \RuntimeException If the zip is invalid or import fails.
 	 */
 	public function import( string $zip_path, string $name ): Environment {
+		$context = array(
+			'zip_path' => $zip_path,
+			'name'     => $name,
+		);
+		Hooks::action( 'rudel_before_environment_import', $context );
+
 		if ( ! file_exists( $zip_path ) ) {
 			throw new \RuntimeException( sprintf( 'Zip file not found: %s', $zip_path ) );
 		}
@@ -691,6 +833,8 @@ class EnvironmentManager {
 		);
 		$sandbox->save_meta();
 
+		Hooks::action( 'rudel_after_environment_import', $sandbox, $context );
+
 		return $sandbox;
 	}
 
@@ -710,6 +854,9 @@ class EnvironmentManager {
 	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
 	 */
 	public function cleanup( array $options = array() ): array {
+		$options = Hooks::filter( 'rudel_environment_cleanup_options', $options, $this );
+		Hooks::action( 'rudel_before_environment_cleanup', $options );
+
 		$dry_run      = ! empty( $options['dry_run'] );
 		$max_age_days = $options['max_age_days'] ?? 0;
 
@@ -751,6 +898,8 @@ class EnvironmentManager {
 			}
 		}
 
+		Hooks::action( 'rudel_after_environment_cleanup', $result, $options );
+
 		return $result;
 	}
 
@@ -761,6 +910,9 @@ class EnvironmentManager {
 	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
 	 */
 	public function cleanup_merged( array $options = array() ): array {
+		$options = Hooks::filter( 'rudel_environment_cleanup_merged_options', $options, $this );
+		Hooks::action( 'rudel_before_environment_cleanup_merged', $options );
+
 		$dry_run = ! empty( $options['dry_run'] );
 		$git     = new GitIntegration();
 		$result  = array(
@@ -842,6 +994,8 @@ class EnvironmentManager {
 			}
 		}
 
+		Hooks::action( 'rudel_after_environment_cleanup_merged', $result, $options );
+
 		return $result;
 	}
 
@@ -873,17 +1027,79 @@ class EnvironmentManager {
 		bool $uploads_cloned,
 		array $extra = array()
 	): array {
-		return array_merge(
-			array(
-				'host_url'       => $host_url,
-				'cloned_at'      => gmdate( 'c' ),
-				'db_cloned'      => $db_cloned,
-				'themes_cloned'  => $themes_cloned,
-				'plugins_cloned' => $plugins_cloned,
-				'uploads_cloned' => $uploads_cloned,
+		return Hooks::filter(
+			'rudel_environment_clone_source',
+			array_merge(
+				array(
+					'host_url'       => $host_url,
+					'cloned_at'      => gmdate( 'c' ),
+					'db_cloned'      => $db_cloned,
+					'themes_cloned'  => $themes_cloned,
+					'plugins_cloned' => $plugins_cloned,
+					'uploads_cloned' => $uploads_cloned,
+				),
+				$extra
 			),
+			$host_url,
+			$db_cloned,
+			$themes_cloned,
+			$plugins_cloned,
+			$uploads_cloned,
 			$extra
 		);
+	}
+
+	/**
+	 * Resolve an environment by checking both the current and related environment directories.
+	 *
+	 * @param string $id Environment ID.
+	 * @return Environment|null
+	 */
+	private function resolve_clone_source_environment( string $id ): ?Environment {
+		$source = $this->get( $id );
+		if ( $source ) {
+			return $source;
+		}
+
+		if ( '' === $this->alternate_environments_dir || $this->alternate_environments_dir === $this->environments_dir ) {
+			return null;
+		}
+
+		if ( ! Environment::validate_id( $id ) ) {
+			return null;
+		}
+
+		return Environment::from_path( $this->alternate_environments_dir . '/' . $id );
+	}
+
+	/**
+	 * Build the runtime URL used inside an environment's database.
+	 *
+	 * @param Environment $environment Environment whose canonical URL is needed.
+	 * @return string
+	 */
+	private function get_environment_site_url( Environment $environment ): string {
+		if ( $environment->is_app() && ! empty( $environment->domains ) ) {
+			return 'https://' . $environment->domains[0];
+		}
+
+		return $this->get_host_site_url() . '/' . RUDEL_PATH_PREFIX . '/' . $environment->id;
+	}
+
+	/**
+	 * Build the target runtime URL for a not-yet-saved environment.
+	 *
+	 * @param string     $id Environment ID.
+	 * @param string     $type Environment type.
+	 * @param array|null $domains Optional app domains.
+	 * @return string
+	 */
+	private function get_target_environment_url( string $id, string $type = 'sandbox', ?array $domains = null ): string {
+		if ( 'app' === $type && ! empty( $domains ) ) {
+			return 'https://' . $domains[0];
+		}
+
+		return $this->get_host_site_url() . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 	}
 
 	/**
@@ -936,6 +1152,22 @@ class EnvironmentManager {
 		}
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
 		return $abspath . 'wp-content/rudel-environments';
+	}
+
+	/**
+	 * Determine the default apps directory.
+	 *
+	 * @return string Absolute path.
+	 */
+	private function get_default_apps_dir(): string {
+		if ( defined( 'RUDEL_APPS_DIR' ) ) {
+			return RUDEL_APPS_DIR;
+		}
+		if ( defined( 'WP_CONTENT_DIR' ) ) {
+			return WP_CONTENT_DIR . '/rudel-apps';
+		}
+		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
+		return $abspath . 'wp-content/rudel-apps';
 	}
 
 	/**
@@ -1424,38 +1656,45 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Clone from an existing sandbox: copy its db and wp-content, then rewrite URLs and prefix.
+	 * Clone from an existing environment: copy its db and wp-content, then rewrite URLs and prefix.
 	 *
-	 * @param Environment $source      Source sandbox to clone from.
-	 * @param string      $target_id   New sandbox ID.
-	 * @param string      $target_path New sandbox directory path.
+	 * @param Environment $source      Source environment to clone from.
+	 * @param string      $target_id   New environment ID.
+	 * @param string      $target_path New environment directory path.
 	 * @param string      $engine      Database engine: 'mysql' or 'sqlite'.
+	 * @param string      $target_type Target environment type.
+	 * @param array|null  $target_domains Target app domains.
 	 * @return array Clone source metadata.
 	 *
 	 * @throws \RuntimeException If the database copy fails.
 	 */
-	private function clone_from_sandbox( Environment $source, string $target_id, string $target_path, string $engine = 'mysql' ): array {
+	private function clone_from_environment(
+		Environment $source,
+		string $target_id,
+		string $target_path,
+		string $engine = 'mysql',
+		string $target_type = 'sandbox',
+		?array $target_domains = null
+	): array {
 		$source_prefix = $source->get_table_prefix();
 		$target_prefix = Environment::table_prefix_for_id( $target_id );
-
-		$site_url    = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		$source_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $source->id;
-		$sandbox_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $target_id;
+		$source_url   = $this->get_environment_site_url( $source );
+		$target_url   = $this->get_target_environment_url( $target_id, $target_type, $target_domains );
 
 		if ( 'mysql' === $engine ) {
 			$mysql_cloner = new MySQLCloner();
-			$mysql_cloner->copy_tables( $source_prefix, $target_prefix );
+			$mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $source_prefix . 'snap_' ) );
 
 			global $wpdb;
-			$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $sandbox_url );
+			$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
 			$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
 		} else {
 			$source_db = $source->get_db_path();
 			$target_db = $target_path . '/wordpress.db';
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file.
-			if ( ! copy( $source_db, $target_db ) ) {
-				throw new \RuntimeException( sprintf( 'Failed to copy database from source sandbox: %s', $source->id ) );
+			if ( ! $source_db || ! copy( $source_db, $target_db ) ) {
+				throw new \RuntimeException( sprintf( 'Failed to copy database from source environment: %s', $source->id ) );
 			}
 
 			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO.
@@ -1464,7 +1703,7 @@ class EnvironmentManager {
 			// phpcs:enable
 
 			$db_cloner = new DatabaseCloner( $this->plugin_dir );
-			$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $sandbox_url );
+			$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $target_url );
 
 			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
 			$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
@@ -1492,14 +1731,119 @@ class EnvironmentManager {
 			$this->write_db_drop_in( $target_path );
 		}
 
-		return array(
-			'type'           => 'sandbox',
-			'source_id'      => $source->id,
-			'source_name'    => $source->name,
-			'cloned_at'      => gmdate( 'c' ),
-			'db_cloned'      => true,
-			'content_cloned' => true,
+		return Hooks::filter(
+			'rudel_environment_clone_source',
+			array(
+				'type'           => $source->type,
+				'source_id'      => $source->id,
+				'source_name'    => $source->name,
+				'source_url'     => $source_url,
+				'cloned_at'      => gmdate( 'c' ),
+				'db_cloned'      => true,
+				'content_cloned' => true,
+			),
+			$source,
+			$target_id,
+			$target_type
 		);
+	}
+
+	/**
+	 * Replace the database state of a MySQL environment.
+	 *
+	 * @param Environment $source Source environment.
+	 * @param Environment $target Target environment.
+	 * @return int Number of tables copied.
+	 */
+	private function replace_mysql_environment_state( Environment $source, Environment $target ): int {
+		global $wpdb;
+
+		$source_prefix = $source->get_table_prefix();
+		$target_prefix = $target->get_table_prefix();
+		$source_url    = $this->get_environment_site_url( $source );
+		$target_url    = $this->get_environment_site_url( $target );
+
+		$mysql_cloner = new MySQLCloner();
+		$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
+		$count = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $source_prefix . 'snap_' ) );
+		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
+		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
+
+		return $count;
+	}
+
+	/**
+	 * Replace the database state of a SQLite environment.
+	 *
+	 * @param Environment $source Source environment.
+	 * @param Environment $target Target environment.
+	 * @return void
+	 */
+	private function replace_sqlite_environment_state( Environment $source, Environment $target ): void {
+		$source_db = $source->get_db_path();
+		$target_db = $target->get_db_path();
+		if ( ! $source_db || ! $target_db ) {
+			throw new \RuntimeException( 'SQLite environment replacement requires both source and target database files.' );
+		}
+
+		$tmp_db = $target->path . '/tmp/' . $target->id . '-replace.db';
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file into place for replacement.
+		if ( ! copy( $source_db, $tmp_db ) ) {
+			throw new \RuntimeException( sprintf( 'Failed to copy SQLite database from source environment: %s', $source->id ) );
+		}
+
+		$source_prefix = $source->get_table_prefix();
+		$target_prefix = $target->get_table_prefix();
+		$source_url    = $this->get_environment_site_url( $source );
+		$target_url    = $this->get_environment_site_url( $target );
+
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO.
+		$pdo = new \PDO( 'sqlite:' . $tmp_db );
+		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+		// phpcs:enable
+
+		$db_cloner = new DatabaseCloner( $this->plugin_dir );
+		$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $target_url );
+
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
+		$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
+			->fetchAll( \PDO::FETCH_COLUMN );
+		// phpcs:enable
+
+		foreach ( $tables as $old_table ) {
+			$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
+			$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
+		}
+
+		$db_cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
+		$pdo = null;
+
+		if ( file_exists( $target_db ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Replacing the previous SQLite database file.
+			unlink( $target_db );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Promoting the rewritten SQLite database into place.
+		rename( $tmp_db, $target_db );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Matching generated database permissions.
+		chmod( $target_db, 0664 );
+	}
+
+	/**
+	 * Replace one environment's wp-content directory with another's.
+	 *
+	 * @param Environment $source Source environment.
+	 * @param Environment $target Target environment.
+	 * @return void
+	 */
+	private function replace_environment_content( Environment $source, Environment $target ): void {
+		$target_content = $target->get_wp_content_path();
+		if ( is_dir( $target_content ) ) {
+			$this->delete_directory( $target_content );
+		}
+
+		$content_cloner = new ContentCloner();
+		$content_cloner->copy_directory( $source->get_wp_content_path(), $target_content );
 	}
 
 	/**

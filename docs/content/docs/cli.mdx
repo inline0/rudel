@@ -40,7 +40,7 @@ wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--templat
 | `--clone-plugins` | Copy host plugins into the sandbox |
 | `--clone-uploads` | Copy host uploads into the sandbox |
 | `--clone-all` | Clone everything (database, themes, plugins, uploads) |
-| `--clone-from=<id>` | Clone from an existing sandbox |
+| `--clone-from=<id>` | Clone from an existing sandbox or app |
 | `--type=<type>` | Content type for `--github` downloads: `theme` (default) or `plugin` |
 
 ```bash
@@ -290,7 +290,7 @@ wp rudel template delete <name> [--force]
 Create a new app (permanent domain-routed environment).
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all]
+wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
 ```
 
 | Option | Description |
@@ -303,6 +303,47 @@ wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clo
 | `--clone-plugins` | Copy host plugins into the app |
 | `--clone-uploads` | Copy host uploads into the app |
 | `--clone-all` | Clone host database and content |
+| `--clone-from=<id>` | Clone from an existing sandbox or app |
+
+### `wp rudel app create-sandbox`
+
+Create a sandbox cloned from an app.
+
+```bash
+wp rudel app create-sandbox <id> [--name=<name>] [--engine=<engine>]
+```
+
+### `wp rudel app backup`
+
+Create a named backup of an app.
+
+```bash
+wp rudel app backup <id> --name=<name>
+```
+
+### `wp rudel app backups`
+
+List backups for an app.
+
+```bash
+wp rudel app backups <id> [--format=<format>]
+```
+
+### `wp rudel app restore`
+
+Restore an app from a backup.
+
+```bash
+wp rudel app restore <id> --backup=<name> [--force]
+```
+
+### `wp rudel app deploy`
+
+Deploy a sandbox into an app.
+
+```bash
+wp rudel app deploy <id> --from=<sandbox-id> [--backup=<name>] [--force]
+```
 
 ### `wp rudel app list`
 

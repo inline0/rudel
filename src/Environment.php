@@ -209,11 +209,27 @@ class Environment {
 	 */
 	public function update_meta( string $key, $value ): void {
 		$meta_file = $this->path . '/.rudel.json';
+		Hooks::action(
+			'rudel_before_environment_update_meta',
+			array(
+				'environment' => $this,
+				'key'         => $key,
+				'value'       => $value,
+			)
+		);
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local metadata.
 		$data         = json_decode( file_get_contents( $meta_file ), true ) ?? array();
 		$data[ $key ] = $value;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing local metadata.
 		file_put_contents( $meta_file, json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
+		Hooks::action(
+			'rudel_after_environment_update_meta',
+			array(
+				'environment' => $this,
+				'key'         => $key,
+				'value'       => $value,
+			)
+		);
 	}
 
 	/**

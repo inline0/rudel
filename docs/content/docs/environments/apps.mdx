@@ -31,6 +31,54 @@ The same granular clone flags available to sandboxes also work here:
 wp rudel app create --domain=client-a.com --clone-db --clone-themes
 ```
 
+If you want to create an app from an existing sandbox or app instead of cloning from the host, use `--clone-from`:
+
+```bash
+wp rudel app create --domain=client-b.com --clone-from=client-a-com-a1b2
+```
+
+## Sandboxes from apps
+
+Apps are meant to be the long-lived runtime target. Sandboxes are where you make and test changes.
+
+Create a sandbox from an app:
+
+```bash
+wp rudel app create-sandbox client-a-com-a1b2 --name="Client A Feature Work"
+```
+
+That gives you a disposable sandbox with the app's database and `wp-content`, but rewritten to sandbox URLs and prefixes.
+
+## Backups and deploys
+
+Apps do not use sandbox snapshots. Instead, they use app backups and deploys.
+
+Create a backup:
+
+```bash
+wp rudel app backup client-a-com-a1b2 --name=before-redesign
+```
+
+List backups:
+
+```bash
+wp rudel app backups client-a-com-a1b2
+```
+
+Restore a backup:
+
+```bash
+wp rudel app restore client-a-com-a1b2 --backup=before-redesign --force
+```
+
+Deploy a sandbox into an app:
+
+```bash
+wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --force
+```
+
+Deploy always creates or uses an app backup first, then replaces the app's database and `wp-content` with the sandbox state while rewriting URLs back to the app domain.
+
 ## Domain management
 
 Each app has at least one domain. You can add more:
@@ -85,10 +133,11 @@ Apps and sandboxes share the same isolation layer but differ in intent:
 |---|---|---|
 | **Lifecycle** | Temporary, disposable | Permanent |
 | **Routing** | Path prefix + cookie | Domain-based |
-| **Snapshots** | Yes | No |
+| **Recovery** | Snapshots | Backups |
 | **Promote to host** | Yes | No |
+| **Deploy from sandbox** | N/A | Yes |
 | **Git/GitHub** | Yes | No |
 | **Email** | Blocked by default | Allowed by default |
 | **Use case** | Development, testing, AI agents | Multi-tenant hosting, client sites |
 
-Both use the same `rudel_` table prefix safety guard, the same `wp-content` isolation, and the same authentication salt isolation.
+Both use the same `rudel_` table prefix safety guard, the same `wp-content` isolation, and the same authentication salt isolation. The intended lifecycle is: create an app, branch off a sandbox from it when you need to work, then deploy the finished sandbox back into the app.

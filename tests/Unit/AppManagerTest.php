@@ -226,4 +226,80 @@ class AppManagerTest extends RudelTestCase
 
         $this->assertSame('https://url-test.com/', $app->get_url());
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateSandboxFromAppClonesIntoSandboxDirectory(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $appsDir = $this->tmpDir . '/apps';
+        $sandboxesDir = $this->tmpDir . '/sandboxes';
+        $manager = new AppManager($appsDir, $sandboxesDir);
+        $app = $manager->create('Client A', ['client-a.com'], ['engine' => 'sqlite']);
+        file_put_contents($app->get_wp_content_path() . '/themes/app.txt', 'from-app');
+
+        $sandbox = $manager->create_sandbox($app->id, 'Client A Sandbox');
+
+        $this->assertSame('sandbox', $sandbox->type);
+        $this->assertFileExists($sandboxesDir . '/' . $sandbox->id . '/wp-content/themes/app.txt');
+        $this->assertSame('from-app', file_get_contents($sandbox->get_wp_content_path() . '/themes/app.txt'));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testBackupAndRestoreAppRoundTripsState(): void
+    {
+        $this->defineConstants();
+
+        $appsDir = $this->tmpDir . '/apps';
+        $sandboxesDir = $this->tmpDir . '/sandboxes';
+        $manager = new AppManager($appsDir, $sandboxesDir);
+        $app = $manager->create('Backup App', ['backup-app.com'], ['engine' => 'sqlite']);
+
+        $backup = $manager->backup($app->id, 'baseline');
+        file_put_contents($app->get_wp_content_path() . '/plugins/changed.txt', 'changed');
+        unlink($app->get_db_path());
+
+        $manager->restore($app->id, 'baseline');
+
+        $this->assertSame('baseline', $backup['name']);
+        $this->assertFileExists($app->path . '/backups/baseline/backup.json');
+        $this->assertFileExists($app->get_db_path());
+        $this->assertFileDoesNotExist($app->get_wp_content_path() . '/plugins/changed.txt');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeployCreatesBackupAndRewritesSandboxUrlBackToAppDomain(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $appsDir = $this->tmpDir . '/apps';
+        $sandboxesDir = $this->tmpDir . '/sandboxes';
+        $manager = new AppManager($appsDir, $sandboxesDir);
+        $app = $manager->create('Deploy App', ['deploy-app.com'], ['engine' => 'sqlite']);
+        $sandbox = $manager->create_sandbox($app->id, 'Deploy Sandbox');
+
+        file_put_contents($sandbox->get_wp_content_path() . '/plugins/deployed.txt', 'yes');
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
+        $pdo->exec("UPDATE {$prefix}options SET option_value='https://host.test/__rudel/{$sandbox->id}' WHERE option_name IN ('siteurl', 'home')");
+        $pdo = null;
+
+        $result = $manager->deploy($app->id, $sandbox->id, 'before-deploy');
+
+        $appPdo = new \PDO('sqlite:' . $app->get_db_path());
+        $appPrefix = 'rudel_' . substr(md5($app->id), 0, 6) . '_';
+        $siteurl = $appPdo->query("SELECT option_value FROM {$appPrefix}options WHERE option_name='siteurl'")->fetchColumn();
+
+        $this->assertSame('before-deploy', $result['backup']['name']);
+        $this->assertFileExists($app->path . '/backups/before-deploy/backup.json');
+        $this->assertFileExists($app->get_wp_content_path() . '/plugins/deployed.txt');
+        $this->assertStringContainsString('deploy-app.com', $siteurl);
+        $this->assertStringNotContainsString($sandbox->id, $siteurl);
+    }
 }

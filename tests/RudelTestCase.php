@@ -16,6 +16,8 @@ abstract class RudelTestCase extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $GLOBALS['rudel_test_actions'] = [];
+        $GLOBALS['rudel_test_filters'] = [];
         $this->tmpDir = RUDEL_TEST_TMPDIR . '/' . uniqid('test-');
         mkdir($this->tmpDir, 0755, true);
     }

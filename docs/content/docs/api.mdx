@@ -333,12 +333,78 @@ echo $app->get_url(); // https://client-a.com/
 
 Destroys an app and removes all domain mappings.
 
+### `Rudel::create_sandbox_from_app( $app_id, $name, $options )`
+
+Creates a sandbox cloned from an app.
+
+```php
+$sandbox = Rudel::create_sandbox_from_app( 'client-a-com-a1b2', 'Client A Feature Work' );
+echo $sandbox->id;
+```
+
+### `Rudel::backup_app( $app_id, $name )`
+
+Creates a named backup of an app.
+
+```php
+$backup = Rudel::backup_app( 'client-a-com-a1b2', 'before-redesign' );
+echo $backup['name'];
+```
+
+### `Rudel::app_backups( $app_id )`
+
+Lists all backups for an app.
+
+### `Rudel::restore_app( $app_id, $name )`
+
+Restores an app from a named backup.
+
+### `Rudel::deploy_sandbox_to_app( $app_id, $sandbox_id, $backup_name )`
+
+Deploys a sandbox into an app. A backup is created first.
+
+```php
+$result = Rudel::deploy_sandbox_to_app( 'client-a-com-a1b2', 'client-a-feature-b2c3', 'before-launch' );
+echo $result['backup']['name'];
+```
+
 ### `Rudel::apps_dir()`
 
 Returns the absolute path to the apps directory.
 
 ```php
 $dir = Rudel::apps_dir(); // '/var/www/html/wp-content/rudel-apps'
+```
+
+## Lifecycle Hooks
+
+Rudel now exposes first-party lifecycle hooks around environment, app, recovery, deploy, and GitHub operations. These are standard WordPress actions and filters.
+
+Examples:
+
+- `rudel_before_environment_create`
+- `rudel_after_environment_create`
+- `rudel_before_app_create`
+- `rudel_after_app_create`
+- `rudel_before_app_create_sandbox`
+- `rudel_after_app_deploy`
+- `rudel_before_snapshot_create`
+- `rudel_after_backup_restore`
+- `rudel_before_environment_push`
+- `rudel_after_environment_pr`
+
+Example:
+
+```php
+add_action( 'rudel_after_app_deploy', function ( $result, $context ) {
+    error_log(
+        sprintf(
+            'Deployed sandbox %s into app %s',
+            $result['sandbox_id'],
+            $result['app_id']
+        )
+    );
+}, 10, 2 );
 ```
 
 ## Admin bar

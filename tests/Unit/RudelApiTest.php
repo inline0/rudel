@@ -314,4 +314,58 @@ class RudelApiTest extends RudelTestCase
         $this->assertTrue(Rudel::destroy_app($app->id));
         $this->assertNull(Rudel::app($app->id));
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateSandboxFromAppAndManageBackups(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+        if (! defined('WP_HOME')) {
+            define('WP_HOME', 'https://host.test');
+        }
+
+        $app = Rudel::create_app('Client B', ['client-b.com'], ['engine' => 'sqlite']);
+        $sandbox = Rudel::create_sandbox_from_app($app->id, 'Client B Sandbox');
+
+        $this->assertSame('sandbox', $sandbox->type);
+        $this->assertSame($this->tmpDir . '/rudel-environments/' . $sandbox->id, $sandbox->path);
+
+        $backup = Rudel::backup_app($app->id, 'baseline');
+        $this->assertSame('baseline', $backup['name']);
+        $this->assertCount(1, Rudel::app_backups($app->id));
+
+        file_put_contents($app->get_wp_content_path() . '/plugins/api-restore.txt', 'changed');
+        Rudel::restore_app($app->id, 'baseline');
+
+        $this->assertFileDoesNotExist($app->get_wp_content_path() . '/plugins/api-restore.txt');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeploySandboxToAppReturnsBackupMetadata(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+        if (! defined('WP_HOME')) {
+            define('WP_HOME', 'https://host.test');
+        }
+
+        $app = Rudel::create_app('Deploy API App', ['deploy-api.com'], ['engine' => 'sqlite']);
+        $sandbox = Rudel::create_sandbox_from_app($app->id, 'Deploy API Sandbox');
+
+        $result = Rudel::deploy_sandbox_to_app($app->id, $sandbox->id, 'pre-deploy');
+
+        $this->assertSame($app->id, $result['app_id']);
+        $this->assertSame($sandbox->id, $result['sandbox_id']);
+        $this->assertSame('pre-deploy', $result['backup']['name']);
+    }
 }
