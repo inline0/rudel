@@ -460,6 +460,8 @@ class EnvironmentManager {
 			}
 		}
 
+		$this->preserve_rudel_activation_on_host( $host_prefix );
+
 		return array(
 			'backup_path'   => $backup_dir,
 			'backup_prefix' => $backup_prefix,
@@ -965,6 +967,116 @@ class EnvironmentManager {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Keep Rudel active on the host after replacing the host database.
+	 *
+	 * Promote intentionally copies the sandbox's WordPress state to the host, but
+	 * the CLI and bootstrap tooling still depend on Rudel remaining active there.
+	 *
+	 * @param string $host_prefix Host database table prefix.
+	 * @return void
+	 */
+	private function preserve_rudel_activation_on_host( string $host_prefix ): void {
+		global $wpdb;
+
+		if ( ! isset( $wpdb ) || ! $wpdb ) {
+			return;
+		}
+
+		$plugin_basename = $this->get_rudel_plugin_basename();
+		$options_table   = $host_prefix . 'options';
+		$option_row      = $this->find_table_row_by_value( $options_table, 'option_name', 'active_plugins' );
+		$plugins         = $this->unserialize_array( $option_row['option_value'] ?? null );
+
+		if ( in_array( $plugin_basename, $plugins, true ) ) {
+			return;
+		}
+
+		$plugins[] = $plugin_basename;
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WordPress stores active plugins as a serialized PHP array.
+		$serialized_plugins = serialize( array_values( array_unique( $plugins ) ) );
+
+		if ( null === $option_row ) {
+			$wpdb->insert(
+				$options_table,
+				array(
+					'option_name'  => 'active_plugins',
+					'option_value' => $serialized_plugins,
+					'autoload'     => 'yes',
+				)
+			);
+			return;
+		}
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Updating host activation state after promote.
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE `{$options_table}` SET `option_value` = %s WHERE `option_name` = %s",
+				$serialized_plugins,
+				'active_plugins'
+			)
+		);
+		// phpcs:enable
+	}
+
+	/**
+	 * Find a single row in a small metadata table by one exact column match.
+	 *
+	 * @param string $table        Table name.
+	 * @param string $match_column Column to match.
+	 * @param string $match_value  Value to match.
+	 * @return array<string, mixed>|null Matching row or null when absent.
+	 */
+	private function find_table_row_by_value( string $table, string $match_column, string $match_value ): ?array {
+		global $wpdb;
+
+		if ( ! isset( $wpdb ) || ! $wpdb ) {
+			return null;
+		}
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading small options-like tables after promote.
+		$rows = $wpdb->get_results( "SELECT * FROM `{$table}` LIMIT 1000 OFFSET 0" );
+		// phpcs:enable
+
+		foreach ( $rows as $row ) {
+			$candidate = (array) $row;
+			if ( ( $candidate[ $match_column ] ?? null ) === $match_value ) {
+				return $candidate;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Decode a serialized PHP array stored by WordPress, or return an empty array.
+	 *
+	 * @param string|null $value Serialized WordPress option value.
+	 * @return array<mixed> Decoded array, or an empty array on invalid input.
+	 */
+	private function unserialize_array( ?string $value ): array {
+		if ( ! is_string( $value ) || '' === $value ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- WordPress stores options as serialized PHP arrays.
+		$decoded = @unserialize( $value );
+		return is_array( $decoded ) ? $decoded : array();
+	}
+
+	/**
+	 * Get the plugin basename used in WordPress's active_plugins option.
+	 *
+	 * @return string Plugin basename.
+	 */
+	private function get_rudel_plugin_basename(): string {
+		if ( defined( 'RUDEL_PLUGIN_DIR' ) ) {
+			return basename( rtrim( RUDEL_PLUGIN_DIR, '/' ) ) . '/rudel.php';
+		}
+
+		return 'rudel/rudel.php';
 	}
 
 	/**

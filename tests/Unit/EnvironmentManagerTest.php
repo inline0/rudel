@@ -1354,6 +1354,53 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->assertFileExists(WP_CONTENT_DIR . '/uploads/existing.txt');
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPromoteKeepsRudelActiveOnHostAfterMysqlPromotion(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'http://example.com');
+        if (! defined('ABSPATH')) {
+            define('ABSPATH', $this->tmpDir . '/wordpress/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir . '/wordpress/wp-content');
+            mkdir(WP_CONTENT_DIR, 0755, true);
+        }
+
+        require_once dirname(__DIR__) . '/Stubs/MockWpdb.php';
+        $mockWpdb = new \MockWpdb();
+        $mockWpdb->prefix = 'wp_';
+        $mockWpdb->addTable('wp_posts', 'CREATE TABLE wp_posts (ID int)', [
+            ['ID' => '1', 'post_title' => 'Host Post'],
+        ]);
+        $mockWpdb->addTable('wp_options', 'CREATE TABLE wp_options (option_id int)', [
+            ['option_id' => '1', 'option_name' => 'siteurl', 'option_value' => 'http://example.com'],
+            ['option_id' => '2', 'option_name' => 'home', 'option_value' => 'http://example.com'],
+            ['option_id' => '3', 'option_name' => 'blogname', 'option_value' => 'Host Site'],
+            ['option_id' => '4', 'option_name' => 'active_plugins', 'option_value' => serialize(['rudel/rudel.php'])],
+        ]);
+        $GLOBALS['wpdb'] = $mockWpdb;
+
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Promote MySQL Activation', ['engine' => 'mysql']);
+
+        $manager->promote($sandbox->id, $this->tmpDir . '/mysql-promote-backup');
+
+        $optionsRows = $mockWpdb->getTableRows('wp_options');
+        $activePlugins = null;
+
+        foreach ($optionsRows as $row) {
+            if (($row['option_name'] ?? null) === 'active_plugins') {
+                $activePlugins = $row['option_value'];
+                break;
+            }
+        }
+
+        $this->assertNotNull($activePlugins);
+        $this->assertContains('rudel/rudel.php', unserialize($activePlugins));
+    }
+
     // Helpers
 
     private function defineConstants(): void
