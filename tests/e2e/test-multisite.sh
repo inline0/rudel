@@ -235,10 +235,12 @@ else
 fi
 
 # Clone-all from multisite host
+# Use SQLite explicitly because this suite validates the cloned database
+# directly via PDO instead of going through sandbox WP-CLI.
 echo ""
 echo -e "${BOLD}Clone-all from multisite host${NC}"
 
-CLONE_OUTPUT=$(wp_cli rudel create --name=ms-full --clone-all)
+CLONE_OUTPUT=$(wp_cli rudel create --name=ms-full --clone-all --engine=sqlite)
 CLONE_ID=$(parse_sandbox_id "$CLONE_OUTPUT")
 if [[ -n "$CLONE_ID" ]]; then
     SANDBOX_IDS+=("$CLONE_ID")
@@ -440,7 +442,7 @@ fi
 echo ""
 echo -e "${BOLD}Clone-db-only from multisite${NC}"
 
-DB_OUTPUT=$(wp_cli rudel create --name=ms-dbonly --clone-db)
+DB_OUTPUT=$(wp_cli rudel create --name=ms-dbonly --clone-db --engine=sqlite)
 DB_ID=$(parse_sandbox_id "$DB_OUTPUT")
 if [[ -n "$DB_ID" ]]; then
     SANDBOX_IDS+=("$DB_ID")
@@ -481,7 +483,7 @@ fi
 echo ""
 echo -e "${BOLD}Blank sandbox on multisite host${NC}"
 
-BLANK_OUTPUT=$(wp_cli rudel create --name=ms-blank)
+BLANK_OUTPUT=$(wp_cli rudel create --name=ms-blank --engine=sqlite)
 BLANK_ID=$(parse_sandbox_id "$BLANK_OUTPUT")
 if [[ -n "$BLANK_ID" ]]; then
     SANDBOX_IDS+=("$BLANK_ID")
