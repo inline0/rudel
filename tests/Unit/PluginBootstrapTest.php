@@ -10,7 +10,7 @@ class PluginBootstrapTest extends RudelTestCase
 {
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testPluginRegistersAppCommand(): void
+    public function testPluginRegistersCliCommands(): void
     {
         require_once dirname(__DIR__) . '/Stubs/wp-cli-stubs.php';
 
@@ -52,8 +52,24 @@ PHP);
         \WP_CLI::reset();
         require dirname(__DIR__, 2) . '/rudel.php';
 
-        $this->assertArrayHasKey('rudel', \WP_CLI::$commands);
-        $this->assertArrayHasKey('rudel app', \WP_CLI::$commands);
-        $this->assertArrayHasKey('rudel template', \WP_CLI::$commands);
+        $expected = [
+            'rudel' => \Rudel\CLI\RudelCommand::class,
+            'rudel app' => \Rudel\CLI\AppCommand::class,
+            'rudel cleanup' => \Rudel\CLI\CleanupCommand::class,
+            'rudel export' => \Rudel\CLI\ExportCommand::class,
+            'rudel import' => \Rudel\CLI\ImportCommand::class,
+            'rudel logs' => \Rudel\CLI\LogsCommand::class,
+            'rudel pr' => \Rudel\CLI\PrCommand::class,
+            'rudel promote' => \Rudel\CLI\PromoteCommand::class,
+            'rudel push' => \Rudel\CLI\PushCommand::class,
+            'rudel restore' => \Rudel\CLI\RestoreCommand::class,
+            'rudel snapshot' => \Rudel\CLI\SnapshotCommand::class,
+            'rudel template' => \Rudel\CLI\TemplateCommand::class,
+        ];
+
+        foreach ($expected as $command => $class) {
+            $this->assertArrayHasKey($command, \WP_CLI::$commands);
+            $this->assertSame($class, \WP_CLI::$commands[$command]);
+        }
     }
 }

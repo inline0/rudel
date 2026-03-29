@@ -58,6 +58,15 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND, Rudel\CLI\RudelCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' app', Rudel\CLI\AppCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' cleanup', Rudel\CLI\CleanupCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' export', Rudel\CLI\ExportCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' import', Rudel\CLI\ImportCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' logs', Rudel\CLI\LogsCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' pr', Rudel\CLI\PrCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' promote', Rudel\CLI\PromoteCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' push', Rudel\CLI\PushCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' restore', Rudel\CLI\RestoreCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' snapshot', Rudel\CLI\SnapshotCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }
 
