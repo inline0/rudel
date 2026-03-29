@@ -451,7 +451,7 @@ class EnvironmentManager {
 			foreach ( array( 'themes', 'plugins', 'uploads' ) as $subdir ) {
 				$host_sub    = $host_content . '/' . $subdir;
 				$sandbox_sub = $sandbox_content . '/' . $subdir;
-				if ( is_dir( $sandbox_sub ) ) {
+				if ( is_dir( $sandbox_sub ) && $this->directory_has_entries( $sandbox_sub ) ) {
 					if ( is_dir( $host_sub ) ) {
 						$this->delete_directory( $host_sub );
 					}
@@ -945,6 +945,26 @@ class EnvironmentManager {
 		}
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
 		return $abspath . 'wp-content/rudel-environments';
+	}
+
+	/**
+	 * Check whether a directory contains at least one non-dot entry.
+	 *
+	 * @param string $path Absolute directory path.
+	 * @return bool True when the directory has real contents.
+	 */
+	private function directory_has_entries( string $path ): bool {
+		if ( ! is_dir( $path ) ) {
+			return false;
+		}
+
+		$iterator = new \FilesystemIterator( $path, \FilesystemIterator::SKIP_DOTS );
+
+		foreach ( $iterator as $item ) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
