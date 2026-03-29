@@ -297,11 +297,11 @@ class AppManager {
 			);
 		}
 
-			$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
-			$context       = array(
-				'app'         => $app,
-				'sandbox'     => $sandbox,
-				'backup_name' => $backup_name,
+		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
+		$context       = array(
+			'app'         => $app,
+			'sandbox'     => $sandbox,
+			'backup_name' => $backup_name,
 		);
 		Hooks::action( 'rudel_before_app_deploy', $context );
 
