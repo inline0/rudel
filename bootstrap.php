@@ -27,16 +27,15 @@ if ( defined( 'RUDEL_ID' ) ) {
 	return;
 }
 
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Temporary variable, unset after use.
-$_rudel_prefix = null;
-$_rudel_is_app = false;
-$_rudel_requested_url = null;
+$rudel_bootstrap_prefix        = null;
+$rudel_bootstrap_is_app        = false;
+$rudel_bootstrap_requested_url = null;
 
 if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	define( 'RUDEL_PATH_PREFIX', '__rudel' );
 }
 
-( function () use ( &$_rudel_prefix, &$_rudel_is_app, &$_rudel_requested_url ) {
+( function () use ( &$rudel_bootstrap_prefix, &$rudel_bootstrap_is_app, &$rudel_bootstrap_requested_url ) {
 	$plugin_dir       = __DIR__;
 	$environments_dir = null;
 
@@ -68,7 +67,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		$domain_map_path = $apps_dir . '/domains.json';
 		if ( file_exists( $domain_map_path ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
-			$domains_raw = file_get_contents( $domain_map_path );
+			$domains_raw     = file_get_contents( $domain_map_path );
 			$domains_decoded = json_decode( $domains_raw, true );
 			if ( is_array( $domains_decoded ) ) {
 				foreach ( $domains_decoded as $domain => $id ) {
@@ -135,15 +134,15 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	/**
 	 * Try to resolve an ID and set sandbox_id/sandbox_path/is_app.
 	 */
-	$try_resolve = function ( string $id ) use ( $validate_id, $validate_path, &$sandbox_id, &$sandbox_path, &$_rudel_is_app ): bool {
+	$try_resolve = function ( string $id ) use ( $validate_id, $validate_path, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app ): bool {
 		if ( ! $validate_id( $id ) ) {
 			return false;
 		}
 		$result = $validate_path( $id );
 		if ( $result ) {
-			$sandbox_id    = $id;
-			$sandbox_path  = $result['path'];
-			$_rudel_is_app = $result['is_app'];
+			$sandbox_id             = $id;
+			$sandbox_path           = $result['path'];
+			$rudel_bootstrap_is_app = $result['is_app'];
 			return true;
 		}
 		return false;
@@ -188,8 +187,8 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		return null;
 	};
 
-	// 0. App domain map: host wins before sandbox detection in web requests.
-	if ( ! $sandbox_id && 'cli' !== php_sapi_name() ) {
+	// 0. App domain map: a concrete request host wins before sandbox detection.
+	if ( ! $sandbox_id ) {
 		$host = $_SERVER['HTTP_HOST'] ?? '';
 		if ( is_string( $host ) && '' !== $host ) {
 			$try_resolve_domain( $host );
@@ -214,15 +213,15 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 	// 3. WP-CLI --url= argument.
 	if ( ! $sandbox_id && 'cli' === php_sapi_name() ) {
-		$_rudel_requested_url = $extract_cli_url();
-		if ( is_string( $_rudel_requested_url ) && '' !== $_rudel_requested_url ) {
-			if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $_rudel_requested_url, $m ) ) {
+		$rudel_bootstrap_requested_url = $extract_cli_url();
+		if ( is_string( $rudel_bootstrap_requested_url ) && '' !== $rudel_bootstrap_requested_url ) {
+			if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $rudel_bootstrap_requested_url, $m ) ) {
 				$try_resolve( $m[1] );
 			}
 
 			if ( ! $sandbox_id ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap.
-				$cli_host = parse_url( $_rudel_requested_url, PHP_URL_HOST );
+				$cli_host = parse_url( $rudel_bootstrap_requested_url, PHP_URL_HOST );
 				if ( is_string( $cli_host ) && '' !== $cli_host ) {
 					$try_resolve_domain( $cli_host );
 				}
@@ -272,7 +271,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 	// Auto-set the sandbox cookie in web context so wp-admin and other
 	// real PHP files (not routed through index.php) maintain sandbox context.
-	if ( 'cli' !== php_sapi_name() && ! $_rudel_is_app ) {
+	if ( 'cli' !== php_sapi_name() && ! $rudel_bootstrap_is_app ) {
 		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
 		if ( $cookie_id !== $sandbox_id ) {
 			setcookie( 'rudel_sandbox', $sandbox_id, 0, '/' );
@@ -337,9 +336,9 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	// Build environment URL, preferring the explicit CLI --url when available.
 	$protocol = 'http';
 	$host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
-	if ( is_string( $_rudel_requested_url ) && '' !== $_rudel_requested_url ) {
+	if ( is_string( $rudel_bootstrap_requested_url ) && '' !== $rudel_bootstrap_requested_url ) {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap.
-		$requested_parts = parse_url( $_rudel_requested_url );
+		$requested_parts = parse_url( $rudel_bootstrap_requested_url );
 		if ( is_array( $requested_parts ) && ! empty( $requested_parts['host'] ) ) {
 			$protocol = isset( $requested_parts['scheme'] ) ? $requested_parts['scheme'] : 'http';
 			$host     = $requested_parts['host'];
@@ -347,17 +346,15 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 				$host .= ':' . $requested_parts['port'];
 			}
 		}
-	} else {
-		if ( ! empty( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && in_array( $_SERVER['HTTP_X_FORWARDED_PROTO'], array( 'http', 'https' ), true ) ) {
-			$protocol = $_SERVER['HTTP_X_FORWARDED_PROTO'];
-		} elseif ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
-			$protocol = 'https';
-		}
+	} elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && in_array( $_SERVER['HTTP_X_FORWARDED_PROTO'], array( 'http', 'https' ), true ) ) {
+		$protocol = $_SERVER['HTTP_X_FORWARDED_PROTO'];
+	} elseif ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
+		$protocol = 'https';
 	}
 	$site_url = rtrim( $protocol . '://' . $host, '/' );
 
 	// Environment URL (apps live at the domain root; sandboxes use a path prefix).
-	if ( $_rudel_is_app ) {
+	if ( $rudel_bootstrap_is_app ) {
 		$environment_url = $site_url;
 	} else {
 		$environment_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
@@ -372,7 +369,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$def( 'UPLOADS', 'wp-content/uploads' );
 
 	// Per-sandbox debug logging (sandboxes are dev environments).
-	if ( ! $_rudel_is_app ) {
+	if ( ! $rudel_bootstrap_is_app ) {
 		$def( 'WP_DEBUG', true );
 		$def( 'WP_DEBUG_LOG', true );
 		$def( 'WP_DEBUG_DISPLAY', false );
@@ -382,13 +379,13 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$def( 'WP_CACHE_KEY_SALT', 'rudel_' . $sandbox_id . '_' );
 
 	// Disable outbound email by default for temporary sandboxes only.
-	$def( 'RUDEL_DISABLE_EMAIL', ! $_rudel_is_app );
+	$def( 'RUDEL_DISABLE_EMAIL', ! $rudel_bootstrap_is_app );
 
 	// Per-sandbox table prefix (subsite engine uses multisite's own prefix via blog_id).
 	if ( 'subsite' !== $_rudel_engine ) {
-		$_rudel_prefix           = 'rudel_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
-		$GLOBALS['table_prefix'] = $_rudel_prefix;
-		$def( 'RUDEL_TABLE_PREFIX', $_rudel_prefix );
+		$rudel_bootstrap_prefix  = 'rudel_' . substr( md5( $sandbox_id ), 0, 6 ) . '_';
+		$GLOBALS['table_prefix'] = $rudel_bootstrap_prefix;
+		$def( 'RUDEL_TABLE_PREFIX', $rudel_bootstrap_prefix );
 	}
 
 	// Per-sandbox auth salts (deterministic).
@@ -408,7 +405,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 			$def( 'MULTISITE', true );
 			$def( 'SUBDOMAIN_INSTALL', false );
 			$def( 'DOMAIN_CURRENT_SITE', $normalize_host( $host ) );
-			$def( 'PATH_CURRENT_SITE', $_rudel_is_app ? '/' : '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
+			$def( 'PATH_CURRENT_SITE', $rudel_bootstrap_is_app ? '/' : '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
 			$def( 'SITE_ID_CURRENT_SITE', 1 );
 			$def( 'BLOG_ID_CURRENT_SITE', 1 );
 		} else {
@@ -420,15 +417,15 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	// Rudel sandbox markers.
 	$def( 'RUDEL_ID', $sandbox_id );
 	$def( 'RUDEL_PATH', $sandbox_path );
-	$def( 'RUDEL_IS_APP', $_rudel_is_app );
-	$def( 'RUDEL_ENV_TYPE', $_rudel_is_app ? 'app' : 'sandbox' );
+	$def( 'RUDEL_IS_APP', $rudel_bootstrap_is_app );
+	$def( 'RUDEL_ENV_TYPE', $rudel_bootstrap_is_app ? 'app' : 'sandbox' );
 } )();
 
 // Also set $table_prefix in the caller's scope for WP-CLI eval compatibility.
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Must match WP's $table_prefix variable name.
-if ( null !== $_rudel_prefix ) {
-	$table_prefix = $_rudel_prefix;
+if ( null !== $rudel_bootstrap_prefix ) {
+	$table_prefix = $rudel_bootstrap_prefix;
 }
-unset( $_rudel_prefix );
-unset( $_rudel_is_app );
-unset( $_rudel_requested_url );
+unset( $rudel_bootstrap_prefix );
+unset( $rudel_bootstrap_is_app );
+unset( $rudel_bootstrap_requested_url );
