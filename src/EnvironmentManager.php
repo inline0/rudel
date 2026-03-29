@@ -266,6 +266,8 @@ class EnvironmentManager {
 			$this->write_sandbox_bootstrap( $id, $path, true, $engine );
 		}
 
+		$this->write_runtime_mu_plugin( $path );
+
 		// Store git worktree metadata if any were created.
 		if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
 			$clone_source['git_worktrees'] = $git_worktrees;
@@ -1179,6 +1181,23 @@ class EnvironmentManager {
 		file_put_contents( $path . '/CLAUDE.md', $content );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.
 		chmod( $path . '/CLAUDE.md', 0444 );
+	}
+
+	/**
+	 * Write the per-environment MU plugin with runtime hooks that must always load.
+	 *
+	 * @param string $path Absolute path to the environment directory.
+	 * @return void
+	 */
+	private function write_runtime_mu_plugin( string $path ): void {
+		if ( ! is_dir( $path . '/wp-content/mu-plugins' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Ensuring MU plugin directory exists after content copy.
+			mkdir( $path . '/wp-content/mu-plugins', 0755, true );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
+		$template = file_get_contents( $this->plugin_dir . 'templates/runtime-mu-plugin.php.tpl' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing runtime MU plugin.
+		file_put_contents( $path . '/wp-content/mu-plugins/rudel-runtime.php', $template );
 	}
 
 	/**

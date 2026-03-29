@@ -70,67 +70,71 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }
 
-// Disable outbound email when RUDEL_DISABLE_EMAIL is true. Register this
-// unconditionally so it still works even if environment constants are defined
-// later in the bootstrap lifecycle.
-add_filter(
-	'pre_wp_mail',
-	function ( $null, $atts ) {
-		if ( ! Rudel\Rudel::is_email_disabled() ) {
-			return $null;
-		}
+if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
+	define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
-		$to = $atts['to'] ?? '';
-		if ( is_array( $to ) ) {
-			$to = implode( ', ', array_map( 'strval', $to ) );
-		}
+	// Disable outbound email when RUDEL_DISABLE_EMAIL is true. Register this
+	// unconditionally so it still works even if environment constants are defined
+	// later in the bootstrap lifecycle.
+	add_filter(
+		'pre_wp_mail',
+		function ( $null, $atts ) {
+			if ( ! Rudel\Rudel::is_email_disabled() ) {
+				return $null;
+			}
 
-		$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
+			$to = $atts['to'] ?? '';
+			if ( is_array( $to ) ) {
+				$to = implode( ', ', array_map( 'strval', $to ) );
+			}
 
-		if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( 'RUDEL_ID' ) ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
-			error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
-		}
+			$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
 
-		return true;
-	},
-	10,
-	2
-);
+			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( 'RUDEL_ID' ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
+				error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
+			}
 
-// Environment-specific hooks (sandboxes and apps).
-if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
-
-	// Admin bar indicator for the active environment.
-	add_action(
-		'admin_bar_menu',
-		function ( $wp_admin_bar ) {
-			$is_app = Rudel\Rudel::is_app();
-			$wp_admin_bar->add_node(
-				array(
-					'id'    => 'rudel-environment',
-					'title' => '&#9632; ' . ( $is_app ? 'App' : 'Sandbox' ) . ': ' . ( $is_app ? Rudel\Rudel::app_id() : Rudel\Rudel::id() ),
-					'href'  => $is_app ? Rudel\Rudel::url() : Rudel\Rudel::exit_url(),
-					'meta'  => array(
-						'title' => $is_app
-							? 'Current Rudel app environment'
-							: 'Click to exit sandbox and return to host',
-					),
-				)
-			);
+			return true;
 		},
-		1
+		10,
+		2
 	);
 
-	// Style the admin bar indicator.
-	add_action(
-		'wp_head',
-		'rudel_admin_bar_styles'
-	);
-	add_action(
-		'admin_head',
-		'rudel_admin_bar_styles'
-	);
+	// Environment-specific hooks (sandboxes and apps).
+	if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
+
+		// Admin bar indicator for the active environment.
+		add_action(
+			'admin_bar_menu',
+			function ( $wp_admin_bar ) {
+				$is_app = Rudel\Rudel::is_app();
+				$wp_admin_bar->add_node(
+					array(
+						'id'    => 'rudel-environment',
+						'title' => '&#9632; ' . ( $is_app ? 'App' : 'Sandbox' ) . ': ' . ( $is_app ? Rudel\Rudel::app_id() : Rudel\Rudel::id() ),
+						'href'  => $is_app ? Rudel\Rudel::url() : Rudel\Rudel::exit_url(),
+						'meta'  => array(
+							'title' => $is_app
+								? 'Current Rudel app environment'
+								: 'Click to exit sandbox and return to host',
+						),
+					)
+				);
+			},
+			1
+		);
+
+		// Style the admin bar indicator.
+		add_action(
+			'wp_head',
+			'rudel_admin_bar_styles'
+		);
+		add_action(
+			'admin_head',
+			'rudel_admin_bar_styles'
+		);
+	}
 }
 
 /**

@@ -46,6 +46,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->assertFileExists($sandbox->path . '/bootstrap.php');
         $this->assertFileExists($sandbox->path . '/CLAUDE.md');
         $this->assertFileExists($sandbox->path . '/wp-content/db.php');
+        $this->assertFileExists($sandbox->path . '/wp-content/mu-plugins/rudel-runtime.php');
     }
 
     #[RunInSeparateProcess]
@@ -107,6 +108,20 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->assertStringContainsString("'" . $sandbox->id . "'", $bootstrap);
         $this->assertStringContainsString($sandbox->path, $bootstrap);
         $this->assertStringContainsString('RUDEL_ID', $bootstrap);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateRuntimeMuPluginContainsRuntimeHooks(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Runtime Hook Test', ['engine' => 'sqlite']);
+
+        $runtimeMuPlugin = file_get_contents($sandbox->path . '/wp-content/mu-plugins/rudel-runtime.php');
+        $this->assertStringContainsString('pre_wp_mail', $runtimeMuPlugin);
+        $this->assertStringContainsString('RUDEL_RUNTIME_HOOKS_LOADED', $runtimeMuPlugin);
+        $this->assertStringContainsString('admin_bar_menu', $runtimeMuPlugin);
     }
 
     #[RunInSeparateProcess]
