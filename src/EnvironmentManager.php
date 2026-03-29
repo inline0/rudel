@@ -152,10 +152,12 @@ class EnvironmentManager {
 				&& ! $clone_from && ! $has_clone
 				&& $this->template_exists( $template );
 			$blank_site_options = array(
-				'site_url'         => $this->get_target_environment_url( $id, $target_type, $target_domains ),
-				'site_name'        => $name,
-				'site_description' => 'app' === $target_type ? 'A Rudel app environment' : 'A sandboxed WordPress environment',
+				'site_url' => $this->get_target_environment_url( $id, $target_type, $target_domains ),
 			);
+			if ( 'app' === $target_type ) {
+				$blank_site_options['site_name']        = $name;
+				$blank_site_options['site_description'] = 'A Rudel app environment';
+			}
 
 			if ( 'subsite' === $engine ) {
 				$subsite_cloner = new SubsiteCloner();
