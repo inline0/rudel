@@ -137,7 +137,7 @@ class Environment {
 				return $wpdb->base_prefix . $this->blog_id . '_';
 			}
 		}
-		return 'rudel_' . substr( md5( $this->id ), 0, 6 ) . '_';
+		return self::table_prefix_for_id( $this->id );
 	}
 
 	/**
@@ -271,6 +271,16 @@ class Environment {
 	 */
 	public static function validate_id( string $id ): bool {
 		return (bool) preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/', $id );
+	}
+
+	/**
+	 * Build the deterministic table prefix for an environment ID.
+	 *
+	 * @param string $id Environment identifier.
+	 * @return string Table prefix string.
+	 */
+	public static function table_prefix_for_id( string $id ): string {
+		return 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
 	}
 
 	/**

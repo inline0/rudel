@@ -277,6 +277,12 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame($expected, $sandbox->get_table_prefix());
     }
 
+    public function testTablePrefixForId(): void
+    {
+        $expected = 'rudel_' . substr(md5('test-id'), 0, 6) . '_';
+        $this->assertSame($expected, Environment::table_prefix_for_id('test-id'));
+    }
+
     public function testFromPathReadsEngineField(): void
     {
         $path = $this->createFakeSandbox('engine-test', 'test', ['engine' => 'sqlite']);

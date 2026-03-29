@@ -13,9 +13,9 @@
         }
     },
     "autoload-dev": {
-        "psr-4": {
-            "Rudel\\Tests\\": "tests/"
-        }
+        "classmap": [
+            "tests/"
+        ]
     },
     "config": {
         "optimize-autoloader": true,

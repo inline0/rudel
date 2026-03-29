@@ -92,7 +92,7 @@ class EnvironmentManager {
 			throw new \RuntimeException( 'Subsite engine requires a WordPress multisite installation.' );
 		}
 
-			$blog_id   = null;
+		$blog_id       = null;
 		$git_worktrees = array();
 
 		try {
@@ -126,28 +126,26 @@ class EnvironmentManager {
 
 				if ( $clone_db ) {
 					$clone_result = $subsite_cloner->clone_host_db_to_subsite( $blog_id );
-					$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-					$clone_source = array(
-						'host_url'       => $site_url,
-						'cloned_at'      => gmdate( 'c' ),
-						'db_cloned'      => true,
-						'themes_cloned'  => $clone_themes,
-						'plugins_cloned' => $clone_plugins,
-						'uploads_cloned' => $clone_uploads,
-						'tables_cloned'  => $clone_result['tables_cloned'],
-						'rows_cloned'    => $clone_result['rows_cloned'],
+					$clone_source = $this->build_clone_source(
+						$this->get_host_site_url(),
+						true,
+						$clone_themes,
+						$clone_plugins,
+						$clone_uploads,
+						array(
+							'tables_cloned' => $clone_result['tables_cloned'],
+							'rows_cloned'   => $clone_result['rows_cloned'],
+						)
 					);
 				}
 
 				if ( $has_clone && ! $clone_source ) {
-					$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-					$clone_source = array(
-						'host_url'       => $site_url,
-						'cloned_at'      => gmdate( 'c' ),
-						'db_cloned'      => false,
-						'themes_cloned'  => $clone_themes,
-						'plugins_cloned' => $clone_plugins,
-						'uploads_cloned' => $clone_uploads,
+					$clone_source = $this->build_clone_source(
+						$this->get_host_site_url(),
+						false,
+						$clone_themes,
+						$clone_plugins,
+						$clone_uploads
 					);
 				}
 			} elseif ( $is_from_template ) {
@@ -164,8 +162,8 @@ class EnvironmentManager {
 				}
 				$clone_source = $this->clone_from_sandbox( $source, $id, $path, $engine );
 			} elseif ( $clone_db ) {
-				$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
-				$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+				$table_prefix = Environment::table_prefix_for_id( $id );
+				$site_url     = $this->get_host_site_url();
 				$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
 				if ( 'mysql' === $engine ) {
@@ -187,15 +185,16 @@ class EnvironmentManager {
 
 				$is_multisite = ! empty( $clone_result['is_multisite'] );
 
-				$clone_source = array(
-					'host_url'       => $site_url,
-					'cloned_at'      => gmdate( 'c' ),
-					'db_cloned'      => true,
-					'themes_cloned'  => $clone_themes,
-					'plugins_cloned' => $clone_plugins,
-					'uploads_cloned' => $clone_uploads,
-					'tables_cloned'  => $clone_result['tables_cloned'],
-					'rows_cloned'    => $clone_result['rows_cloned'],
+				$clone_source = $this->build_clone_source(
+					$site_url,
+					true,
+					$clone_themes,
+					$clone_plugins,
+					$clone_uploads,
+					array(
+						'tables_cloned' => $clone_result['tables_cloned'],
+						'rows_cloned'   => $clone_result['rows_cloned'],
+					)
 				);
 
 				if ( $is_multisite ) {
@@ -209,14 +208,12 @@ class EnvironmentManager {
 				}
 
 				if ( $has_clone ) {
-					$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-					$clone_source = array(
-						'host_url'       => $site_url,
-						'cloned_at'      => gmdate( 'c' ),
-						'db_cloned'      => false,
-						'themes_cloned'  => $clone_themes,
-						'plugins_cloned' => $clone_plugins,
-						'uploads_cloned' => $clone_uploads,
+					$clone_source = $this->build_clone_source(
+						$this->get_host_site_url(),
+						false,
+						$clone_themes,
+						$clone_plugins,
+						$clone_uploads
 					);
 				}
 			}
@@ -252,7 +249,7 @@ class EnvironmentManager {
 			if ( 'mysql' === $engine ) {
 				global $wpdb;
 				if ( isset( $wpdb ) && $wpdb ) {
-					$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
+					$table_prefix = Environment::table_prefix_for_id( $id );
 					$mysql_cloner = new MySQLCloner();
 					$mysql_cloner->drop_tables( $table_prefix );
 				}
@@ -655,8 +652,8 @@ class EnvironmentManager {
 		// Rewrite URLs and prefix in the database.
 		$db_path = $new_path . '/wordpress.db';
 		if ( file_exists( $db_path ) ) {
-			$old_prefix = 'rudel_' . substr( md5( $old_id ), 0, 6 ) . '_';
-			$new_prefix = 'rudel_' . substr( md5( $new_id ), 0, 6 ) . '_';
+			$old_prefix = Environment::table_prefix_for_id( $old_id );
+			$new_prefix = Environment::table_prefix_for_id( $new_id );
 
 			$site_url = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 			$old_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $old_id;
@@ -853,6 +850,47 @@ class EnvironmentManager {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Get the host site URL without a trailing slash.
+	 *
+	 * @return string Host site URL.
+	 */
+	private function get_host_site_url(): string {
+		return defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
+	}
+
+	/**
+	 * Build clone metadata for a new environment.
+	 *
+	 * @param string $host_url       Source host URL.
+	 * @param bool   $db_cloned      Whether the database was cloned.
+	 * @param bool   $themes_cloned  Whether themes were cloned.
+	 * @param bool   $plugins_cloned Whether plugins were cloned.
+	 * @param bool   $uploads_cloned Whether uploads were cloned.
+	 * @param array  $extra          Additional metadata to merge into the clone record.
+	 * @return array<string, mixed> Clone metadata payload.
+	 */
+	private function build_clone_source(
+		string $host_url,
+		bool $db_cloned,
+		bool $themes_cloned,
+		bool $plugins_cloned,
+		bool $uploads_cloned,
+		array $extra = array()
+	): array {
+		return array_merge(
+			array(
+				'host_url'       => $host_url,
+				'cloned_at'      => gmdate( 'c' ),
+				'db_cloned'      => $db_cloned,
+				'themes_cloned'  => $themes_cloned,
+				'plugins_cloned' => $plugins_cloned,
+				'uploads_cloned' => $uploads_cloned,
+			),
+			$extra
+		);
 	}
 
 	/**
@@ -1152,7 +1190,7 @@ class EnvironmentManager {
 	 */
 	private function create_blank_database( string $id, string $path ): void {
 		$db_path      = $path . '/wordpress.db';
-		$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
+		$table_prefix = Environment::table_prefix_for_id( $id );
 
 		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database creation requires PDO; $wpdb is unavailable.
 		$pdo = new \PDO( 'sqlite:' . $db_path );
@@ -1254,7 +1292,7 @@ class EnvironmentManager {
 	private function create_blank_mysql_database( string $id ): void {
 		global $wpdb;
 
-		$table_prefix = 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
+		$table_prefix = Environment::table_prefix_for_id( $id );
 		$site_url     = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 		$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
@@ -1935,8 +1973,8 @@ class EnvironmentManager {
 		$site_url      = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 		$sandbox_url   = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $target_id;
 		$source_id     = $meta['source_sandbox_id'] ?? '';
-		$source_prefix = 'rudel_' . substr( md5( $source_id ), 0, 6 ) . '_';
-		$target_prefix = 'rudel_' . substr( md5( $target_id ), 0, 6 ) . '_';
+		$source_prefix = Environment::table_prefix_for_id( $source_id );
+		$target_prefix = Environment::table_prefix_for_id( $target_id );
 
 		if ( file_exists( $target_db ) ) {
 			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO for template initialization.
@@ -1994,7 +2032,7 @@ class EnvironmentManager {
 	 */
 	private function clone_from_sandbox( Environment $source, string $target_id, string $target_path, string $engine = 'mysql' ): array {
 		$source_prefix = $source->get_table_prefix();
-		$target_prefix = 'rudel_' . substr( md5( $target_id ), 0, 6 ) . '_';
+		$target_prefix = Environment::table_prefix_for_id( $target_id );
 
 		$site_url    = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
 		$source_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $source->id;
