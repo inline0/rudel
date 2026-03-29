@@ -746,10 +746,22 @@ else
 fi
 
 # Restore original host blogname for subsequent tests.
-wp_cli option update blogname "$ORIGINAL_HOST_NAME" > /dev/null 2>&1
+RESTORE_HOST_OUTPUT=$(wp_cli option update blogname "$ORIGINAL_HOST_NAME" 2>&1 || true)
+RESTORED_HOST_NAME=$(wp_cli option get blogname | tail -1)
+if [[ "$RESTORED_HOST_NAME" == "$ORIGINAL_HOST_NAME" ]]; then
+    pass "Host blogname restored after promote"
+else
+    fail "Host blogname restore failed after promote" "Expected '$ORIGINAL_HOST_NAME', got: $RESTORED_HOST_NAME"$'\n'"$RESTORE_HOST_OUTPUT"
+fi
 
-wp_cli rudel destroy "$PROMO_BOX_ID" --force > /dev/null 2>&1
-SANDBOX_IDS=("${SANDBOX_IDS[@]/$PROMO_BOX_ID}")
+PROMO_DESTROY_OUTPUT=$(wp_cli rudel destroy "$PROMO_BOX_ID" --force 2>&1 || true)
+PROMO_DIR_GONE=$(wpenv_run bash -c "test -d /var/www/html/wp-content/rudel-environments/${PROMO_BOX_ID} && echo exists || echo gone" | tail -1)
+if echo "$PROMO_DESTROY_OUTPUT" | grep -q "Success" && [[ "$PROMO_DIR_GONE" == "gone" ]]; then
+    pass "Promoted sandbox destroyed after host promotion"
+    SANDBOX_IDS=("${SANDBOX_IDS[@]/$PROMO_BOX_ID}")
+else
+    fail "Promoted sandbox cleanup failed" "Output: $PROMO_DESTROY_OUTPUT"$'\n'"Directory state: $PROMO_DIR_GONE"
+fi
 
 # Clear destroyed IDs so cleanup trap doesn't try again
 SANDBOX_IDS=()
