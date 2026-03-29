@@ -202,7 +202,7 @@ class EnvironmentManager {
 						sprintf( 'Cannot clone across engines: source is %s, target is %s.', $source->engine, $engine )
 					);
 				}
-				$clone_source = $this->clone_from_environment( $source, $id, $path, $engine, $target_type, $target_domains );
+				$clone_source  = $this->clone_from_environment( $source, $id, $path, $engine, $target_type, $target_domains );
 				$clone_lineage = array(
 					'source_environment_id'   => $source->id,
 					'source_environment_type' => $source->type,
@@ -998,7 +998,7 @@ class EnvironmentManager {
 
 		foreach ( $sandboxes as $sandbox ) {
 			if ( $sandbox->is_protected() ) {
-				$result['skipped'][]            = $sandbox->id;
+				$result['skipped'][]               = $sandbox->id;
 				$result['reasons'][ $sandbox->id ] = 'protected';
 				continue;
 			}
@@ -1052,7 +1052,7 @@ class EnvironmentManager {
 
 		foreach ( $sandboxes as $sandbox ) {
 			if ( $sandbox->is_protected() ) {
-				$result['skipped'][]            = $sandbox->id;
+				$result['skipped'][]               = $sandbox->id;
 				$result['reasons'][ $sandbox->id ] = 'protected';
 				continue;
 			}

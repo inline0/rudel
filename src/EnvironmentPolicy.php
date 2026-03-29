@@ -15,10 +15,10 @@ class EnvironmentPolicy {
 	/**
 	 * Build metadata for a newly created environment.
 	 *
-	 * @param array             $input      Raw metadata input.
-	 * @param string            $type       Environment type.
-	 * @param string            $created_at Creation timestamp.
-	 * @param RudelConfig|null  $config     Optional config instance for default policy values.
+	 * @param array            $input      Raw metadata input.
+	 * @param string           $type       Environment type.
+	 * @param string           $created_at Creation timestamp.
+	 * @param RudelConfig|null $config     Optional config instance for default policy values.
 	 * @return array<string, mixed>
 	 */
 	public static function metadata_for_create(
@@ -54,10 +54,11 @@ class EnvironmentPolicy {
 	 * @param string      $type    Environment type.
 	 * @param string|null $now     Optional timestamp used for TTL conversion.
 	 * @return array<string, mixed>
+	 * @throws \InvalidArgumentException If metadata values are invalid.
 	 */
 	public static function normalize_changes( array $changes, string $type = 'sandbox', ?string $now = null ): array {
 		$now        ??= gmdate( 'c' );
-		$normalized  = array();
+		$normalized   = array();
 		$clear_expiry = ! empty( $changes['clear_expiry'] );
 
 		if ( array_key_exists( 'owner', $changes ) ) {
@@ -83,7 +84,7 @@ class EnvironmentPolicy {
 		if ( $clear_expiry ) {
 			$normalized['expires_at'] = null;
 		} elseif ( array_key_exists( 'ttl_days', $changes ) ) {
-			$ttl_days = self::normalize_positive_integer( $changes['ttl_days'], 'ttl_days' );
+			$ttl_days                 = self::normalize_positive_integer( $changes['ttl_days'], 'ttl_days' );
 			$normalized['expires_at'] = gmdate( 'c', strtotime( '+' . $ttl_days . ' days', strtotime( $now ) ) );
 		} elseif ( array_key_exists( 'expires_at', $changes ) ) {
 			$normalized['expires_at'] = self::normalize_timestamp( $changes['expires_at'], 'expires_at' );
@@ -175,6 +176,7 @@ class EnvironmentPolicy {
 	 *
 	 * @param mixed $value Raw input.
 	 * @return string|null
+	 * @throws \InvalidArgumentException If the value cannot be normalized to a string.
 	 */
 	private static function normalize_optional_string( $value ): ?string {
 		if ( null === $value ) {
@@ -194,6 +196,7 @@ class EnvironmentPolicy {
 	 *
 	 * @param mixed $labels Raw labels.
 	 * @return array<int, string>
+	 * @throws \InvalidArgumentException If labels are not a string or array.
 	 */
 	private static function normalize_labels( $labels ): array {
 		if ( is_string( $labels ) ) {
@@ -224,6 +227,7 @@ class EnvironmentPolicy {
 	 *
 	 * @param mixed $value Raw boolean-like input.
 	 * @return bool
+	 * @throws \InvalidArgumentException If the value cannot be normalized to a boolean.
 	 */
 	private static function normalize_boolean( $value ): bool {
 		if ( is_bool( $value ) ) {
@@ -253,6 +257,7 @@ class EnvironmentPolicy {
 	 * @param mixed  $value Raw input.
 	 * @param string $field Field name for errors.
 	 * @return int
+	 * @throws \InvalidArgumentException If the value is not a positive integer.
 	 */
 	private static function normalize_positive_integer( $value, string $field ): int {
 		if ( is_string( $value ) && '' === trim( $value ) ) {
@@ -277,6 +282,7 @@ class EnvironmentPolicy {
 	 * @param mixed  $value Raw timestamp input.
 	 * @param string $field Field name for errors.
 	 * @return string|null
+	 * @throws \InvalidArgumentException If the timestamp is invalid.
 	 */
 	private static function normalize_timestamp( $value, string $field ): ?string {
 		$value = self::normalize_optional_string( $value );
@@ -298,6 +304,7 @@ class EnvironmentPolicy {
 	 * @param mixed  $value Raw environment ID.
 	 * @param string $field Field name for errors.
 	 * @return string|null
+	 * @throws \InvalidArgumentException If the ID is invalid.
 	 */
 	private static function normalize_environment_id( $value, string $field ): ?string {
 		$value = self::normalize_optional_string( $value );
@@ -318,6 +325,7 @@ class EnvironmentPolicy {
 	 * @param mixed  $value Raw environment type.
 	 * @param string $field Field name for errors.
 	 * @return string|null
+	 * @throws \InvalidArgumentException If the environment type is invalid.
 	 */
 	private static function normalize_environment_type( $value, string $field ): ?string {
 		$value = self::normalize_optional_string( $value );

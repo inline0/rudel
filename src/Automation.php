@@ -27,10 +27,10 @@ class Automation {
 			return;
 		}
 
-		$config        = new RudelConfig();
-		$auto_cleanup  = $config->get( 'auto_cleanup_enabled' ) > 0;
-		$auto_merged   = $config->get( 'auto_cleanup_merged' ) > 0;
-		$is_scheduled  = false !== wp_next_scheduled( self::CRON_HOOK );
+		$config       = new RudelConfig();
+		$auto_cleanup = $config->get( 'auto_cleanup_enabled' ) > 0;
+		$auto_merged  = $config->get( 'auto_cleanup_merged' ) > 0;
+		$is_scheduled = false !== wp_next_scheduled( self::CRON_HOOK );
 
 		if ( $auto_cleanup || $auto_merged ) {
 			if ( ! $is_scheduled ) {

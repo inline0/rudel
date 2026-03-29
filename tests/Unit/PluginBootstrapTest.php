@@ -86,7 +86,7 @@ namespace {
         }
     }
 }
-        PHP);
+PHP);
 
         define('ABSPATH', $this->tmpDir . '/');
         define('WP_CLI', true);

@@ -15,29 +15,29 @@ class Environment {
 	/**
 	 * Constructor.
 	 *
-	 * @param string     $id           Sandbox identifier.
-	 * @param string     $name         Human-readable name.
-	 * @param string     $path         Absolute filesystem path.
-	 * @param string     $created_at   ISO 8601 creation timestamp.
-	 * @param string     $template     Template used to create this sandbox.
-	 * @param string     $status       Current status (active, paused).
-	 * @param array|null $clone_source Clone source metadata, or null if not cloned.
-	 * @param bool       $multisite    Whether this sandbox was cloned from a multisite host.
-	 * @param string     $engine       Database engine: 'mysql', 'sqlite', or 'subsite'.
-	 * @param int|null   $blog_id      Multisite blog ID (subsite engine only).
-	 * @param string     $type                       Environment type: 'sandbox' or 'app'.
-	 * @param array|null $domains                    Domain names mapped to this environment (app mode).
-	 * @param string|null $owner                      Optional owner for stewardship and cleanup policy.
-	 * @param array       $labels                     Arbitrary labels for grouping and policy.
-	 * @param string|null $purpose                    Optional description of why the environment exists.
-	 * @param bool        $is_protected               Whether automated cleanup must skip this environment.
-	 * @param string|null $expires_at                 ISO 8601 expiry timestamp, or null if none.
-	 * @param string|null $last_used_at               ISO 8601 last activity timestamp.
-	 * @param string|null $source_environment_id      Source environment ID when cloned from another environment.
-	 * @param string|null $source_environment_type    Source environment type when cloned from another environment.
-	 * @param string|null $last_deployed_from_id      Last sandbox/app deployed into this environment.
-	 * @param string|null $last_deployed_from_type    Type of the environment last deployed into this environment.
-	 * @param string|null $last_deployed_at           ISO 8601 timestamp of the last deploy into this environment.
+	 * @param string      $id           Sandbox identifier.
+	 * @param string      $name         Human-readable name.
+	 * @param string      $path         Absolute filesystem path.
+	 * @param string      $created_at   ISO 8601 creation timestamp.
+	 * @param string      $template     Template used to create this sandbox.
+	 * @param string      $status       Current status (active, paused).
+	 * @param array|null  $clone_source Clone source metadata, or null if not cloned.
+	 * @param bool        $multisite    Whether this sandbox was cloned from a multisite host.
+	 * @param string      $engine       Database engine: 'mysql', 'sqlite', or 'subsite'.
+	 * @param int|null    $blog_id      Multisite blog ID (subsite engine only).
+	 * @param string      $type                     Environment type: 'sandbox' or 'app'.
+	 * @param array|null  $domains                  Domain names mapped to this environment (app mode).
+	 * @param string|null $owner                    Optional owner for stewardship and cleanup policy.
+	 * @param array       $labels                   Arbitrary labels for grouping and policy.
+	 * @param string|null $purpose                  Optional description of why the environment exists.
+	 * @param bool        $is_protected             Whether automated cleanup must skip this environment.
+	 * @param string|null $expires_at               ISO 8601 expiry timestamp, or null if none.
+	 * @param string|null $last_used_at             ISO 8601 last activity timestamp.
+	 * @param string|null $source_environment_id    Source environment ID when cloned from another environment.
+	 * @param string|null $source_environment_type  Source environment type when cloned from another environment.
+	 * @param string|null $last_deployed_from_id    Last sandbox/app deployed into this environment.
+	 * @param string|null $last_deployed_from_type  Type of the environment last deployed into this environment.
+	 * @param string|null $last_deployed_at         ISO 8601 timestamp of the last deploy into this environment.
 	 */
 	public function __construct(
 		public readonly string $id,
