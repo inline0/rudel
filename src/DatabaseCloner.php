@@ -247,7 +247,6 @@ class DatabaseCloner {
 			return;
 		}
 
-		// Simple text columns: direct REPLACE.
 		$simple_updates = array(
 			array( "{$prefix}posts", 'guid' ),
 		);
@@ -263,7 +262,6 @@ class DatabaseCloner {
 			);
 		}
 
-		// Columns that may contain serialized data.
 		$serialized_updates = array(
 			array( "{$prefix}options", 'option_value', 'option_id' ),
 			array( "{$prefix}postmeta", 'meta_value', 'meta_id' ),
@@ -279,7 +277,7 @@ class DatabaseCloner {
 			$this->rewrite_urls_in_column( $pdo, $table, $column, $pk, $host_url, $sandbox_url );
 		}
 
-		// Per-blog tables (multisite).
+		// Multisite stores most site content in per-blog tables, so the same rewrite pass has to run for every discovered blog.
 		$blog_ids = $this->discover_blog_ids( $pdo, $prefix );
 		foreach ( $blog_ids as $blog_id ) {
 			$blog_simple = array(
@@ -310,12 +308,11 @@ class DatabaseCloner {
 			}
 		}
 
-		// Network sitemeta table.
 		if ( $this->table_exists( $pdo, "{$prefix}sitemeta" ) ) {
 			$this->rewrite_urls_in_column( $pdo, "{$prefix}sitemeta", 'meta_value', 'meta_id', $host_url, $sandbox_url );
 		}
 
-		// wp_blogs path rewriting: replace host base path with sandbox base path.
+		// Multisite also stores site paths separately from full URLs, so URL replacement alone is not enough.
 		if ( $this->table_exists( $pdo, "{$prefix}blogs" ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Unit-testable without WordPress.
 			$host_parsed = parse_url( $host_url, PHP_URL_PATH );
@@ -350,7 +347,7 @@ class DatabaseCloner {
 			return;
 		}
 
-		// usermeta meta_key: {prefix}capabilities, {prefix}user_level, etc.
+		// WordPress bakes table prefixes into role and capability keys, so renaming tables alone leaves stale references behind.
 		if ( $this->table_exists( $pdo, "{$prefix}usermeta" ) ) {
 			$this->sqlite_exec(
 				$pdo,
@@ -359,7 +356,6 @@ class DatabaseCloner {
 			);
 		}
 
-		// options option_name: {prefix}user_roles, etc.
 		if ( $this->table_exists( $pdo, "{$prefix}options" ) ) {
 			$this->sqlite_exec(
 				$pdo,
@@ -368,7 +364,6 @@ class DatabaseCloner {
 			);
 		}
 
-		// Per-blog options tables (multisite).
 		$blog_ids = $this->discover_blog_ids( $pdo, $prefix );
 		foreach ( $blog_ids as $blog_id ) {
 			$blog_options = "{$prefix}{$blog_id}_options";
@@ -507,8 +502,6 @@ class DatabaseCloner {
 	 * @return object WP_SQLite_Translator instance.
 	 */
 	private function create_translator( \PDO $pdo ): object {
-		// The translator's constructor accepts a PDO or null.
-		// When passed a PDO, it uses it directly and registers UDFs on it.
 		return new \WP_SQLite_Translator( $pdo );
 	}
 

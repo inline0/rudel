@@ -152,13 +152,11 @@ class GitHubIntegration {
 	 * @throws \RuntimeException If the API call fails.
 	 */
 	public function push( string $branch, string $local_dir, string $message ): ?string {
-		// Get current branch HEAD.
 		$ref       = $this->api( 'GET', "/repos/{$this->repo}/git/ref/heads/{$branch}" );
 		$head_sha  = $ref['object']['sha'];
 		$commit    = $this->api( 'GET', "/repos/{$this->repo}/git/commits/{$head_sha}" );
 		$base_tree = $commit['tree']['sha'];
 
-		// Build tree entries from local files.
 		$tree_items = array();
 		$iterator   = new \RecursiveIteratorIterator(
 			new \RecursiveDirectoryIterator( $local_dir, \FilesystemIterator::SKIP_DOTS )
@@ -171,7 +169,7 @@ class GitHubIntegration {
 
 			$relative = substr( $file->getPathname(), strlen( $local_dir ) + 1 );
 
-			// Skip hidden files and directories.
+			// Avoid pushing editor caches and local dotfiles by default.
 			if ( str_starts_with( $relative, '.' ) || str_contains( $relative, '/.' ) ) {
 				continue;
 			}
@@ -179,7 +177,6 @@ class GitHubIntegration {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local file for GitHub upload.
 			$content = file_get_contents( $file->getPathname() );
 
-			// Create blob.
 			$blob = $this->api(
 				'POST',
 				"/repos/{$this->repo}/git/blobs",
@@ -202,7 +199,6 @@ class GitHubIntegration {
 			return null;
 		}
 
-		// Create tree.
 		$tree = $this->api(
 			'POST',
 			"/repos/{$this->repo}/git/trees",
@@ -212,7 +208,6 @@ class GitHubIntegration {
 			)
 		);
 
-		// Create commit.
 		$new_commit = $this->api(
 			'POST',
 			"/repos/{$this->repo}/git/commits",
@@ -223,7 +218,6 @@ class GitHubIntegration {
 			)
 		);
 
-		// Update branch ref.
 		$this->api(
 			'PATCH',
 			"/repos/{$this->repo}/git/refs/heads/{$branch}",

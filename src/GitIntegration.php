@@ -56,7 +56,7 @@ class GitIntegration {
 				}
 			}
 
-			// Not a git repo or worktree failed: fall back to file copy.
+			// Sandboxes still need to build on non-git installs or when worktrees are unavailable.
 			$cloner = new ContentCloner();
 			$cloner->copy_directory( $source_path, $target_path );
 			$results['copied'][] = $dir;

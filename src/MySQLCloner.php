@@ -201,15 +201,6 @@ class MySQLCloner {
 	 * @param string $sandbox_url Sandbox URL to replace with.
 	 * @return void
 	 */
-	/**
-	 * Rewrite URLs in cloned MySQL tables.
-	 *
-	 * @param \wpdb  $wpdb        WordPress database object.
-	 * @param string $prefix      Table prefix.
-	 * @param string $host_url    Host URL to search for.
-	 * @param string $sandbox_url Sandbox URL to replace with.
-	 * @return void
-	 */
 	public function rewrite_urls( $wpdb, string $prefix, string $host_url, string $sandbox_url ): void {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table/column names from validated SHOW TABLES; all values go through wpdb::prepare.
 		$host_url    = rtrim( $host_url, '/' );
@@ -219,7 +210,6 @@ class MySQLCloner {
 			return;
 		}
 
-		// Simple text columns: direct REPLACE.
 		$simple_updates = array(
 			array( "{$prefix}posts", 'guid' ),
 		);
@@ -238,7 +228,6 @@ class MySQLCloner {
 			);
 		}
 
-		// Columns that may contain serialized data.
 		$serialized_updates = array(
 			array( "{$prefix}options", 'option_value', 'option_id' ),
 			array( "{$prefix}postmeta", 'meta_value', 'meta_id' ),
@@ -254,7 +243,7 @@ class MySQLCloner {
 			$this->rewrite_urls_in_column( $wpdb, $table, $column, $pk, $host_url, $sandbox_url );
 		}
 
-		// Per-blog tables (multisite).
+		// Multisite stores most site content in per-blog tables, so the same rewrite pass has to run for every discovered blog.
 		$blog_ids = $this->discover_blog_ids( $wpdb, $prefix );
 		foreach ( $blog_ids as $blog_id ) {
 			$blog_simple = array(
@@ -288,12 +277,11 @@ class MySQLCloner {
 			}
 		}
 
-		// Network sitemeta table.
 		if ( $this->table_exists_mysql( $wpdb, "{$prefix}sitemeta" ) ) {
 			$this->rewrite_urls_in_column( $wpdb, "{$prefix}sitemeta", 'meta_value', 'meta_id', $host_url, $sandbox_url );
 		}
 
-		// wp_blogs path rewriting.
+		// Multisite also stores site paths separately from full URLs, so URL replacement alone is not enough.
 		if ( $this->table_exists_mysql( $wpdb, "{$prefix}blogs" ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Unit-testable without WordPress.
 			$host_parsed = parse_url( $host_url, PHP_URL_PATH );
@@ -325,22 +313,13 @@ class MySQLCloner {
 	 * @param string $target_prefix The target (sandbox) prefix to replace with.
 	 * @return void
 	 */
-	/**
-	 * Rewrite table prefix references embedded in data values.
-	 *
-	 * @param \wpdb  $wpdb          WordPress database object.
-	 * @param string $prefix        Current table prefix (used for table names).
-	 * @param string $source_prefix The source (host) prefix to find.
-	 * @param string $target_prefix The target (sandbox) prefix to replace with.
-	 * @return void
-	 */
 	public function rewrite_table_prefix_in_data( $wpdb, string $prefix, string $source_prefix, string $target_prefix ): void {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names from validated SHOW TABLES.
 		if ( $source_prefix === $target_prefix ) {
 			return;
 		}
 
-		// usermeta meta_key: {prefix}capabilities, {prefix}user_level, etc.
+		// WordPress bakes table prefixes into role and capability keys, so renaming tables alone leaves stale references behind.
 		if ( $this->table_exists_mysql( $wpdb, "{$prefix}usermeta" ) ) {
 			$wpdb->query(
 				$wpdb->prepare(
@@ -352,7 +331,6 @@ class MySQLCloner {
 			);
 		}
 
-		// options option_name: {prefix}user_roles, etc.
 		if ( $this->table_exists_mysql( $wpdb, "{$prefix}options" ) ) {
 			$wpdb->query(
 				$wpdb->prepare(
@@ -364,7 +342,6 @@ class MySQLCloner {
 			);
 		}
 
-		// Per-blog options tables (multisite).
 		$blog_ids = $this->discover_blog_ids( $wpdb, $prefix );
 		foreach ( $blog_ids as $blog_id ) {
 			$blog_options = "{$prefix}{$blog_id}_options";

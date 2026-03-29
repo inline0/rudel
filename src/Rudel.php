@@ -210,8 +210,6 @@ class Rudel {
 		);
 	}
 
-	// Sandbox management.
-
 	/**
 	 * Get the EnvironmentManager instance.
 	 *
@@ -348,8 +346,6 @@ class Rudel {
 		return self::manager()->get_environments_dir();
 	}
 
-	// App management.
-
 	/**
 	 * List all apps.
 	 *
@@ -453,8 +449,6 @@ class Rudel {
 		return $snap_manager->list_snapshots();
 	}
 
-	// GitHub integration.
-
 	/**
 	 * Get a GitHubIntegration instance for a repository.
 	 *
@@ -493,7 +487,7 @@ class Rudel {
 		$github = new GitHubIntegration( $repo );
 		$branch = $sandbox->get_git_branch();
 
-		// Create branch if needed.
+		// Repeat pushes are normal, so an existing sandbox branch is not an error.
 		try {
 			$github->create_branch( $branch );
 		} catch ( \RuntimeException $e ) {
@@ -509,7 +503,7 @@ class Rudel {
 
 		$sha = $github->push( $branch, $local_dir, $message );
 
-		// Store repo in metadata if not already stored.
+		// Remember the repo after the first successful push so later calls can omit it.
 		if ( $sha && ! $sandbox->get_github_repo() ) {
 			$clone_source                = $sandbox->clone_source ?? array();
 			$clone_source['github_repo'] = $repo;

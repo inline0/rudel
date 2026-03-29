@@ -23,7 +23,7 @@ define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 $rudel_autoload = RUDEL_PLUGIN_DIR . 'vendor/autoload.php';
 if ( ! file_exists( $rudel_autoload ) ) {
-	// Composer package: vendor/rudel/rudel/ -> vendor/autoload.php.
+	// Composer can install Rudel as a library or as a plugin, so the autoloader does not always live under this directory.
 	$rudel_autoload = dirname( __DIR__, 2 ) . '/autoload.php';
 }
 if ( file_exists( $rudel_autoload ) ) {
@@ -73,9 +73,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 	define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
-	// Disable outbound email when RUDEL_DISABLE_EMAIL is true. Register this
-	// unconditionally so it still works even if environment constants are defined
-	// later in the bootstrap lifecycle.
+	// Register this unconditionally so late-defined environment constants can still suppress mail before it leaves PHP.
 	add_filter(
 		'pre_wp_mail',
 		function ( $null, $atts ) {
@@ -101,10 +99,7 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 		2
 	);
 
-	// Environment-specific hooks (sandboxes and apps).
 	if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
-
-		// Admin bar indicator for the active environment.
 		add_action(
 			'admin_bar_menu',
 			function ( $wp_admin_bar ) {
@@ -125,7 +120,6 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 			1
 		);
 
-		// Style the admin bar indicator.
 		add_action(
 			'wp_head',
 			'rudel_admin_bar_styles'

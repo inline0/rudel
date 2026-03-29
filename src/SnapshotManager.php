@@ -202,7 +202,7 @@ class SnapshotManager {
 			return false;
 		}
 
-		// Clean up MySQL snapshot tables if they exist.
+		// MySQL-backed snapshots create their own table set, so deleting the snapshot has to tear that down too.
 		$db_meta_file = $snapshot_path . '/db_snapshot.json';
 		if ( file_exists( $db_meta_file ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading snapshot metadata.

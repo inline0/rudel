@@ -127,7 +127,7 @@ class BlankWordPressProvisioner {
 		$site_url     = $this->get_host_site_url();
 		$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
 
-		// Create tables using WordPress's dbDelta-compatible schema.
+		// Reuse WordPress's canonical schema so blank MySQL environments match core table definitions.
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Dynamic table prefix for environment isolation; all table names are internally generated.
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$charset_collate = $wpdb->get_charset_collate();

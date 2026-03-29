@@ -52,8 +52,7 @@ class ConfigWriter {
 			throw new \RuntimeException( sprintf( 'Failed to read wp-config.php: %s', $config_path ) );
 		}
 
-		// Inject bootstrap require after <?php so it runs before wp-config.php
-		// defines constants (WP_SITEURL, WP_HOME, auth keys, etc.).
+		// The bootstrap has to run before wp-config.php hard-codes host-specific constants.
 		$result = preg_replace(
 			'/^<\?php\s*/i',
 			"<?php\n{$line}\n",
@@ -65,8 +64,7 @@ class ConfigWriter {
 		}
 		$contents = $result;
 
-		// Also inject a table_prefix fixup just before wp-settings.php.
-		// wp-config.php sets $table_prefix after the bootstrap, overwriting it.
+		// WordPress assigns $table_prefix later in wp-config.php, so restore the sandbox prefix immediately before core boots.
 		$fixup  = "if ( defined( 'RUDEL_TABLE_PREFIX' ) ) { \$table_prefix = RUDEL_TABLE_PREFIX; } " . self::MARKER;
 		$result = preg_replace(
 			'/^(\s*require(?:_once)?\s.*wp-settings\.php.*$)/mi',
@@ -141,7 +139,7 @@ class ConfigWriter {
 			if ( file_exists( $path ) ) {
 				return $path;
 			}
-			// One level up is a common WP setup.
+			// Some installs keep wp-config.php above ABSPATH.
 			$path = dirname( ABSPATH ) . '/wp-config.php';
 			if ( file_exists( $path ) ) {
 				return $path;

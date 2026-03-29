@@ -230,7 +230,7 @@ class EnvironmentManager {
 					$id
 				);
 
-				// Collect git worktree info for metadata.
+				// Persist worktree origins so later cleanup and GitHub operations can find the right repo and branch.
 				$git_worktrees = array();
 				foreach ( $content_results as $dir => $result ) {
 					if ( is_array( $result ) && ! empty( $result['worktrees'] ) ) {
@@ -268,7 +268,6 @@ class EnvironmentManager {
 
 		$this->write_runtime_mu_plugin( $path );
 
-		// Store git worktree metadata if any were created.
 		if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
 			$clone_source['git_worktrees'] = $git_worktrees;
 		}
@@ -397,7 +396,7 @@ class EnvironmentManager {
 		$sandbox_url  = $host_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox->id;
 		$host_content = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
 
-		// Step 1: Backup host database tables.
+		// Promote is destructive to the host, so capture both DB state and wp-content before touching either.
 		if ( ! is_dir( $backup_dir ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating backup directory.
 			mkdir( $backup_dir, 0755, true );
@@ -417,12 +416,10 @@ class EnvironmentManager {
 		}
 		// phpcs:enable
 
-		// Backup wp-content.
 		$backup_content = $backup_dir . '/wp-content';
 		$content_cloner = new ContentCloner();
 		$content_cloner->copy_directory( $host_content, $backup_content );
 
-		// Store backup metadata.
 		$backup_meta = array(
 			'created_at'    => gmdate( 'c' ),
 			'sandbox_id'    => $sandbox->id,
@@ -437,17 +434,15 @@ class EnvironmentManager {
 		);
 		// phpcs:enable
 
-		// Step 2: Replace host tables with sandbox tables.
 		if ( $sandbox->is_sqlite() ) {
 			$this->promote_sqlite_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
 		} else {
 			$this->promote_mysql_to_host( $sandbox, $host_prefix, $sandbox_url, $host_url );
 		}
 
-		// Step 3: Sync wp-content.
 		$sandbox_content = $sandbox->get_wp_content_path();
 		if ( is_dir( $sandbox_content ) ) {
-			// Remove host themes/plugins/uploads and replace with sandbox's.
+			// Partial clones should not wipe unrelated host assets, so only non-empty sandbox directories replace host content.
 			foreach ( array( 'themes', 'plugins', 'uploads' ) as $subdir ) {
 				$host_sub    = $host_content . '/' . $subdir;
 				$sandbox_sub = $sandbox_content . '/' . $subdir;
@@ -486,7 +481,6 @@ class EnvironmentManager {
 		$sandbox_tables = $mysql_cloner->discover_tables( $wpdb, $sandbox_prefix );
 
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names for promotion.
-		// Drop existing host tables and replace with sandbox tables.
 		foreach ( $sandbox_tables as $table ) {
 			$suffix     = substr( $table, strlen( $sandbox_prefix ) );
 			$host_table = $host_prefix . $suffix;
@@ -496,7 +490,6 @@ class EnvironmentManager {
 		}
 		// phpcs:enable
 
-		// Rewrite URLs and prefix references.
 		$mysql_cloner->rewrite_urls( $wpdb, $host_prefix, $sandbox_url, $host_url );
 		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $host_prefix, $sandbox_prefix, $host_prefix );
 	}
@@ -527,10 +520,8 @@ class EnvironmentManager {
 			$suffix     = substr( $sqlite_table, strlen( $sandbox_prefix ) );
 			$host_table = $host_prefix . $suffix;
 
-			// Get column info from the host table (if it exists) or create from scratch.
 			$wpdb->query( "TRUNCATE TABLE `{$host_table}`" );
 
-			// Read all rows from SQLite and insert into MySQL.
 			$stmt = $pdo->query( "SELECT * FROM `{$sqlite_table}`" );
 			// phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO fetch.
 			$rows = $stmt->fetchAll( \PDO::FETCH_ASSOC );
@@ -543,7 +534,6 @@ class EnvironmentManager {
 
 		$pdo = null;
 
-		// Rewrite URLs and prefix references in the host MySQL tables.
 		$mysql_cloner = new MySQLCloner();
 		$mysql_cloner->rewrite_urls( $wpdb, $host_prefix, $sandbox_url, $host_url );
 		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $host_prefix, $sandbox_prefix, $host_prefix );
@@ -578,7 +568,7 @@ class EnvironmentManager {
 		foreach ( $iterator as $item ) {
 			$relative = substr( $item->getPathname(), strlen( $base_path ) + 1 );
 
-			// Skip snapshots directory.
+			// Snapshots are internal recovery state; exporting them would bloat archives and recursively re-import old backups.
 			if ( str_starts_with( $relative, 'snapshots/' ) || 'snapshots' === $relative ) {
 				continue;
 			}
@@ -653,7 +643,7 @@ class EnvironmentManager {
 		$this->write_wp_cli_yml( $new_path );
 		$this->write_claude_md( $new_id, $name, $new_path );
 
-		// Rewrite URLs and prefix in the database.
+		// Imported archives must be re-keyed so they do not keep the source environment's URLs or table prefix.
 		$db_path = $new_path . '/wordpress.db';
 		if ( file_exists( $db_path ) ) {
 			$old_prefix = Environment::table_prefix_for_id( $old_id );
@@ -795,18 +785,17 @@ class EnvironmentManager {
 
 			$is_merged = false;
 
-			// Check GitHub API first (works on shared hosts without git).
+			// Prefer GitHub when possible because many shared hosts can hit the API but cannot inspect local git history reliably.
 			if ( $has_github ) {
 				try {
 					$github    = new GitHubIntegration( $github_repo );
 					$is_merged = $github->is_branch_merged( $branch );
 				} catch ( \RuntimeException $e ) {
-					// No token or API error: fall through to local git check.
+					// Local worktrees are still a useful fallback when GitHub metadata is unavailable.
 					$is_merged = false;
 				}
 			}
 
-			// Fall back to local git check for worktrees.
 			if ( ! $is_merged && $has_git ) {
 				$all_local_merged = true;
 				foreach ( $worktrees as $wt ) {
@@ -829,14 +818,14 @@ class EnvironmentManager {
 				continue;
 			}
 
-			// Clean up local worktrees and branches before destroying.
+			// Remove worktrees first so the source repos do not retain dead branches after the sandbox is gone.
 			foreach ( $worktrees as $wt ) {
 				$worktree_path = $sandbox->get_wp_content_path() . '/' . $wt['type'] . '/' . $wt['name'];
 				$git->remove_worktree( $wt['repo'], $worktree_path );
 				$git->delete_branch( $wt['repo'], $wt['branch'] );
 			}
 
-			// Clean up GitHub branch.
+			// Mirror sandbox cleanup to GitHub so remote branches do not accumulate indefinitely.
 			if ( $has_github ) {
 				try {
 					$github = new GitHubIntegration( $github_repo );
@@ -1422,7 +1411,7 @@ class EnvironmentManager {
 			chmod( $target_db, 0664 );
 		}
 
-		// Replace scaffolded wp-content with template wp-content.
+		// The initial scaffold only exists to boot the environment; once a template is chosen, its content should be authoritative.
 		$template_content = $template_path . '/wp-content';
 		if ( is_dir( $template_content ) ) {
 			$this->delete_directory( $target_path . '/wp-content' );
@@ -1477,7 +1466,6 @@ class EnvironmentManager {
 			$db_cloner = new DatabaseCloner( $this->plugin_dir );
 			$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $sandbox_url );
 
-			// Rename tables from source prefix to target prefix.
 			// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
 			$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
 				->fetchAll( \PDO::FETCH_COLUMN );
@@ -1495,7 +1483,7 @@ class EnvironmentManager {
 			chmod( $target_db, 0664 );
 		}
 
-		// Replace scaffolded wp-content with source sandbox's wp-content.
+		// The scaffold only provides a bootable shell; clones should inherit content from their source environment instead.
 		$this->delete_directory( $target_path . '/wp-content' );
 		$content_cloner = new ContentCloner();
 		$content_cloner->copy_directory( $source->get_wp_content_path(), $target_path . '/wp-content' );

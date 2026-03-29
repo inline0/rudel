@@ -42,13 +42,12 @@ class ContentCloner {
 				continue;
 			}
 
-			// Remove the empty directory created by EnvironmentManager scaffolding.
+			// Start from a clean target so scaffolding does not interfere with worktrees or nested copies.
 			if ( is_dir( $target ) ) {
 				$this->delete_directory( $target );
 			}
 
-			// Use git worktrees for themes/plugins if sandbox_id is provided.
-			// Uploads are never git-tracked, always plain copy.
+			// Only code directories benefit from worktrees; uploads must stay plain files because they are runtime data.
 			if ( $use_git && 'uploads' !== $dir ) {
 				$git             = new GitIntegration();
 				$git_results     = $git->clone_with_worktrees( $source, $target, $sandbox_id );
