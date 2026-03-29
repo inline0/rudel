@@ -67,7 +67,8 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 - **Export & Import** -- package sandboxes as zip archives
 - **GitHub workflows** -- push sandbox changes and open PRs without a local git binary
 - **App mode** -- permanent domain-routed environments for client sites and multi-tenant hosting
-- **Auto cleanup** -- configurable expiry and automatic removal of stale sandboxes
+- **Policy metadata** -- owner, labels, purpose, protection, expiry, and deploy lineage
+- **Auto cleanup** -- configurable age, idle, expiry, and merged-branch cleanup for stale sandboxes
 - **Agent ready** -- scoped WP-CLI and CLAUDE.md support per sandbox
 
 ## How It Works
@@ -105,6 +106,7 @@ Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` 
 | `wp rudel create --name=<name> --template=<name>` | Create from template |
 | `wp rudel list` | List all sandboxes |
 | `wp rudel info <id>` | Show sandbox details |
+| `wp rudel update <id> [--owner=<owner>] [--labels=<labels>] [--protected]` | Update sandbox metadata and cleanup policy |
 | `wp rudel destroy <id>` | Delete a sandbox |
 | `wp rudel status` | Show Rudel status and config |
 | `wp rudel logs <id>` | View or clear a sandbox debug log |
@@ -112,7 +114,7 @@ Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` 
 | `wp rudel restore <id> --snapshot=<name>` | Restore from snapshot |
 | `wp rudel export <id> --output=<path>` | Export as zip archive |
 | `wp rudel import <file> --name=<name>` | Import from zip archive |
-| `wp rudel cleanup` | Remove expired sandboxes |
+| `wp rudel cleanup` | Remove sandboxes matched by expiry, age, or idle policy |
 | `wp rudel promote <id> [--force]` | Replace the host site with a sandbox |
 | `wp rudel template save <id> --name=<name>` | Save sandbox as template |
 | `wp rudel template list` | List templates |
@@ -130,6 +132,7 @@ Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` 
 | Command | Description |
 |---------|-------------|
 | `wp rudel app create --domain=<domain>` | Create a permanent domain-routed app |
+| `wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--protected]` | Update app metadata and lifecycle policy |
 | `wp rudel app create-sandbox <id>` | Create a sandbox cloned from an app |
 | `wp rudel app backup <id> --name=<name>` | Create an app backup |
 | `wp rudel app backups <id>` | List backups for an app |
@@ -157,6 +160,8 @@ The path prefix method works out of the box with no DNS configuration.
 Visiting a sandbox URL automatically sets a cookie, so `/wp-admin/` works in sandbox context. Append `?adminExit` to any URL to return to the host.
 
 Apps are accessed directly by their mapped domains with no path prefix or browser cookie.
+
+Sandboxes are the place changes happen. Apps are the place those changes land. If you think in Git terms, sandboxes are closer to feature workspaces and apps are closer to deployed mainline state, but the analogy is conceptual because both also carry database and environment state.
 
 ## Development
 

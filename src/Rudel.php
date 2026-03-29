@@ -279,6 +279,17 @@ class Rudel {
 	}
 
 	/**
+	 * Update sandbox metadata.
+	 *
+	 * @param string $id      Sandbox identifier.
+	 * @param array  $changes Metadata changes.
+	 * @return Environment
+	 */
+	public static function update( string $id, array $changes ): Environment {
+		return self::manager()->update( $id, $changes );
+	}
+
+	/**
 	 * Promote a sandbox to replace the host site.
 	 *
 	 * @param string $id         Sandbox identifier.
@@ -320,7 +331,7 @@ class Rudel {
 	/**
 	 * Clean up expired sandboxes.
 	 *
-	 * @param array $options Options: 'dry_run' (bool), 'max_age_days' (int override).
+	 * @param array $options Options: 'dry_run' (bool), 'max_age_days' (int override), 'max_idle_days' (int override).
 	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
 	 */
 	public static function cleanup( array $options = array() ): array {
@@ -375,6 +386,17 @@ class Rudel {
 	 */
 	public static function create_app( string $name, array $domains, array $options = array() ): Environment {
 		return self::app_manager()->create( $name, $domains, $options );
+	}
+
+	/**
+	 * Update app metadata.
+	 *
+	 * @param string $id      App identifier.
+	 * @param array  $changes Metadata changes.
+	 * @return Environment
+	 */
+	public static function update_app( string $id, array $changes ): Environment {
+		return self::app_manager()->update( $id, $changes );
 	}
 
 	/**
@@ -453,6 +475,27 @@ class Rudel {
 	}
 
 	/**
+	 * Record activity for the current environment.
+	 *
+	 * @return void
+	 */
+	public static function touch_current_environment(): void {
+		if ( ! self::is_environment() ) {
+			return;
+		}
+
+		$path = self::path();
+		if ( ! $path ) {
+			return;
+		}
+
+		$environment = Environment::from_path( $path );
+		if ( $environment ) {
+			$environment->touch_last_used();
+		}
+	}
+
+	/**
 	 * Create a snapshot of a sandbox.
 	 *
 	 * @param string $sandbox_id Sandbox identifier.
@@ -503,6 +546,15 @@ class Rudel {
 		}
 		$snap_manager = new SnapshotManager( $sandbox );
 		return $snap_manager->list_snapshots();
+	}
+
+	/**
+	 * Run scheduled cleanup tasks immediately.
+	 *
+	 * @return array<string, array<string, array<int, string>|array<string, string>>>
+	 */
+	public static function run_scheduled_cleanup(): array {
+		return Automation::run();
 	}
 
 	/**

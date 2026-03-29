@@ -9,7 +9,7 @@ Sandboxes are disposable by design. Rudel provides cleanup mechanisms to prevent
 
 ## Running cleanup
 
-Remove all sandboxes older than the configured maximum age:
+Remove sandboxes matched by the configured cleanup policy:
 
 ```bash
 wp rudel cleanup
@@ -27,6 +27,12 @@ You can override the configured max age for a single run:
 wp rudel cleanup --max-age-days=7 --dry-run
 ```
 
+Idle cleanup can also be overridden per run:
+
+```bash
+wp rudel cleanup --max-idle-days=3 --dry-run
+```
+
 ## Configuration
 
 Cleanup behavior is controlled by the Rudel configuration file (`rudel-config.json` in the `wp-content` directory):
@@ -35,11 +41,40 @@ Cleanup behavior is controlled by the Rudel configuration file (`rudel-config.js
 |---|---|---|
 | `max_sandboxes` | Maximum number of active sandboxes | 0 (no limit) |
 | `max_age_days` | Sandboxes older than this are eligible for cleanup | 0 (disabled) |
+| `default_ttl_days` | Default expiry assigned to newly created sandboxes | 0 (disabled) |
+| `max_idle_days` | Sandboxes idle longer than this are eligible for cleanup | 0 (disabled) |
 | `max_disk_mb` | Maximum total disk usage for all sandboxes in MB | 0 (no limit) |
+| `auto_cleanup_enabled` | Run standard cleanup automatically via WP-Cron | 1 (enabled) |
+| `auto_cleanup_merged` | Run merged-branch cleanup automatically via WP-Cron | 0 (disabled) |
 
-The `max_age_days` setting is enforced when you run `wp rudel cleanup`. The `max_sandboxes` and `max_disk_mb` limits are enforced at creation time, preventing new sandboxes from being created when the limit is reached.
+The `max_age_days`, `max_idle_days`, and explicit per-sandbox `expires_at` metadata are enforced when you run `wp rudel cleanup`. Protected sandboxes are always skipped. The `max_sandboxes` and `max_disk_mb` limits are enforced at creation time, preventing new sandboxes from being created when the limit is reached.
 
-If `max_age_days` is 0 and no `--max-age-days` override is provided, cleanup returns immediately with no removals.
+If no age, idle, or explicit expiry policy is active, cleanup returns immediately with no removals.
+
+## Per-sandbox policy
+
+You can set lifecycle metadata when creating or updating a sandbox:
+
+```bash
+wp rudel create --name=qa-box --owner=dennis --labels=qa,client-a --ttl-days=7
+wp rudel update qa-box-a1b2 --protected
+wp rudel update qa-box-a1b2 --clear-expiry
+```
+
+The most useful policy fields are:
+
+- `owner`
+- `labels`
+- `purpose`
+- `protected`
+- `expires_at`
+- `last_used_at`
+
+Rudel updates `last_used_at` automatically when an environment is used, snapped, restored, backed up, or deployed.
+
+## Scheduled cleanup
+
+Standard cleanup runs automatically on an hourly WP-Cron schedule when `auto_cleanup_enabled` is on. This makes policy-driven cleanup practical for disposable sandboxes: set TTLs or idle thresholds and let Rudel sweep them without a manual command.
 
 ## Merge-based cleanup
 

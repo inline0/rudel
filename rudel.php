@@ -36,12 +36,14 @@ register_activation_hook(
 	function () {
 		$writer = new Rudel\ConfigWriter();
 		$writer->install();
+		Rudel\Automation::ensure_scheduled();
 	}
 );
 
 register_deactivation_hook(
 	__FILE__,
 	function () {
+		Rudel\Automation::unschedule();
 		$writer = new Rudel\ConfigWriter();
 		$writer->uninstall();
 	}
@@ -99,7 +101,18 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 		2
 	);
 
+	add_action(
+		'init',
+		array( Rudel\Automation::class, 'ensure_scheduled' )
+	);
+	add_action(
+		Rudel\Automation::CRON_HOOK,
+		array( Rudel\Automation::class, 'run' )
+	);
+
 	if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
+		Rudel\Rudel::touch_current_environment();
+
 		add_action(
 			'admin_bar_menu',
 			function ( $wp_admin_bar ) {

@@ -5,6 +5,7 @@ namespace Rudel\Tests\Unit;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use Rudel\Rudel;
+use Rudel\RudelConfig;
 use Rudel\Tests\RudelTestCase;
 
 class RudelApiTest extends RudelTestCase
@@ -317,6 +318,50 @@ class RudelApiTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testUpdateSandboxMetadataViaApi(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+
+        $sandbox = Rudel::create('API Update Sandbox', ['engine' => 'sqlite']);
+        $updated = Rudel::update($sandbox->id, [
+            'owner' => 'dennis',
+            'labels' => 'priority, qa',
+            'protected' => true,
+        ]);
+
+        $this->assertSame('dennis', $updated->owner);
+        $this->assertSame(['priority', 'qa'], $updated->labels);
+        $this->assertTrue($updated->is_protected());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateAppMetadataViaApi(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+
+        $app = Rudel::create_app('API Update App', ['api-update.com'], ['engine' => 'sqlite']);
+        $updated = Rudel::update_app($app->id, [
+            'owner' => 'dennis',
+            'labels' => 'customer',
+        ]);
+
+        $this->assertSame('dennis', $updated->owner);
+        $this->assertSame(['customer'], $updated->labels);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateSandboxFromAppAndManageBackups(): void
     {
         if (! defined('RUDEL_PLUGIN_DIR')) {
@@ -367,5 +412,53 @@ class RudelApiTest extends RudelTestCase
         $this->assertSame($app->id, $result['app_id']);
         $this->assertSame($sandbox->id, $result['sandbox_id']);
         $this->assertSame('pre-deploy', $result['backup']['name']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testTouchCurrentEnvironmentPersistsLastUsed(): void
+    {
+        $path = $this->tmpDir . '/touch-api';
+        mkdir($path, 0755, true);
+        file_put_contents($path . '/.rudel.json', json_encode([
+            'id' => 'touch-api',
+            'name' => 'Touch API',
+            'created_at' => '2026-01-01T00:00:00+00:00',
+            'last_used_at' => '2020-01-01T00:00:00+00:00',
+        ]));
+
+        define('RUDEL_ID', 'touch-api');
+        define('RUDEL_PATH', $path);
+
+        Rudel::touch_current_environment();
+
+        $meta = json_decode(file_get_contents($path . '/.rudel.json'), true);
+        $this->assertNotSame('2020-01-01T00:00:00+00:00', $meta['last_used_at']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testRunScheduledCleanupUsesConfiguredPolicies(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+
+        $sandbox = Rudel::create('Scheduled Cleanup', ['engine' => 'sqlite']);
+        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
+        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
+        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+
+        $config = new RudelConfig();
+        $config->set('auto_cleanup_enabled', 1);
+        $config->set('max_age_days', 1);
+        $config->save();
+
+        $result = Rudel::run_scheduled_cleanup();
+
+        $this->assertContains($sandbox->id, $result['cleanup']['removed']);
     }
 }

@@ -144,6 +144,12 @@ class SnapshotManager {
 			);
 			// phpcs:enable
 
+			$this->environment->update_meta_batch(
+				array(
+					'last_used_at' => gmdate( 'c' ),
+				)
+			);
+
 			$this->emit_action( 'after', 'create', $context, $meta );
 
 			return $meta;
@@ -212,6 +218,11 @@ class SnapshotManager {
 		$this->emit_action( 'before', 'restore', $context );
 
 		try {
+			$config = new RudelConfig();
+			if ( 'snapshot' === $this->kind && $config->get( 'auto_snapshot_before_restore' ) > 0 ) {
+				$this->create( $this->auto_recovery_point_name( 'pre-restore' ) );
+			}
+
 			if ( $this->environment->is_mysql() || $this->environment->is_subsite() ) {
 				$db_meta_file = $point_path . '/db_snapshot.json';
 				if ( file_exists( $db_meta_file ) ) {
@@ -247,6 +258,11 @@ class SnapshotManager {
 				$content_cloner->copy_directory( $snapshot_content, $environment_content );
 			}
 
+			$this->environment->update_meta_batch(
+				array(
+					'last_used_at' => gmdate( 'c' ),
+				)
+			);
 			$this->emit_action( 'after', 'restore', $context );
 		} catch ( \Throwable $e ) {
 			$this->emit_action( 'failed', 'restore', $context, $e );
@@ -327,6 +343,16 @@ class SnapshotManager {
 	 */
 	private function get_snapshot_path( string $name ): string {
 		return $this->get_snapshots_dir() . '/' . $name;
+	}
+
+	/**
+	 * Build a collision-resistant automatic recovery point name.
+	 *
+	 * @param string $prefix Prefix used to explain why the recovery point exists.
+	 * @return string
+	 */
+	private function auto_recovery_point_name( string $prefix ): string {
+		return $prefix . '-' . gmdate( 'Ymd_His' ) . '-' . substr( md5( uniqid( '', true ) ), 0, 4 );
 	}
 
 	/**

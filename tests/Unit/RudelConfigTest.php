@@ -14,6 +14,12 @@ class RudelConfigTest extends RudelTestCase
         $this->assertSame(0, $config->get('max_sandboxes'));
         $this->assertSame(0, $config->get('max_age_days'));
         $this->assertSame(0, $config->get('max_disk_mb'));
+        $this->assertSame(0, $config->get('default_ttl_days'));
+        $this->assertSame(0, $config->get('max_idle_days'));
+        $this->assertSame(1, $config->get('auto_cleanup_enabled'));
+        $this->assertSame(0, $config->get('auto_cleanup_merged'));
+        $this->assertSame(1, $config->get('auto_snapshot_before_restore'));
+        $this->assertSame(1, $config->get('auto_backup_before_app_restore'));
     }
 
     public function testGetReturnsZeroForUnknownKey(): void
@@ -35,6 +41,9 @@ class RudelConfigTest extends RudelTestCase
         $config = new RudelConfig($path);
         $config->set('max_sandboxes', 5);
         $config->set('max_age_days', 30);
+        $config->set('default_ttl_days', 14);
+        $config->set('max_idle_days', 7);
+        $config->set('auto_cleanup_merged', 1);
         $config->save();
 
         $this->assertFileExists($path);
@@ -42,6 +51,9 @@ class RudelConfigTest extends RudelTestCase
         $loaded = new RudelConfig($path);
         $this->assertSame(5, $loaded->get('max_sandboxes'));
         $this->assertSame(30, $loaded->get('max_age_days'));
+        $this->assertSame(14, $loaded->get('default_ttl_days'));
+        $this->assertSame(7, $loaded->get('max_idle_days'));
+        $this->assertSame(1, $loaded->get('auto_cleanup_merged'));
         $this->assertSame(0, $loaded->get('max_disk_mb'));
     }
 
@@ -53,6 +65,9 @@ class RudelConfigTest extends RudelTestCase
         $this->assertArrayHasKey('max_sandboxes', $all);
         $this->assertArrayHasKey('max_age_days', $all);
         $this->assertArrayHasKey('max_disk_mb', $all);
+        $this->assertArrayHasKey('default_ttl_days', $all);
+        $this->assertArrayHasKey('max_idle_days', $all);
+        $this->assertArrayHasKey('auto_cleanup_enabled', $all);
         $this->assertSame(0, $all['max_sandboxes']);
     }
 

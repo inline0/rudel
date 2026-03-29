@@ -18,6 +18,10 @@ class PluginBootstrapTest extends RudelTestCase
 namespace {
     $GLOBALS['rudel_test_filters'] = [];
     $GLOBALS['rudel_test_actions'] = [];
+    $GLOBALS['rudel_test_activation_callbacks'] = [];
+    $GLOBALS['rudel_test_deactivation_callbacks'] = [];
+    $GLOBALS['rudel_test_scheduled_events'] = [];
+    $GLOBALS['rudel_test_cleared_hooks'] = [];
 
     if (! function_exists('plugin_dir_path')) {
         function plugin_dir_path(string $file): string {
@@ -30,10 +34,14 @@ namespace {
         }
     }
     if (! function_exists('register_activation_hook')) {
-        function register_activation_hook(string $file, callable $callback): void {}
+        function register_activation_hook(string $file, callable $callback): void {
+            $GLOBALS['rudel_test_activation_callbacks'][] = $callback;
+        }
     }
     if (! function_exists('register_deactivation_hook')) {
-        function register_deactivation_hook(string $file, callable $callback): void {}
+        function register_deactivation_hook(string $file, callable $callback): void {
+            $GLOBALS['rudel_test_deactivation_callbacks'][] = $callback;
+        }
     }
     if (! function_exists('add_filter')) {
         function add_filter(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void {
@@ -58,11 +66,31 @@ namespace {
             return $value;
         }
     }
+    if (! function_exists('wp_next_scheduled')) {
+        function wp_next_scheduled(string $hook) {
+            return $GLOBALS['rudel_test_scheduled_events'][$hook]['timestamp'] ?? false;
+        }
+    }
+    if (! function_exists('wp_schedule_event')) {
+        function wp_schedule_event(int $timestamp, string $recurrence, string $hook): void {
+            $GLOBALS['rudel_test_scheduled_events'][$hook] = [
+                'timestamp' => $timestamp,
+                'recurrence' => $recurrence,
+            ];
+        }
+    }
+    if (! function_exists('wp_clear_scheduled_hook')) {
+        function wp_clear_scheduled_hook(string $hook): void {
+            $GLOBALS['rudel_test_cleared_hooks'][] = $hook;
+            unset($GLOBALS['rudel_test_scheduled_events'][$hook]);
+        }
+    }
 }
-PHP);
+        PHP);
 
         define('ABSPATH', $this->tmpDir . '/');
         define('WP_CLI', true);
+        file_put_contents($this->tmpDir . '/wp-config.php', "<?php\nrequire_once __DIR__ . '/wp-settings.php';\n");
 
         \WP_CLI::reset();
         require dirname(__DIR__, 2) . '/rudel.php';
@@ -86,6 +114,18 @@ PHP);
             $this->assertArrayHasKey($command, \WP_CLI::$commands);
             $this->assertSame($class, \WP_CLI::$commands[$command]);
         }
+
+        $this->assertArrayHasKey('init', $GLOBALS['rudel_test_actions']);
+        $this->assertArrayHasKey(\Rudel\Automation::CRON_HOOK, $GLOBALS['rudel_test_actions']);
+
+        $this->assertCount(1, $GLOBALS['rudel_test_activation_callbacks']);
+        $this->assertCount(1, $GLOBALS['rudel_test_deactivation_callbacks']);
+
+        $GLOBALS['rudel_test_activation_callbacks'][0]();
+        $this->assertArrayHasKey(\Rudel\Automation::CRON_HOOK, $GLOBALS['rudel_test_scheduled_events']);
+
+        $GLOBALS['rudel_test_deactivation_callbacks'][0]();
+        $this->assertContains(\Rudel\Automation::CRON_HOOK, $GLOBALS['rudel_test_cleared_hooks']);
     }
 
     #[RunInSeparateProcess]
@@ -96,6 +136,10 @@ PHP);
 namespace {
     $GLOBALS['rudel_test_filters'] = [];
     $GLOBALS['rudel_test_actions'] = [];
+    $GLOBALS['rudel_test_activation_callbacks'] = [];
+    $GLOBALS['rudel_test_deactivation_callbacks'] = [];
+    $GLOBALS['rudel_test_scheduled_events'] = [];
+    $GLOBALS['rudel_test_cleared_hooks'] = [];
 
     if (! function_exists('plugin_dir_path')) {
         function plugin_dir_path(string $file): string {
@@ -108,10 +152,14 @@ namespace {
         }
     }
     if (! function_exists('register_activation_hook')) {
-        function register_activation_hook(string $file, callable $callback): void {}
+        function register_activation_hook(string $file, callable $callback): void {
+            $GLOBALS['rudel_test_activation_callbacks'][] = $callback;
+        }
     }
     if (! function_exists('register_deactivation_hook')) {
-        function register_deactivation_hook(string $file, callable $callback): void {}
+        function register_deactivation_hook(string $file, callable $callback): void {
+            $GLOBALS['rudel_test_deactivation_callbacks'][] = $callback;
+        }
     }
     if (! function_exists('add_filter')) {
         function add_filter(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void {
@@ -134,6 +182,25 @@ namespace {
     if (! function_exists('esc_attr')) {
         function esc_attr(string $value): string {
             return $value;
+        }
+    }
+    if (! function_exists('wp_next_scheduled')) {
+        function wp_next_scheduled(string $hook) {
+            return $GLOBALS['rudel_test_scheduled_events'][$hook]['timestamp'] ?? false;
+        }
+    }
+    if (! function_exists('wp_schedule_event')) {
+        function wp_schedule_event(int $timestamp, string $recurrence, string $hook): void {
+            $GLOBALS['rudel_test_scheduled_events'][$hook] = [
+                'timestamp' => $timestamp,
+                'recurrence' => $recurrence,
+            ];
+        }
+    }
+    if (! function_exists('wp_clear_scheduled_hook')) {
+        function wp_clear_scheduled_hook(string $hook): void {
+            $GLOBALS['rudel_test_cleared_hooks'][] = $hook;
+            unset($GLOBALS['rudel_test_scheduled_events'][$hook]);
         }
     }
 }

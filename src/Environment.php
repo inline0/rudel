@@ -25,8 +25,19 @@ class Environment {
 	 * @param bool       $multisite    Whether this sandbox was cloned from a multisite host.
 	 * @param string     $engine       Database engine: 'mysql', 'sqlite', or 'subsite'.
 	 * @param int|null   $blog_id      Multisite blog ID (subsite engine only).
-	 * @param string     $type         Environment type: 'sandbox' or 'app'.
-	 * @param array|null $domains      Domain names mapped to this environment (app mode).
+	 * @param string     $type                       Environment type: 'sandbox' or 'app'.
+	 * @param array|null $domains                    Domain names mapped to this environment (app mode).
+	 * @param string|null $owner                      Optional owner for stewardship and cleanup policy.
+	 * @param array       $labels                     Arbitrary labels for grouping and policy.
+	 * @param string|null $purpose                    Optional description of why the environment exists.
+	 * @param bool        $is_protected               Whether automated cleanup must skip this environment.
+	 * @param string|null $expires_at                 ISO 8601 expiry timestamp, or null if none.
+	 * @param string|null $last_used_at               ISO 8601 last activity timestamp.
+	 * @param string|null $source_environment_id      Source environment ID when cloned from another environment.
+	 * @param string|null $source_environment_type    Source environment type when cloned from another environment.
+	 * @param string|null $last_deployed_from_id      Last sandbox/app deployed into this environment.
+	 * @param string|null $last_deployed_from_type    Type of the environment last deployed into this environment.
+	 * @param string|null $last_deployed_at           ISO 8601 timestamp of the last deploy into this environment.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -41,6 +52,17 @@ class Environment {
 		public readonly ?int $blog_id = null,
 		public readonly string $type = 'sandbox',
 		public readonly ?array $domains = null,
+		public readonly ?string $owner = null,
+		public readonly array $labels = array(),
+		public readonly ?string $purpose = null,
+		public readonly bool $is_protected = false,
+		public readonly ?string $expires_at = null,
+		public readonly ?string $last_used_at = null,
+		public readonly ?string $source_environment_id = null,
+		public readonly ?string $source_environment_type = null,
+		public readonly ?string $last_deployed_from_id = null,
+		public readonly ?string $last_deployed_from_type = null,
+		public readonly ?string $last_deployed_at = null,
 	) {}
 
 	/**
@@ -74,6 +96,17 @@ class Environment {
 			blog_id: isset( $data['blog_id'] ) ? (int) $data['blog_id'] : null,
 			type: $data['type'] ?? 'sandbox',
 			domains: $data['domains'] ?? null,
+			owner: self::string_or_null( $data['owner'] ?? null ),
+			labels: self::normalize_labels( $data['labels'] ?? array() ),
+			purpose: self::string_or_null( $data['purpose'] ?? null ),
+			is_protected: ! empty( $data['protected'] ),
+			expires_at: self::string_or_null( $data['expires_at'] ?? null ),
+			last_used_at: self::string_or_null( $data['last_used_at'] ?? ( $data['created_at'] ?? null ) ),
+			source_environment_id: self::string_or_null( $data['source_environment_id'] ?? null ),
+			source_environment_type: self::string_or_null( $data['source_environment_type'] ?? null ),
+			last_deployed_from_id: self::string_or_null( $data['last_deployed_from_id'] ?? null ),
+			last_deployed_from_type: self::string_or_null( $data['last_deployed_from_type'] ?? null ),
+			last_deployed_at: self::string_or_null( $data['last_deployed_at'] ?? null ),
 		);
 	}
 
@@ -111,6 +144,15 @@ class Environment {
 	 */
 	public function is_app(): bool {
 		return 'app' === $this->type;
+	}
+
+	/**
+	 * Whether automated cleanup must skip this environment.
+	 *
+	 * @return bool
+	 */
+	public function is_protected(): bool {
+		return $this->is_protected;
 	}
 
 	/**
@@ -201,6 +243,15 @@ class Environment {
 	}
 
 	/**
+	 * Return the timestamp cleanup policies should treat as last activity.
+	 *
+	 * @return string|null
+	 */
+	public function last_activity_at(): ?string {
+		return $this->last_used_at ?? $this->created_at;
+	}
+
+	/**
 	 * Update a key in the environment metadata and persist to disk.
 	 *
 	 * @param string $key   Top-level key in .rudel.json.
@@ -208,26 +259,63 @@ class Environment {
 	 * @return void
 	 */
 	public function update_meta( string $key, $value ): void {
-		$meta_file = $this->path . '/.rudel.json';
+		$this->update_meta_batch(
+			array(
+				$key => $value,
+			)
+		);
+	}
+
+	/**
+	 * Update multiple metadata keys in one write.
+	 *
+	 * @param array<string, mixed> $changes Metadata changes.
+	 * @return void
+	 */
+	public function update_meta_batch( array $changes ): void {
+		if ( empty( $changes ) ) {
+			return;
+		}
+
 		Hooks::action(
 			'rudel_before_environment_update_meta',
 			array(
 				'environment' => $this,
-				'key'         => $key,
-				'value'       => $value,
+				'changes'     => $changes,
 			)
 		);
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local metadata.
-		$data         = json_decode( file_get_contents( $meta_file ), true ) ?? array();
-		$data[ $key ] = $value;
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing local metadata.
-		file_put_contents( $meta_file, json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
+
+		$meta_file = $this->path . '/.rudel.json';
+		$data      = $this->read_meta_file( $meta_file );
+		$data      = array_merge( $data, $changes );
+		$this->persist_meta( $meta_file, $data );
+
 		Hooks::action(
 			'rudel_after_environment_update_meta',
 			array(
 				'environment' => $this,
-				'key'         => $key,
-				'value'       => $value,
+				'changes'     => $changes,
+			)
+		);
+	}
+
+	/**
+	 * Record environment activity without rewriting metadata on every request.
+	 *
+	 * @param int $minimum_interval Minimum seconds between metadata writes.
+	 * @return void
+	 */
+	public function touch_last_used( int $minimum_interval = 3600 ): void {
+		$last_used = $this->last_activity_at();
+		$last_seen = is_string( $last_used ) ? strtotime( $last_used ) : false;
+
+		if ( false !== $last_seen && ( time() - $last_seen ) < $minimum_interval ) {
+			return;
+		}
+
+		$this->update_meta_batch(
+			array(
+				'last_used_at' => gmdate( 'c' ),
 			)
 		);
 	}
@@ -239,14 +327,17 @@ class Environment {
 	 */
 	public function to_array(): array {
 		$data = array(
-			'id'         => $this->id,
-			'name'       => $this->name,
-			'path'       => $this->path,
-			'created_at' => $this->created_at,
-			'template'   => $this->template,
-			'status'     => $this->status,
-			'engine'     => $this->engine,
-			'type'       => $this->type,
+			'id'           => $this->id,
+			'name'         => $this->name,
+			'path'         => $this->path,
+			'created_at'   => $this->created_at,
+			'template'     => $this->template,
+			'status'       => $this->status,
+			'engine'       => $this->engine,
+			'type'         => $this->type,
+			'protected'    => $this->is_protected,
+			'labels'       => $this->labels,
+			'last_used_at' => $this->last_activity_at(),
 		);
 
 		if ( null !== $this->clone_source ) {
@@ -265,6 +356,38 @@ class Environment {
 			$data['domains'] = $this->domains;
 		}
 
+		if ( null !== $this->owner ) {
+			$data['owner'] = $this->owner;
+		}
+
+		if ( null !== $this->purpose ) {
+			$data['purpose'] = $this->purpose;
+		}
+
+		if ( null !== $this->expires_at ) {
+			$data['expires_at'] = $this->expires_at;
+		}
+
+		if ( null !== $this->source_environment_id ) {
+			$data['source_environment_id'] = $this->source_environment_id;
+		}
+
+		if ( null !== $this->source_environment_type ) {
+			$data['source_environment_type'] = $this->source_environment_type;
+		}
+
+		if ( null !== $this->last_deployed_from_id ) {
+			$data['last_deployed_from_id'] = $this->last_deployed_from_id;
+		}
+
+		if ( null !== $this->last_deployed_from_type ) {
+			$data['last_deployed_from_type'] = $this->last_deployed_from_type;
+		}
+
+		if ( null !== $this->last_deployed_at ) {
+			$data['last_deployed_at'] = $this->last_deployed_at;
+		}
+
 		return $data;
 	}
 
@@ -275,8 +398,7 @@ class Environment {
 	 */
 	public function save_meta(): void {
 		$meta_file = $this->path . '/.rudel.json';
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- No WP dependency in model.
-		file_put_contents( $meta_file, json_encode( $this->to_array(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
+		$this->persist_meta( $meta_file, $this->to_array() );
 	}
 
 	/**
@@ -313,5 +435,74 @@ class Environment {
 			return 'sandbox-' . $hash;
 		}
 		return $slug . '-' . $hash;
+	}
+
+	/**
+	 * Read an environment metadata file.
+	 *
+	 * @param string $meta_file Absolute metadata path.
+	 * @return array<string, mixed>
+	 */
+	private function read_meta_file( string $meta_file ): array {
+		if ( ! file_exists( $meta_file ) ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local metadata.
+		$data = json_decode( file_get_contents( $meta_file ), true );
+		return is_array( $data ) ? $data : array();
+	}
+
+	/**
+	 * Persist environment metadata to disk.
+	 *
+	 * @param string               $meta_file Absolute metadata path.
+	 * @param array<string, mixed> $data      Metadata payload.
+	 * @return void
+	 */
+	private function persist_meta( string $meta_file, array $data ): void {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- No WP dependency in model.
+		file_put_contents( $meta_file, json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
+	}
+
+	/**
+	 * Normalize labels read from metadata.
+	 *
+	 * @param mixed $labels Raw labels value.
+	 * @return array<int, string>
+	 */
+	private static function normalize_labels( $labels ): array {
+		if ( ! is_array( $labels ) ) {
+			return array();
+		}
+
+		$normalized = array();
+		foreach ( $labels as $label ) {
+			if ( ! is_scalar( $label ) ) {
+				continue;
+			}
+
+			$label = trim( (string) $label );
+			if ( '' !== $label ) {
+				$normalized[] = $label;
+			}
+		}
+
+		return array_values( array_unique( $normalized ) );
+	}
+
+	/**
+	 * Normalize nullable string metadata.
+	 *
+	 * @param mixed $value Raw metadata value.
+	 * @return string|null
+	 */
+	private static function string_or_null( $value ): ?string {
+		if ( ! is_scalar( $value ) ) {
+			return null;
+		}
+
+		$value = trim( (string) $value );
+		return '' === $value ? null : $value;
 	}
 }

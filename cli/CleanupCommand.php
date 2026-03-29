@@ -24,6 +24,9 @@ class CleanupCommand extends AbstractEnvironmentCommand {
 	 *
 	 * [--max-age-days=<days>]
 	 * : Override the configured max age in days.
+
+	 * [--max-idle-days=<days>]
+	 * : Override the configured max idle time in days.
 	 *
 	 * [--merged]
 	 * : Remove sandboxes whose git branches have been merged into main.
@@ -55,8 +58,9 @@ class CleanupCommand extends AbstractEnvironmentCommand {
 		} else {
 			$result = $this->manager->cleanup(
 				array(
-					'dry_run'      => $dry_run,
-					'max_age_days' => (int) ( $assoc_args['max-age-days'] ?? 0 ),
+					'dry_run'       => $dry_run,
+					'max_age_days'  => (int) ( $assoc_args['max-age-days'] ?? 0 ),
+					'max_idle_days' => (int) ( $assoc_args['max-idle-days'] ?? 0 ),
 				)
 			);
 			$label  = '';
@@ -70,6 +74,13 @@ class CleanupCommand extends AbstractEnvironmentCommand {
 		}
 
 		foreach ( $result['removed'] as $id ) {
+			$reason = $result['reasons'][ $id ] ?? null;
+			if ( is_string( $reason ) ) {
+				$reason = \Rudel\EnvironmentPolicy::describe_cleanup_reason( $reason );
+				WP_CLI::log( "  {$id} ({$reason})" );
+				continue;
+			}
+
 			WP_CLI::log( "  {$id}" );
 		}
 

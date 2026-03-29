@@ -26,7 +26,7 @@ Only the WP-CLI command name is affected. Internal identifiers like the `rudel_s
 Create a new sandbox.
 
 ```bash
-wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--type=<type>]
+wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
 ```
 
 | Option | Description |
@@ -41,6 +41,12 @@ wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--templat
 | `--clone-uploads` | Copy host uploads into the sandbox |
 | `--clone-all` | Clone everything (database, themes, plugins, uploads) |
 | `--clone-from=<id>` | Clone from an existing sandbox or app |
+| `--owner=<owner>` | Optional owner for stewardship and policy |
+| `--labels=<labels>` | Comma-separated labels |
+| `--purpose=<purpose>` | Optional description of why the sandbox exists |
+| `--protected` | Exclude the sandbox from automated cleanup |
+| `--ttl-days=<days>` | Set an expiry relative to creation time |
+| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
 | `--type=<type>` | Content type for `--github` downloads: `theme` (default) or `plugin` |
 
 ```bash
@@ -103,6 +109,26 @@ wp rudel destroy <id> [--force]
 |---|---|
 | `<id>` | Sandbox ID (required) |
 | `--force` | Skip confirmation prompt |
+
+### `wp rudel update`
+
+Update sandbox metadata and cleanup policy.
+
+```bash
+wp rudel update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | Sandbox ID (required) |
+| `--owner=<owner>` | Set or clear the owner |
+| `--labels=<labels>` | Comma-separated labels |
+| `--purpose=<purpose>` | Set or clear the purpose |
+| `--protected` | Exclude the sandbox from automated cleanup |
+| `--unprotected` | Remove cleanup protection |
+| `--ttl-days=<days>` | Set an expiry relative to now |
+| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
+| `--clear-expiry` | Remove any explicit expiry |
 
 ### `wp rudel status`
 
@@ -199,13 +225,14 @@ wp rudel import <file> --name=<name>
 Clean up expired or merged sandboxes.
 
 ```bash
-wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--merged]
+wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--max-idle-days=<days>] [--merged]
 ```
 
 | Option | Description |
 |---|---|
 | `--dry-run` | Show what would be removed without deleting |
 | `--max-age-days=<days>` | Override the configured max age in days |
+| `--max-idle-days=<days>` | Override the configured max idle time in days |
 | `--merged` | Remove sandboxes whose git branches have been merged into main |
 
 ## GitHub commands
@@ -290,7 +317,7 @@ wp rudel template delete <name> [--force]
 Create a new app (permanent domain-routed environment).
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
+wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
 | Option | Description |
@@ -304,14 +331,52 @@ wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clo
 | `--clone-uploads` | Copy host uploads into the app |
 | `--clone-all` | Clone host database and content |
 | `--clone-from=<id>` | Clone from an existing sandbox or app |
+| `--owner=<owner>` | Optional owner for stewardship and policy |
+| `--labels=<labels>` | Comma-separated labels |
+| `--purpose=<purpose>` | Optional description of why the app exists |
+| `--protected` | Mark the app as protected metadata |
+| `--ttl-days=<days>` | Set an expiry relative to creation time |
+| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
+
+### `wp rudel app update`
+
+Update app metadata and lifecycle policy.
+
+```bash
+wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry]
+```
+
+| Option | Description |
+|---|---|
+| `<id>` | App ID (required) |
+| `--owner=<owner>` | Set or clear the owner |
+| `--labels=<labels>` | Comma-separated labels |
+| `--purpose=<purpose>` | Set or clear the purpose |
+| `--protected` | Mark the app as protected metadata |
+| `--unprotected` | Remove protection metadata |
+| `--ttl-days=<days>` | Set an expiry relative to now |
+| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
+| `--clear-expiry` | Remove any explicit expiry |
 
 ### `wp rudel app create-sandbox`
 
 Create a sandbox cloned from an app.
 
 ```bash
-wp rudel app create-sandbox <id> [--name=<name>] [--engine=<engine>]
+wp rudel app create-sandbox <id> [--name=<name>] [--engine=<engine>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
+
+| Option | Description |
+|---|---|
+| `<id>` | App ID (required) |
+| `--name=<name>` | Sandbox name |
+| `--engine=<engine>` | Database engine. Must match the app |
+| `--owner=<owner>` | Optional owner for the sandbox |
+| `--labels=<labels>` | Comma-separated labels |
+| `--purpose=<purpose>` | Optional description |
+| `--protected` | Exclude the sandbox from automated cleanup |
+| `--ttl-days=<days>` | Set an expiry relative to creation time |
+| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
 
 ### `wp rudel app backup`
 

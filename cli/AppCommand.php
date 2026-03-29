@@ -15,6 +15,8 @@ use WP_CLI;
  */
 class AppCommand extends \WP_CLI_Command {
 
+	use HandlesEnvironmentPolicy;
+
 	/**
 	 * App manager instance.
 	 *
@@ -69,6 +71,24 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--clone-from=<id>]
 	 * : Clone from an existing sandbox or app. Mutually exclusive with --clone-db/--clone-all.
 	 *
+	 * [--owner=<owner>]
+	 * : Optional owner for stewardship and policy.
+	 *
+	 * [--labels=<labels>]
+	 * : Comma-separated labels for grouping.
+	 *
+	 * [--purpose=<purpose>]
+	 * : Optional description of why the app exists.
+	 *
+	 * [--protected]
+	 * : Mark the app as protected metadata.
+	 *
+	 * [--ttl-days=<days>]
+	 * : Set an expiry relative to creation time.
+	 *
+	 * [--expires-at=<timestamp>]
+	 * : Set an explicit expiry timestamp.
+	 *
 	 * @param array $args Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 * @return void
@@ -81,13 +101,16 @@ class AppCommand extends \WP_CLI_Command {
 		$name   = $assoc_args['name'] ?? str_replace( '.', '-', $domain );
 
 		$clone_all = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
-		$options   = array(
-			'engine'        => $assoc_args['engine'] ?? 'mysql',
-			'clone_from'    => $assoc_args['clone-from'] ?? null,
-			'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
-			'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
-			'clone_plugins' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-plugins', false ),
-			'clone_uploads' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-uploads', false ),
+		$options   = array_merge(
+			array(
+				'engine'        => $assoc_args['engine'] ?? 'mysql',
+				'clone_from'    => $assoc_args['clone-from'] ?? null,
+				'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
+				'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
+				'clone_plugins' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-plugins', false ),
+				'clone_uploads' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-uploads', false ),
+			),
+			$this->build_policy_changes( $assoc_args )
 		);
 
 		WP_CLI::log( "Creating app '{$name}' for {$domain}..." );
@@ -140,19 +163,21 @@ class AppCommand extends \WP_CLI_Command {
 		$items = array_map(
 			function ( $app ) {
 				return array(
-					'id'      => $app->id,
-					'name'    => $app->name,
-					'domains' => implode( ', ', $app->domains ?? array() ),
-					'engine'  => $app->engine,
-					'status'  => $app->status,
-					'created' => $app->created_at,
+					'id'        => $app->id,
+					'name'      => $app->name,
+					'owner'     => $app->owner ?? '',
+					'protected' => $this->format_protection( $app->is_protected() ),
+					'domains'   => implode( ', ', $app->domains ?? array() ),
+					'engine'    => $app->engine,
+					'status'    => $app->status,
+					'created'   => $app->created_at,
 				);
 			},
 			$apps
 		);
 
 		$format = $assoc_args['format'] ?? 'table';
-		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'domains', 'engine', 'status', 'created' ) );
+		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'domains', 'engine', 'status', 'created' ) );
 	}
 
 	/**
@@ -252,6 +277,65 @@ class AppCommand extends \WP_CLI_Command {
 	}
 
 	/**
+	 * Update app metadata and policy.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : App ID.
+	 *
+	 * [--owner=<owner>]
+	 * : Set or clear the owner.
+	 *
+	 * [--labels=<labels>]
+	 * : Comma-separated labels.
+	 *
+	 * [--purpose=<purpose>]
+	 * : Set or clear the purpose.
+	 *
+	 * [--protected]
+	 * : Mark the app as protected metadata.
+	 *
+	 * [--unprotected]
+	 * : Remove protection metadata.
+	 *
+	 * [--ttl-days=<days>]
+	 * : Set an expiry relative to now.
+	 *
+	 * [--expires-at=<timestamp>]
+	 * : Set an explicit expiry timestamp.
+	 *
+	 * [--clear-expiry]
+	 * : Remove any explicit expiry.
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @when after_wp_load
+	 */
+	public function update( $args, $assoc_args ): void {
+		$id      = $args[0];
+		$changes = $this->build_policy_changes( $assoc_args );
+
+		if ( empty( $changes ) ) {
+			WP_CLI::error( 'No metadata changes were provided.' );
+		}
+
+		try {
+			$app = $this->manager->update( $id, $changes );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		WP_CLI::success( "App updated: {$app->id}" );
+		WP_CLI::log( '' );
+		WP_CLI::log( '  Owner:     ' . ( $app->owner ?? '-' ) );
+		WP_CLI::log( '  Protected: ' . $this->format_protection( $app->is_protected() ) );
+		WP_CLI::log( '  Expires:   ' . ( $app->expires_at ?? '-' ) );
+	}
+
+	/**
 	 * Create a sandbox from an app.
 	 *
 	 * ## OPTIONS
@@ -270,6 +354,24 @@ class AppCommand extends \WP_CLI_Command {
 	 *   - sqlite
 	 * ---
 	 *
+	 * [--owner=<owner>]
+	 * : Optional owner for the sandbox.
+	 *
+	 * [--labels=<labels>]
+	 * : Comma-separated labels for the sandbox.
+	 *
+	 * [--purpose=<purpose>]
+	 * : Optional description of why the sandbox exists.
+	 *
+	 * [--protected]
+	 * : Exclude the sandbox from automated cleanup.
+	 *
+	 * [--ttl-days=<days>]
+	 * : Set an expiry relative to creation time.
+	 *
+	 * [--expires-at=<timestamp>]
+	 * : Set an explicit expiry timestamp.
+	 *
 	 * @param array $args Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 * @return void
@@ -286,7 +388,7 @@ class AppCommand extends \WP_CLI_Command {
 		}
 
 		$name    = $assoc_args['name'] ?? "{$app->name} Sandbox";
-		$options = array();
+		$options = $this->build_policy_changes( $assoc_args );
 		if ( isset( $assoc_args['engine'] ) ) {
 			$options['engine'] = $assoc_args['engine'];
 		}

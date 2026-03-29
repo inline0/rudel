@@ -173,6 +173,8 @@ $sandbox = Rudel::create( 'Full Clone', [
 ] );
 ```
 
+Create and update APIs also accept metadata and lifecycle policy keys such as `owner`, `labels`, `purpose`, `protected`, `ttl_days`, and `expires_at`. The resulting `Environment` model also exposes lineage fields such as `source_environment_id`, `source_environment_type`, `last_deployed_from_id`, `last_deployed_from_type`, and `last_deployed_at`.
+
 ### `Rudel::destroy( $id )`
 
 Destroys a sandbox. Returns `true` on success. For MySQL sandboxes, drops all `rudel_*` tables. For subsite sandboxes, deletes the sub-site.
@@ -209,7 +211,7 @@ $sandbox = Rudel::import( '/tmp/sandbox.zip', 'Imported' );
 
 ### `Rudel::cleanup( $options )`
 
-Removes expired sandboxes. Returns arrays of removed, skipped, and errored IDs.
+Removes sandboxes matched by explicit expiry, age policy, or idle policy. Protected sandboxes are skipped. Returns arrays of removed, skipped, and errored IDs.
 
 ```php
 $result = Rudel::cleanup( [ 'max_age_days' => 7 ] );
@@ -217,6 +219,9 @@ echo count( $result['removed'] ) . ' sandboxes removed';
 
 // Dry run
 $result = Rudel::cleanup( [ 'dry_run' => true, 'max_age_days' => 7 ] );
+
+// Idle policy override
+$result = Rudel::cleanup( [ 'max_idle_days' => 3 ] );
 ```
 
 ### `Rudel::cleanup_merged( $options )`
@@ -237,6 +242,19 @@ Returns the absolute path to the environments directory.
 
 ```php
 $dir = Rudel::environments_dir(); // '/var/www/html/wp-content/rudel-environments'
+```
+
+### `Rudel::update( $id, $changes )`
+
+Updates sandbox metadata and policy.
+
+```php
+$sandbox = Rudel::update( 'my-sandbox-a1b2', [
+    'owner'     => 'dennis',
+    'labels'    => [ 'qa', 'client-a' ],
+    'protected' => true,
+    'ttl_days'  => 7,
+] );
 ```
 
 ## Snapshots
@@ -329,6 +347,17 @@ $app = Rudel::create_app( 'Client A', [ 'client-a.com', 'www.client-a.com' ] );
 echo $app->get_url(); // https://client-a.com/
 ```
 
+### `Rudel::update_app( $id, $changes )`
+
+Updates app metadata and lifecycle policy.
+
+```php
+$app = Rudel::update_app( 'client-a-com-a1b2', [
+    'owner'  => 'dennis',
+    'labels' => [ 'customer', 'production' ],
+] );
+```
+
 ### `Rudel::destroy_app( $id )`
 
 Destroys an app and removes all domain mappings.
@@ -341,6 +370,10 @@ Creates a sandbox cloned from an app.
 $sandbox = Rudel::create_sandbox_from_app( 'client-a-com-a1b2', 'Client A Feature Work' );
 echo $sandbox->id;
 ```
+
+### `Rudel::touch_current_environment()`
+
+Touches the current environment's `last_used_at` timestamp. Rudel already does this automatically at runtime, but the method is public if custom code wants to force an activity update.
 
 ### `Rudel::backup_app( $app_id, $name )`
 
@@ -374,6 +407,15 @@ Returns the absolute path to the apps directory.
 
 ```php
 $dir = Rudel::apps_dir(); // '/var/www/html/wp-content/rudel-apps'
+```
+
+### `Rudel::run_scheduled_cleanup()`
+
+Runs the same cleanup automation that Rudel schedules via WP-Cron.
+
+```php
+$result = Rudel::run_scheduled_cleanup();
+echo count( $result['cleanup']['removed'] );
 ```
 
 ## Lifecycle Hooks

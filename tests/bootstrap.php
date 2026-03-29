@@ -41,6 +41,12 @@ if ( ! function_exists( 'apply_filters' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_json_encode' ) ) {
+	function wp_json_encode( $value, int $flags = 0, int $depth = 512 ) {
+		return json_encode( $value, $flags, $depth );
+	}
+}
+
 // Global temp directory for all tests -- each test class manages its own subdirectory.
 define( 'RUDEL_TEST_TMPDIR', sys_get_temp_dir() . '/rudel-tests-' . getmypid() );
 

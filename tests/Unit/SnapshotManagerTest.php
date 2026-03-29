@@ -113,6 +113,7 @@ class SnapshotManagerTest extends RudelTestCase
         $this->assertFileExists($sandbox->get_db_path());
         // New file should be gone (wp-content was replaced).
         $this->assertFileDoesNotExist($sandbox->get_wp_content_path() . '/new-file.txt');
+        $this->assertNotEmpty(glob($sandbox->path . '/snapshots/pre-restore-*'));
     }
 
     #[RunInSeparateProcess]

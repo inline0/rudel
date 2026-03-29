@@ -50,7 +50,7 @@ class AppCommandTest extends RudelTestCase
         $this->assertCount(1, $formatCalls);
 
         $call = array_values($formatCalls)[0];
-        $this->assertSame(['id', 'name', 'domains', 'engine', 'status', 'created'], $call['fields']);
+        $this->assertSame(['id', 'name', 'owner', 'protected', 'domains', 'engine', 'status', 'created'], $call['fields']);
     }
 
     #[RunInSeparateProcess]
@@ -122,6 +122,24 @@ class AppCommandTest extends RudelTestCase
 
         $this->assertCount(1, \WP_CLI::$successes);
         $this->assertStringContainsString('Sandbox created from app', \WP_CLI::$successes[0]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateReportsSuccess(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['domain' => 'update-app.com', 'engine' => 'sqlite']);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->update([$appId], ['owner' => 'dennis', 'labels' => 'priority', 'protected' => true]);
+
+        $this->assertCount(1, \WP_CLI::$successes);
+        $this->assertStringContainsString('App updated', \WP_CLI::$successes[0]);
+        $logOutput = implode("\n", array_filter(\WP_CLI::$log, 'is_string'));
+        $this->assertStringContainsString('dennis', $logOutput);
+        $this->assertStringContainsString('yes', $logOutput);
     }
 
     #[RunInSeparateProcess]

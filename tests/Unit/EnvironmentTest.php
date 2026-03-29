@@ -175,6 +175,8 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame('2026-01-01T00:00:00+00:00', $sandbox->created_at);
         $this->assertSame('custom', $sandbox->template);
         $this->assertSame('paused', $sandbox->status);
+        $this->assertSame([], $sandbox->labels);
+        $this->assertFalse($sandbox->is_protected());
     }
 
     public function testConstructorDefaults(): void
@@ -190,6 +192,39 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame('active', $sandbox->status);
     }
 
+    public function testConstructorSupportsPolicyAndLineageMetadata(): void
+    {
+        $sandbox = new Environment(
+            id: 'policy-box',
+            name: 'Policy Box',
+            path: '/tmp/policy-box',
+            created_at: '2026-01-01T00:00:00+00:00',
+            owner: 'dennis',
+            labels: ['bugfix', 'priority'],
+            purpose: 'Regression check',
+            is_protected: true,
+            expires_at: '2026-01-10T00:00:00+00:00',
+            last_used_at: '2026-01-05T00:00:00+00:00',
+            source_environment_id: 'client-a',
+            source_environment_type: 'app',
+            last_deployed_from_id: 'sandbox-1234',
+            last_deployed_from_type: 'sandbox',
+            last_deployed_at: '2026-01-06T00:00:00+00:00',
+        );
+
+        $this->assertSame('dennis', $sandbox->owner);
+        $this->assertSame(['bugfix', 'priority'], $sandbox->labels);
+        $this->assertSame('Regression check', $sandbox->purpose);
+        $this->assertTrue($sandbox->is_protected());
+        $this->assertSame('2026-01-10T00:00:00+00:00', $sandbox->expires_at);
+        $this->assertSame('2026-01-05T00:00:00+00:00', $sandbox->last_used_at);
+        $this->assertSame('client-a', $sandbox->source_environment_id);
+        $this->assertSame('app', $sandbox->source_environment_type);
+        $this->assertSame('sandbox-1234', $sandbox->last_deployed_from_id);
+        $this->assertSame('sandbox', $sandbox->last_deployed_from_type);
+        $this->assertSame('2026-01-06T00:00:00+00:00', $sandbox->last_deployed_at);
+    }
+
     // fromPath()
 
     public function testFromPathReturnsSandboxForValidMeta(): void
@@ -202,6 +237,7 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame('My Sandbox', $sandbox->name);
         $this->assertSame('blank', $sandbox->template);
         $this->assertSame('active', $sandbox->status);
+        $this->assertSame('2026-01-01T00:00:00+00:00', $sandbox->last_used_at);
     }
 
     public function testFromPathReturnsNullWhenNoMetaFile(): void
@@ -242,6 +278,8 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame('', $sandbox->created_at);
         $this->assertSame('blank', $sandbox->template);
         $this->assertSame('active', $sandbox->status);
+        $this->assertSame([], $sandbox->labels);
+        $this->assertFalse($sandbox->is_protected());
     }
 
     public function testFromPathTrimsTrailingSlash(): void
@@ -460,7 +498,41 @@ class EnvironmentTest extends RudelTestCase
             'status' => 'active',
             'engine' => 'mysql',
             'type' => 'sandbox',
+            'protected' => false,
+            'labels' => [],
+            'last_used_at' => '2026-01-01',
         ], $arr);
+    }
+
+    public function testUpdateMetaBatchPersistsMultipleKeys(): void
+    {
+        $path = $this->createFakeSandbox('batch-meta', 'Batch Meta');
+        $sandbox = Environment::from_path($path);
+
+        $sandbox->update_meta_batch([
+            'owner' => 'dennis',
+            'protected' => true,
+            'labels' => ['release'],
+        ]);
+
+        $updated = Environment::from_path($path);
+        $this->assertSame('dennis', $updated->owner);
+        $this->assertTrue($updated->is_protected());
+        $this->assertSame(['release'], $updated->labels);
+    }
+
+    public function testTouchLastUsedUpdatesMetadataWhenThresholdPassed(): void
+    {
+        $path = $this->createFakeSandbox('touch-meta', 'Touch Meta', [
+            'created_at' => '2026-01-01T00:00:00+00:00',
+            'last_used_at' => '2020-01-01T00:00:00+00:00',
+        ]);
+        $sandbox = Environment::from_path($path);
+
+        $sandbox->touch_last_used(3600);
+
+        $updated = Environment::from_path($path);
+        $this->assertNotSame('2020-01-01T00:00:00+00:00', $updated->last_used_at);
     }
 
     // saveMeta()

@@ -110,7 +110,7 @@ class RudelCommandTest extends RudelTestCase
         $this->assertCount(1, $formatCalls);
 
         $call = array_values($formatCalls)[0];
-        $this->assertSame(['id', 'name', 'engine', 'status', 'template', 'created', 'size'], $call['fields']);
+        $this->assertSame(['id', 'name', 'owner', 'protected', 'expires', 'engine', 'status', 'template', 'created', 'size'], $call['fields']);
     }
 
     #[RunInSeparateProcess]
@@ -284,6 +284,24 @@ class RudelCommandTest extends RudelTestCase
         $cmd->destroy(['fail-box'], ['force' => true]);
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateReportsSuccess(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['name' => 'Update Box', 'engine' => 'sqlite']);
+        $id = str_replace('Sandbox created: ', '', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->update([$id], ['owner' => 'dennis', 'labels' => 'priority', 'protected' => true]);
+
+        $this->assertCount(1, \WP_CLI::$successes);
+        $this->assertStringContainsString('Sandbox updated', \WP_CLI::$successes[0]);
+        $logOutput = implode("\n", array_filter(\WP_CLI::$log, fn($m) => is_string($m)));
+        $this->assertStringContainsString('dennis', $logOutput);
+        $this->assertStringContainsString('yes', $logOutput);
+    }
+
     // status()
 
     #[RunInSeparateProcess]
@@ -308,6 +326,10 @@ class RudelCommandTest extends RudelTestCase
         $this->assertContains('Bootstrap installed', $fieldNames);
         $this->assertContains('Sandboxes directory', $fieldNames);
         $this->assertContains('Active sandboxes', $fieldNames);
+        $this->assertContains('Config file', $fieldNames);
+        $this->assertContains('Default TTL days', $fieldNames);
+        $this->assertContains('Max idle days', $fieldNames);
+        $this->assertContains('Auto cleanup', $fieldNames);
         $this->assertContains('SQLite integration', $fieldNames);
         $this->assertContains('PHP version', $fieldNames);
         $this->assertContains('SQLite3 extension', $fieldNames);

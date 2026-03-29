@@ -88,4 +88,36 @@ class CleanupCommandTest extends RudelTestCase
         $this->assertStringContainsString('with merged branches', \WP_CLI::$successes[0]);
         $this->assertStringContainsString('merged-box', implode("\n", array_filter(\WP_CLI::$log, 'is_string')));
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupPassesIdleOverrideAndLogsReasons(): void
+    {
+        $this->bootstrapWpCli();
+
+        $manager = new class extends \Rudel\EnvironmentManager {
+            public array $cleanupOptions = [];
+
+            public function __construct() {}
+
+            public function cleanup(array $options = array()): array
+            {
+                $this->cleanupOptions = $options;
+
+                return [
+                    'removed' => ['idle-box'],
+                    'skipped' => [],
+                    'errors' => [],
+                    'reasons' => ['idle-box' => 'idle'],
+                ];
+            }
+        };
+
+        $cmd = new \Rudel\CLI\CleanupCommand($manager);
+        $cmd([], ['dry-run' => true, 'max-idle-days' => '3']);
+
+        $this->assertSame(['dry_run' => true, 'max_age_days' => 0, 'max_idle_days' => 3], $manager->cleanupOptions);
+        $logOutput = implode("\n", array_filter(\WP_CLI::$log, 'is_string'));
+        $this->assertStringContainsString('idle policy matched', $logOutput);
+    }
 }

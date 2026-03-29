@@ -49,6 +49,12 @@ wp rudel app create-sandbox client-a-com-a1b2 --name="Client A Feature Work"
 
 That gives you a disposable sandbox with the app's database and `wp-content`, but rewritten to sandbox URLs and prefixes.
 
+You can also attach sandbox lifecycle metadata at creation time:
+
+```bash
+wp rudel app create-sandbox client-a-com-a1b2 --name="Client A QA" --owner=dennis --labels=qa,client-a --ttl-days=7
+```
+
 ## Backups and deploys
 
 Apps do not use sandbox snapshots. Instead, they use app backups and deploys.
@@ -71,6 +77,8 @@ Restore a backup:
 wp rudel app restore client-a-com-a1b2 --backup=before-redesign --force
 ```
 
+App restore can automatically create another backup first, so recovery stays symmetric even when the restore itself is destructive.
+
 Deploy a sandbox into an app:
 
 ```bash
@@ -78,6 +86,13 @@ wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=befo
 ```
 
 Deploy always creates or uses an app backup first, then replaces the app's database and `wp-content` with the sandbox state while rewriting URLs back to the app domain.
+
+That is the intended lifecycle:
+
+1. App holds the stable runtime state.
+2. Sandbox branches off the app for change work.
+3. Sandbox is tested, reviewed, and optionally pushed/PR'd.
+4. Sandbox deploys back into the app.
 
 ## Domain management
 
@@ -115,6 +130,12 @@ View details:
 wp rudel app info client-a-com-a1b2
 ```
 
+Update app metadata:
+
+```bash
+wp rudel app update client-a-com-a1b2 --owner=dennis --labels=customer,production --protected
+```
+
 Destroy an app (removes database tables, `wp-content`, and domain mappings):
 
 ```bash
@@ -136,8 +157,10 @@ Apps and sandboxes share the same isolation layer but differ in intent:
 | **Recovery** | Snapshots | Backups |
 | **Promote to host** | Yes | No |
 | **Deploy from sandbox** | N/A | Yes |
-| **Git/GitHub** | Yes | No |
+| **Git workflow** | Primary change workspace | Deploy target, not the primary Git surface |
 | **Email** | Blocked by default | Allowed by default |
 | **Use case** | Development, testing, AI agents | Multi-tenant hosting, client sites |
 
-Both use the same `rudel_` table prefix safety guard, the same `wp-content` isolation, and the same authentication salt isolation. The intended lifecycle is: create an app, branch off a sandbox from it when you need to work, then deploy the finished sandbox back into the app.
+Both use the same `rudel_` table prefix safety guard, the same `wp-content` isolation, and the same authentication salt isolation.
+
+If you think in Git terms, apps are closer to deployed mainline state and sandboxes are closer to feature workspaces or worktrees. The analogy is about workflow, not literal Git structure, because both also include database and environment state.

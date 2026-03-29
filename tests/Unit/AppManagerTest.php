@@ -268,6 +268,9 @@ class AppManagerTest extends RudelTestCase
         $this->assertFileExists($app->path . '/backups/baseline/backup.json');
         $this->assertFileExists($app->get_db_path());
         $this->assertFileDoesNotExist($app->get_wp_content_path() . '/plugins/changed.txt');
+
+        $preRestoreBackups = glob($app->path . '/backups/pre-restore-*');
+        $this->assertNotEmpty($preRestoreBackups);
     }
 
     #[RunInSeparateProcess]
@@ -301,5 +304,45 @@ class AppManagerTest extends RudelTestCase
         $this->assertFileExists($app->get_wp_content_path() . '/plugins/deployed.txt');
         $this->assertStringContainsString('deploy-app.com', $siteurl);
         $this->assertStringNotContainsString($sandbox->id, $siteurl);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateAppMetadataPersists(): void
+    {
+        $this->defineConstants();
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Update App', ['update-app.com'], ['engine' => 'sqlite']);
+
+        $updated = $manager->update($app->id, [
+            'owner' => 'dennis',
+            'labels' => 'priority, qa',
+            'protected' => true,
+        ]);
+
+        $this->assertSame('dennis', $updated->owner);
+        $this->assertSame(['priority', 'qa'], $updated->labels);
+        $this->assertTrue($updated->is_protected());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeployRecordsLineageOnApp(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $appsDir = $this->tmpDir . '/apps';
+        $sandboxesDir = $this->tmpDir . '/sandboxes';
+        $manager = new AppManager($appsDir, $sandboxesDir);
+        $app = $manager->create('Lineage App', ['lineage-app.com'], ['engine' => 'sqlite']);
+        $sandbox = $manager->create_sandbox($app->id, 'Lineage Sandbox');
+
+        $manager->deploy($app->id, $sandbox->id, 'before-deploy');
+
+        $updated = $manager->get($app->id);
+        $this->assertSame($sandbox->id, $updated->last_deployed_from_id);
+        $this->assertSame('sandbox', $updated->last_deployed_from_type);
+        $this->assertNotNull($updated->last_deployed_at);
     }
 }

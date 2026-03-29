@@ -130,6 +130,34 @@ class AppManager {
 	}
 
 	/**
+	 * Update app metadata and return the refreshed app.
+	 *
+	 * @param string $id      App identifier.
+	 * @param array  $changes Metadata changes.
+	 * @return Environment
+	 *
+	 * @throws \Throwable If the update fails after lifecycle hooks begin.
+	 */
+	public function update( string $id, array $changes ): Environment {
+		$app     = $this->require_app( $id );
+		$changes = Hooks::filter( 'rudel_app_update_changes', $changes, $app, $this );
+		$context = array(
+			'app'     => $app,
+			'changes' => $changes,
+		);
+		Hooks::action( 'rudel_before_app_update', $context );
+
+		try {
+			$updated = $this->manager->update( $id, $changes );
+			Hooks::action( 'rudel_after_app_update', $updated, $context );
+			return $updated;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_app_update_failed', $context, $e );
+			throw $e;
+		}
+	}
+
+	/**
 	 * Destroy an app by ID.
 	 *
 	 * @param string $id App identifier.
@@ -259,7 +287,18 @@ class AppManager {
 		Hooks::action( 'rudel_before_app_restore', $context );
 
 		try {
+			$config = new RudelConfig();
+			if ( $config->get( 'auto_backup_before_app_restore' ) > 0 ) {
+				$this->backup( $id, 'pre-restore-' . gmdate( 'Ymd_His' ) . '-' . substr( md5( uniqid( '', true ) ), 0, 4 ) );
+			}
+
 			$this->backup_manager( $app )->restore( $name );
+			$this->manager->update(
+				$id,
+				array(
+					'last_used_at' => gmdate( 'c' ),
+				)
+			);
 			Hooks::action( 'rudel_after_app_restore', $context );
 		} catch ( \Throwable $e ) {
 			Hooks::action( 'rudel_app_restore_failed', $context, $e );
@@ -308,6 +347,15 @@ class AppManager {
 		try {
 			$backup = $this->backup( $app_id, $backup_name );
 			$state  = $this->manager->replace_environment_state( $sandbox, $app );
+			$this->manager->update(
+				$app_id,
+				array(
+					'last_deployed_from_id'   => $sandbox->id,
+					'last_deployed_from_type' => $sandbox->type,
+					'last_deployed_at'        => gmdate( 'c' ),
+					'last_used_at'            => gmdate( 'c' ),
+				)
+			);
 
 			$result = array(
 				'app_id'        => $app->id,
@@ -349,7 +397,12 @@ class AppManager {
 		try {
 			$domains   = array_map( array( $this, 'normalize_domain' ), $app->domains ?? array() );
 			$domains[] = $domain;
-			$app->update_meta( 'domains', array_values( array_unique( $domains ) ) );
+			$app->update_meta_batch(
+				array(
+					'domains'      => array_values( array_unique( $domains ) ),
+					'last_used_at' => gmdate( 'c' ),
+				)
+			);
 			$this->rebuild_domain_map();
 			Hooks::action( 'rudel_after_app_domain_add', $context );
 		} catch ( \Throwable $e ) {
@@ -386,7 +439,12 @@ class AppManager {
 		Hooks::action( 'rudel_before_app_domain_remove', $context );
 
 		try {
-			$app->update_meta( 'domains', $domains );
+			$app->update_meta_batch(
+				array(
+					'domains'      => $domains,
+					'last_used_at' => gmdate( 'c' ),
+				)
+			);
 			$this->rebuild_domain_map();
 			Hooks::action( 'rudel_after_app_domain_remove', $context );
 		} catch ( \Throwable $e ) {

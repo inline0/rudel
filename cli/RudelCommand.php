@@ -10,6 +10,7 @@ namespace Rudel\CLI;
 use Rudel\Environment;
 use Rudel\GitHubIntegration;
 use Rudel\Rudel;
+use Rudel\RudelConfig;
 use WP_CLI;
 
 /**
@@ -19,6 +20,8 @@ use WP_CLI;
  * RUDEL_CLI_COMMAND in wp-config.php before the plugin loads.
  */
 class RudelCommand extends AbstractEnvironmentCommand {
+
+	use HandlesEnvironmentPolicy;
 
 	/**
 	 * Create a new sandbox.
@@ -64,6 +67,24 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 *
 	 * [--clone-from=<id>]
 	 * : Clone from an existing sandbox. Mutually exclusive with --clone-db/--clone-all.
+	 *
+	 * [--owner=<owner>]
+	 * : Optional owner for stewardship and policy.
+	 *
+	 * [--labels=<labels>]
+	 * : Comma-separated labels for grouping and cleanup policy.
+	 *
+	 * [--purpose=<purpose>]
+	 * : Optional description of why the sandbox exists.
+	 *
+	 * [--protected]
+	 * : Exclude this sandbox from automated cleanup.
+	 *
+	 * [--ttl-days=<days>]
+	 * : Set an expiry relative to creation time.
+	 *
+	 * [--expires-at=<timestamp>]
+	 * : Set an explicit expiry timestamp.
 	 *
 	 * [--type=<type>]
 	 * : Content type for --github downloads: 'theme' or 'plugin'.
@@ -162,21 +183,24 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		$items = array_map(
 			function ( Environment $sandbox ): array {
 				return array(
-					'id'       => $sandbox->id,
-					'name'     => $sandbox->name,
-					'engine'   => $sandbox->engine,
-					'status'   => $sandbox->status,
-					'template' => $sandbox->template,
-					'created'  => $sandbox->created_at,
-					'size'     => $this->format_size( $sandbox->get_size() ),
-					'path'     => $sandbox->path,
+					'id'        => $sandbox->id,
+					'name'      => $sandbox->name,
+					'owner'     => $sandbox->owner ?? '',
+					'protected' => $this->format_protection( $sandbox->is_protected() ),
+					'expires'   => $sandbox->expires_at ?? '',
+					'engine'    => $sandbox->engine,
+					'status'    => $sandbox->status,
+					'template'  => $sandbox->template,
+					'created'   => $sandbox->created_at,
+					'size'      => $this->format_size( $sandbox->get_size() ),
+					'path'      => $sandbox->path,
 				);
 			},
 			$sandboxes
 		);
 
 		$format = $assoc_args['format'] ?? 'table';
-		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'engine', 'status', 'template', 'created', 'size' ) );
+		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'expires', 'engine', 'status', 'template', 'created', 'size' ) );
 	}
 
 	/**
@@ -279,6 +303,65 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	}
 
 	/**
+	 * Update sandbox metadata and policy.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : Sandbox ID.
+	 *
+	 * [--owner=<owner>]
+	 * : Set or clear the owner.
+	 *
+	 * [--labels=<labels>]
+	 * : Comma-separated labels.
+	 *
+	 * [--purpose=<purpose>]
+	 * : Set or clear the purpose.
+	 *
+	 * [--protected]
+	 * : Exclude this sandbox from automated cleanup.
+	 *
+	 * [--unprotected]
+	 * : Remove cleanup protection.
+	 *
+	 * [--ttl-days=<days>]
+	 * : Set an expiry relative to now.
+	 *
+	 * [--expires-at=<timestamp>]
+	 * : Set an explicit expiry timestamp.
+	 *
+	 * [--clear-expiry]
+	 * : Remove any explicit expiry.
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @when after_wp_load
+	 */
+	public function update( $args, $assoc_args ): void {
+		$id      = $args[0];
+		$changes = $this->build_policy_changes( $assoc_args );
+
+		if ( empty( $changes ) ) {
+			WP_CLI::error( 'No metadata changes were provided.' );
+		}
+
+		try {
+			$sandbox = $this->manager->update( $id, $changes );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		WP_CLI::success( "Sandbox updated: {$sandbox->id}" );
+		WP_CLI::log( '' );
+		WP_CLI::log( '  Owner:     ' . ( $sandbox->owner ?? '-' ) );
+		WP_CLI::log( '  Protected: ' . $this->format_protection( $sandbox->is_protected() ) );
+		WP_CLI::log( '  Expires:   ' . ( $sandbox->expires_at ?? '-' ) );
+	}
+
+	/**
 	 * Show Rudel status and configuration.
 	 *
 	 * ## EXAMPLES
@@ -294,6 +377,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	public function status( $args, $assoc_args ): void {
 		$writer      = new \Rudel\ConfigWriter();
 		$sandboxes   = $this->manager->list();
+		$config      = new RudelConfig();
 		$sqlite_path = defined( 'RUDEL_PLUGIN_DIR' )
 			? RUDEL_PLUGIN_DIR . 'lib/sqlite-database-integration'
 			: dirname( __DIR__ ) . '/lib/sqlite-database-integration';
@@ -316,6 +400,30 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			array(
 				'Field' => 'Active sandboxes',
 				'Value' => (string) count( $sandboxes ),
+			),
+			array(
+				'Field' => 'Config file',
+				'Value' => $config->get_config_path(),
+			),
+			array(
+				'Field' => 'Default TTL days',
+				'Value' => (string) $config->get( 'default_ttl_days' ),
+			),
+			array(
+				'Field' => 'Max age days',
+				'Value' => (string) $config->get( 'max_age_days' ),
+			),
+			array(
+				'Field' => 'Max idle days',
+				'Value' => (string) $config->get( 'max_idle_days' ),
+			),
+			array(
+				'Field' => 'Auto cleanup',
+				'Value' => $config->get( 'auto_cleanup_enabled' ) > 0 ? 'yes' : 'no',
+			),
+			array(
+				'Field' => 'Auto cleanup merged',
+				'Value' => $config->get( 'auto_cleanup_merged' ) > 0 ? 'yes' : 'no',
 			),
 			array(
 				'Field' => 'Multisite',
@@ -368,13 +476,16 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	private function build_create_options( array $assoc_args ): array {
 		$clone_all  = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
 		$clone_from = $assoc_args['clone-from'] ?? null;
-		$options    = array(
-			'engine'        => $assoc_args['engine'] ?? 'mysql',
-			'template'      => $assoc_args['template'] ?? 'blank',
-			'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
-			'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
-			'clone_plugins' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-plugins', false ),
-			'clone_uploads' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-uploads', false ),
+		$options    = array_merge(
+			array(
+				'engine'        => $assoc_args['engine'] ?? 'mysql',
+				'template'      => $assoc_args['template'] ?? 'blank',
+				'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
+				'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
+				'clone_plugins' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-plugins', false ),
+				'clone_uploads' => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-uploads', false ),
+			),
+			$this->build_policy_changes( $assoc_args )
 		);
 
 		if ( $clone_from ) {

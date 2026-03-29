@@ -82,6 +82,8 @@ class EnvironmentManager {
 		$engine        = $options['engine'] ?? 'mysql';
 		$blog_id       = null;
 		$git_worktrees = array();
+		$created_at    = gmdate( 'c' );
+		$config        = new RudelConfig();
 
 		try {
 			if ( empty( $options['skip_limits'] ) ) {
@@ -146,6 +148,7 @@ class EnvironmentManager {
 			$this->write_claude_md( $id, $name, $path );
 
 			$clone_source       = null;
+			$clone_lineage      = array();
 			$is_multisite       = false;
 			$template           = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
 			$is_from_template   = ! in_array( $template, array( 'blank', 'clone' ), true )
@@ -200,6 +203,10 @@ class EnvironmentManager {
 					);
 				}
 				$clone_source = $this->clone_from_environment( $source, $id, $path, $engine, $target_type, $target_domains );
+				$clone_lineage = array(
+					'source_environment_id'   => $source->id,
+					'source_environment_type' => $source->type,
+				);
 			} elseif ( $clone_db ) {
 				$table_prefix = Environment::table_prefix_for_id( $id );
 				$target_url   = $this->get_target_environment_url( $id, $target_type, $target_domains );
@@ -293,11 +300,18 @@ class EnvironmentManager {
 				$clone_source['git_worktrees'] = $git_worktrees;
 			}
 
+			$policy_meta = EnvironmentPolicy::metadata_for_create(
+				array_merge( $options, $clone_lineage ),
+				$target_type,
+				$created_at,
+				$config
+			);
+
 			$environment = new Environment(
 				id: $id,
 				name: $name,
 				path: $path,
-				created_at: gmdate( 'c' ),
+				created_at: $created_at,
 				template: $template,
 				status: 'active',
 				clone_source: $clone_source,
@@ -306,6 +320,17 @@ class EnvironmentManager {
 				blog_id: $blog_id,
 				type: $target_type,
 				domains: $target_domains,
+				owner: $policy_meta['owner'],
+				labels: $policy_meta['labels'],
+				purpose: $policy_meta['purpose'],
+				is_protected: $policy_meta['protected'],
+				expires_at: $policy_meta['expires_at'],
+				last_used_at: $policy_meta['last_used_at'],
+				source_environment_id: $policy_meta['source_environment_id'] ?? null,
+				source_environment_type: $policy_meta['source_environment_type'] ?? null,
+				last_deployed_from_id: $policy_meta['last_deployed_from_id'] ?? null,
+				last_deployed_from_type: $policy_meta['last_deployed_from_type'] ?? null,
+				last_deployed_at: $policy_meta['last_deployed_at'] ?? null,
 			);
 			$environment->save_meta();
 
@@ -379,6 +404,44 @@ class EnvironmentManager {
 
 		$path = $this->environments_dir . '/' . $id;
 		return Environment::from_path( $path );
+	}
+
+	/**
+	 * Update environment metadata and return the refreshed environment.
+	 *
+	 * @param string $id      Environment identifier.
+	 * @param array  $changes Metadata changes.
+	 * @return Environment
+	 *
+	 * @throws \RuntimeException If the environment is not found.
+	 * @throws \Throwable If the update fails after lifecycle hooks begin.
+	 */
+	public function update( string $id, array $changes ): Environment {
+		$environment = $this->get( $id );
+		if ( ! $environment ) {
+			throw new \RuntimeException( sprintf( 'Environment not found: %s', $id ) );
+		}
+
+		$changes = EnvironmentPolicy::normalize_changes( $changes, $environment->type );
+		$context = array(
+			'environment' => $environment,
+			'changes'     => $changes,
+		);
+		Hooks::action( 'rudel_before_environment_update', $context );
+
+		try {
+			$environment->update_meta_batch( $changes );
+			$updated = $this->get( $id );
+			if ( ! $updated ) {
+				throw new \RuntimeException( sprintf( 'Environment not found after update: %s', $id ) );
+			}
+
+			Hooks::action( 'rudel_after_environment_update', $updated, $context );
+			return $updated;
+		} catch ( \Throwable $e ) {
+			Hooks::action( 'rudel_environment_update_failed', $context, $e );
+			throw $e;
+		}
 	}
 
 	/**
@@ -833,14 +896,41 @@ class EnvironmentManager {
 			chmod( $db_path, 0664 );
 		}
 
+		$imported_meta = EnvironmentPolicy::metadata_for_create(
+			array_intersect_key(
+				$old_meta,
+				array_flip(
+					array(
+						'owner',
+						'labels',
+						'purpose',
+						'protected',
+						'source_environment_id',
+						'source_environment_type',
+					)
+				)
+			),
+			'sandbox',
+			gmdate( 'c' )
+		);
+		$created_at    = $imported_meta['last_used_at'];
+
 		$sandbox = new Environment(
 			id: $new_id,
 			name: $name,
 			path: $new_path,
-			created_at: gmdate( 'c' ),
+			created_at: $created_at,
 			template: $old_meta['template'] ?? 'imported',
 			status: 'active',
 			engine: $engine,
+			owner: $imported_meta['owner'],
+			labels: $imported_meta['labels'],
+			purpose: $imported_meta['purpose'],
+			is_protected: $imported_meta['protected'],
+			expires_at: $imported_meta['expires_at'],
+			last_used_at: $imported_meta['last_used_at'],
+			source_environment_id: $imported_meta['source_environment_id'] ?? null,
+			source_environment_type: $imported_meta['source_environment_type'] ?? null,
 		);
 		$sandbox->save_meta();
 
@@ -861,41 +951,66 @@ class EnvironmentManager {
 	/**
 	 * Clean up expired sandboxes.
 	 *
-	 * @param array $options Options: 'dry_run' (bool), 'max_age_days' (int override).
-	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
+	 * @param array $options Options: 'dry_run' (bool), 'max_age_days' (int override), 'max_idle_days' (int override).
+	 * @return array{removed: string[], skipped: string[], errors: string[], reasons?: array<string, string>} Cleanup results.
 	 */
 	public function cleanup( array $options = array() ): array {
 		$options = Hooks::filter( 'rudel_environment_cleanup_options', $options, $this );
 		Hooks::action( 'rudel_before_environment_cleanup', $options );
 
-		$dry_run      = ! empty( $options['dry_run'] );
-		$max_age_days = $options['max_age_days'] ?? 0;
+		$dry_run       = ! empty( $options['dry_run'] );
+		$max_age_days  = $options['max_age_days'] ?? 0;
+		$max_idle_days = $options['max_idle_days'] ?? 0;
+		$config        = new RudelConfig();
 
 		if ( 0 === $max_age_days ) {
-			$config       = new RudelConfig();
 			$max_age_days = $config->get( 'max_age_days' );
+		}
+
+		if ( 0 === $max_idle_days ) {
+			$max_idle_days = $config->get( 'max_idle_days' );
 		}
 
 		$result = array(
 			'removed' => array(),
 			'skipped' => array(),
 			'errors'  => array(),
+			'reasons' => array(),
 		);
 
-		if ( $max_age_days <= 0 ) {
-			return $result;
+		if ( $max_age_days <= 0 && $max_idle_days <= 0 ) {
+			$has_explicit_expiry = false;
+			foreach ( $this->list() as $environment ) {
+				if ( null !== $environment->expires_at ) {
+					$has_explicit_expiry = true;
+					break;
+				}
+			}
+
+			if ( ! $has_explicit_expiry ) {
+				Hooks::action( 'rudel_after_environment_cleanup', $result, $options );
+				return $result;
+			}
 		}
 
-		$cutoff    = time() - ( $max_age_days * 86400 );
+		$now       = time();
 		$sandboxes = $this->list();
 
 		foreach ( $sandboxes as $sandbox ) {
-			$created = strtotime( $sandbox->created_at );
+			if ( $sandbox->is_protected() ) {
+				$result['skipped'][]            = $sandbox->id;
+				$result['reasons'][ $sandbox->id ] = 'protected';
+				continue;
+			}
 
-			if ( false === $created || $created >= $cutoff ) {
+			$reason = EnvironmentPolicy::cleanup_reason( $sandbox, $now, $max_age_days, $max_idle_days );
+
+			if ( null === $reason ) {
 				$result['skipped'][] = $sandbox->id;
 				continue;
 			}
+
+			$result['reasons'][ $sandbox->id ] = $reason;
 
 			if ( $dry_run ) {
 				$result['removed'][] = $sandbox->id;
@@ -918,7 +1033,7 @@ class EnvironmentManager {
 	 * Clean up sandboxes whose git branches have been merged.
 	 *
 	 * @param array $options Options: 'dry_run' (bool).
-	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
+	 * @return array{removed: string[], skipped: string[], errors: string[], reasons?: array<string, string>} Cleanup results.
 	 */
 	public function cleanup_merged( array $options = array() ): array {
 		$options = Hooks::filter( 'rudel_environment_cleanup_merged_options', $options, $this );
@@ -930,11 +1045,18 @@ class EnvironmentManager {
 			'removed' => array(),
 			'skipped' => array(),
 			'errors'  => array(),
+			'reasons' => array(),
 		);
 
 		$sandboxes = $this->list();
 
 		foreach ( $sandboxes as $sandbox ) {
+			if ( $sandbox->is_protected() ) {
+				$result['skipped'][]            = $sandbox->id;
+				$result['reasons'][ $sandbox->id ] = 'protected';
+				continue;
+			}
+
 			$branch      = $sandbox->get_git_branch();
 			$github_repo = $sandbox->get_github_repo();
 			$worktrees   = $sandbox->clone_source['git_worktrees'] ?? array();
@@ -975,6 +1097,8 @@ class EnvironmentManager {
 				$result['skipped'][] = $sandbox->id;
 				continue;
 			}
+
+			$result['reasons'][ $sandbox->id ] = 'merged';
 
 			if ( $dry_run ) {
 				$result['removed'][] = $sandbox->id;

@@ -67,6 +67,29 @@ class EnvironmentManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreatePersistsPolicyMetadata(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Policy Meta Test', [
+            'engine' => 'sqlite',
+            'owner' => 'dennis',
+            'labels' => 'bugfix, qa',
+            'purpose' => 'Investigate regression',
+            'protected' => true,
+            'ttl_days' => 7,
+        ]);
+
+        $this->assertSame('dennis', $sandbox->owner);
+        $this->assertSame(['bugfix', 'qa'], $sandbox->labels);
+        $this->assertSame('Investigate regression', $sandbox->purpose);
+        $this->assertTrue($sandbox->is_protected());
+        $this->assertNotNull($sandbox->expires_at);
+        $this->assertNotNull($sandbox->last_used_at);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateAutoCreatesSandboxesBaseDir(): void
     {
         $this->defineConstants();
@@ -1024,6 +1047,81 @@ class EnvironmentManagerTest extends RudelTestCase
 
         $this->assertEmpty($result['removed']);
         $this->assertEmpty($result['skipped']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateNormalizesPolicyMetadata(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Update Policy', ['engine' => 'sqlite', 'skip_limits' => true]);
+
+        $updated = $manager->update($sandbox->id, [
+            'owner' => 'dennis',
+            'labels' => 'priority, review',
+            'protected' => true,
+            'expires_at' => '2026-03-31 12:00:00 UTC',
+        ]);
+
+        $this->assertSame('dennis', $updated->owner);
+        $this->assertSame(['priority', 'review'], $updated->labels);
+        $this->assertTrue($updated->is_protected());
+        $this->assertSame('2026-03-31T12:00:00+00:00', $updated->expires_at);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupSkipsProtectedSandboxes(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Protected Cleanup', ['engine' => 'sqlite', 'skip_limits' => true]);
+        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
+        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
+        $meta['protected'] = true;
+        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+
+        $result = $manager->cleanup(['max_age_days' => 1]);
+
+        $this->assertContains($sandbox->id, $result['skipped']);
+        $this->assertSame('protected', $result['reasons'][$sandbox->id]);
+        $this->assertDirectoryExists($sandbox->path);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupRemovesExpiredSandboxWithoutGlobalAgePolicy(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Expiry Cleanup', ['engine' => 'sqlite', 'skip_limits' => true]);
+        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
+        $meta['expires_at'] = '2020-01-01T00:00:00+00:00';
+        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+
+        $result = $manager->cleanup(['max_age_days' => 0, 'max_idle_days' => 0]);
+
+        $this->assertContains($sandbox->id, $result['removed']);
+        $this->assertSame('expired', $result['reasons'][$sandbox->id]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCleanupRemovesIdleSandboxes(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Idle Cleanup', ['engine' => 'sqlite', 'skip_limits' => true]);
+        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
+        $meta['created_at'] = gmdate('c');
+        $meta['last_used_at'] = '2020-01-01T00:00:00+00:00';
+        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+
+        $result = $manager->cleanup(['max_idle_days' => 1]);
+
+        $this->assertContains($sandbox->id, $result['removed']);
+        $this->assertSame('idle', $result['reasons'][$sandbox->id]);
     }
 
     // limits
