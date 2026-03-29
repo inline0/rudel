@@ -52,6 +52,12 @@ class AppManager {
 			throw new \InvalidArgumentException( 'At least one domain is required for an app.' );
 		}
 
+		$domains = array_values(
+			array_unique(
+				array_map( array( $this, 'normalize_domain' ), $domains )
+			)
+		);
+
 		foreach ( $domains as $domain ) {
 			$this->validate_domain( $domain );
 			$this->check_domain_conflict( $domain );
@@ -120,12 +126,13 @@ class AppManager {
 			throw new \RuntimeException( sprintf( 'App not found: %s', $id ) );
 		}
 
+		$domain = $this->normalize_domain( $domain );
 		$this->validate_domain( $domain );
 		$this->check_domain_conflict( $domain, $id );
 
-		$domains   = $app->domains ?? array();
+		$domains   = array_map( array( $this, 'normalize_domain' ), $app->domains ?? array() );
 		$domains[] = $domain;
-		$app->update_meta( 'domains', array_unique( $domains ) );
+		$app->update_meta( 'domains', array_values( array_unique( $domains ) ) );
 		$this->rebuild_domain_map();
 	}
 
@@ -145,7 +152,8 @@ class AppManager {
 			throw new \RuntimeException( sprintf( 'App not found: %s', $id ) );
 		}
 
-		$domains = $app->domains ?? array();
+		$domain  = $this->normalize_domain( $domain );
+		$domains = array_map( array( $this, 'normalize_domain' ), $app->domains ?? array() );
 		$domains = array_values( array_filter( $domains, fn( $d ) => $d !== $domain ) );
 
 		if ( empty( $domains ) ) {
@@ -179,7 +187,7 @@ class AppManager {
 				continue;
 			}
 			foreach ( $app->domains as $domain ) {
-				$map[ $domain ] = $app->id;
+				$map[ $this->normalize_domain( $domain ) ] = $app->id;
 			}
 		}
 
@@ -211,7 +219,18 @@ class AppManager {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading domain map.
 		$data = json_decode( file_get_contents( $map_path ), true );
-		return is_array( $data ) ? $data : array();
+		if ( ! is_array( $data ) ) {
+			return array();
+		}
+
+		$map = array();
+		foreach ( $data as $domain => $id ) {
+			if ( is_string( $domain ) && is_string( $id ) ) {
+				$map[ $this->normalize_domain( $domain ) ] = $id;
+			}
+		}
+
+		return $map;
 	}
 
 	/**
@@ -226,6 +245,16 @@ class AppManager {
 		if ( ! preg_match( '/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/', $domain ) ) {
 			throw new \InvalidArgumentException( sprintf( 'Invalid domain: %s', $domain ) );
 		}
+	}
+
+	/**
+	 * Normalize a domain name for metadata and lookup storage.
+	 *
+	 * @param string $domain Domain name from user input or metadata.
+	 * @return string
+	 */
+	private function normalize_domain( string $domain ): string {
+		return strtolower( trim( $domain ) );
 	}
 
 	/**

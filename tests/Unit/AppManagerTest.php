@@ -52,6 +52,21 @@ class AppManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreateAppNormalizesDomainsToLowercase(): void
+    {
+        $this->defineConstants();
+        $manager = new AppManager($this->tmpDir);
+        $app = $manager->create('Case Test', ['Client-A.COM'], ['engine' => 'sqlite']);
+
+        $this->assertSame(['client-a.com'], $app->domains);
+
+        $map = $manager->get_domain_map();
+        $this->assertArrayHasKey('client-a.com', $map);
+        $this->assertSame($app->id, $map['client-a.com']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateAppRequiresDomain(): void
     {
         $this->defineConstants();
@@ -97,6 +112,19 @@ class AppManagerTest extends RudelTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('already mapped');
         $manager->create('Second App', ['taken.com'], ['engine' => 'sqlite']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateAppRejectsDuplicateDomainIgnoringCase(): void
+    {
+        $this->defineConstants();
+        $manager = new AppManager($this->tmpDir);
+        $manager->create('First App', ['Taken.com'], ['engine' => 'sqlite']);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('already mapped');
+        $manager->create('Second App', ['taken.COM'], ['engine' => 'sqlite']);
     }
 
     // list() / get()
@@ -153,6 +181,24 @@ class AppManagerTest extends RudelTestCase
         $map = $manager->get_domain_map();
         $this->assertArrayNotHasKey('secondary.com', $map);
         $this->assertArrayHasKey('primary.com', $map);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testAddAndRemoveDomainNormalizeCase(): void
+    {
+        $this->defineConstants();
+        $manager = new AppManager($this->tmpDir);
+        $app = $manager->create('Domain Case Test', ['primary.com'], ['engine' => 'sqlite']);
+
+        $manager->add_domain($app->id, 'WWW.Primary.COM');
+        $map = $manager->get_domain_map();
+        $this->assertArrayHasKey('www.primary.com', $map);
+        $this->assertSame($app->id, $map['www.primary.com']);
+
+        $manager->remove_domain($app->id, 'www.primary.com');
+        $map = $manager->get_domain_map();
+        $this->assertArrayNotHasKey('www.primary.com', $map);
     }
 
     #[RunInSeparateProcess]
