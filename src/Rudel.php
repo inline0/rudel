@@ -23,12 +23,30 @@ namespace Rudel;
 class Rudel {
 
 	/**
+	 * Whether any isolated Rudel environment is active.
+	 *
+	 * @return bool
+	 */
+	private static function is_environment(): bool {
+		return defined( 'RUDEL_ID' ) && '' !== RUDEL_ID;
+	}
+
+	/**
 	 * Whether the current request is running inside a sandbox.
 	 *
 	 * @return bool
 	 */
 	public static function is_sandbox(): bool {
-		return defined( 'RUDEL_ID' ) && '' !== RUDEL_ID;
+		return self::is_environment() && ! self::is_app();
+	}
+
+	/**
+	 * Whether the current request is running inside an app.
+	 *
+	 * @return bool
+	 */
+	public static function is_app(): bool {
+		return self::is_environment() && defined( 'RUDEL_IS_APP' ) && RUDEL_IS_APP;
 	}
 
 	/**
@@ -41,7 +59,16 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current sandbox's filesystem path, or null if not in a sandbox.
+	 * Get the current app ID, or null if not in an app.
+	 *
+	 * @return string|null
+	 */
+	public static function app_id(): ?string {
+		return self::is_app() ? RUDEL_ID : null;
+	}
+
+	/**
+	 * Get the current environment's filesystem path, or null if none is active.
 	 *
 	 * @return string|null
 	 */
@@ -50,12 +77,12 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current sandbox's database engine, or null if not in a sandbox.
+	 * Get the current environment's database engine, or null if none is active.
 	 *
 	 * @return string|null One of 'mysql', 'sqlite', 'subsite', or null.
 	 */
 	public static function engine(): ?string {
-		if ( ! self::is_sandbox() ) {
+		if ( ! self::is_environment() ) {
 			return null;
 		}
 
@@ -70,7 +97,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current sandbox's table prefix, or null if not in a sandbox.
+	 * Get the current environment's table prefix, or null if none is active.
 	 *
 	 * @return string|null
 	 */
@@ -79,13 +106,17 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current sandbox's URL, or null if not in a sandbox.
+	 * Get the current environment's URL, or null if none is active.
 	 *
 	 * @return string|null
 	 */
 	public static function url(): ?string {
-		if ( ! self::is_sandbox() ) {
+		if ( ! self::is_environment() ) {
 			return null;
+		}
+
+		if ( self::is_app() ) {
+			return defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) . '/' : null;
 		}
 
 		$prefix = defined( 'RUDEL_PATH_PREFIX' ) ? RUDEL_PATH_PREFIX : '__rudel';
@@ -110,12 +141,12 @@ class Rudel {
 	}
 
 	/**
-	 * Whether outbound email is disabled in the current sandbox.
+	 * Whether outbound email is disabled in the current environment.
 	 *
 	 * @return bool True if email is blocked.
 	 */
 	public static function is_email_disabled(): bool {
-		return self::is_sandbox() && defined( 'RUDEL_DISABLE_EMAIL' ) && RUDEL_DISABLE_EMAIL;
+		return self::is_environment() && defined( 'RUDEL_DISABLE_EMAIL' ) && RUDEL_DISABLE_EMAIL;
 	}
 
 	/**
@@ -163,7 +194,9 @@ class Rudel {
 	public static function context(): array {
 		return array(
 			'is_sandbox'     => self::is_sandbox(),
+			'is_app'         => self::is_app(),
 			'id'             => self::id(),
+			'app_id'         => self::app_id(),
 			'path'           => self::path(),
 			'engine'         => self::engine(),
 			'table_prefix'   => self::table_prefix(),
@@ -190,6 +223,19 @@ class Rudel {
 			$manager = new EnvironmentManager();
 		}
 		return $manager;
+	}
+
+	/**
+	 * Get the AppManager instance.
+	 *
+	 * @return AppManager
+	 */
+	private static function app_manager(): AppManager {
+		static $app_manager = null;
+		if ( null === $app_manager ) {
+			$app_manager = new AppManager();
+		}
+		return $app_manager;
 	}
 
 	/**
@@ -300,6 +346,58 @@ class Rudel {
 	 */
 	public static function environments_dir(): string {
 		return self::manager()->get_environments_dir();
+	}
+
+	// App management.
+
+	/**
+	 * List all apps.
+	 *
+	 * @return Environment[] Array of app instances.
+	 */
+	public static function apps(): array {
+		return self::app_manager()->list();
+	}
+
+	/**
+	 * Get a single app by ID.
+	 *
+	 * @param string $id App identifier.
+	 * @return Environment|null App instance or null if not found.
+	 */
+	public static function app( string $id ): ?Environment {
+		return self::app_manager()->get( $id );
+	}
+
+	/**
+	 * Create a new app.
+	 *
+	 * @param string $name    Human-readable name.
+	 * @param array  $domains Domain names for the app.
+	 * @param array  $options Optional settings (engine, clone flags).
+	 * @return Environment The newly created app.
+	 */
+	public static function create_app( string $name, array $domains, array $options = array() ): Environment {
+		return self::app_manager()->create( $name, $domains, $options );
+	}
+
+	/**
+	 * Destroy an app by ID.
+	 *
+	 * @param string $id App identifier.
+	 * @return bool True on success.
+	 */
+	public static function destroy_app( string $id ): bool {
+		return self::app_manager()->destroy( $id );
+	}
+
+	/**
+	 * Get the apps directory path.
+	 *
+	 * @return string Absolute path.
+	 */
+	public static function apps_dir(): string {
+		return self::app_manager()->get_apps_dir();
 	}
 
 	/**

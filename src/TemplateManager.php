@@ -61,7 +61,7 @@ class TemplateManager {
 		}
 
 		$source_db = $sandbox->get_db_path();
-		if ( file_exists( $source_db ) ) {
+		if ( $source_db && file_exists( $source_db ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file for template.
 			copy( $source_db, $template_path . '/wordpress.db' );
 		}

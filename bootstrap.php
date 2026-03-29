@@ -29,12 +29,14 @@ if ( defined( 'RUDEL_ID' ) ) {
 
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Temporary variable, unset after use.
 $_rudel_prefix = null;
+$_rudel_is_app = false;
+$_rudel_requested_url = null;
 
 if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	define( 'RUDEL_PATH_PREFIX', '__rudel' );
 }
 
-( function () use ( &$_rudel_prefix, &$_rudel_is_app ) {
+( function () use ( &$_rudel_prefix, &$_rudel_is_app, &$_rudel_requested_url ) {
 	$plugin_dir       = __DIR__;
 	$environments_dir = null;
 
@@ -59,6 +61,23 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 	if ( ! is_dir( $environments_dir ) && ! is_dir( $apps_dir ) ) {
 		return;
+	}
+
+	$domains_map = array();
+	if ( is_dir( $apps_dir ) ) {
+		$domain_map_path = $apps_dir . '/domains.json';
+		if ( file_exists( $domain_map_path ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
+			$domains_raw = file_get_contents( $domain_map_path );
+			$domains_decoded = json_decode( $domains_raw, true );
+			if ( is_array( $domains_decoded ) ) {
+				foreach ( $domains_decoded as $domain => $id ) {
+					if ( is_string( $domain ) && is_string( $id ) ) {
+						$domains_map[ strtolower( (string) preg_replace( '/:\d+$/', '', $domain ) ) ] = $id;
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -107,6 +126,13 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$sandbox_path = null;
 
 	/**
+	 * Normalize a host by stripping any port and lowercasing it.
+	 */
+	$normalize_host = function ( string $host ): string {
+		return strtolower( (string) preg_replace( '/:\d+$/', '', $host ) );
+	};
+
+	/**
 	 * Try to resolve an ID and set sandbox_id/sandbox_path/is_app.
 	 */
 	$try_resolve = function ( string $id ) use ( $validate_id, $validate_path, &$sandbox_id, &$sandbox_path, &$_rudel_is_app ): bool {
@@ -122,6 +148,53 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		}
 		return false;
 	};
+
+	/**
+	 * Try to resolve an app from the domain map.
+	 */
+	$try_resolve_domain = function ( string $host ) use ( $domains_map, $normalize_host, $try_resolve ): bool {
+		$domain = $normalize_host( $host );
+		if ( '' === $domain || ! isset( $domains_map[ $domain ] ) ) {
+			return false;
+		}
+		return $try_resolve( $domains_map[ $domain ] );
+	};
+
+	/**
+	 * Extract a --url value from CLI argv, supporting both --url=value and --url value.
+	 */
+	$extract_cli_url = function (): ?string {
+		$argv_sources = array();
+		global $argv;
+
+		if ( isset( $argv ) && is_array( $argv ) ) {
+			$argv_sources[] = $argv;
+		}
+		if ( isset( $_SERVER['argv'] ) && is_array( $_SERVER['argv'] ) ) {
+			$argv_sources[] = $_SERVER['argv'];
+		}
+
+		foreach ( $argv_sources as $args ) {
+			foreach ( $args as $index => $arg ) {
+				if ( 0 === strpos( $arg, '--url=' ) ) {
+					return substr( $arg, 6 );
+				}
+				if ( '--url' === $arg && isset( $args[ $index + 1 ] ) && is_string( $args[ $index + 1 ] ) ) {
+					return $args[ $index + 1 ];
+				}
+			}
+		}
+
+		return null;
+	};
+
+	// 0. App domain map: host wins before sandbox detection in web requests.
+	if ( ! $sandbox_id && 'cli' !== php_sapi_name() ) {
+		$host = $_SERVER['HTTP_HOST'] ?? '';
+		if ( is_string( $host ) && '' !== $host ) {
+			$try_resolve_domain( $host );
+		}
+	}
 
 	// 1. X-Rudel-Sandbox header.
 	if ( ! $sandbox_id ) {
@@ -141,18 +214,20 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 	// 3. WP-CLI --url= argument.
 	if ( ! $sandbox_id && 'cli' === php_sapi_name() ) {
-		global $argv;
-		if ( ! empty( $argv ) ) {
-			foreach ( $argv as $arg ) {
-				if ( 0 === strpos( $arg, '--url=' ) ) {
-					$url = substr( $arg, 6 );
-					if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $url, $m ) ) {
-						$try_resolve( $m[1] );
-					}
-					if ( ! $sandbox_id && preg_match( '#^https?://([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})\.#', $url, $m ) ) {
-						$try_resolve( $m[1] );
-					}
-					break;
+		$_rudel_requested_url = $extract_cli_url();
+		if ( is_string( $_rudel_requested_url ) && '' !== $_rudel_requested_url ) {
+			if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $_rudel_requested_url, $m ) ) {
+				$try_resolve( $m[1] );
+			}
+
+			if ( ! $sandbox_id ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap.
+				$cli_host = parse_url( $_rudel_requested_url, PHP_URL_HOST );
+				if ( is_string( $cli_host ) && '' !== $cli_host ) {
+					$try_resolve_domain( $cli_host );
+				}
+				if ( ! $sandbox_id && is_string( $cli_host ) && preg_match( '/^([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})\./', $normalize_host( $cli_host ), $m ) ) {
+					$try_resolve( $m[1] );
 				}
 			}
 		}
@@ -197,7 +272,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 	// Auto-set the sandbox cookie in web context so wp-admin and other
 	// real PHP files (not routed through index.php) maintain sandbox context.
-	if ( 'cli' !== php_sapi_name() ) {
+	if ( 'cli' !== php_sapi_name() && ! $_rudel_is_app ) {
 		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
 		if ( $cookie_id !== $sandbox_id ) {
 			setcookie( 'rudel_sandbox', $sandbox_id, 0, '/' );
@@ -238,6 +313,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	// Read engine from sandbox metadata (must happen before SQLite constants).
 	$_rudel_engine    = 'mysql';
 	$_rudel_meta_file = $sandbox_path . '/.rudel.json';
+	$_rudel_meta      = null;
 	if ( file_exists( $_rudel_meta_file ) ) {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
 		$_rudel_meta_raw = file_get_contents( $_rudel_meta_file );
@@ -258,37 +334,55 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	// WP content directories.
 	$def( 'WP_CONTENT_DIR', $sandbox_path . '/wp-content' );
 
-	// Build content URL.
+	// Build environment URL, preferring the explicit CLI --url when available.
 	$protocol = 'http';
-	if ( ! empty( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && in_array( $_SERVER['HTTP_X_FORWARDED_PROTO'], array( 'http', 'https' ), true ) ) {
-		$protocol = $_SERVER['HTTP_X_FORWARDED_PROTO'];
-	} elseif ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
-		$protocol = 'https';
-	}
 	$host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
-	$site_url = $protocol . '://' . $host;
+	if ( is_string( $_rudel_requested_url ) && '' !== $_rudel_requested_url ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap.
+		$requested_parts = parse_url( $_rudel_requested_url );
+		if ( is_array( $requested_parts ) && ! empty( $requested_parts['host'] ) ) {
+			$protocol = isset( $requested_parts['scheme'] ) ? $requested_parts['scheme'] : 'http';
+			$host     = $requested_parts['host'];
+			if ( isset( $requested_parts['port'] ) ) {
+				$host .= ':' . $requested_parts['port'];
+			}
+		}
+	} else {
+		if ( ! empty( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && in_array( $_SERVER['HTTP_X_FORWARDED_PROTO'], array( 'http', 'https' ), true ) ) {
+			$protocol = $_SERVER['HTTP_X_FORWARDED_PROTO'];
+		} elseif ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
+			$protocol = 'https';
+		}
+	}
+	$site_url = rtrim( $protocol . '://' . $host, '/' );
 
-	// Sandbox site URL (preempts wp-config.php constants).
-	$sandbox_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
-	$def( 'WP_SITEURL', $sandbox_url );
-	$def( 'WP_HOME', $sandbox_url );
+	// Environment URL (apps live at the domain root; sandboxes use a path prefix).
+	if ( $_rudel_is_app ) {
+		$environment_url = $site_url;
+	} else {
+		$environment_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
+	}
+	$def( 'WP_SITEURL', $environment_url );
+	$def( 'WP_HOME', $environment_url );
 
-	$def( 'WP_CONTENT_URL', $sandbox_url . '/wp-content' );
+	$def( 'WP_CONTENT_URL', $environment_url . '/wp-content' );
 	$def( 'WP_PLUGIN_DIR', $sandbox_path . '/wp-content/plugins' );
 	$def( 'WPMU_PLUGIN_DIR', $sandbox_path . '/wp-content/mu-plugins' );
 	$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );
 	$def( 'UPLOADS', 'wp-content/uploads' );
 
 	// Per-sandbox debug logging (sandboxes are dev environments).
-	$def( 'WP_DEBUG', true );
-	$def( 'WP_DEBUG_LOG', true );
-	$def( 'WP_DEBUG_DISPLAY', false );
+	if ( ! $_rudel_is_app ) {
+		$def( 'WP_DEBUG', true );
+		$def( 'WP_DEBUG_LOG', true );
+		$def( 'WP_DEBUG_DISPLAY', false );
+	}
 
 	// Per-sandbox object cache isolation (prevents Redis/Memcached data leaking between sandboxes).
 	$def( 'WP_CACHE_KEY_SALT', 'rudel_' . $sandbox_id . '_' );
 
-	// Disable outbound email by default (sandboxes should not send real mail).
-	$def( 'RUDEL_DISABLE_EMAIL', true );
+	// Disable outbound email by default for temporary sandboxes only.
+	$def( 'RUDEL_DISABLE_EMAIL', ! $_rudel_is_app );
 
 	// Per-sandbox table prefix (subsite engine uses multisite's own prefix via blog_id).
 	if ( 'subsite' !== $_rudel_engine ) {
@@ -313,8 +407,8 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 			$def( 'WP_ALLOW_MULTISITE', true );
 			$def( 'MULTISITE', true );
 			$def( 'SUBDOMAIN_INSTALL', false );
-			$def( 'DOMAIN_CURRENT_SITE', $host );
-			$def( 'PATH_CURRENT_SITE', '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
+			$def( 'DOMAIN_CURRENT_SITE', $normalize_host( $host ) );
+			$def( 'PATH_CURRENT_SITE', $_rudel_is_app ? '/' : '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
 			$def( 'SITE_ID_CURRENT_SITE', 1 );
 			$def( 'BLOG_ID_CURRENT_SITE', 1 );
 		} else {
@@ -326,6 +420,8 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	// Rudel sandbox markers.
 	$def( 'RUDEL_ID', $sandbox_id );
 	$def( 'RUDEL_PATH', $sandbox_path );
+	$def( 'RUDEL_IS_APP', $_rudel_is_app );
+	$def( 'RUDEL_ENV_TYPE', $_rudel_is_app ? 'app' : 'sandbox' );
 } )();
 
 // Also set $table_prefix in the caller's scope for WP-CLI eval compatibility.
@@ -334,3 +430,5 @@ if ( null !== $_rudel_prefix ) {
 	$table_prefix = $_rudel_prefix;
 }
 unset( $_rudel_prefix );
+unset( $_rudel_is_app );
+unset( $_rudel_requested_url );

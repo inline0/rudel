@@ -57,11 +57,12 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND, Rudel\CLI\RudelCommand::class );
+	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' app', Rudel\CLI\AppCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }
 
-// Sandbox-specific hooks (only when a sandbox is active).
-if ( Rudel\Rudel::is_sandbox() ) {
+// Environment-specific hooks (sandboxes and apps).
+if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
 
 	// Disable outbound email when RUDEL_DISABLE_EMAIL is true.
 	if ( Rudel\Rudel::is_email_disabled() ) {
@@ -79,16 +80,21 @@ if ( Rudel\Rudel::is_sandbox() ) {
 		);
 	}
 
-	// Admin bar indicator: show current sandbox with exit link.
+	// Admin bar indicator for the active environment.
 	add_action(
 		'admin_bar_menu',
 		function ( $wp_admin_bar ) {
+			$is_app = Rudel\Rudel::is_app();
 			$wp_admin_bar->add_node(
 				array(
-					'id'    => 'rudel-sandbox',
-					'title' => '&#9632; Sandbox: ' . Rudel\Rudel::id(),
-					'href'  => Rudel\Rudel::exit_url(),
-					'meta'  => array( 'title' => 'Click to exit sandbox and return to host' ),
+					'id'    => 'rudel-environment',
+					'title' => '&#9632; ' . ( $is_app ? 'App' : 'Sandbox' ) . ': ' . ( $is_app ? Rudel\Rudel::app_id() : Rudel\Rudel::id() ),
+					'href'  => $is_app ? Rudel\Rudel::url() : Rudel\Rudel::exit_url(),
+					'meta'  => array(
+						'title' => $is_app
+							? 'Current Rudel app environment'
+							: 'Click to exit sandbox and return to host',
+					),
 				)
 			);
 		},
@@ -112,5 +118,6 @@ if ( Rudel\Rudel::is_sandbox() ) {
  * @return void
  */
 function rudel_admin_bar_styles() {
-	echo '<style>#wp-admin-bar-rudel-sandbox > a { background: #d63638 !important; color: #fff !important; font-weight: 600 !important; }</style>';
+	$color = Rudel\Rudel::is_app() ? '#2271b1' : '#d63638';
+	echo '<style>#wp-admin-bar-rudel-environment > a { background: ' . esc_attr( $color ) . ' !important; color: #fff !important; font-weight: 600 !important; }</style>';
 }

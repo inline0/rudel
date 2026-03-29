@@ -437,49 +437,7 @@ class MySQLCloner {
 	 * @return string The processed value.
 	 */
 	public function search_replace_value( string $value, string $search, string $replace ): string {
-		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize, WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize, WordPress.PHP.NoSilencedErrors.Discouraged -- Serialized data handling required for WordPress data migration.
-		$unserialized = @unserialize( $value );
-
-		if ( false !== $unserialized ) {
-			$unserialized = $this->walk_replace( $unserialized, $search, $replace );
-			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Re-serializing WordPress data after URL replacement.
-			return serialize( $unserialized );
-		}
-
-		return str_replace( $search, $replace, $value );
-	}
-
-	/**
-	 * Recursively walk a value and replace strings.
-	 *
-	 * @param mixed  $data    The data to walk.
-	 * @param string $search  The string to search for.
-	 * @param string $replace The replacement string.
-	 * @return mixed The processed data.
-	 */
-	private function walk_replace( $data, string $search, string $replace ) {
-		if ( is_string( $data ) ) {
-			return str_replace( $search, $replace, $data );
-		}
-
-		if ( is_array( $data ) ) {
-			$result = array();
-			foreach ( $data as $key => $val ) {
-				$new_key            = is_string( $key ) ? str_replace( $search, $replace, $key ) : $key;
-				$result[ $new_key ] = $this->walk_replace( $val, $search, $replace );
-			}
-			return $result;
-		}
-
-		if ( is_object( $data ) ) {
-			$props = get_object_vars( $data );
-			foreach ( $props as $prop => $val ) {
-				$data->$prop = $this->walk_replace( $val, $search, $replace );
-			}
-			return $data;
-		}
-
-		return $data;
+		return SerializedSearchReplace::apply( $value, $search, $replace );
 	}
 
 	/**

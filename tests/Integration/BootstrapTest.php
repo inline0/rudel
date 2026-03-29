@@ -17,12 +17,14 @@ class BootstrapTest extends RudelTestCase
 {
     private string $bootstrapPath;
     private string $sandboxesDir;
+    private string $appsDir;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
         $this->sandboxesDir = $this->tmpDir . '/rudel-environments';
+        $this->appsDir = $this->tmpDir . '/rudel-apps';
         mkdir($this->sandboxesDir, 0755, true);
     }
 
@@ -58,6 +60,7 @@ class BootstrapTest extends RudelTestCase
         // Output state
         $script .= 'echo json_encode([' . "\n";
         $script .= '  "sandbox_id" => defined("RUDEL_ID") ? RUDEL_ID : null,' . "\n";
+        $script .= '  "is_app" => defined("RUDEL_IS_APP") ? RUDEL_IS_APP : null,' . "\n";
         $script .= '  "sandbox_path" => defined("RUDEL_PATH") ? RUDEL_PATH : null,' . "\n";
         $script .= '  "db_dir" => defined("DB_DIR") ? DB_DIR : null,' . "\n";
         $script .= '  "db_file" => defined("DB_FILE") ? DB_FILE : null,' . "\n";
@@ -474,6 +477,18 @@ class BootstrapTest extends RudelTestCase
         $this->assertSame('cli-sub-box', $result['sandbox_id']);
     }
 
+    public function testCliUrlPathPrefixResolutionWithSeparateArg(): void
+    {
+        $this->createFakeSandboxInDir('cli-split-box');
+
+        $result = $this->runBootstrap(
+            serverVars: ['HTTP_HOST' => 'example.com'],
+            argv: ['wp', '--url', 'http://example.com/' . RUDEL_PATH_PREFIX . '/cli-split-box/', 'post', 'list'],
+        );
+
+        $this->assertSame('cli-split-box', $result['sandbox_id']);
+    }
+
     public function testCliUrlNonMatchingReturnsNull(): void
     {
         $result = $this->runBootstrap(
@@ -767,6 +782,40 @@ class BootstrapTest extends RudelTestCase
         $this->assertTrue($result['disable_email']);
     }
 
+    public function testAppDomainMapResolvesToApp(): void
+    {
+        $this->createFakeAppInDir('client-a-app', ['client-a.com']);
+
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => 'client-a.com',
+        ]);
+
+        $this->assertSame('client-a-app', $result['sandbox_id']);
+        $this->assertTrue($result['is_app']);
+        $this->assertSame('http://client-a.com', $result['wp_siteurl']);
+        $this->assertSame('http://client-a.com', $result['wp_home']);
+        $this->assertFalse($result['disable_email']);
+        $this->assertNull($result['cookie_sandbox']);
+    }
+
+    public function testAppDomainMapWinsOverSandboxCookie(): void
+    {
+        $this->createFakeAppInDir('priority-app', ['priority.example.com']);
+        $this->createFakeSandboxInDir('cookie-box');
+
+        $result = $this->runBootstrap(
+            serverVars: [
+                'REQUEST_URI' => '/',
+                'HTTP_HOST' => 'priority.example.com',
+            ],
+            cookieVars: ['rudel_sandbox' => 'cookie-box'],
+        );
+
+        $this->assertSame('priority-app', $result['sandbox_id']);
+        $this->assertTrue($result['is_app']);
+    }
+
     public function testNoSandboxDoesNotDisableEmail(): void
     {
         $result = $this->runBootstrap([
@@ -784,6 +833,29 @@ class BootstrapTest extends RudelTestCase
         $path = $this->sandboxesDir . '/' . $id;
         mkdir($path, 0755, true);
         file_put_contents($path . '/.rudel.json', json_encode(['id' => $id, 'name' => $id, 'engine' => $engine]));
+        return $path;
+    }
+
+    private function createFakeAppInDir(string $id, array $domains, string $engine = 'sqlite'): string
+    {
+        mkdir($this->appsDir, 0755, true);
+
+        $path = $this->appsDir . '/' . $id;
+        mkdir($path, 0755, true);
+        file_put_contents($path . '/.rudel.json', json_encode([
+            'id' => $id,
+            'name' => $id,
+            'engine' => $engine,
+            'type' => 'app',
+            'domains' => $domains,
+        ]));
+
+        $map = [];
+        foreach ($domains as $domain) {
+            $map[$domain] = $id;
+        }
+        file_put_contents($this->appsDir . '/domains.json', json_encode($map, JSON_PRETTY_PRINT));
+
         return $path;
     }
 }

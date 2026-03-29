@@ -79,7 +79,7 @@ class SnapshotManager {
 			// phpcs:enable
 		} else {
 			$source_db = $this->sandbox->get_db_path();
-			if ( file_exists( $source_db ) ) {
+			if ( $source_db && file_exists( $source_db ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file for snapshot.
 				copy( $source_db, $snapshot_path . '/wordpress.db' );
 			}

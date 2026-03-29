@@ -16,13 +16,17 @@ namespace {
 		public static array $log           = array();
 		public static array $successes     = array();
 		public static array $errors        = array();
+		public static array $warnings      = array();
 		public static array $confirmations = array();
+		public static array $commands      = array();
 
 		public static function reset(): void {
 			self::$log           = array();
 			self::$successes     = array();
 			self::$errors        = array();
+			self::$warnings      = array();
 			self::$confirmations = array();
+			self::$commands      = array();
 		}
 
 		public static function log( string $message ): void {
@@ -33,6 +37,10 @@ namespace {
 			self::$successes[] = $message;
 		}
 
+		public static function warning( string $message ): void {
+			self::$warnings[] = $message;
+		}
+
 		/**
 		 * @throws \RuntimeException Always, mimicking WP_CLI::error() exit behavior.
 		 */
@@ -41,8 +49,12 @@ namespace {
 			throw new \RuntimeException( $message );
 		}
 
-		public static function confirm( string $message ): void {
+		public static function confirm( string $message, array $assoc_args = array() ): void {
 			self::$confirmations[] = $message;
+		}
+
+		public static function add_command( string $name, string $class ): void {
+			self::$commands[ $name ] = $class;
 		}
 	}
 }

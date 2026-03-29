@@ -16,9 +16,19 @@ class RudelApiTest extends RudelTestCase
         $this->assertFalse(Rudel::is_sandbox());
     }
 
+    public function testIsAppReturnsFalseOutsideApp(): void
+    {
+        $this->assertFalse(Rudel::is_app());
+    }
+
     public function testIdReturnsNullOutsideSandbox(): void
     {
         $this->assertNull(Rudel::id());
+    }
+
+    public function testAppIdReturnsNullOutsideApp(): void
+    {
+        $this->assertNull(Rudel::app_id());
     }
 
     public function testPathReturnsNullOutsideSandbox(): void
@@ -60,7 +70,9 @@ class RudelApiTest extends RudelTestCase
     {
         $ctx = Rudel::context();
         $this->assertFalse($ctx['is_sandbox']);
+        $this->assertFalse($ctx['is_app']);
         $this->assertNull($ctx['id']);
+        $this->assertNull($ctx['app_id']);
         $this->assertNull($ctx['engine']);
     }
 
@@ -177,10 +189,33 @@ class RudelApiTest extends RudelTestCase
 
         $ctx = Rudel::context();
         $this->assertTrue($ctx['is_sandbox']);
+        $this->assertFalse($ctx['is_app']);
         $this->assertSame('ctx-test', $ctx['id']);
+        $this->assertNull($ctx['app_id']);
         $this->assertSame('/tmp/ctx-test', $ctx['path']);
         $this->assertSame('rudel_abc_', $ctx['table_prefix']);
         $this->assertSame('0.1.0', $ctx['version']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testAppContextIsSeparatedFromSandboxContext(): void
+    {
+        define('RUDEL_ID', 'client-a');
+        define('RUDEL_IS_APP', true);
+        define('RUDEL_PATH', '/var/apps/client-a');
+        define('WP_HOME', 'https://client-a.com');
+
+        $this->assertTrue(Rudel::is_app());
+        $this->assertFalse(Rudel::is_sandbox());
+        $this->assertNull(Rudel::id());
+        $this->assertSame('client-a', Rudel::app_id());
+        $this->assertSame('https://client-a.com/', Rudel::url());
+
+        $ctx = Rudel::context();
+        $this->assertTrue($ctx['is_app']);
+        $this->assertNull($ctx['id']);
+        $this->assertSame('client-a', $ctx['app_id']);
     }
 
     // Static helpers
@@ -252,5 +287,31 @@ class RudelApiTest extends RudelTestCase
 
         $this->assertTrue(Rudel::destroy($sandbox->id));
         $this->assertNull(Rudel::get($sandbox->id));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateAndDestroyApp(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+
+        $app = Rudel::create_app('Client A', ['client-a.com'], ['engine' => 'sqlite']);
+        $this->assertSame('app', $app->type);
+
+        $found = Rudel::app($app->id);
+        $this->assertNotNull($found);
+        $this->assertSame($app->id, $found->id);
+
+        $apps = Rudel::apps();
+        $this->assertCount(1, $apps);
+        $this->assertSame($this->tmpDir . '/rudel-apps', Rudel::apps_dir());
+
+        $this->assertTrue(Rudel::destroy_app($app->id));
+        $this->assertNull(Rudel::app($app->id));
     }
 }
