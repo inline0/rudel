@@ -62,7 +62,6 @@ class AppManager {
 	 * @return Environment The newly created app environment.
 	 *
 	 * @throws \InvalidArgumentException If domains are invalid, conflicting, or app options are invalid.
-	 * @throws \RuntimeException If environment creation fails.
 	 * @throws \Throwable If app creation fails after lifecycle hooks begin.
 	 */
 	public function create( string $name, array $domains, array $options = array() ): Environment {
@@ -136,7 +135,6 @@ class AppManager {
 	 * @param string $id App identifier.
 	 * @return bool True on success.
 	 *
-	 * @throws \RuntimeException If app cleanup fails.
 	 * @throws \Throwable If destruction fails after lifecycle hooks begin.
 	 */
 	public function destroy( string $id ): bool {
@@ -172,8 +170,6 @@ class AppManager {
 	 * @param array  $options Optional sandbox settings.
 	 * @return Environment
 	 *
-	 * @throws \InvalidArgumentException If sandbox options are invalid.
-	 * @throws \RuntimeException If the app is not found or sandbox creation fails.
 	 * @throws \Throwable If sandbox creation fails after lifecycle hooks begin.
 	 */
 	public function create_sandbox( string $app_id, string $name, array $options = array() ): Environment {
@@ -209,8 +205,6 @@ class AppManager {
 	 * @param string $name Backup name.
 	 * @return array<string, mixed>
 	 *
-	 * @throws \InvalidArgumentException If the backup name is invalid or already exists.
-	 * @throws \RuntimeException If the app is not found.
 	 * @throws \Throwable If backup creation fails after lifecycle hooks begin.
 	 */
 	public function backup( string $id, string $name ): array {
@@ -253,7 +247,6 @@ class AppManager {
 	 * @param string $name Backup name.
 	 * @return void
 	 *
-	 * @throws \RuntimeException If the app is not found.
 	 * @throws \Throwable If restore fails after lifecycle hooks begin.
 	 */
 	public function restore( string $id, string $name ): void {
@@ -304,11 +297,11 @@ class AppManager {
 			);
 		}
 
-		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
-		$context = array(
-			'app'         => $app,
-			'sandbox'     => $sandbox,
-			'backup_name' => $backup_name,
+			$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
+			$context       = array(
+				'app'         => $app,
+				'sandbox'     => $sandbox,
+				'backup_name' => $backup_name,
 		);
 		Hooks::action( 'rudel_before_app_deploy', $context );
 
@@ -338,8 +331,6 @@ class AppManager {
 	 * @param string $domain Domain name to add.
 	 * @return void
 	 *
-	 * @throws \InvalidArgumentException If the domain is invalid or already mapped.
-	 * @throws \RuntimeException If the app is not found.
 	 * @throws \Throwable If the domain update fails after lifecycle hooks begin.
 	 */
 	public function add_domain( string $id, string $domain ): void {
@@ -375,7 +366,6 @@ class AppManager {
 	 * @return void
 	 *
 	 * @throws \InvalidArgumentException If removing the domain would leave the app unmapped.
-	 * @throws \RuntimeException If the app is not found.
 	 * @throws \Throwable If the domain update fails after lifecycle hooks begin.
 	 */
 	public function remove_domain( string $id, string $domain ): void {

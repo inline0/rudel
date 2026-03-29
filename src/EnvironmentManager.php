@@ -385,7 +385,6 @@ class EnvironmentManager {
 	 * @param string $id Sandbox identifier.
 	 * @return bool True on success.
 	 *
-	 * @throws \RuntimeException If environment cleanup fails.
 	 * @throws \Throwable If destruction fails after lifecycle hooks begin.
 	 */
 	public function destroy( string $id ): bool {
@@ -621,7 +620,6 @@ class EnvironmentManager {
 	 * @return array{source_id: string, target_id: string, tables_copied: int}
 	 *
 	 * @throws \InvalidArgumentException If engines do not match or either environment uses subsite mode.
-	 * @throws \RuntimeException If a database copy fails.
 	 * @throws \Throwable If replacement fails after lifecycle hooks begin.
 	 */
 	public function replace_environment_state( Environment $source, Environment $target ): array {

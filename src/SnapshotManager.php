@@ -260,7 +260,6 @@ class SnapshotManager {
 	 * @param string $name Recovery point name.
 	 * @return bool True if deleted, false if not found.
 	 *
-	 * @throws \RuntimeException If recovery point cleanup fails.
 	 * @throws \Throwable If deletion fails after lifecycle hooks begin.
 	 */
 	public function delete( string $name ): bool {
