@@ -77,7 +77,7 @@ class PushCommand extends AbstractEnvironmentCommand {
 				if ( str_contains( $e->getMessage(), 'Reference already exists' ) ) {
 					WP_CLI::log( '  Branch already exists.' );
 				} else {
-					throw $e;
+					WP_CLI::error( $e->getMessage() );
 				}
 			}
 

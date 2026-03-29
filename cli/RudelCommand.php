@@ -445,9 +445,9 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	/**
 	 * Configure GitHub content for a newly created sandbox.
 	 *
-	 * @param Environment   $sandbox     Created sandbox.
-	 * @param string        $github_repo Repository slug.
-	 * @param array<string, mixed> $assoc_args Command arguments.
+	 * @param Environment          $sandbox     Created sandbox.
+	 * @param string               $github_repo Repository slug.
+	 * @param array<string, mixed> $assoc_args  Command arguments.
 	 * @return void
 	 */
 	private function setup_github_checkout( Environment $sandbox, string $github_repo, array $assoc_args ): void {
@@ -466,7 +466,9 @@ class RudelCommand extends AbstractEnvironmentCommand {
 				if ( str_contains( $e->getMessage(), 'Reference already exists' ) ) {
 					WP_CLI::log( "  Branch: {$branch} (exists)" );
 				} else {
-					throw $e;
+					WP_CLI::warning( "GitHub setup failed: {$e->getMessage()}" );
+					WP_CLI::warning( 'Sandbox was created but GitHub worktree was not set up.' );
+					return;
 				}
 			}
 
