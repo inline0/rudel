@@ -47,9 +47,9 @@ class AppManager {
 	 * @param string|null $sandboxes_dir Optional override for the sandboxes directory.
 	 */
 	public function __construct( ?string $apps_dir = null, ?string $sandboxes_dir = null ) {
-		$this->apps_dir      = $apps_dir ?? $this->get_default_apps_dir();
-		$this->sandboxes_dir = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
-		$this->manager       = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir );
+		$this->apps_dir        = $apps_dir ?? $this->get_default_apps_dir();
+		$this->sandboxes_dir   = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
+		$this->manager         = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir );
 		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir );
 	}
 
@@ -60,6 +60,10 @@ class AppManager {
 	 * @param array  $domains Array of domain names for this app.
 	 * @param array  $options Optional settings (engine, clone flags, clone source).
 	 * @return Environment The newly created app environment.
+	 *
+	 * @throws \InvalidArgumentException If domains are invalid, conflicting, or app options are invalid.
+	 * @throws \RuntimeException If environment creation fails.
+	 * @throws \Throwable If app creation fails after lifecycle hooks begin.
 	 */
 	public function create( string $name, array $domains, array $options = array() ): Environment {
 		$domains = Hooks::filter( 'rudel_app_domains', $domains, $name, $this );
@@ -131,6 +135,9 @@ class AppManager {
 	 *
 	 * @param string $id App identifier.
 	 * @return bool True on success.
+	 *
+	 * @throws \RuntimeException If app cleanup fails.
+	 * @throws \Throwable If destruction fails after lifecycle hooks begin.
 	 */
 	public function destroy( string $id ): bool {
 		$app = $this->get( $id );
@@ -164,11 +171,15 @@ class AppManager {
 	 * @param string $name Sandbox name.
 	 * @param array  $options Optional sandbox settings.
 	 * @return Environment
+	 *
+	 * @throws \InvalidArgumentException If sandbox options are invalid.
+	 * @throws \RuntimeException If the app is not found or sandbox creation fails.
+	 * @throws \Throwable If sandbox creation fails after lifecycle hooks begin.
 	 */
 	public function create_sandbox( string $app_id, string $name, array $options = array() ): Environment {
 		$app = $this->require_app( $app_id );
 
-		$options             = Hooks::filter( 'rudel_app_create_sandbox_options', $options, $app, $name, $this );
+		$options               = Hooks::filter( 'rudel_app_create_sandbox_options', $options, $app, $name, $this );
 		$options['clone_from'] = $app->id;
 		$options['engine']     = $options['engine'] ?? $app->engine;
 		unset( $options['type'], $options['domains'], $options['skip_limits'] );
@@ -197,6 +208,10 @@ class AppManager {
 	 * @param string $id App identifier.
 	 * @param string $name Backup name.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException If the backup name is invalid or already exists.
+	 * @throws \RuntimeException If the app is not found.
+	 * @throws \Throwable If backup creation fails after lifecycle hooks begin.
 	 */
 	public function backup( string $id, string $name ): array {
 		$app = $this->require_app( $id );
@@ -223,6 +238,8 @@ class AppManager {
 	 *
 	 * @param string $id App identifier.
 	 * @return array<int, array<string, mixed>>
+	 *
+	 * @throws \RuntimeException If the app is not found.
 	 */
 	public function backups( string $id ): array {
 		$app = $this->require_app( $id );
@@ -235,6 +252,9 @@ class AppManager {
 	 * @param string $id App identifier.
 	 * @param string $name Backup name.
 	 * @return void
+	 *
+	 * @throws \RuntimeException If the app is not found.
+	 * @throws \Throwable If restore fails after lifecycle hooks begin.
 	 */
 	public function restore( string $id, string $name ): void {
 		$app = $this->require_app( $id );
@@ -261,9 +281,13 @@ class AppManager {
 	 * @param string      $sandbox_id Sandbox identifier.
 	 * @param string|null $backup_name Optional backup name.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException If deploy requirements are invalid.
+	 * @throws \RuntimeException If the app or sandbox is not found.
+	 * @throws \Throwable If deploy fails after lifecycle hooks begin.
 	 */
 	public function deploy( string $app_id, string $sandbox_id, ?string $backup_name = null ): array {
-		$app = $this->require_app( $app_id );
+		$app     = $this->require_app( $app_id );
 		$sandbox = $this->sandbox_manager->get( $sandbox_id );
 
 		if ( ! $sandbox ) {
@@ -293,9 +317,9 @@ class AppManager {
 			$state  = $this->manager->replace_environment_state( $sandbox, $app );
 
 			$result = array(
-				'app_id'       => $app->id,
-				'sandbox_id'   => $sandbox->id,
-				'backup'       => $backup,
+				'app_id'        => $app->id,
+				'sandbox_id'    => $sandbox->id,
+				'backup'        => $backup,
 				'tables_copied' => $state['tables_copied'],
 			);
 			Hooks::action( 'rudel_after_app_deploy', $result, $context );
@@ -313,6 +337,10 @@ class AppManager {
 	 * @param string $id App identifier.
 	 * @param string $domain Domain name to add.
 	 * @return void
+	 *
+	 * @throws \InvalidArgumentException If the domain is invalid or already mapped.
+	 * @throws \RuntimeException If the app is not found.
+	 * @throws \Throwable If the domain update fails after lifecycle hooks begin.
 	 */
 	public function add_domain( string $id, string $domain ): void {
 		$app = $this->require_app( $id );
@@ -345,6 +373,10 @@ class AppManager {
 	 * @param string $id App identifier.
 	 * @param string $domain Domain name to remove.
 	 * @return void
+	 *
+	 * @throws \InvalidArgumentException If removing the domain would leave the app unmapped.
+	 * @throws \RuntimeException If the app is not found.
+	 * @throws \Throwable If the domain update fails after lifecycle hooks begin.
 	 */
 	public function remove_domain( string $id, string $domain ): void {
 		$app = $this->require_app( $id );
@@ -452,10 +484,10 @@ class AppManager {
 		return new SnapshotManager(
 			$app,
 			array(
-				'kind'         => 'backup',
-				'storage_dir'  => 'backups',
+				'kind'          => 'backup',
+				'storage_dir'   => 'backups',
 				'metadata_file' => 'backup.json',
-				'owner_id_key' => 'app_id',
+				'owner_id_key'  => 'app_id',
 			)
 		);
 	}
@@ -465,6 +497,8 @@ class AppManager {
 	 *
 	 * @param string $id App identifier.
 	 * @return Environment
+	 *
+	 * @throws \RuntimeException If the app is not found.
 	 */
 	private function require_app( string $id ): Environment {
 		$app = $this->get( $id );
@@ -480,6 +514,8 @@ class AppManager {
 	 *
 	 * @param string $domain Domain to validate.
 	 * @return void
+	 *
+	 * @throws \InvalidArgumentException If the domain is invalid.
 	 */
 	private function validate_domain( string $domain ): void {
 		if ( ! preg_match( '/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/', $domain ) ) {
@@ -503,6 +539,8 @@ class AppManager {
 	 * @param string      $domain Domain to check.
 	 * @param string|null $exclude_id App ID to exclude from the check.
 	 * @return void
+	 *
+	 * @throws \InvalidArgumentException If the domain is already mapped to another app.
 	 */
 	private function check_domain_conflict( string $domain, ?string $exclude_id = null ): void {
 		$map = $this->get_domain_map();

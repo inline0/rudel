@@ -95,13 +95,13 @@ class EnvironmentManager {
 				throw new \RuntimeException( sprintf( 'Sandbox directory already exists: %s', $path ) );
 			}
 
-			$clone_from    = $options['clone_from'] ?? null;
-			$clone_db      = ! empty( $options['clone_db'] );
-			$clone_themes  = ! empty( $options['clone_themes'] );
-			$clone_plugins = ! empty( $options['clone_plugins'] );
-			$clone_uploads = ! empty( $options['clone_uploads'] );
-			$has_clone     = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
-			$target_type   = $options['type'] ?? 'sandbox';
+			$clone_from     = $options['clone_from'] ?? null;
+			$clone_db       = ! empty( $options['clone_db'] );
+			$clone_themes   = ! empty( $options['clone_themes'] );
+			$clone_plugins  = ! empty( $options['clone_plugins'] );
+			$clone_uploads  = ! empty( $options['clone_uploads'] );
+			$has_clone      = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
+			$target_type    = $options['type'] ?? 'sandbox';
 			$target_domains = $options['domains'] ?? null;
 
 			if ( $clone_from && $has_clone ) {
@@ -145,12 +145,17 @@ class EnvironmentManager {
 			$this->write_wp_cli_yml( $path, $engine, $id );
 			$this->write_claude_md( $id, $name, $path );
 
-			$clone_source     = null;
-			$is_multisite     = false;
-			$template         = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
-			$is_from_template = ! in_array( $template, array( 'blank', 'clone' ), true )
+			$clone_source       = null;
+			$is_multisite       = false;
+			$template           = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
+			$is_from_template   = ! in_array( $template, array( 'blank', 'clone' ), true )
 				&& ! $clone_from && ! $has_clone
 				&& $this->template_exists( $template );
+			$blank_site_options = array(
+				'site_url'         => $this->get_target_environment_url( $id, $target_type, $target_domains ),
+				'site_name'        => $name,
+				'site_description' => 'app' === $target_type ? 'A Rudel app environment' : 'A sandboxed WordPress environment',
+			);
 
 			if ( 'subsite' === $engine ) {
 				$subsite_cloner = new SubsiteCloner();
@@ -233,9 +238,9 @@ class EnvironmentManager {
 				}
 			} else {
 				if ( 'sqlite' === $engine ) {
-					$this->blank_wordpress()->create_sqlite_database( $id, $path );
+					$this->blank_wordpress()->create_sqlite_database( $id, $path, $blank_site_options );
 				} elseif ( 'mysql' === $engine ) {
-					$this->blank_wordpress()->create_mysql_database( $id );
+					$this->blank_wordpress()->create_mysql_database( $id, $blank_site_options );
 				}
 
 				if ( $has_clone ) {
@@ -379,6 +384,9 @@ class EnvironmentManager {
 	 *
 	 * @param string $id Sandbox identifier.
 	 * @return bool True on success.
+	 *
+	 * @throws \RuntimeException If environment cleanup fails.
+	 * @throws \Throwable If destruction fails after lifecycle hooks begin.
 	 */
 	public function destroy( string $id ): bool {
 		$sandbox = $this->get( $id );
@@ -425,6 +433,7 @@ class EnvironmentManager {
 	 * @return array{backup_path: string, tables_copied: int} Promotion results.
 	 *
 	 * @throws \RuntimeException If the sandbox is not found or promotion fails.
+	 * @throws \Throwable If promotion fails after lifecycle hooks begin.
 	 */
 	public function promote( string $id, string $backup_dir ): array {
 		global $wpdb;
@@ -613,6 +622,7 @@ class EnvironmentManager {
 	 *
 	 * @throws \InvalidArgumentException If engines do not match or either environment uses subsite mode.
 	 * @throws \RuntimeException If a database copy fails.
+	 * @throws \Throwable If replacement fails after lifecycle hooks begin.
 	 */
 	public function replace_environment_state( Environment $source, Environment $target ): array {
 		if ( $source->is_subsite() || $target->is_subsite() ) {
@@ -668,6 +678,7 @@ class EnvironmentManager {
 	 * @return void
 	 *
 	 * @throws \RuntimeException If the sandbox is not found or export fails.
+	 * @throws \Throwable If export fails after lifecycle hooks begin.
 	 */
 	public function export( string $id, string $output_path ): void {
 		$sandbox = $this->get( $id );
@@ -1678,8 +1689,8 @@ class EnvironmentManager {
 	): array {
 		$source_prefix = $source->get_table_prefix();
 		$target_prefix = Environment::table_prefix_for_id( $target_id );
-		$source_url   = $this->get_environment_site_url( $source );
-		$target_url   = $this->get_target_environment_url( $target_id, $target_type, $target_domains );
+		$source_url    = $this->get_environment_site_url( $source );
+		$target_url    = $this->get_target_environment_url( $target_id, $target_type, $target_domains );
 
 		if ( 'mysql' === $engine ) {
 			$mysql_cloner = new MySQLCloner();
@@ -1778,6 +1789,8 @@ class EnvironmentManager {
 	 * @param Environment $source Source environment.
 	 * @param Environment $target Target environment.
 	 * @return void
+	 *
+	 * @throws \RuntimeException If the database files are missing or replacement fails.
 	 */
 	private function replace_sqlite_environment_state( Environment $source, Environment $target ): void {
 		$source_db = $source->get_db_path();

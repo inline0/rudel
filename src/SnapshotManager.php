@@ -69,6 +69,7 @@ class SnapshotManager {
 	 *
 	 * @throws \InvalidArgumentException If the name is invalid or already exists.
 	 * @throws \RuntimeException If recovery point creation fails.
+	 * @throws \Throwable If recovery point creation fails after lifecycle hooks begin.
 	 */
 	public function create( string $name ): array {
 		if ( ! self::validate_name( $name ) ) {
@@ -131,9 +132,9 @@ class SnapshotManager {
 			$content_cloner->copy_directory( $this->environment->get_wp_content_path(), $point_path . '/wp-content' );
 
 			$meta = array(
-				'name'                => $name,
-				'created_at'          => gmdate( 'c' ),
-				$this->owner_id_key   => $this->environment->id,
+				'name'              => $name,
+				'created_at'        => gmdate( 'c' ),
+				$this->owner_id_key => $this->environment->id,
 			);
 
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing recovery point metadata.
@@ -193,6 +194,7 @@ class SnapshotManager {
 	 * @return void
 	 *
 	 * @throws \RuntimeException If the recovery point does not exist.
+	 * @throws \Throwable If restore fails after lifecycle hooks begin.
 	 */
 	public function restore( string $name ): void {
 		$point_path = $this->get_snapshot_path( $name );
@@ -257,6 +259,9 @@ class SnapshotManager {
 	 *
 	 * @param string $name Recovery point name.
 	 * @return bool True if deleted, false if not found.
+	 *
+	 * @throws \RuntimeException If recovery point cleanup fails.
+	 * @throws \Throwable If deletion fails after lifecycle hooks begin.
 	 */
 	public function delete( string $name ): bool {
 		$point_path = $this->get_snapshot_path( $name );

@@ -528,6 +528,7 @@ class Rudel {
 	 * @return string|null Commit SHA on success, null if no changes.
 	 *
 	 * @throws \RuntimeException If the sandbox is not found or push fails.
+	 * @throws \Throwable If push fails after lifecycle hooks begin.
 	 */
 	public static function push( string $sandbox_id, string $repo = '', string $message = 'Update from Rudel', string $subdir = '' ): ?string {
 		$sandbox = self::get( $sandbox_id );
@@ -594,6 +595,7 @@ class Rudel {
 	 * @return array{number: int, url: string, html_url: string} PR data.
 	 *
 	 * @throws \RuntimeException If the sandbox is not found or PR creation fails.
+	 * @throws \Throwable If PR creation fails after lifecycle hooks begin.
 	 */
 	public static function pr( string $sandbox_id, string $title = '', string $repo = '', string $body = '' ): array {
 		$sandbox = self::get( $sandbox_id );

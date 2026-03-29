@@ -15,11 +15,12 @@ class BlankWordPressProvisioner {
 	/**
 	 * Create a blank SQLite database with WordPress schema and default content.
 	 *
-	 * @param string $id   Environment identifier.
+	 * @param string $id Environment identifier.
 	 * @param string $path Absolute path to the environment directory.
+	 * @param array  $options Optional site settings.
 	 * @return void
 	 */
-	public function create_sqlite_database( string $id, string $path ): void {
+	public function create_sqlite_database( string $id, string $path, array $options = array() ): void {
 		$db_path      = $path . '/wordpress.db';
 		$table_prefix = Environment::table_prefix_for_id( $id );
 
@@ -33,16 +34,19 @@ class BlankWordPressProvisioner {
 			$pdo->exec( $sql );
 		}
 
-		$site_url    = $this->get_host_site_url();
-		$sandbox_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
+		$site_url         = $this->get_host_site_url();
+		$environment_url  = $options['site_url'] ?? $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
+		$site_name        = $options['site_name'] ?? 'Rudel Sandbox';
+		$site_description = $options['site_description'] ?? 'A sandboxed WordPress environment';
+		$admin_email      = $options['admin_email'] ?? 'admin@sandbox.local';
 
 		// phpcs:disable WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WordPress stores options as serialized PHP arrays.
 		$options = array(
-			array( 'siteurl', $sandbox_url ),
-			array( 'home', $sandbox_url ),
-			array( 'blogname', 'Rudel Sandbox' ),
-			array( 'blogdescription', 'A sandboxed WordPress environment' ),
-			array( 'admin_email', 'admin@sandbox.local' ),
+			array( 'siteurl', $environment_url ),
+			array( 'home', $environment_url ),
+			array( 'blogname', $site_name ),
+			array( 'blogdescription', $site_description ),
+			array( 'admin_email', $admin_email ),
 			array( 'users_can_register', '0' ),
 			array( 'start_of_week', '1' ),
 			array( 'use_balanceTags', '0' ),
@@ -118,14 +122,18 @@ class BlankWordPressProvisioner {
 	 * Create a blank MySQL database with WordPress schema and default content.
 	 *
 	 * @param string $id Environment identifier.
+	 * @param array  $options Optional site settings.
 	 * @return void
 	 */
-	public function create_mysql_database( string $id ): void {
+	public function create_mysql_database( string $id, array $options = array() ): void {
 		global $wpdb;
 
-		$table_prefix = Environment::table_prefix_for_id( $id );
-		$site_url     = $this->get_host_site_url();
-		$sandbox_url  = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
+		$table_prefix     = Environment::table_prefix_for_id( $id );
+		$site_url         = $this->get_host_site_url();
+		$environment_url  = $options['site_url'] ?? $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $id;
+		$site_name        = $options['site_name'] ?? 'Rudel Sandbox';
+		$site_description = $options['site_description'] ?? 'A sandboxed WordPress environment';
+		$admin_email      = $options['admin_email'] ?? 'admin@sandbox.local';
 
 		// Reuse WordPress's canonical schema so blank MySQL environments match core table definitions.
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Dynamic table prefix for environment isolation; all table names are internally generated.
@@ -141,11 +149,11 @@ class BlankWordPressProvisioner {
 
 		// phpcs:disable WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize, WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- WordPress stores options as serialized PHP arrays; meta_key inserts required for WP bootstrap.
 		$options = array(
-			array( 'siteurl', $sandbox_url ),
-			array( 'home', $sandbox_url ),
-			array( 'blogname', 'Rudel Sandbox' ),
-			array( 'blogdescription', 'A sandboxed WordPress environment' ),
-			array( 'admin_email', 'admin@sandbox.local' ),
+			array( 'siteurl', $environment_url ),
+			array( 'home', $environment_url ),
+			array( 'blogname', $site_name ),
+			array( 'blogdescription', $site_description ),
+			array( 'admin_email', $admin_email ),
 			array( 'users_can_register', '0' ),
 			array( 'start_of_week', '1' ),
 			array( 'use_balanceTags', '0' ),
