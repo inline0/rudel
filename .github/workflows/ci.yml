@@ -36,6 +36,21 @@ jobs:
       - run: composer install --no-interaction
       - run: composer test
 
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+        working-directory: docs
+      - run: npm run build
+        working-directory: docs
+
   e2e:
     name: E2E
     runs-on: ubuntu-latest
