@@ -42,8 +42,7 @@ rudel/
 │   ├── Environment.php    # Environment model (engine: mysql, sqlite, or subsite)
 │   ├── EnvironmentManager.php # CRUD orchestrator + export/import/cleanup
 │   ├── SnapshotManager.php # Point-in-time snapshots per sandbox
-│   ├── TemplateManager.php # Reusable sandbox templates
-│   └── Router.php         # Request to sandbox resolution
+│   └── TemplateManager.php # Reusable sandbox templates
 ├── cli/
 │   ├── RudelCommand.php    # WP-CLI commands (rudel)
 │   └── TemplateCommand.php # WP-CLI commands (rudel template)
@@ -82,7 +81,7 @@ Both constants are optional. Define them in `wp-config.php` before the `require 
 
 1. **100% WordPress Coding Standards**: no exceptions. Run `composer cs` before committing.
 2. **Run tests after changes**: `composer test` for PHPUnit, `bash tests/e2e/run-all.sh` for E2E.
-3. **bootstrap.php is self-contained**: no autoloader, no WP functions, plain PHP only. Changes to Router logic must be manually propagated to bootstrap.php.
+3. **bootstrap.php is self-contained**: no autoloader, no WP functions, plain PHP only.
 4. **Filesystem is source of truth**: `.rudel.json` per sandbox, no central registry.
 5. **Never modify `lib/`**: auto-downloaded SQLite integration, treated as vendor code.
 

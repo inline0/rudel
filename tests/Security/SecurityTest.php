@@ -4,7 +4,6 @@ namespace Rudel\Tests\Security;
 
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
-use Rudel\Router;
 use Rudel\Environment;
 use Rudel\EnvironmentManager;
 use Rudel\Tests\RudelTestCase;
@@ -12,8 +11,8 @@ use Rudel\Tests\RudelTestCase;
 /**
  * Security-focused tests for Rudel.
  *
- * Tests path traversal, ID injection, symlink escapes,
- * file permission enforcement, and sandbox isolation.
+ * Tests path traversal, ID injection, file permission enforcement,
+ * and sandbox isolation.
  */
 class SecurityTest extends RudelTestCase
 {
@@ -80,83 +79,6 @@ class SecurityTest extends RudelTestCase
         foreach ($sqlIds as $id) {
             $this->assertFalse(Environment::validate_id($id), "Should reject: {$id}");
         }
-    }
-
-    // Path traversal via Router
-
-    public function testRouterRejectsDirectDotDot(): void
-    {
-        $_SERVER['HTTP_X_RUDEL_SANDBOX'] = '..';
-        $router = new Router($this->tmpDir);
-        $this->assertNull($router->resolve());
-    }
-
-    public function testRouterRejectsMultipleDotDots(): void
-    {
-        $_SERVER['HTTP_X_RUDEL_SANDBOX'] = '../../..';
-        $router = new Router($this->tmpDir);
-        $this->assertNull($router->resolve());
-    }
-
-    public function testRouterRejectsEncodedTraversal(): void
-    {
-        // URL-encoded ../ -- would fail ID validation anyway
-        $_SERVER['HTTP_X_RUDEL_SANDBOX'] = '%2e%2e%2f';
-        $router = new Router($this->tmpDir);
-        $this->assertNull($router->resolve());
-    }
-
-    public function testRouterRejectsDotDotSlashPrefix(): void
-    {
-        $_SERVER['HTTP_X_RUDEL_SANDBOX'] = '../sandbox';
-        $router = new Router($this->tmpDir);
-        $this->assertNull($router->resolve());
-    }
-
-    // Symlink escape attempts
-
-    public function testRouterBlocksSymlinkToParent(): void
-    {
-        // Create a symlink inside sandboxes dir that points to parent
-        $link = $this->tmpDir . '/escape-link';
-        symlink(dirname($this->tmpDir), $link);
-
-        $_SERVER['HTTP_X_RUDEL_SANDBOX'] = 'escape-link';
-        $router = new Router($this->tmpDir);
-        $this->assertNull($router->resolve());
-
-        unlink($link);
-    }
-
-    public function testRouterBlocksSymlinkToRoot(): void
-    {
-        $link = $this->tmpDir . '/root-link';
-        symlink('/tmp', $link);
-
-        $_SERVER['HTTP_X_RUDEL_SANDBOX'] = 'root-link';
-        $router = new Router($this->tmpDir);
-        $this->assertNull($router->resolve());
-
-        unlink($link);
-    }
-
-    public function testRouterBlocksSymlinkToSiblingDir(): void
-    {
-        // Create two dirs: sandboxes/ and secrets/
-        $sandboxesDir = $this->tmpDir . '/sandboxes';
-        $secretsDir = $this->tmpDir . '/secrets';
-        mkdir($sandboxesDir, 0755);
-        mkdir($secretsDir, 0755);
-        file_put_contents($secretsDir . '/password.txt', 'secret123');
-
-        // Symlink from sandboxes/evil to secrets
-        symlink($secretsDir, $sandboxesDir . '/evil');
-
-        $_SERVER['HTTP_X_RUDEL_SANDBOX'] = 'evil';
-        $router = new Router($sandboxesDir);
-        $this->assertNull($router->resolve());
-
-        unlink($sandboxesDir . '/evil');
     }
 
     // EnvironmentManager.get() path validation
