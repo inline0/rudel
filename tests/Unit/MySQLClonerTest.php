@@ -99,6 +99,23 @@ class MySQLClonerTest extends RudelTestCase
         $this->assertTrue($this->mockWpdb->hasTable('wp_posts'));
     }
 
+    public function testDropTablesCanExcludeNestedSnapshotPrefixes(): void
+    {
+        $this->setGlobalWpdb();
+        $this->mockWpdb->addTable('rudel_abc_posts', 'CREATE TABLE rudel_abc_posts (ID int)', []);
+        $this->mockWpdb->addTable('rudel_abc_options', 'CREATE TABLE rudel_abc_options (option_id int)', []);
+        $this->mockWpdb->addTable('rudel_abc_snap_deadbeef_posts', 'CREATE TABLE rudel_abc_snap_deadbeef_posts (ID int)', []);
+        $this->mockWpdb->addTable('rudel_abc_snap_deadbeef_options', 'CREATE TABLE rudel_abc_snap_deadbeef_options (option_id int)', []);
+
+        $count = $this->cloner->drop_tables('rudel_abc_', ['rudel_abc_snap_deadbeef_']);
+
+        $this->assertSame(2, $count);
+        $this->assertFalse($this->mockWpdb->hasTable('rudel_abc_posts'));
+        $this->assertFalse($this->mockWpdb->hasTable('rudel_abc_options'));
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_abc_snap_deadbeef_posts'));
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_abc_snap_deadbeef_options'));
+    }
+
     public function testDropTablesRefusesNonRudelPrefix(): void
     {
         $this->setGlobalWpdb();
@@ -147,6 +164,27 @@ class MySQLClonerTest extends RudelTestCase
         $this->setGlobalWpdb();
         $count = $this->cloner->copy_tables('wp_nonexistent_', 'wp_new_');
         $this->assertSame(0, $count);
+    }
+
+    public function testCopyTablesCanExcludeNestedSnapshotPrefixes(): void
+    {
+        $this->setGlobalWpdb();
+        $this->mockWpdb->addTable('rudel_abc_posts', 'CREATE TABLE rudel_abc_posts (ID int)', [
+            ['ID' => '1', 'post_title' => 'Current'],
+        ]);
+        $this->mockWpdb->addTable('rudel_abc_snap_deadbeef_posts', 'CREATE TABLE rudel_abc_snap_deadbeef_posts (ID int)', [
+            ['ID' => '99', 'post_title' => 'Old Snapshot'],
+        ]);
+
+        $count = $this->cloner->copy_tables('rudel_abc_', 'rudel_abc_snap_feedbeef_', ['rudel_abc_snap_']);
+
+        $this->assertSame(1, $count);
+        $this->assertTrue($this->mockWpdb->hasTable('rudel_abc_snap_feedbeef_posts'));
+        $this->assertFalse($this->mockWpdb->hasTable('rudel_abc_snap_feedbeef_snap_deadbeef_posts'));
+        $this->assertSame(
+            [['ID' => '1', 'post_title' => 'Current']],
+            $this->mockWpdb->getTableRows('rudel_abc_snap_feedbeef_posts')
+        );
     }
 
     // search_replace_value()

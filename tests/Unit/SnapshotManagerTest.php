@@ -9,6 +9,8 @@ use Rudel\EnvironmentManager;
 use Rudel\SnapshotManager;
 use Rudel\Tests\RudelTestCase;
 
+require_once dirname(__DIR__) . '/Stubs/MockWpdb.php';
+
 class SnapshotManagerTest extends RudelTestCase
 {
     #[RunInSeparateProcess]
@@ -125,6 +127,53 @@ class SnapshotManagerTest extends RudelTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Snapshot not found');
         $manager->restore('nonexistent');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testRestoreKeepsMysqlSnapshotTablesAvailableUntilCopiedBack(): void
+    {
+        $sandboxPath = $this->tmpDir . '/mysql-snap-box';
+        mkdir($sandboxPath . '/wp-content/plugins', 0755, true);
+        file_put_contents($sandboxPath . '/wp-content/plugins/original.txt', 'before');
+
+        $sandbox = new Environment(
+            'mysql-snap-box',
+            'MySQL Snap Box',
+            $sandboxPath,
+            '2026-01-01T00:00:00+00:00',
+            engine: 'mysql'
+        );
+
+        $mockWpdb = new \MockWpdb();
+        $mockWpdb->prefix = 'wp_';
+        $GLOBALS['wpdb'] = $mockWpdb;
+
+        $sandboxPrefix = $sandbox->get_table_prefix();
+        $mockWpdb->addTable("{$sandboxPrefix}options", "CREATE TABLE {$sandboxPrefix}options (option_id int)", [
+            ['option_id' => '1', 'option_name' => 'blogname', 'option_value' => 'Before Snapshot'],
+        ]);
+        $mockWpdb->addTable("{$sandboxPrefix}posts", "CREATE TABLE {$sandboxPrefix}posts (ID int)", [
+            ['ID' => '1', 'post_title' => 'Before Snapshot'],
+        ]);
+
+        $manager = new SnapshotManager($sandbox);
+        $manager->create('baseline');
+
+        $snapshotMeta = json_decode(file_get_contents($sandboxPath . '/snapshots/baseline/db_snapshot.json'), true);
+        $snapshotPrefix = $snapshotMeta['table_prefix'];
+
+        $mockWpdb->addTable("{$sandboxPrefix}options", "CREATE TABLE {$sandboxPrefix}options (option_id int)", [
+            ['option_id' => '1', 'option_name' => 'blogname', 'option_value' => 'After Snapshot'],
+        ]);
+        file_put_contents($sandboxPath . '/wp-content/plugins/original.txt', 'after');
+
+        $manager->restore('baseline');
+
+        $this->assertTrue($mockWpdb->hasTable("{$sandboxPrefix}options"));
+        $this->assertTrue($mockWpdb->hasTable("{$snapshotPrefix}options"));
+        $this->assertSame('Before Snapshot', $mockWpdb->getTableRows("{$sandboxPrefix}options")[0]['option_value']);
+        $this->assertSame('before', file_get_contents($sandboxPath . '/wp-content/plugins/original.txt'));
     }
 
     #[RunInSeparateProcess]

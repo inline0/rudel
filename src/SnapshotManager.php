@@ -63,7 +63,7 @@ class SnapshotManager {
 			$mysql_cloner  = new MySQLCloner();
 			$source_prefix = $this->sandbox->get_table_prefix();
 			$snap_prefix   = $source_prefix . 'snap_' . substr( md5( $name ), 0, 6 ) . '_';
-			$mysql_cloner->copy_tables( $source_prefix, $snap_prefix );
+			$mysql_cloner->copy_tables( $source_prefix, $snap_prefix, array( $source_prefix . 'snap_' ) );
 
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing snapshot DB metadata.
 			file_put_contents(
@@ -161,7 +161,7 @@ class SnapshotManager {
 				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
 					$mysql_cloner   = new MySQLCloner();
 					$sandbox_prefix = $this->sandbox->get_table_prefix();
-					$mysql_cloner->drop_tables( $sandbox_prefix );
+					$mysql_cloner->drop_tables( $sandbox_prefix, array( $sandbox_prefix . 'snap_' ) );
 					$mysql_cloner->copy_tables( $db_meta['table_prefix'], $sandbox_prefix );
 				}
 			}

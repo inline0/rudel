@@ -103,12 +103,13 @@ class MySQLCloner {
 	/**
 	 * Drop all tables with the given prefix.
 	 *
-	 * @param string $prefix Table prefix to match. Must start with 'rudel_'.
+	 * @param string   $prefix           Table prefix to match. Must start with 'rudel_'.
+	 * @param string[] $exclude_prefixes Optional table prefixes to preserve.
 	 * @return int Number of tables dropped.
 	 *
 	 * @throws \RuntimeException If the prefix does not start with 'rudel_'.
 	 */
-	public function drop_tables( string $prefix ): int {
+	public function drop_tables( string $prefix, array $exclude_prefixes = array() ): int {
 		// Safety: never drop tables that don't start with 'rudel_' or 'rudel_backup_'.
 		if ( ! str_starts_with( $prefix, 'rudel_' ) ) {
 			throw new \RuntimeException(
@@ -118,7 +119,7 @@ class MySQLCloner {
 
 		global $wpdb;
 
-		$tables = $this->discover_tables( $wpdb, $prefix );
+		$tables = $this->discover_tables( $wpdb, $prefix, $exclude_prefixes );
 		$count  = 0;
 
 		foreach ( $tables as $table ) {
@@ -133,14 +134,15 @@ class MySQLCloner {
 	/**
 	 * Copy tables from one prefix to another within MySQL.
 	 *
-	 * @param string $source_prefix Source table prefix.
-	 * @param string $target_prefix Target table prefix.
+	 * @param string   $source_prefix    Source table prefix.
+	 * @param string   $target_prefix    Target table prefix.
+	 * @param string[] $exclude_prefixes Optional source table prefixes to exclude.
 	 * @return int Number of tables copied.
 	 */
-	public function copy_tables( string $source_prefix, string $target_prefix ): int {
+	public function copy_tables( string $source_prefix, string $target_prefix, array $exclude_prefixes = array() ): int {
 		global $wpdb;
 
-		$tables = $this->discover_tables( $wpdb, $source_prefix );
+		$tables = $this->discover_tables( $wpdb, $source_prefix, $exclude_prefixes );
 		$count  = 0;
 
 		foreach ( $tables as $table ) {
@@ -155,17 +157,39 @@ class MySQLCloner {
 	/**
 	 * Discover all tables with the given prefix.
 	 *
-	 * @param \wpdb  $wpdb   WordPress database object.
-	 * @param string $prefix Table prefix to match.
+	 * @param \wpdb    $wpdb             WordPress database object.
+	 * @param string   $prefix           Table prefix to match.
+	 * @param string[] $exclude_prefixes Optional table prefixes to exclude from the result.
 	 * @return string[] Array of table names.
 	 */
-	public function discover_tables( $wpdb, string $prefix ): array {
+	public function discover_tables( $wpdb, string $prefix, array $exclude_prefixes = array() ): array {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time metadata query.
 		$results = $wpdb->get_col(
 			$wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $prefix ) . '%' )
 		);
 
-		return is_array( $results ) ? $results : array();
+		if ( ! is_array( $results ) ) {
+			return array();
+		}
+
+		if ( empty( $exclude_prefixes ) ) {
+			return $results;
+		}
+
+		return array_values(
+			array_filter(
+				$results,
+				static function ( string $table ) use ( $exclude_prefixes ): bool {
+					foreach ( $exclude_prefixes as $exclude_prefix ) {
+						if ( '' !== $exclude_prefix && str_starts_with( $table, $exclude_prefix ) ) {
+							return false;
+						}
+					}
+
+					return true;
+				}
+			)
+		);
 	}
 
 	/**
