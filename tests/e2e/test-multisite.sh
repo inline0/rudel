@@ -73,13 +73,13 @@ sqlite_query() {
     local sandbox_id="$1"
     local query="$2"
     local db_path="/var/www/html/wp-content/rudel-environments/${sandbox_id}/wordpress.db"
-    npx wp-env run cli -- php -r "\$pdo=new PDO('sqlite:'.\$argv[1]);\$s=\$pdo->query(\$argv[2]);while(\$r=\$s->fetch(PDO::FETCH_NUM))echo implode('|',\$r).PHP_EOL;" "$db_path" "$query" 2>&1 | strip_wpenv
+    npx wp-env run cli -- php -r "\$pdo=new PDO('sqlite:'.\$argv[1]);\$s=\$pdo->query(\$argv[2]);while(\$r=\$s->fetch(PDO::FETCH_NUM))echo implode('|',\$r).PHP_EOL;" "$db_path" "$query" 2>&1 | strip_wpenv || true
 }
 
 # Compute the sandbox table prefix (mirrors EnvironmentManager logic).
 sandbox_prefix() {
     local id="$1"
-    npx wp-env run cli -- php -r "echo 'wp_'.substr(md5(\$argv[1]),0,6).'_';" "$id" 2>&1 | strip_wpenv
+    npx wp-env run cli -- php -r "echo 'rudel_'.substr(md5(\$argv[1]),0,6).'_';" "$id" 2>&1 | strip_wpenv || true
 }
 
 cleanup() {
