@@ -999,6 +999,7 @@ class EnvironmentManager {
 		$serialized_plugins = serialize( array_values( array_unique( $plugins ) ) );
 
 		if ( null === $option_row ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Inserting the active_plugins option when the promoted database does not have it yet.
 			$wpdb->insert(
 				$options_table,
 				array(
@@ -1061,8 +1062,20 @@ class EnvironmentManager {
 			return array();
 		}
 
-		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- WordPress stores options as serialized PHP arrays.
-		$decoded = @unserialize( $value );
+		$decoded = false;
+		set_error_handler(
+			static function (): bool {
+				return true;
+			}
+		);
+
+		try {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- WordPress stores options as serialized PHP arrays.
+			$decoded = unserialize( $value );
+		} finally {
+			restore_error_handler();
+		}
+
 		return is_array( $decoded ) ? $decoded : array();
 	}
 
