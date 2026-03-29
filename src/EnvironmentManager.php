@@ -1058,24 +1058,12 @@ class EnvironmentManager {
 	 * @return array<mixed> Decoded array, or an empty array on invalid input.
 	 */
 	private function unserialize_array( ?string $value ): array {
-		if ( ! is_string( $value ) || '' === $value ) {
+		if ( ! is_string( $value ) || '' === $value || ! preg_match( '/^a:\d+:/', $value ) ) {
 			return array();
 		}
 
-		$decoded = false;
-		set_error_handler(
-			static function (): bool {
-				return true;
-			}
-		);
-
-		try {
-			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- WordPress stores options as serialized PHP arrays.
-			$decoded = unserialize( $value );
-		} finally {
-			restore_error_handler();
-		}
-
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- WordPress stores options as serialized PHP arrays.
+		$decoded = unserialize( $value );
 		return is_array( $decoded ) ? $decoded : array();
 	}
 
