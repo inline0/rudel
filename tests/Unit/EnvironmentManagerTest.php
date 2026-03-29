@@ -1384,7 +1384,26 @@ class EnvironmentManagerTest extends RudelTestCase
         $GLOBALS['wpdb'] = $mockWpdb;
 
         $manager = new EnvironmentManager($this->tmpDir);
-        $sandbox = $manager->create('Promote MySQL Activation', ['engine' => 'mysql']);
+        $sandbox = new Environment(
+            id: 'promote-mysql-1234',
+            name: 'Promote MySQL Activation',
+            path: $this->tmpDir . '/promote-mysql-1234',
+            created_at: '2026-03-29T00:00:00+00:00',
+            engine: 'mysql'
+        );
+        mkdir($sandbox->path . '/wp-content/themes', 0755, true);
+        mkdir($sandbox->path . '/wp-content/plugins', 0755, true);
+        mkdir($sandbox->path . '/wp-content/uploads', 0755, true);
+        $sandbox->save_meta();
+
+        $sandboxPrefix = $sandbox->get_table_prefix();
+        $mockWpdb->addTable("{$sandboxPrefix}options", "CREATE TABLE {$sandboxPrefix}options (option_id int)", [
+            ['option_id' => '1', 'option_name' => 'siteurl', 'option_value' => 'http://example.com/__rudel/' . $sandbox->id],
+            ['option_id' => '2', 'option_name' => 'home', 'option_value' => 'http://example.com/__rudel/' . $sandbox->id],
+            ['option_id' => '3', 'option_name' => 'blogname', 'option_value' => 'Promoted Site'],
+            // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WordPress stores active plugins as a serialized PHP array.
+            ['option_id' => '4', 'option_name' => 'active_plugins', 'option_value' => serialize([])],
+        ]);
 
         $manager->promote($sandbox->id, $this->tmpDir . '/mysql-promote-backup');
 
