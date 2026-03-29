@@ -89,6 +89,21 @@ class ContentClonerTest extends RudelTestCase
         }
     }
 
+    public function testCopyDirectorySkipsNestedTargetSubtree(): void
+    {
+        $source = $this->hostWpContent . '/recursive-source';
+        mkdir($source . '/plugins/example', 0755, true);
+        file_put_contents($source . '/plugins/example/plugin.php', 'plugin');
+        file_put_contents($source . '/root.txt', 'host');
+
+        $target = $source . '/rudel-environments/_backups/20260329/wp-content';
+        $this->cloner->copy_directory($source, $target);
+
+        $this->assertFileExists($target . '/root.txt');
+        $this->assertFileExists($target . '/plugins/example/plugin.php');
+        $this->assertDirectoryDoesNotExist($target . '/rudel-environments/_backups/20260329/wp-content');
+    }
+
     // clone_content() -- selective cloning
 
     #[RunInSeparateProcess]

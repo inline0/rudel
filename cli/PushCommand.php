@@ -67,7 +67,7 @@ class PushCommand extends AbstractEnvironmentCommand {
 		}
 
 		try {
-			$github = new GitHubIntegration( $repo );
+			$github = $this->github( $repo );
 
 			WP_CLI::log( "Ensuring branch {$branch} exists..." );
 			try {
@@ -96,5 +96,15 @@ class PushCommand extends AbstractEnvironmentCommand {
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
 		}
+	}
+
+	/**
+	 * Create a GitHub integration instance.
+	 *
+	 * @param string $repo GitHub repository in owner/repo format.
+	 * @return GitHubIntegration
+	 */
+	protected function github( string $repo ): GitHubIntegration {
+		return new GitHubIntegration( $repo );
 	}
 }

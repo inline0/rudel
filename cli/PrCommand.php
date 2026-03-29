@@ -56,11 +56,21 @@ class PrCommand extends AbstractEnvironmentCommand {
 		$body   = $assoc_args['body'] ?? "Created from Rudel sandbox `{$sandbox->id}`";
 
 		try {
-			$pr = ( new GitHubIntegration( $repo ) )->create_pr( $branch, $title, $body );
+			$pr = $this->github( $repo )->create_pr( $branch, $title, $body );
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
 		}
 
 		WP_CLI::success( "PR #{$pr['number']} created: {$pr['html_url']}" );
+	}
+
+	/**
+	 * Create a GitHub integration instance.
+	 *
+	 * @param string $repo GitHub repository in owner/repo format.
+	 * @return GitHubIntegration
+	 */
+	protected function github( string $repo ): GitHubIntegration {
+		return new GitHubIntegration( $repo );
 	}
 }

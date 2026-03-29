@@ -18,13 +18,6 @@ class ContentCloner {
 	 *
 	 * @param string $sandbox_wp_content Absolute path to the sandbox wp-content directory.
 	 * @param array  $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
-	 * @return array<string, string> Status per directory: 'copied', 'skipped', or 'missing'.
-	 */
-	/**
-	 * Clone wp-content subdirectories from the host to the sandbox.
-	 *
-	 * @param string $sandbox_wp_content Absolute path to the sandbox wp-content directory.
-	 * @param array  $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
 	 * @param string $sandbox_id         Optional sandbox ID for git worktree branch naming.
 	 * @return array<string, mixed> Status per directory.
 	 */
@@ -81,23 +74,54 @@ class ContentCloner {
 	 * @return void
 	 */
 	public function copy_directory( string $source, string $target ): void {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox content cloning.
-		mkdir( $target, 0755, true );
+		if ( ! is_dir( $target ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox content cloning.
+			mkdir( $target, 0755, true );
+		}
 
-		$iterator = new \RecursiveIteratorIterator(
-			new \RecursiveDirectoryIterator( $source, \FilesystemIterator::SKIP_DOTS ),
-			\RecursiveIteratorIterator::SELF_FIRST
-		);
+		$source_real   = realpath( $source );
+		$target_real   = realpath( $target );
+		$excluded_path = null;
+
+		if (
+			false !== $source_real
+			&& false !== $target_real
+			&& $target_real !== $source_real
+			&& 0 === strpos( $target_real, $source_real . DIRECTORY_SEPARATOR )
+		) {
+			$excluded_path = $target_real;
+		}
+
+		$this->copy_directory_recursive( $source, $target, $excluded_path );
+	}
+
+	/**
+	 * Recursively copy a directory, optionally skipping one nested target subtree.
+	 *
+	 * @param string      $source        Absolute source directory path.
+	 * @param string      $target        Absolute target directory path.
+	 * @param string|null $excluded_path Absolute path to skip while traversing.
+	 * @return void
+	 */
+	private function copy_directory_recursive( string $source, string $target, ?string $excluded_path = null ): void {
+		if ( ! is_dir( $target ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox content cloning.
+			mkdir( $target, 0755, true );
+		}
+
+		$iterator = new \FilesystemIterator( $source, \FilesystemIterator::SKIP_DOTS );
 
 		foreach ( $iterator as $item ) {
-			$relative    = substr( $item->getPathname(), strlen( $source ) );
-			$target_path = $target . $relative;
+			$source_path = $item->getPathname();
+
+			if ( null !== $excluded_path && $source_path === $excluded_path ) {
+				continue;
+			}
+
+			$target_path = $target . '/' . $item->getFilename();
 
 			if ( $item->isDir() ) {
-				if ( ! is_dir( $target_path ) ) {
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating sandbox subdirectory.
-					mkdir( $target_path, 0755, true );
-				}
+				$this->copy_directory_recursive( $source_path, $target_path, $excluded_path );
 			} else {
 				$target_dir = dirname( $target_path );
 				if ( ! is_dir( $target_dir ) ) {
@@ -105,7 +129,7 @@ class ContentCloner {
 					mkdir( $target_dir, 0755, true );
 				}
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying file to sandbox.
-				copy( $item->getPathname(), $target_path );
+				copy( $source_path, $target_path );
 			}
 		}
 	}

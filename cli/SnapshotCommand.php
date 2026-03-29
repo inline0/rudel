@@ -42,11 +42,21 @@ class SnapshotCommand extends AbstractEnvironmentCommand {
 		$name    = $assoc_args['name'];
 
 		try {
-			$meta = ( new SnapshotManager( $sandbox ) )->create( $name );
+			$meta = $this->snapshot_manager( $sandbox )->create( $name );
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
 		}
 
 		WP_CLI::success( "Snapshot created: {$meta['name']}" );
+	}
+
+	/**
+	 * Create a snapshot manager instance.
+	 *
+	 * @param \Rudel\Environment $sandbox Sandbox being managed.
+	 * @return SnapshotManager
+	 */
+	protected function snapshot_manager( \Rudel\Environment $sandbox ): SnapshotManager {
+		return new SnapshotManager( $sandbox );
 	}
 }

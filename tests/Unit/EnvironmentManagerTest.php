@@ -1261,6 +1261,44 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->assertGreaterThan(0, $result['tables_copied']);
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPromoteAllowsBackupDirectoryInsideWpContent(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'http://example.com');
+        if (! defined('ABSPATH')) {
+            define('ABSPATH', $this->tmpDir . '/wordpress/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir . '/wordpress/wp-content');
+            mkdir(WP_CONTENT_DIR . '/plugins/example', 0755, true);
+            file_put_contents(WP_CONTENT_DIR . '/plugins/example/plugin.php', '<?php // host plugin');
+        }
+
+        require_once dirname(__DIR__) . '/Stubs/MockWpdb.php';
+        $mockWpdb = new \MockWpdb();
+        $mockWpdb->prefix = 'wp_';
+        $mockWpdb->addTable('wp_posts', 'CREATE TABLE wp_posts (ID int)', [
+            ['ID' => '1', 'post_title' => 'Host Post'],
+        ]);
+        $mockWpdb->addTable('wp_options', 'CREATE TABLE wp_options (option_id int)', [
+            ['option_id' => '1', 'option_name' => 'siteurl', 'option_value' => 'http://example.com'],
+        ]);
+        $GLOBALS['wpdb'] = $mockWpdb;
+
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Nested Backup Promote', ['engine' => 'sqlite']);
+
+        $backupDir = WP_CONTENT_DIR . '/rudel-environments/_backups/promote-default-like';
+        $result = $manager->promote($sandbox->id, $backupDir);
+
+        $this->assertSame($backupDir, $result['backup_path']);
+        $this->assertFileExists($backupDir . '/backup.json');
+        $this->assertFileExists($backupDir . '/wp-content/plugins/example/plugin.php');
+        $this->assertDirectoryDoesNotExist($backupDir . '/wp-content/rudel-environments/_backups/promote-default-like/wp-content');
+    }
+
     // Helpers
 
     private function defineConstants(): void

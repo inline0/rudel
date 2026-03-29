@@ -136,6 +136,11 @@ else
     fail "Bootstrap not installed" "$STATUS_OUTPUT"
 fi
 
+INITIAL_LIST_COUNT=$(wp_cli rudel list --format=count | tail -1)
+if ! [[ "$INITIAL_LIST_COUNT" =~ ^[0-9]+$ ]]; then
+    INITIAL_LIST_COUNT=0
+fi
+
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8888/)
 if [[ "$HTTP_CODE" =~ ^(200|301|302)$ ]]; then
     pass "Host WordPress responds (HTTP $HTTP_CODE)"
@@ -167,10 +172,11 @@ fi
 
 LIST_OUTPUT=$(wp_cli rudel list --format=count)
 LIST_COUNT=$(echo "$LIST_OUTPUT" | tail -1)
-if [[ "$LIST_COUNT" == "2" ]]; then
-    pass "wp rudel list shows 2 sandboxes"
+EXPECTED_LIST_COUNT=$((INITIAL_LIST_COUNT + 2))
+if [[ "$LIST_COUNT" == "$EXPECTED_LIST_COUNT" ]]; then
+    pass "wp rudel list increased by 2 sandboxes"
 else
-    fail "Wrong sandbox count" "Expected 2, got: $LIST_COUNT"
+    fail "Wrong sandbox count" "Expected $EXPECTED_LIST_COUNT, got: $LIST_COUNT"
 fi
 
 if [[ "$ALPHA_ID" != "$BETA_ID" ]]; then
@@ -215,7 +221,7 @@ fi
 
 # MySQL tables should exist with sandbox prefix
 ALPHA_PREFIX=$(wpenv_run bash -c "php -r \"echo 'rudel_' . substr(md5('${ALPHA_ID}'), 0, 6) . '_';\"" | tail -1)
-ALPHA_TABLE_COUNT=$(wpenv_run bash -c "mysql -u root -ppassword -h tests-mysql wordpress -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='wordpress' AND table_name LIKE '${ALPHA_PREFIX}%'\"" 2>/dev/null | tail -1)
+ALPHA_TABLE_COUNT=$(wp_cli db query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE '${ALPHA_PREFIX}%'" --skip-column-names | tail -1)
 if [[ "$ALPHA_TABLE_COUNT" -gt 0 ]]; then
     pass "Alpha MySQL tables exist (${ALPHA_TABLE_COUNT} tables with prefix ${ALPHA_PREFIX})"
 else
@@ -415,7 +421,7 @@ fi
 
 # The ?adminExit param should clear the cookie.
 curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/?adminExit"
-COOKIE_AFTER_EXIT=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}')
+COOKIE_AFTER_EXIT=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}' || true)
 if [[ -z "$COOKIE_AFTER_EXIT" || "$COOKIE_AFTER_EXIT" == '""' || "$COOKIE_AFTER_EXIT" == "0" ]]; then
     pass "?adminExit cleared sandbox cookie"
 else
@@ -433,7 +439,7 @@ fi
 # ?adminExit should work from any URL.
 curl -s -o /dev/null -c "$COOKIE_JAR" "http://localhost:8888/__rudel/${ALPHA_ID}/"
 curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/wp-admin/?adminExit"
-COOKIE_FROM_ADMIN=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}')
+COOKIE_FROM_ADMIN=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}' || true)
 if [[ -z "$COOKIE_FROM_ADMIN" || "$COOKIE_FROM_ADMIN" == '""' || "$COOKIE_FROM_ADMIN" == "0" ]]; then
     pass "?adminExit works from /wp-admin/ URL too"
 else
@@ -479,7 +485,7 @@ else
 fi
 
 # Verify MySQL tables are dropped after destroy
-ALPHA_TABLES_GONE=$(wpenv_run bash -c "mysql -u root -ppassword -h tests-mysql wordpress -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='wordpress' AND table_name LIKE '${ALPHA_PREFIX}%'\"" 2>/dev/null | tail -1)
+ALPHA_TABLES_GONE=$(wp_cli db query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE '${ALPHA_PREFIX}%'" --skip-column-names | tail -1)
 if [[ "$ALPHA_TABLES_GONE" == "0" ]]; then
     pass "Alpha MySQL tables dropped after destroy"
 else
@@ -502,10 +508,14 @@ else
 fi
 
 LIST_FINAL=$(wp_cli rudel list)
-if echo "$LIST_FINAL" | grep -q "No sandboxes found"; then
-    pass "No sandboxes remain"
+LIST_FINAL_COUNT=$(wp_cli rudel list --format=count | tail -1)
+if ! [[ "$LIST_FINAL_COUNT" =~ ^[0-9]+$ ]]; then
+    LIST_FINAL_COUNT=0
+fi
+if [[ "$LIST_FINAL_COUNT" == "$INITIAL_LIST_COUNT" ]] && ! echo "$LIST_FINAL" | grep -q "$ALPHA_ID" && ! echo "$LIST_FINAL" | grep -q "$BETA_ID"; then
+    pass "Sandbox list returned to baseline"
 else
-    fail "Sandboxes still listed" "$LIST_FINAL"
+    fail "Sandbox list did not return to baseline" "Expected count $INITIAL_LIST_COUNT, got $LIST_FINAL_COUNT"$'\n'"$LIST_FINAL"
 fi
 
 # SQLite engine test

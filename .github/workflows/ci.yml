@@ -35,3 +35,21 @@ jobs:
           tools: composer
       - run: composer install --no-interaction
       - run: composer test
+
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: sqlite3, pdo_sqlite, mysqli
+          tools: composer
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - run: composer install --no-interaction
+      - run: npm ci
+      - run: bash tests/e2e/run-all.sh

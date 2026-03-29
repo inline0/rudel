@@ -50,11 +50,21 @@ class RestoreCommand extends AbstractEnvironmentCommand {
 		}
 
 		try {
-			( new SnapshotManager( $sandbox ) )->restore( $snapshot_name );
+			$this->snapshot_manager( $sandbox )->restore( $snapshot_name );
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
 		}
 
 		WP_CLI::success( "Sandbox restored from snapshot: {$snapshot_name}" );
+	}
+
+	/**
+	 * Create a snapshot manager instance.
+	 *
+	 * @param \Rudel\Environment $sandbox Sandbox being managed.
+	 * @return SnapshotManager
+	 */
+	protected function snapshot_manager( \Rudel\Environment $sandbox ): SnapshotManager {
+		return new SnapshotManager( $sandbox );
 	}
 }
