@@ -13,7 +13,7 @@ use Rudel\Rudel;
 
 ## Context
 
-These methods are safe to call from anywhere, including non-sandbox requests. They return `null` or `false` when no sandbox is active.
+These methods are safe to call from anywhere, including host requests where no Rudel environment is active. They return `null` or `false` when nothing is active.
 
 ### `Rudel::is_sandbox()`
 
@@ -35,15 +35,15 @@ $id = Rudel::id(); // 'my-sandbox-a1b2' or null
 
 ### `Rudel::path()`
 
-Returns the absolute filesystem path to the current sandbox directory.
+Returns the absolute filesystem path to the current environment directory.
 
 ```php
-$path = Rudel::path(); // '/var/www/html/wp-content/rudel-sandboxes/my-sandbox-a1b2'
+$path = Rudel::path(); // '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2'
 ```
 
 ### `Rudel::engine()`
 
-Returns the database engine of the current sandbox: `'mysql'`, `'sqlite'`, `'subsite'`, or `null`.
+Returns the database engine of the current environment: `'mysql'`, `'sqlite'`, `'subsite'`, or `null`.
 
 ```php
 if ( Rudel::engine() === 'sqlite' ) {
@@ -53,7 +53,7 @@ if ( Rudel::engine() === 'sqlite' ) {
 
 ### `Rudel::table_prefix()`
 
-Returns the current sandbox's table prefix, or `null`.
+Returns the current environment's table prefix, or `null`.
 
 ```php
 $prefix = Rudel::table_prefix(); // 'rudel_abc123_'
@@ -61,7 +61,7 @@ $prefix = Rudel::table_prefix(); // 'rudel_abc123_'
 
 ### `Rudel::url()`
 
-Returns the current sandbox's access URL.
+Returns the current environment's access URL. For apps, this is the mapped domain root.
 
 ```php
 $url = Rudel::url(); // 'https://example.com/__rudel/my-sandbox-a1b2/'
@@ -69,7 +69,7 @@ $url = Rudel::url(); // 'https://example.com/__rudel/my-sandbox-a1b2/'
 
 ### `Rudel::exit_url()`
 
-Returns a URL that clears the sandbox cookie and returns to the host. Works even outside sandbox context.
+Returns the `?adminExit` URL Rudel uses for sandbox exit links. When visited from a sandbox request, it clears the sandbox cookie and redirects to the current host root.
 
 ```php
 echo '<a href="' . Rudel::exit_url() . '">Exit sandbox</a>';
@@ -77,14 +77,14 @@ echo '<a href="' . Rudel::exit_url() . '">Exit sandbox</a>';
 
 ### `Rudel::is_email_disabled()`
 
-Returns `true` if outbound email is blocked in the current sandbox.
+Returns `true` if outbound email is blocked in the current environment. Sandboxes block email by default; apps do not.
 
 ### `Rudel::log_path()`
 
-Returns the absolute path to the sandbox's `debug.log` file.
+Returns the absolute path to the current environment's `debug.log` file.
 
 ```php
-$log = Rudel::log_path(); // '/path/to/sandbox/wp-content/debug.log'
+$log = Rudel::log_path(); // '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2/wp-content/debug.log'
 ```
 
 ### `Rudel::version()`
@@ -107,15 +107,17 @@ Returns all context information as an associative array. Useful for debugging or
 $ctx = Rudel::context();
 // [
 //   'is_sandbox'     => true,
+//   'is_app'         => false,
 //   'id'             => 'my-sandbox-a1b2',
-//   'path'           => '/path/to/sandbox',
+//   'app_id'         => null,
+//   'path'           => '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2',
 //   'engine'         => 'mysql',
 //   'table_prefix'   => 'rudel_abc123_',
 //   'url'            => 'https://example.com/__rudel/my-sandbox-a1b2/',
 //   'exit_url'       => 'https://example.com/?adminExit',
 //   'email_disabled' => true,
-//   'log_path'       => '/path/to/sandbox/wp-content/debug.log',
-//   'version'        => '0.1.0',
+//   'log_path'       => '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2/wp-content/debug.log',
+//   'version'        => '0.2.0',
 //   'cli_command'    => 'rudel',
 //   'path_prefix'    => '__rudel',
 // ]
@@ -229,9 +231,13 @@ echo count( $result['removed'] ) . ' merged sandboxes removed';
 $result = Rudel::cleanup_merged( [ 'dry_run' => true ] );
 ```
 
-### `Rudel::sandboxes_dir()`
+### `Rudel::environments_dir()`
 
-Returns the absolute path to the sandboxes directory.
+Returns the absolute path to the environments directory.
+
+```php
+$dir = Rudel::environments_dir(); // '/var/www/html/wp-content/rudel-environments'
+```
 
 ## Snapshots
 
@@ -330,6 +336,10 @@ Destroys an app and removes all domain mappings.
 ### `Rudel::apps_dir()`
 
 Returns the absolute path to the apps directory.
+
+```php
+$dir = Rudel::apps_dir(); // '/var/www/html/wp-content/rudel-apps'
+```
 
 ## Admin bar
 

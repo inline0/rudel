@@ -21,12 +21,13 @@
 
 ## What is Rudel?
 
-Rudel is a WordPress plugin that creates fully isolated sandbox environments within an existing WordPress installation. Each sandbox gets its own database (MySQL by default, SQLite, or multisite sub-site), `wp-content` directory, and WP-CLI scope.
+Rudel is a WordPress plugin for running fully isolated environments inside an existing WordPress installation. It supports both disposable sandboxes for development and permanent apps routed by domain. Each environment gets its own database isolation (MySQL by default, SQLite, or multisite sub-site where supported), `wp-content` directory, and WP-CLI scope.
 
 **Use cases:**
 - Test plugin and theme changes without touching your live site
 - Give AI coding agents (Claude Code, Cursor) a safe, scoped WordPress environment
 - Spin up disposable environments for demos, QA, or client reviews
+- Host multiple isolated client sites from one WordPress install with app mode
 - Snapshot and restore at any point
 
 ## Quick Start
@@ -49,7 +50,7 @@ wp rudel create --name="my-sandbox"
 Use it:
 
 ```bash
-cd /path/to/sandboxes/my-sandbox-a1b2
+cd /path/to/wp-content/rudel-environments/my-sandbox-a1b2
 wp post list
 ```
 
@@ -64,19 +65,21 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 - **Snapshots** -- point-in-time snapshots with instant restore
 - **Templates** -- save sandboxes as reusable starting points
 - **Export & Import** -- package sandboxes as zip archives
+- **GitHub workflows** -- push sandbox changes and open PRs without a local git binary
+- **App mode** -- permanent domain-routed environments for client sites and multi-tenant hosting
 - **Auto cleanup** -- configurable expiry and automatic removal of stale sandboxes
 - **Agent ready** -- scoped WP-CLI and CLAUDE.md support per sandbox
 
 ## How It Works
 
-On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects sandbox context from the incoming request and sets all WordPress constants to point to an isolated sandbox. When no sandbox is active, WordPress boots normally with zero overhead.
+On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects environment context from the incoming request via domain, path prefix, cookie, header, or subdomain and rewires WordPress constants to point to the isolated environment. When no environment is active, WordPress boots normally with zero overhead.
 
 By default, sandboxes use MySQL with an isolated table prefix. Pass `--engine=sqlite` for file-based SQLite isolation, or `--engine=subsite` on multisite installations to create sandboxes as native sub-sites.
 
 Each sandbox is a self-contained directory:
 
 ```
-/sandboxes/sandbox-{id}/
+/wp-content/rudel-environments/{id}/
 ├── .rudel.json       # Sandbox metadata
 ├── wp-cli.yml        # Auto-scopes all WP-CLI commands
 ├── bootstrap.php     # Sets WP constants for this sandbox
@@ -87,7 +90,11 @@ Each sandbox is a self-contained directory:
 └── tmp/              # Sandbox temp directory
 ```
 
+Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` and are reached by their mapped domains instead of a path prefix.
+
 ## WP-CLI Commands
+
+### Sandbox commands
 
 | Command | Description |
 |---------|-------------|
@@ -100,14 +107,34 @@ Each sandbox is a self-contained directory:
 | `wp rudel info <id>` | Show sandbox details |
 | `wp rudel destroy <id>` | Delete a sandbox |
 | `wp rudel status` | Show Rudel status and config |
+| `wp rudel logs <id>` | View or clear a sandbox debug log |
 | `wp rudel snapshot <id> --name=<name>` | Create a snapshot |
 | `wp rudel restore <id> --snapshot=<name>` | Restore from snapshot |
 | `wp rudel export <id> --output=<path>` | Export as zip archive |
 | `wp rudel import <file> --name=<name>` | Import from zip archive |
 | `wp rudel cleanup` | Remove expired sandboxes |
+| `wp rudel promote <id> [--force]` | Replace the host site with a sandbox |
 | `wp rudel template save <id> --name=<name>` | Save sandbox as template |
 | `wp rudel template list` | List templates |
 | `wp rudel template delete <name>` | Delete a template |
+
+### GitHub commands
+
+| Command | Description |
+|---------|-------------|
+| `wp rudel push <id> --github=<repo>` | Push sandbox changes to a GitHub branch |
+| `wp rudel pr <id> [--github=<repo>]` | Create a pull request from a sandbox branch |
+
+### App commands
+
+| Command | Description |
+|---------|-------------|
+| `wp rudel app create --domain=<domain>` | Create a permanent domain-routed app |
+| `wp rudel app list` | List all apps |
+| `wp rudel app info <id>` | Show app details |
+| `wp rudel app destroy <id>` | Delete an app and remove its domain mappings |
+| `wp rudel app domain-add <id> --domain=<domain>` | Add a domain to an app |
+| `wp rudel app domain-remove <id> --domain=<domain>` | Remove a domain from an app |
 
 ## Sandbox Access
 
@@ -123,6 +150,8 @@ Sandboxes can be accessed via:
 The path prefix method works out of the box with no DNS configuration.
 
 Visiting a sandbox URL automatically sets a cookie, so `/wp-admin/` works in sandbox context. Append `?adminExit` to any URL to return to the host.
+
+Apps are accessed directly by their mapped domains with no path prefix or browser cookie.
 
 ## Development
 

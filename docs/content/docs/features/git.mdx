@@ -15,14 +15,14 @@ When you create a sandbox with `--clone-themes` or `--clone-plugins`, Rudel chec
 wp rudel create --name=feature-x --clone-themes --clone-plugins
 ```
 
-If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox gets a worktree at `wp-content/rudel-sandboxes/feature-x-a1b2/wp-content/themes/my-theme` on the `rudel/feature-x-a1b2` branch.
+If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox gets a worktree at `wp-content/rudel-environments/feature-x-a1b2/wp-content/themes/my-theme` on the `rudel/feature-x-a1b2` branch.
 
 ## Working in the sandbox
 
 From the sandbox's theme directory, you're on a regular git branch. You can commit, push, and create pull requests just like any other feature branch.
 
 ```bash
-cd /path/to/sandboxes/feature-x-a1b2/wp-content/themes/my-theme
+cd /path/to/wp-content/rudel-environments/feature-x-a1b2/wp-content/themes/my-theme
 git status
 git add .
 git commit -m "Add new template"

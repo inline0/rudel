@@ -21,7 +21,7 @@ For AI coding agents, Rudel provides the missing piece: a safe, scoped WordPress
 
 **Apps** are permanent, production-grade environments routed by domain. Point `client-a.com` at your WordPress install, create an app for that domain, and it runs as a fully independent site. No multisite overhead, no shared plugin headaches.
 
-Both modes share the same isolation layer: isolated database tables (with a `rudel_` prefix that can never collide with the host), isolated `wp-content`, per-environment authentication salts, object cache namespacing, and email blocking.
+Both modes share the same isolation layer: isolated database tables (with a `rudel_` prefix that can never collide with the host), isolated `wp-content`, per-environment authentication salts, and object cache namespacing. Sandboxes block outbound email by default; apps allow it by default.
 
 ## How it works
 

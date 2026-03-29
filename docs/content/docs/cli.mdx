@@ -26,7 +26,7 @@ Only the WP-CLI command name is affected. Internal identifiers like the `rudel_s
 Create a new sandbox.
 
 ```bash
-wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>]
+wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--type=<type>]
 ```
 
 | Option | Description |
@@ -41,6 +41,7 @@ wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--templat
 | `--clone-uploads` | Copy host uploads into the sandbox |
 | `--clone-all` | Clone everything (database, themes, plugins, uploads) |
 | `--clone-from=<id>` | Clone from an existing sandbox |
+| `--type=<type>` | Content type for `--github` downloads: `theme` (default) or `plugin` |
 
 ```bash
 # Blank sandbox (name auto-generated)
@@ -51,6 +52,9 @@ wp rudel create --name="my-sandbox"
 
 # GitHub worktree: creates branch, downloads repo
 wp rudel create --github=inline0/my-theme
+
+# GitHub plugin checkout
+wp rudel create --github=inline0/my-plugin --type=plugin
 
 # Full clone of host
 wp rudel create --clone-all
@@ -286,7 +290,7 @@ wp rudel template delete <name> [--force]
 Create a new app (permanent domain-routed environment).
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-all]
+wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all]
 ```
 
 | Option | Description |
@@ -294,6 +298,10 @@ wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clo
 | `--domain=<domain>` | Primary domain for the app (required) |
 | `--name=<name>` | Human-readable name (derived from domain if omitted) |
 | `--engine=<engine>` | Database engine: `mysql` (default) or `sqlite` |
+| `--clone-db` | Clone the host database into the app |
+| `--clone-themes` | Copy host themes into the app |
+| `--clone-plugins` | Copy host plugins into the app |
+| `--clone-uploads` | Copy host uploads into the app |
 | `--clone-all` | Clone host database and content |
 
 ### `wp rudel app list`
