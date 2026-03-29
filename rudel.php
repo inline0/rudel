@@ -70,24 +70,36 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }
 
+// Disable outbound email when RUDEL_DISABLE_EMAIL is true. Register this
+// unconditionally so it still works even if environment constants are defined
+// later in the bootstrap lifecycle.
+add_filter(
+	'pre_wp_mail',
+	function ( $null, $atts ) {
+		if ( ! Rudel\Rudel::is_email_disabled() ) {
+			return $null;
+		}
+
+		$to = $atts['to'] ?? '';
+		if ( is_array( $to ) ) {
+			$to = implode( ', ', array_map( 'strval', $to ) );
+		}
+
+		$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
+
+		if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( 'RUDEL_ID' ) ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
+			error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
+		}
+
+		return true;
+	},
+	10,
+	2
+);
+
 // Environment-specific hooks (sandboxes and apps).
 if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
-
-	// Disable outbound email when RUDEL_DISABLE_EMAIL is true.
-	if ( Rudel\Rudel::is_email_disabled() ) {
-		add_filter(
-			'pre_wp_mail',
-			function ( $null, $atts ) {
-				if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
-					error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_ID, $atts['to'], $atts['subject'] ) );
-				}
-				return true;
-			},
-			10,
-			2
-		);
-	}
 
 	// Admin bar indicator for the active environment.
 	add_action(

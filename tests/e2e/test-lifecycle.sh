@@ -204,7 +204,7 @@ echo ""
 echo -e "${BOLD}Verify file permissions${NC}"
 
 for file in bootstrap.php wp-cli.yml CLAUDE.md; do
-    PERMS=$(stat -f "%Lp" "$SANDBOX_PATH/$file" 2>/dev/null || stat -c "%a" "$SANDBOX_PATH/$file" 2>/dev/null)
+    PERMS=$(stat -c "%a" "$SANDBOX_PATH/$file" 2>/dev/null || stat -f "%Lp" "$SANDBOX_PATH/$file" 2>/dev/null)
     if [[ "$PERMS" == "444" ]]; then
         pass "$file is read-only (444)"
     else
@@ -212,7 +212,7 @@ for file in bootstrap.php wp-cli.yml CLAUDE.md; do
     fi
 done
 
-DB_PERMS=$(stat -f "%Lp" "$SANDBOX_PATH/wordpress.db" 2>/dev/null || stat -c "%a" "$SANDBOX_PATH/wordpress.db" 2>/dev/null)
+DB_PERMS=$(stat -c "%a" "$SANDBOX_PATH/wordpress.db" 2>/dev/null || stat -f "%Lp" "$SANDBOX_PATH/wordpress.db" 2>/dev/null)
 if [[ "$DB_PERMS" == "664" ]]; then
     pass "wordpress.db is 664"
 else
