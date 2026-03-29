@@ -1010,7 +1010,7 @@ class EnvironmentManager {
 			return;
 		}
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Updating host activation state after promote.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Updating host activation state after promote.
 		$wpdb->query(
 			$wpdb->prepare(
 				"UPDATE `{$options_table}` SET `option_value` = %s WHERE `option_name` = %s",
@@ -1036,7 +1036,7 @@ class EnvironmentManager {
 			return null;
 		}
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading small options-like tables after promote.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Reading small options-like tables after promote.
 		$rows = $wpdb->get_results( "SELECT * FROM `{$table}` LIMIT 1000 OFFSET 0" );
 		// phpcs:enable
 

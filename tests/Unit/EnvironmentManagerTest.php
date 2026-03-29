@@ -1378,6 +1378,7 @@ class EnvironmentManagerTest extends RudelTestCase
             ['option_id' => '1', 'option_name' => 'siteurl', 'option_value' => 'http://example.com'],
             ['option_id' => '2', 'option_name' => 'home', 'option_value' => 'http://example.com'],
             ['option_id' => '3', 'option_name' => 'blogname', 'option_value' => 'Host Site'],
+            // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WordPress stores active plugins as a serialized PHP array.
             ['option_id' => '4', 'option_name' => 'active_plugins', 'option_value' => serialize(['rudel/rudel.php'])],
         ]);
         $GLOBALS['wpdb'] = $mockWpdb;
@@ -1398,6 +1399,7 @@ class EnvironmentManagerTest extends RudelTestCase
         }
 
         $this->assertNotNull($activePlugins);
+        // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Test inspects the WordPress serialized active_plugins option directly.
         $this->assertContains('rudel/rudel.php', unserialize($activePlugins));
     }
 
