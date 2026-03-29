@@ -45,7 +45,7 @@ class CleanupCommandTest extends RudelTestCase
         $cmd = new \Rudel\CLI\CleanupCommand($manager);
         $cmd([], ['dry-run' => true, 'max-age-days' => '7']);
 
-        $this->assertSame(['dry_run' => true, 'max_age_days' => 7], $manager->cleanupOptions);
+        $this->assertSame(['dry_run' => true, 'max_age_days' => 7, 'max_idle_days' => 0], $manager->cleanupOptions);
         $logOutput = implode("\n", array_filter(\WP_CLI::$log, 'is_string'));
         $this->assertStringContainsString('Would remove 2 sandbox(es)', $logOutput);
         $this->assertStringContainsString('old-a', $logOutput);
