@@ -19,6 +19,12 @@ class AutomationTest extends RudelTestCase
         if (! defined('WP_CONTENT_DIR')) {
             define('WP_CONTENT_DIR', $this->tmpDir);
         }
+        if (! defined('RUDEL_APPS_DIR')) {
+            define('RUDEL_APPS_DIR', $this->tmpDir . '/apps');
+        }
+        if (! defined('RUDEL_ENVIRONMENTS_DIR')) {
+            define('RUDEL_ENVIRONMENTS_DIR', $this->tmpDir . '/sandboxes');
+        }
         if ($withHome && ! defined('WP_HOME')) {
             define('WP_HOME', 'https://host.test');
         }
