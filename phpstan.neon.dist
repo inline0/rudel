@@ -11,6 +11,6 @@ parameters:
 		- vendor/php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
 		- vendor/php-stubs/wp-cli-stubs/wp-cli-tools-stubs.php
 		- vendor/php-stubs/wp-cli-stubs/wp-cli-i18n-stubs.php
-		- lib/sqlite-database-integration/wp-includes/sqlite/class-wp-sqlite-translator.php
+		- phpstan-symbols.php
 	stubFiles:
 		- phpstan-stubs.php
