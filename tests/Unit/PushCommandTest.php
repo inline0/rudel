@@ -122,6 +122,57 @@ class PushCommandTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testPushUsesTrackedBaseBranchFromAppDerivedSandbox(): void
+    {
+        $this->bootstrapWpCli();
+
+        $environment = $this->createEnvironment('push-box', [
+            'github_repo' => 'owner/repo',
+            'github_base_branch' => 'release/2026',
+            'github_dir' => 'themes/my-theme',
+        ]);
+        $fakeGithub = new class extends GitHubIntegration {
+            public array $branchCalls = [];
+
+            public function __construct() {}
+
+            public function create_branch(string $branch, ?string $base_branch = null): void
+            {
+                $this->branchCalls[] = [
+                    'branch' => $branch,
+                    'base_branch' => $base_branch,
+                ];
+            }
+
+            public function push(string $branch, string $local_dir, string $message): ?string
+            {
+                return 'def5678';
+            }
+        };
+
+        $cmd = new class($this->environmentManager($environment), $fakeGithub) extends \Rudel\CLI\PushCommand {
+            public function __construct(\Rudel\EnvironmentManager $manager, private GitHubIntegration $github)
+            {
+                parent::__construct($manager);
+            }
+
+            protected function github(string $repo): GitHubIntegration
+            {
+                return $this->github;
+            }
+        };
+
+        $cmd(['push-box'], []);
+
+        $this->assertSame([[
+            'branch' => 'rudel/push-box',
+            'base_branch' => 'release/2026',
+        ]], $fakeGithub->branchCalls);
+        $this->assertSame(['Pushed to rudel/push-box (def5678)'], \WP_CLI::$successes);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testPushLogsWhenThereAreNoChanges(): void
     {
         $this->bootstrapWpCli();

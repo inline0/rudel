@@ -359,6 +359,52 @@ class AppManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testUpdateAppCanClearTrackedGithubMetadata(): void
+    {
+        $this->defineConstants();
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Clear Git App', ['clear-git.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/client-a-theme',
+            'tracked_github_branch' => 'main',
+            'tracked_github_dir' => 'themes/client-a',
+        ]);
+
+        $updated = $manager->update($app->id, ['clear_github' => true]);
+
+        $this->assertNull($updated->tracked_github_repo);
+        $this->assertNull($updated->tracked_github_branch);
+        $this->assertNull($updated->tracked_github_dir);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateAppFromSandboxInheritsTrackedGithubMetadata(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $sourceApp = $manager->create('Source App', ['source-app.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/source-theme',
+            'tracked_github_branch' => 'release/2026',
+            'tracked_github_dir' => 'themes/source-theme',
+        ]);
+        $sandbox = $manager->create_sandbox($sourceApp->id, 'Source Sandbox');
+
+        $clonedApp = $manager->create('Cloned App', ['cloned-app.com'], [
+            'engine' => 'sqlite',
+            'clone_from' => $sandbox->id,
+        ]);
+
+        $this->assertSame('inline0/source-theme', $clonedApp->tracked_github_repo);
+        $this->assertSame('release/2026', $clonedApp->tracked_github_branch);
+        $this->assertSame('themes/source-theme', $clonedApp->tracked_github_dir);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testDeployRecordsLineageOnApp(): void
     {
         $this->defineConstants();

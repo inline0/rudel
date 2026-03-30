@@ -158,6 +158,47 @@ class AppCommandTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testUpdateCanClearTrackedGithubMetadata(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], [
+            'domain' => 'clear-git-app.com',
+            'engine' => 'sqlite',
+            'github' => 'inline0/client-a-theme',
+            'branch' => 'main',
+            'dir' => 'themes/client-a',
+        ]);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->update([$appId], ['clear-github' => true]);
+
+        $manager = new \Rudel\AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->get($appId);
+
+        $this->assertCount(1, \WP_CLI::$successes);
+        $this->assertNull($app->tracked_github_repo);
+        $this->assertNull($app->tracked_github_branch);
+        $this->assertNull($app->tracked_github_dir);
+        $this->assertContains('  GitHub:    -', array_filter(\WP_CLI::$log, fn($m) => is_string($m)));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateRejectsClearGithubCombinedWithExplicitGitArgs(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['domain' => 'clear-git-error.com', 'engine' => 'sqlite']);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Cannot combine --clear-github with --github, --branch, or --dir.');
+        $cmd->update([$appId], ['clear-github' => true, 'github' => 'inline0/client-a-theme']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testBackupAndRestoreReportSuccess(): void
     {
         $cmd = $this->createCommand();

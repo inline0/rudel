@@ -18,6 +18,8 @@ abstract class RudelTestCase extends TestCase
         parent::setUp();
         $GLOBALS['rudel_test_actions'] = [];
         $GLOBALS['rudel_test_filters'] = [];
+        $GLOBALS['rudel_test_action_callbacks'] = [];
+        $GLOBALS['rudel_test_filter_callbacks'] = [];
         $this->tmpDir = RUDEL_TEST_TMPDIR . '/' . uniqid('test-');
         mkdir($this->tmpDir, 0755, true);
     }

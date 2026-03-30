@@ -26,11 +26,19 @@ if ( ! function_exists( 'do_action' ) ) {
 			'hook' => $hook,
 			'args' => $args,
 		);
+
+		foreach ( $GLOBALS['rudel_test_action_callbacks'][ $hook ] ?? array() as $callback ) {
+			$callback( ...$args );
+		}
 	}
 }
 
 if ( ! function_exists( 'apply_filters' ) ) {
 	function apply_filters( string $hook, $value, ...$args ) {
+		foreach ( $GLOBALS['rudel_test_filter_callbacks'][ $hook ] ?? array() as $callback ) {
+			$value = $callback( $value, ...$args );
+		}
+
 		$GLOBALS['rudel_test_filters'][] = array(
 			'hook'  => $hook,
 			'value' => $value,
@@ -38,6 +46,18 @@ if ( ! function_exists( 'apply_filters' ) ) {
 		);
 
 		return $value;
+	}
+}
+
+if ( ! function_exists( 'add_action' ) ) {
+	function add_action( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): void {
+		$GLOBALS['rudel_test_action_callbacks'][ $hook ][] = $callback;
+	}
+}
+
+if ( ! function_exists( 'add_filter' ) ) {
+	function add_filter( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): void {
+		$GLOBALS['rudel_test_filter_callbacks'][ $hook ][] = $callback;
 	}
 }
 

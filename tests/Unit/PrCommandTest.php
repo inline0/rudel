@@ -103,6 +103,51 @@ class PrCommandTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testPrUsesTrackedBaseBranchFromAppDerivedSandbox(): void
+    {
+        $this->bootstrapWpCli();
+
+        $environment = $this->createEnvironment('pr-box', [
+            'github_repo' => 'owner/repo',
+            'github_base_branch' => 'release/2026',
+        ]);
+        $fakeGithub = new class extends GitHubIntegration {
+            public array $prCalls = [];
+
+            public function __construct() {}
+
+            public function create_pr(string $branch, string $title, string $body = '', ?string $base_branch = null): array
+            {
+                $this->prCalls[] = compact('branch', 'title', 'body', 'base_branch');
+
+                return [
+                    'number' => 9,
+                    'url' => 'https://api.github.test/repos/owner/repo/pulls/9',
+                    'html_url' => 'https://github.test/owner/repo/pull/9',
+                ];
+            }
+        };
+
+        $cmd = new class($this->environmentManager($environment), $fakeGithub) extends \Rudel\CLI\PrCommand {
+            public function __construct(\Rudel\EnvironmentManager $manager, private GitHubIntegration $github)
+            {
+                parent::__construct($manager);
+            }
+
+            protected function github(string $repo): GitHubIntegration
+            {
+                return $this->github;
+            }
+        };
+
+        $cmd(['pr-box'], []);
+
+        $this->assertSame('release/2026', $fakeGithub->prCalls[0]['base_branch']);
+        $this->assertSame(['PR #9 created: https://github.test/owner/repo/pull/9'], \WP_CLI::$successes);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testPrAcceptsCustomTitleAndBody(): void
     {
         $this->bootstrapWpCli();

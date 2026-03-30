@@ -25,6 +25,16 @@ class LifecycleHooksTest extends RudelTestCase
         );
     }
 
+    private function filterEntries(string $hook): array
+    {
+        return array_values(
+            array_filter(
+                $GLOBALS['rudel_test_filters'] ?? [],
+                static fn(array $entry): bool => $hook === $entry['hook']
+            )
+        );
+    }
+
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
     public function testEnvironmentCreateAndDestroyEmitLifecycleHooks(): void
@@ -67,5 +77,57 @@ class LifecycleHooksTest extends RudelTestCase
         $this->assertContains('rudel_after_app_deploy', $hooks);
         $this->assertContains('rudel_before_environment_replace_state', $hooks);
         $this->assertContains('rudel_after_environment_replace_state', $hooks);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testAppDeployHooksExposeContextAndRespectFilteredOptions(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Deploy Hook App', ['deploy-hook-app.com'], ['engine' => 'sqlite']);
+        $sandbox = $manager->create_sandbox($app->id, 'Deploy Hook Sandbox');
+
+        $afterResult = null;
+        $afterContext = null;
+
+        add_filter(
+            'rudel_app_deploy_options',
+            function (array $options, \Rudel\Environment $filterApp, \Rudel\Environment $filterSandbox, AppManager $filterManager): array use ($app, $sandbox, $manager) {
+                $this->assertSame($app->id, $filterApp->id);
+                $this->assertSame($sandbox->id, $filterSandbox->id);
+                $this->assertSame($manager, $filterManager);
+
+                $options['label'] = 'Filtered deploy label';
+                $options['notes'] = 'Filtered deploy notes';
+                return $options;
+            },
+            10,
+            4
+        );
+
+        add_action(
+            'rudel_after_app_deploy',
+            function (array $result, array $context) use (&$afterResult, &$afterContext): void {
+                $afterResult = $result;
+                $afterContext = $context;
+            },
+            10,
+            2
+        );
+
+        $result = $manager->deploy($app->id, $sandbox->id, 'pre-deploy');
+
+        $filterEntries = $this->filterEntries('rudel_app_deploy_options');
+
+        $this->assertCount(1, $filterEntries);
+        $this->assertSame('Filtered deploy label', $result['deployment']['label']);
+        $this->assertSame('Filtered deploy notes', $result['deployment']['notes']);
+        $this->assertSame($result['deployment']['id'], $afterResult['deployment']['id']);
+        $this->assertSame($app->id, $afterContext['app']->id);
+        $this->assertSame($sandbox->id, $afterContext['sandbox']->id);
+        $this->assertSame('Filtered deploy label', $filterEntries[0]['value']['label']);
     }
 }
