@@ -375,14 +375,14 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * @when after_wp_load
 	 */
 	public function status( $args, $assoc_args ): void {
-		$writer       = new \Rudel\ConfigWriter();
-		$sandboxes    = $this->manager->list();
-		$apps         = ( new \Rudel\AppManager() )->list();
-		$config       = new RudelConfig();
-		$sqlite_path  = defined( 'RUDEL_PLUGIN_DIR' )
+		$writer         = new \Rudel\ConfigWriter();
+		$sandboxes      = $this->manager->list();
+		$apps           = ( new \Rudel\AppManager() )->list();
+		$config         = new RudelConfig();
+		$sqlite_path    = defined( 'RUDEL_PLUGIN_DIR' )
 			? RUDEL_PLUGIN_DIR . 'lib/sqlite-database-integration'
 			: dirname( __DIR__ ) . '/lib/sqlite-database-integration';
-		$automation_on = $config->get( 'auto_cleanup_enabled' ) > 0
+		$automation_on  = $config->get( 'auto_cleanup_enabled' ) > 0
 			|| $config->get( 'auto_cleanup_merged' ) > 0
 			|| $config->get( 'auto_app_backups_enabled' ) > 0
 			|| $config->get( 'auto_app_backup_retention_count' ) > 0

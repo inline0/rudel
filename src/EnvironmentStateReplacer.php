@@ -84,29 +84,55 @@ class EnvironmentStateReplacer {
 	 * @return void
 	 */
 	private function replace_sqlite_environment_state( Environment $source, Environment $target ): void {
-		$content_source = $source->get_db_path();
-		$content_target = $target->get_db_path();
+		$source_db = $source->get_db_path();
+		$target_db = $target->get_db_path();
 
-		if ( ! $content_source || ! $content_target ) {
+		if ( ! $source_db || ! $target_db ) {
 			throw new \RuntimeException( 'SQLite environment replacement requires both source and target databases.' );
 		}
 
-		if ( file_exists( $content_target ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Replacing isolated SQLite database file.
-			unlink( $content_target );
+		$tmp_db = $target->path . '/tmp/' . $target->id . '-replace.db';
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Replacing isolated SQLite database through a temporary file.
+		if ( ! copy( $source_db, $tmp_db ) ) {
+			throw new \RuntimeException( sprintf( 'Failed to copy SQLite database from source environment: %s', $source->id ) );
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Replacing isolated SQLite database file.
-		copy( $content_source, $content_target );
+		$source_prefix = $source->get_table_prefix();
+		$target_prefix = $target->get_table_prefix();
+		$source_url    = $this->environment_site_url( $source );
+		$target_url    = $this->environment_site_url( $target );
+
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO access is required for isolated file rewriting.
+		$pdo = new \PDO( 'sqlite:' . $tmp_db );
+		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+		// phpcs:enable
 
 		$cloner = new DatabaseCloner();
-		$cloner->rewrite_runtime_identifiers(
-			$content_target,
-			$target->get_table_prefix(),
-			$this->environment_site_url( $source ),
-			$this->environment_site_url( $target ),
-			$source->get_table_prefix()
-		);
+		$cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $target_url );
+
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO access is required for isolated table renaming.
+		$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
+			->fetchAll( \PDO::FETCH_COLUMN );
+		// phpcs:enable
+
+		foreach ( $tables as $old_table ) {
+			$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
+			$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
+		}
+
+		$cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
+		$pdo = null;
+
+		if ( file_exists( $target_db ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Replacing isolated SQLite database file.
+			unlink( $target_db );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Promoting rewritten SQLite database into place.
+		rename( $tmp_db, $target_db );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Matching generated database permissions.
+		chmod( $target_db, 0664 );
 	}
 
 	/**
