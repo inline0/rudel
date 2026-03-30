@@ -429,7 +429,7 @@ else
 fi
 
 # After exit, /wp-admin/ should load the host (not sandbox).
-ADMIN_HOST=$(curl -s -L "http://localhost:8888/wp-admin/" | head -50)
+ADMIN_HOST=$(curl -s -L "http://localhost:8888/wp-admin/" | sed -n '1,50p')
 if ! echo "$ADMIN_HOST" | grep -qi "Alpha Site"; then
     pass "wp-admin shows host after exit (not sandbox)"
 else
