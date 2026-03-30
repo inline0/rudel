@@ -95,7 +95,7 @@ class LifecycleHooksTest extends RudelTestCase
 
         add_filter(
             'rudel_app_deploy_options',
-            function (array $options, \Rudel\Environment $filterApp, \Rudel\Environment $filterSandbox, AppManager $filterManager): array use ($app, $sandbox, $manager) {
+            function (array $options, \Rudel\Environment $filterApp, \Rudel\Environment $filterSandbox, AppManager $filterManager) use ($app, $sandbox, $manager): array {
                 $this->assertSame($app->id, $filterApp->id);
                 $this->assertSame($sandbox->id, $filterSandbox->id);
                 $this->assertSame($manager, $filterManager);
