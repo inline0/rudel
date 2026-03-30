@@ -71,6 +71,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException|\RuntimeException If the sandbox identifier is missing or the sandbox does not exist.
 	 */
 	public static function sandbox_destroy( array $args, array $assoc_args ): array {
 		$id      = self::required_positional( $args, 0, 'id' );
@@ -97,6 +99,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException If no updateable fields were provided or the sandbox identifier is missing.
 	 */
 	public static function sandbox_update( array $args, array $assoc_args ): array {
 		$changes = self::policy_changes( $assoc_args );
@@ -197,6 +201,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException|\RuntimeException If the sandbox identifier is missing or the sandbox does not exist.
 	 */
 	public static function sandbox_logs( array $args, array $assoc_args ): array {
 		$id      = self::required_positional( $args, 0, 'id' );
@@ -433,6 +439,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException|\RuntimeException If the app identifier is missing or the app does not exist.
 	 */
 	public static function app_destroy( array $args, array $assoc_args ): array {
 		$id    = self::required_positional( $args, 0, 'id' );
@@ -463,6 +471,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException If no updateable fields were provided or the app identifier is missing.
 	 */
 	public static function app_update( array $args, array $assoc_args ): array {
 		$changes = array_merge(
@@ -489,6 +499,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException|\RuntimeException If the app identifier is missing or the source app does not exist.
 	 */
 	public static function app_create_sandbox( array $args, array $assoc_args ): array {
 		$id  = self::required_positional( $args, 0, 'id' );
@@ -563,6 +575,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException|\RuntimeException If the app identifier or backup name is missing, or the app does not exist.
 	 */
 	public static function app_restore( array $args, array $assoc_args ): array {
 		$id    = self::required_positional( $args, 0, 'id' );
@@ -591,6 +605,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException|\RuntimeException If the app identifier or source sandbox is missing, or the app does not exist.
 	 */
 	public static function app_deploy( array $args, array $assoc_args ): array {
 		$id         = self::required_positional( $args, 0, 'id' );
@@ -629,6 +645,8 @@ class CliCommandAdapters {
 	 * @param array<int, string>   $args Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException|\RuntimeException If the app identifier or deployment identifier is missing, or the app does not exist.
 	 */
 	public static function app_rollback( array $args, array $assoc_args ): array {
 		$id            = self::required_positional( $args, 0, 'id' );
@@ -686,8 +704,8 @@ class CliCommandAdapters {
 	/**
 	 * Create a PHP execution plan.
 	 *
-	 * @param string              $callable Public callable string.
-	 * @param array<int, mixed>   $arguments Normalized callable arguments.
+	 * @param string               $callable Public callable string.
+	 * @param array<int, mixed>    $arguments Normalized callable arguments.
 	 * @param array<string, mixed> $extra Optional metadata.
 	 * @return array<string, mixed>
 	 */
@@ -730,6 +748,8 @@ class CliCommandAdapters {
 	 * @param int                $index Argument index.
 	 * @param string             $name Human-readable argument name.
 	 * @return string
+	 *
+	 * @throws \InvalidArgumentException If the requested argument is missing or blank.
 	 */
 	private static function required_positional( array $args, int $index, string $name ): string {
 		if ( ! array_key_exists( $index, $args ) || '' === trim( (string) $args[ $index ] ) ) {
@@ -745,6 +765,8 @@ class CliCommandAdapters {
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @param string               $name Argument name.
 	 * @return string
+	 *
+	 * @throws \InvalidArgumentException If the requested argument is missing or blank.
 	 */
 	private static function required_assoc( array $assoc_args, string $name ): string {
 		$value = self::optional_assoc( $assoc_args, $name );
@@ -815,6 +837,8 @@ class CliCommandAdapters {
 	 *
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException If mutually exclusive expiry or protection flags are combined.
 	 */
 	private static function policy_changes( array $assoc_args ): array {
 		$changes = array();
@@ -864,6 +888,8 @@ class CliCommandAdapters {
 	 *
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException If incompatible tracking flags are combined.
 	 */
 	private static function git_tracking_changes( array $assoc_args ): array {
 		$changes = array();

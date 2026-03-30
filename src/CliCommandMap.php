@@ -53,6 +53,9 @@ class CliCommandMap {
 	 * @param array<int, string>        $args Positional arguments.
 	 * @param array<string, mixed>      $assoc_args Associative arguments.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \InvalidArgumentException If the CLI path is not part of the published command surface.
+	 * @throws \RuntimeException If the command adapter does not return a valid execution plan.
 	 */
 	public static function resolve( $path, array $args = array(), array $assoc_args = array() ): array {
 		$definition = self::definition( $path );
@@ -95,7 +98,7 @@ class CliCommandMap {
 		$definitions = array();
 
 		foreach ( self::raw_definitions() as $definition ) {
-			$definition['wp_cli_command'] = 'wp ' . Rudel::cli_command() . ' ' . self::path_key( $definition['cli_path'] );
+			$definition['wp_cli_command']                             = 'wp ' . Rudel::cli_command() . ' ' . self::path_key( $definition['cli_path'] );
 			$definitions[ self::path_key( $definition['cli_path'] ) ] = $definition;
 		}
 
@@ -583,13 +586,13 @@ class CliCommandMap {
 	/**
 	 * Build one definition record.
 	 *
-	 * @param string                   $operation Stable operation identifier.
-	 * @param array<int, string>       $cli_path Relative command path below the root command.
-	 * @param string                   $handler_class WP-CLI command class.
-	 * @param string                   $handler_method Method or __invoke target.
+	 * @param string                            $operation Stable operation identifier.
+	 * @param array<int, string>                $cli_path Relative command path below the root command.
+	 * @param string                            $handler_class WP-CLI command class.
+	 * @param string                            $handler_method Method or __invoke target.
 	 * @param array<int, array<string, string>> $targets Potential execution targets.
-	 * @param string                   $adapter Adapter callable.
-	 * @param string                   $summary Short intent summary.
+	 * @param string                            $adapter Adapter callable.
+	 * @param string                            $summary Short intent summary.
 	 * @return array<string, mixed>
 	 */
 	private static function definition_item( string $operation, array $cli_path, string $handler_class, string $handler_method, array $targets, string $adapter, string $summary ): array {
@@ -614,7 +617,10 @@ class CliCommandMap {
 	 */
 	private static function normalize_path( $path ): array {
 		if ( is_string( $path ) ) {
-			$path = preg_split( '/\s+/', trim( $path ) ) ?: array();
+			$path = preg_split( '/\s+/', trim( $path ) );
+			if ( false === $path ) {
+				$path = array();
+			}
 		}
 
 		$path = array_values(

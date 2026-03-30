@@ -320,6 +320,8 @@ class Rudel {
 	 * @param string $repo GitHub repository in owner/repo format.
 	 * @param array  $options Sandbox create options plus optional 'name' and 'type'.
 	 * @return array{environment: Environment, github: array{repo: string, branch: string, branch_created: bool, repo_name: string, content_type: string, download_dir: string, downloaded_files: int, error: string|null}}
+	 *
+	 * @throws \RuntimeException If sandbox creation fails before the GitHub bootstrap step can run.
 	 */
 	public static function create_from_github( string $repo, array $options = array() ): array {
 		$name         = isset( $options['name'] ) ? (string) $options['name'] : basename( $repo );
@@ -356,8 +358,8 @@ class Rudel {
 				}
 			}
 
-			$type_dir     = 'plugin' === $content_type ? 'plugins' : 'themes';
-			$download_dir = $sandbox->get_wp_content_path() . '/' . $type_dir . '/' . $repo_name;
+			$type_dir                         = 'plugin' === $content_type ? 'plugins' : 'themes';
+			$download_dir                     = $sandbox->get_wp_content_path() . '/' . $type_dir . '/' . $repo_name;
 			$result['github']['download_dir'] = $download_dir;
 
 			if ( ! is_dir( $download_dir ) ) {
@@ -733,6 +735,8 @@ class Rudel {
 	 * @param string $sandbox_id Sandbox identifier.
 	 * @param int    $lines Number of lines to return from the end of the log.
 	 * @return array{path: string, exists: bool, empty: bool, total_lines: int, lines: array<int, string>}
+	 *
+	 * @throws \RuntimeException If the sandbox does not exist.
 	 */
 	public static function read_log( string $sandbox_id, int $lines = 50 ): array {
 		$sandbox = self::get( $sandbox_id );
@@ -779,6 +783,8 @@ class Rudel {
 	 *
 	 * @param string $sandbox_id Sandbox identifier.
 	 * @return array{path: string, existed: bool, cleared: bool}
+	 *
+	 * @throws \RuntimeException If the sandbox does not exist.
 	 */
 	public static function clear_log( string $sandbox_id ): array {
 		$sandbox = self::get( $sandbox_id );
@@ -858,9 +864,11 @@ class Rudel {
 	 * Save a sandbox as a reusable template.
 	 *
 	 * @param string $sandbox_id Sandbox identifier.
-	 * @param string $name Template name.
+	 * @param string $name       Template name.
 	 * @param string $description Optional description.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \RuntimeException If the sandbox does not exist.
 	 */
 	public static function save_template( string $sandbox_id, string $name, string $description = '' ): array {
 		$sandbox = self::get( $sandbox_id );
