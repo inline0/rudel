@@ -312,6 +312,73 @@ class Rudel {
 	}
 
 	/**
+	 * Create a sandbox and seed it from a GitHub repository in one step.
+	 *
+	 * The CLI treats sandbox creation as successful even if the GitHub download fails,
+	 * so this method returns both the sandbox and any GitHub error instead of rolling the sandbox back.
+	 *
+	 * @param string $repo GitHub repository in owner/repo format.
+	 * @param array  $options Sandbox create options plus optional 'name' and 'type'.
+	 * @return array{environment: Environment, github: array{repo: string, branch: string, branch_created: bool, repo_name: string, content_type: string, download_dir: string, downloaded_files: int, error: string|null}}
+	 */
+	public static function create_from_github( string $repo, array $options = array() ): array {
+		$name         = isset( $options['name'] ) ? (string) $options['name'] : basename( $repo );
+		$content_type = isset( $options['type'] ) ? (string) $options['type'] : 'theme';
+		unset( $options['name'], $options['type'] );
+
+		$sandbox = self::create( $name, $options );
+		$branch  = $sandbox->get_git_branch();
+
+		$result = array(
+			'environment' => $sandbox,
+			'github'      => array(
+				'repo'             => $repo,
+				'branch'           => $branch,
+				'branch_created'   => false,
+				'repo_name'        => basename( $repo ),
+				'content_type'     => $content_type,
+				'download_dir'     => '',
+				'downloaded_files' => 0,
+				'error'            => null,
+			),
+		);
+
+		try {
+			$github    = new GitHubIntegration( $repo );
+			$repo_name = basename( $repo );
+
+			try {
+				$github->create_branch( $branch );
+				$result['github']['branch_created'] = true;
+			} catch ( \RuntimeException $e ) {
+				if ( ! str_contains( $e->getMessage(), 'Reference already exists' ) ) {
+					throw $e;
+				}
+			}
+
+			$type_dir     = 'plugin' === $content_type ? 'plugins' : 'themes';
+			$download_dir = $sandbox->get_wp_content_path() . '/' . $type_dir . '/' . $repo_name;
+			$result['github']['download_dir'] = $download_dir;
+
+			if ( ! is_dir( $download_dir ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- GitHub checkouts create their own target tree.
+				mkdir( $download_dir, 0755, true );
+			}
+
+			$result['github']['downloaded_files'] = $github->download( $branch, $download_dir );
+
+			$clone_source                = $sandbox->clone_source ?? array();
+			$clone_source['github_repo'] = $repo;
+			$clone_source['github_dir']  = $type_dir . '/' . $repo_name;
+			$sandbox->update_meta( 'clone_source', $clone_source );
+		} catch ( \Throwable $e ) {
+			$result['github']['error'] = $e->getMessage();
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Destroy a sandbox by ID.
 	 *
 	 * @param string $id Sandbox identifier.
@@ -337,7 +404,7 @@ class Rudel {
 	 *
 	 * @param string $id         Sandbox identifier.
 	 * @param string $backup_dir Directory to store the host backup.
-	 * @return array{backup_path: string, tables_copied: int} Promotion results.
+	 * @return array{backup_path: string, backup_prefix: string, tables_copied: int} Promotion results.
 	 *
 	 * @throws \RuntimeException If the sandbox is not found or promotion fails.
 	 */
@@ -465,6 +532,28 @@ class Rudel {
 	}
 
 	/**
+	 * Add one domain to an app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $domain Domain to add.
+	 * @return void
+	 */
+	public static function add_app_domain( string $app_id, string $domain ): void {
+		self::app_manager()->add_domain( $app_id, $domain );
+	}
+
+	/**
+	 * Remove one domain from an app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $domain Domain to remove.
+	 * @return void
+	 */
+	public static function remove_app_domain( string $app_id, string $domain ): void {
+		self::app_manager()->remove_domain( $app_id, $domain );
+	}
+
+	/**
 	 * Create a backup of an app.
 	 *
 	 * @param string $app_id App identifier.
@@ -565,6 +654,59 @@ class Rudel {
 	}
 
 	/**
+	 * Summarize runtime status in a machine-friendly shape.
+	 *
+	 * @return array<string, bool|int|string|null>
+	 */
+	public static function status(): array {
+		$writer        = new ConfigWriter();
+		$config        = new RudelConfig();
+		$sqlite_path   = defined( 'RUDEL_PLUGIN_DIR' )
+			? RUDEL_PLUGIN_DIR . 'lib/sqlite-database-integration'
+			: dirname( __DIR__ ) . '/lib/sqlite-database-integration';
+		$automation_on = $config->get( 'auto_cleanup_enabled' ) > 0
+			|| $config->get( 'auto_cleanup_merged' ) > 0
+			|| $config->get( 'auto_app_backups_enabled' ) > 0
+			|| $config->get( 'auto_app_backup_retention_count' ) > 0
+			|| $config->get( 'auto_app_deployment_retention_count' ) > 0
+			|| $config->get( 'expiring_environment_notice_days' ) > 0;
+		$type          = self::is_app() ? 'app' : ( self::is_sandbox() ? 'sandbox' : 'none' );
+		$bootstrap_ok  = false;
+
+		try {
+			$bootstrap_ok = $writer->is_installed();
+		} catch ( \RuntimeException $e ) {
+			$bootstrap_ok = false;
+		}
+
+		return array(
+			'bootstrap_installed'                 => $bootstrap_ok,
+			'current_environment_id'              => self::environment_id(),
+			'current_environment_type'            => $type,
+			'sandboxes_directory'                 => self::environments_dir(),
+			'active_sandboxes'                    => count( self::all() ),
+			'active_apps'                         => count( self::apps() ),
+			'config_file'                         => $config->get_config_path(),
+			'default_ttl_days'                    => $config->get( 'default_ttl_days' ),
+			'max_age_days'                        => $config->get( 'max_age_days' ),
+			'max_idle_days'                       => $config->get( 'max_idle_days' ),
+			'auto_cleanup'                        => $config->get( 'auto_cleanup_enabled' ) > 0,
+			'auto_cleanup_merged'                 => $config->get( 'auto_cleanup_merged' ) > 0,
+			'auto_app_backups'                    => $config->get( 'auto_app_backups_enabled' ) > 0,
+			'auto_app_backup_interval_hours'      => $config->get( 'auto_app_backup_interval_hours' ),
+			'auto_app_backup_retention_count'     => $config->get( 'auto_app_backup_retention_count' ),
+			'auto_app_deployment_retention_count' => $config->get( 'auto_app_deployment_retention_count' ),
+			'expiring_environment_notice_days'    => $config->get( 'expiring_environment_notice_days' ),
+			'automation_scheduled'                => $automation_on,
+			'multisite'                           => function_exists( 'is_multisite' ) && is_multisite(),
+			'sqlite_integration'                  => is_dir( $sqlite_path ),
+			'php_version'                         => PHP_VERSION,
+			'sqlite3_loaded'                      => extension_loaded( 'sqlite3' ),
+			'pdo_sqlite_loaded'                   => extension_loaded( 'pdo_sqlite' ),
+		);
+	}
+
+	/**
 	 * Record activity for the current environment.
 	 *
 	 * @return void
@@ -583,6 +725,80 @@ class Rudel {
 		if ( $environment ) {
 			$environment->touch_last_used();
 		}
+	}
+
+	/**
+	 * Read the tail of a sandbox debug log.
+	 *
+	 * @param string $sandbox_id Sandbox identifier.
+	 * @param int    $lines Number of lines to return from the end of the log.
+	 * @return array{path: string, exists: bool, empty: bool, total_lines: int, lines: array<int, string>}
+	 */
+	public static function read_log( string $sandbox_id, int $lines = 50 ): array {
+		$sandbox = self::get( $sandbox_id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		}
+
+		$log_path = $sandbox->get_wp_content_path() . '/debug.log';
+		if ( ! file_exists( $log_path ) ) {
+			return array(
+				'path'        => $log_path,
+				'exists'      => false,
+				'empty'       => true,
+				'total_lines' => 0,
+				'lines'       => array(),
+			);
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading one sandbox-local debug log.
+		$content = file_get_contents( $log_path );
+		if ( '' === $content ) {
+			return array(
+				'path'        => $log_path,
+				'exists'      => true,
+				'empty'       => true,
+				'total_lines' => 0,
+				'lines'       => array(),
+			);
+		}
+
+		$all_lines = explode( "\n", rtrim( $content, "\n" ) );
+
+		return array(
+			'path'        => $log_path,
+			'exists'      => true,
+			'empty'       => false,
+			'total_lines' => count( $all_lines ),
+			'lines'       => array_slice( $all_lines, -$lines ),
+		);
+	}
+
+	/**
+	 * Clear a sandbox debug log without deleting the file path the runtime expects.
+	 *
+	 * @param string $sandbox_id Sandbox identifier.
+	 * @return array{path: string, existed: bool, cleared: bool}
+	 */
+	public static function clear_log( string $sandbox_id ): array {
+		$sandbox = self::get( $sandbox_id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		}
+
+		$log_path = $sandbox->get_wp_content_path() . '/debug.log';
+		$existed  = file_exists( $log_path );
+
+		if ( $existed ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Clearing one sandbox-local debug log.
+			file_put_contents( $log_path, '' );
+		}
+
+		return array(
+			'path'    => $log_path,
+			'existed' => $existed,
+			'cleared' => $existed,
+		);
 	}
 
 	/**
@@ -636,6 +852,45 @@ class Rudel {
 		}
 		$snap_manager = new SnapshotManager( $sandbox );
 		return $snap_manager->list_snapshots();
+	}
+
+	/**
+	 * Save a sandbox as a reusable template.
+	 *
+	 * @param string $sandbox_id Sandbox identifier.
+	 * @param string $name Template name.
+	 * @param string $description Optional description.
+	 * @return array<string, mixed>
+	 */
+	public static function save_template( string $sandbox_id, string $name, string $description = '' ): array {
+		$sandbox = self::get( $sandbox_id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		}
+
+		$template_manager = new TemplateManager();
+		return $template_manager->save( $sandbox, $name, $description );
+	}
+
+	/**
+	 * List saved templates.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function templates(): array {
+		$template_manager = new TemplateManager();
+		return $template_manager->list_templates();
+	}
+
+	/**
+	 * Delete one saved template.
+	 *
+	 * @param string $name Template name.
+	 * @return bool
+	 */
+	public static function delete_template( string $name ): bool {
+		$template_manager = new TemplateManager();
+		return $template_manager->delete( $name );
 	}
 
 	/**
@@ -730,6 +985,10 @@ class Rudel {
 				$local_dir .= '/' . ltrim( $subdir, '/' );
 			}
 
+			if ( ! is_dir( $local_dir ) ) {
+				throw new \RuntimeException( sprintf( 'Directory not found: %s', $local_dir ) );
+			}
+
 			$sha = $github->push( $branch, $local_dir, $message );
 
 			// Remember the repo after the first successful push so later calls can omit it.
@@ -793,5 +1052,26 @@ class Rudel {
 			Hooks::action( 'rudel_environment_pr_failed', $context, $e );
 			throw $e;
 		}
+	}
+
+	/**
+	 * Expose the serializable CLI command catalog for agent harnesses.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function cli_command_map(): array {
+		return CliCommandMap::definitions();
+	}
+
+	/**
+	 * Resolve one parsed CLI command into the PHP or shell plan the harness should execute.
+	 *
+	 * @param string|array<int, string> $path Command path with or without "wp" and the root command.
+	 * @param array<int, string>        $args Positional arguments.
+	 * @param array<string, mixed>      $assoc_args Associative arguments.
+	 * @return array<string, mixed>
+	 */
+	public static function resolve_cli_command( $path, array $args = array(), array $assoc_args = array() ): array {
+		return CliCommandMap::resolve( $path, $args, $assoc_args );
 	}
 }

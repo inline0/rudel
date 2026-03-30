@@ -506,6 +506,44 @@ echo $hooks['rudel_app_deploy_plan']['type']; // 'filter'
 
 Rudel now exposes first-party lifecycle hooks around environment, app, recovery, deploy, GitHub, and automation operations. These are standard WordPress actions and filters, and `Rudel::hooks()` / `HookCatalog::all()` expose the documented contract directly.
 
+## CLI bridge
+
+### `Rudel::cli_command_map()`
+
+Returns the serializable Rudel CLI catalog for harnesses that need to understand the shipped command surface without scraping WP-CLI classes.
+
+Each entry includes:
+- a stable operation ID
+- the relative CLI path
+- the WP-CLI handler class and method
+- the possible execution targets
+- the adapter that normalizes raw CLI args into an execution plan
+
+### `Rudel::resolve_cli_command( $path, $args, $assoc_args )`
+
+Turns a parsed CLI invocation into the execution plan the harness should run.
+
+```php
+$plan = Rudel::resolve_cli_command(
+    [ 'app', 'deploy' ],
+    [ 'client-a-com-a1b2' ],
+    [
+        'from'    => 'client-a-feature-b2c3',
+        'dry-run' => true,
+        'label'   => 'QA',
+    ]
+);
+
+echo $plan['callable'];   // Rudel\Rudel::plan_app_deploy
+print_r( $plan['arguments'] );
+```
+
+Execution plans are intentionally transport-aware:
+- most commands resolve to a public PHP callable and normalized arguments
+- commands that need a real shell primitive, such as `wp rudel logs --follow`, resolve to a shell transport plan instead of pretending they are pure PHP calls
+
+This is the standard Rudel uses for agent harnesses: stable operation ID, public API target, and adapter-owned normalization for CLI-only concerns like `--clone-all`, `--dry-run`, default naming, and confirmation requirements.
+
 Examples:
 
 - `rudel_before_environment_create`

@@ -61,6 +61,8 @@ rudel/
 │   ├── GitIntegration.php
 │   ├── GitHubIntegration.php
 │   ├── Environment.php
+│   ├── CliCommandMap.php          # Serializable CLI-to-PHP command catalog for harnesses
+│   ├── CliCommandAdapters.php     # CLI argument normalization into execution plans
 │   ├── Rudel.php
 │   ├── RudelConfig.php
 │   └── SubsiteCloner.php
@@ -109,7 +111,15 @@ Define these in `wp-config.php` before Rudel bootstraps. Path and directory cons
 4. Filesystem state is the source of truth. Environment directories, `.rudel.json`, `domains.json`, and snapshot files matter more than in-memory bookkeeping.
 5. Never modify `lib/`. Treat it as bundled external code.
 6. When behavior changes, keep CLI help, docs, and tests aligned with the shipped command surface.
-7. Keep PHPStan green for `src/` and `cli/`; if inference is too weak at a dynamic boundary, tighten the contract or isolate the boundary instead of muting the error.
+7. Keep `CliCommandMap` and `CliCommandAdapters` aligned with the real CLI surface. New or changed commands need a stable operation ID, a public API target, and resolver coverage.
+8. Keep PHPStan green for `src/` and `cli/`; if inference is too weak at a dynamic boundary, tighten the contract or isolate the boundary instead of muting the error.
+
+## Harness Contract
+
+- `Rudel::cli_command_map()` exposes the serializable command catalog another harness can inspect.
+- `Rudel::resolve_cli_command( $path, $args, $assoc_args )` turns parsed CLI input into an execution plan.
+- Execution plans must prefer public PHP callables. Only shell-only behavior, such as `tail -f`, should resolve to a shell transport.
+- Adapters own CLI-only normalization like default names, `--clone-all`, `--dry-run`, or confirmation requirements so the same behavior is reusable outside WP-CLI.
 
 ## WP-CLI Surface
 
