@@ -1,7 +1,11 @@
 <?php
 
 if ( ! class_exists( 'WP_Error' ) ) {
-	class WP_Error {}
+	class WP_Error {
+		public function get_error_message(): string {
+			return '';
+		}
+	}
 }
 
 if ( ! class_exists( 'wpdb' ) ) {

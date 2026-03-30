@@ -28,7 +28,50 @@ class Rudel {
 	 * @return bool
 	 */
 	private static function is_environment(): bool {
-		return defined( 'RUDEL_ID' ) && '' !== RUDEL_ID;
+		return null !== self::environment_id();
+	}
+
+	/**
+	 * Get the active environment ID without assuming bootstrap constants exist.
+	 *
+	 * @return string|null
+	 */
+	private static function environment_id(): ?string {
+		if ( ! defined( 'RUDEL_ID' ) ) {
+			return null;
+		}
+
+		$id = constant( 'RUDEL_ID' );
+		if ( ! is_string( $id ) || '' === $id ) {
+			return null;
+		}
+
+		return $id;
+	}
+
+	/**
+	 * Read an optional string constant set by the bootstrap.
+	 *
+	 * @param string $constant Constant name.
+	 * @return string|null
+	 */
+	private static function string_constant( string $constant ): ?string {
+		if ( ! defined( $constant ) ) {
+			return null;
+		}
+
+		$value = constant( $constant );
+		return is_string( $value ) ? $value : null;
+	}
+
+	/**
+	 * Read an optional boolean constant set by the bootstrap.
+	 *
+	 * @param string $constant Constant name.
+	 * @return bool
+	 */
+	private static function bool_constant( string $constant ): bool {
+		return defined( $constant ) && (bool) constant( $constant );
 	}
 
 	/**
@@ -46,7 +89,7 @@ class Rudel {
 	 * @return bool
 	 */
 	public static function is_app(): bool {
-		return self::is_environment() && defined( 'RUDEL_IS_APP' ) && RUDEL_IS_APP;
+		return self::is_environment() && self::bool_constant( 'RUDEL_IS_APP' );
 	}
 
 	/**
@@ -55,7 +98,7 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function id(): ?string {
-		return self::is_sandbox() ? RUDEL_ID : null;
+		return self::is_sandbox() ? self::environment_id() : null;
 	}
 
 	/**
@@ -64,7 +107,7 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function app_id(): ?string {
-		return self::is_app() ? RUDEL_ID : null;
+		return self::is_app() ? self::environment_id() : null;
 	}
 
 	/**
@@ -73,7 +116,7 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function path(): ?string {
-		return defined( 'RUDEL_PATH' ) ? RUDEL_PATH : null;
+		return self::string_constant( 'RUDEL_PATH' );
 	}
 
 	/**
@@ -102,7 +145,7 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function table_prefix(): ?string {
-		return defined( 'RUDEL_TABLE_PREFIX' ) ? RUDEL_TABLE_PREFIX : null;
+		return self::string_constant( 'RUDEL_TABLE_PREFIX' );
 	}
 
 	/**
@@ -122,10 +165,10 @@ class Rudel {
 		$prefix = defined( 'RUDEL_PATH_PREFIX' ) ? RUDEL_PATH_PREFIX : '__rudel';
 
 		if ( defined( 'WP_HOME' ) ) {
-			return rtrim( WP_HOME, '/' ) . '/' . $prefix . '/' . RUDEL_ID . '/';
+			return rtrim( WP_HOME, '/' ) . '/' . $prefix . '/' . self::environment_id() . '/';
 		}
 
-		return '/' . $prefix . '/' . RUDEL_ID . '/';
+		return '/' . $prefix . '/' . self::environment_id() . '/';
 	}
 
 	/**
@@ -146,7 +189,7 @@ class Rudel {
 	 * @return bool True if email is blocked.
 	 */
 	public static function is_email_disabled(): bool {
-		return self::is_environment() && defined( 'RUDEL_DISABLE_EMAIL' ) && RUDEL_DISABLE_EMAIL;
+		return self::is_environment() && self::bool_constant( 'RUDEL_DISABLE_EMAIL' );
 	}
 
 	/**
