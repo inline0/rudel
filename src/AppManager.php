@@ -365,7 +365,7 @@ class AppManager {
 
 		try {
 			$backup = $this->backup( $app_id, $backup_name );
-			$state  = $this->manager->replace_environment_state( $sandbox, $app );
+			$state       = $this->manager->replace_environment_state( $sandbox, $app );
 			$deployed_at = gmdate( 'c' );
 			$this->manager->update(
 				$app_id,
@@ -604,6 +604,7 @@ class AppManager {
 	 * @param array            $changes Raw change set.
 	 * @param Environment|null $app Existing app for update validation.
 	 * @return array<string, mixed>
+	 * @throws \InvalidArgumentException If tracked GitHub metadata is inconsistent.
 	 */
 	private function normalize_git_tracking_changes( array $changes, ?Environment $app = null ): array {
 		$normalized = $changes;
@@ -636,7 +637,7 @@ class AppManager {
 		$dir_key_present    = array_key_exists( 'tracked_github_dir', $normalized );
 
 		if ( $repo_key_present && is_scalar( $normalized['tracked_github_repo'] ) ) {
-			$repo = trim( (string) $normalized['tracked_github_repo'] );
+			$repo                              = trim( (string) $normalized['tracked_github_repo'] );
 			$normalized['tracked_github_repo'] = '' === $repo ? null : $repo;
 		}
 

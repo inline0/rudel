@@ -225,10 +225,10 @@ class AppCommand extends \WP_CLI_Command {
 			WP_CLI::error( "App not found: {$id}" );
 		}
 
-		$data            = $app->to_array();
-		$data['domains'] = implode( ', ', $app->domains ?? array() );
-		$data['url']     = $app->get_url();
-		$data['backups'] = count( $this->manager->backups( $id ) );
+		$data                = $app->to_array();
+		$data['domains']     = implode( ', ', $app->domains ?? array() );
+		$data['url']         = $app->get_url();
+		$data['backups']     = count( $this->manager->backups( $id ) );
 		$data['deployments'] = count( $this->manager->deployments( $id ) );
 
 		$format = $assoc_args['format'] ?? 'table';
@@ -545,14 +545,14 @@ class AppCommand extends \WP_CLI_Command {
 
 		$items = array_map(
 			static function ( array $deployment ): array {
-				$deployment['app_domains'] = implode( ', ', $deployment['app_domains'] ?? array() );
-				$deployment['github_repo'] = $deployment['github_repo'] ?? '';
-				$deployment['github_branch'] = $deployment['github_branch'] ?? '';
+				$deployment['app_domains']        = implode( ', ', $deployment['app_domains'] ?? array() );
+				$deployment['github_repo']        = $deployment['github_repo'] ?? '';
+				$deployment['github_branch']      = $deployment['github_branch'] ?? '';
 				$deployment['github_base_branch'] = $deployment['github_base_branch'] ?? '';
-				$deployment['github_dir'] = $deployment['github_dir'] ?? '';
-				$deployment['label'] = $deployment['label'] ?? '';
-				$deployment['notes'] = $deployment['notes'] ?? '';
-				$deployment['backup_name'] = $deployment['backup_name'] ?? '';
+				$deployment['github_dir']         = $deployment['github_dir'] ?? '';
+				$deployment['label']              = $deployment['label'] ?? '';
+				$deployment['notes']              = $deployment['notes'] ?? '';
+				$deployment['backup_name']        = $deployment['backup_name'] ?? '';
 				return $deployment;
 			},
 			$deployments

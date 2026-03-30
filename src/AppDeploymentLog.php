@@ -100,8 +100,10 @@ class AppDeploymentLog {
 		usort(
 			$records,
 			static function ( array $left, array $right ): int {
-				$left_time  = strtotime( $left['deployed_at'] ?? '' ) ?: 0;
-				$right_time = strtotime( $right['deployed_at'] ?? '' ) ?: 0;
+				$left_time  = strtotime( $left['deployed_at'] ?? '' );
+				$right_time = strtotime( $right['deployed_at'] ?? '' );
+				$left_time  = false !== $left_time ? $left_time : 0;
+				$right_time = false !== $right_time ? $right_time : 0;
 
 				if ( $left_time === $right_time ) {
 					return strcmp( $right['id'] ?? '', $left['id'] ?? '' );

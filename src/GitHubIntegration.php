@@ -75,8 +75,8 @@ class GitHubIntegration {
 	 */
 	public function create_branch( string $branch, ?string $base_branch = null ): void {
 		$base_branch ??= $this->get_default_branch();
-		$ref          = $this->api( 'GET', "/repos/{$this->repo}/git/ref/heads/{$base_branch}" );
-		$sha     = $ref['object']['sha'];
+		$ref           = $this->api( 'GET', "/repos/{$this->repo}/git/ref/heads/{$base_branch}" );
+		$sha           = $ref['object']['sha'];
 
 		$this->api(
 			'POST',
@@ -241,7 +241,7 @@ class GitHubIntegration {
 	 */
 	public function create_pr( string $branch, string $title, string $body = '', ?string $base_branch = null ): array {
 		$base_branch ??= $this->get_default_branch();
-		$response = $this->api(
+		$response      = $this->api(
 			'POST',
 			"/repos/{$this->repo}/pulls",
 			array(
