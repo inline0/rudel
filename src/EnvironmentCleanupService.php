@@ -88,7 +88,7 @@ class EnvironmentCleanupService {
 
 		foreach ( $environments as $environment ) {
 			if ( $environment->is_protected() ) {
-				$result['skipped'][]                  = $environment->id;
+				$result['skipped'][]                   = $environment->id;
 				$result['reasons'][ $environment->id ] = 'protected';
 				continue;
 			}
@@ -139,7 +139,7 @@ class EnvironmentCleanupService {
 
 		foreach ( $this->repository->all() as $environment ) {
 			if ( $environment->is_protected() ) {
-				$result['skipped'][]                  = $environment->id;
+				$result['skipped'][]                   = $environment->id;
 				$result['reasons'][ $environment->id ] = 'protected';
 				continue;
 			}

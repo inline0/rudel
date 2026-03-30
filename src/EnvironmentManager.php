@@ -72,9 +72,9 @@ class EnvironmentManager {
 			$this->alternate_environments_dir = $this->get_default_apps_dir();
 		}
 
-		$this->repository                 = new EnvironmentRepository( $this->environments_dir, $this->alternate_environments_dir );
-		$this->cleanup_service            = new EnvironmentCleanupService( $this->repository, array( $this, 'destroy' ) );
-		$this->state_replacer             = new EnvironmentStateReplacer();
+		$this->repository      = new EnvironmentRepository( $this->environments_dir, $this->alternate_environments_dir );
+		$this->cleanup_service = new EnvironmentCleanupService( $this->repository, array( $this, 'destroy' ) );
+		$this->state_replacer  = new EnvironmentStateReplacer();
 	}
 
 	/**
@@ -680,8 +680,7 @@ class EnvironmentManager {
 	 * @param Environment $target Target environment.
 	 * @return array{source_id: string, target_id: string, tables_copied: int}
 	 *
-	 * @throws \InvalidArgumentException If engines do not match or either environment uses subsite mode.
-	 * @throws \Throwable If replacement fails after lifecycle hooks begin.
+	 * @throws \Throwable If validation or replacement fails after lifecycle hooks begin.
 	 */
 	public function replace_environment_state( Environment $source, Environment $target ): array {
 		$context = array(

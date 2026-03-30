@@ -27,7 +27,7 @@ class Automation {
 			return;
 		}
 
-		$config       = new RudelConfig();
+		$config         = new RudelConfig();
 		$needs_schedule = self::should_schedule( $config );
 		$is_scheduled   = false !== wp_next_scheduled( self::CRON_HOOK );
 
@@ -62,22 +62,22 @@ class Automation {
 	public static function run(): array {
 		$config = new RudelConfig();
 		$result = array(
-			'cleanup'        => array(
+			'cleanup'               => array(
 				'removed' => array(),
 				'skipped' => array(),
 				'errors'  => array(),
 			),
-			'cleanup_merged' => array(
+			'cleanup_merged'        => array(
 				'removed' => array(),
 				'skipped' => array(),
 				'errors'  => array(),
 			),
-			'app_backups'    => array(
+			'app_backups'           => array(
 				'created' => array(),
 				'skipped' => array(),
 				'errors'  => array(),
 			),
-			'app_retention'  => array(),
+			'app_retention'         => array(),
 			'expiring_environments' => array(
 				'days'     => 0,
 				'expiring' => array(),

@@ -87,25 +87,25 @@ class AppOperationsService {
 		$this->validate_deploy_pair( $app, $sandbox );
 
 		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
-		$plan         = array(
-			'app_id'                  => $app->id,
-			'app_name'                => $app->name,
-			'app_domains'             => $app->domains ?? array(),
-			'sandbox_id'              => $sandbox->id,
-			'sandbox_name'            => $sandbox->name,
-			'engine'                  => $app->engine,
-			'backup_name'             => $backup_name,
-			'lock_path'               => $this->lock_path( $app ),
-			'tracked_github_repo'     => $sandbox->get_github_repo() ?? $app->get_github_repo(),
-			'tracked_github_branch'   => $sandbox->get_github_base_branch() ?? $app->get_github_base_branch(),
-			'tracked_github_dir'      => $sandbox->get_github_dir() ?? $app->get_github_dir(),
-			'label'                   => $this->normalize_optional_string( $options['label'] ?? null ),
-			'notes'                   => $this->normalize_optional_string( $options['notes'] ?? null ),
-			'checks'                  => array(
+		$plan          = array(
+			'app_id'                => $app->id,
+			'app_name'              => $app->name,
+			'app_domains'           => $app->domains ?? array(),
+			'sandbox_id'            => $sandbox->id,
+			'sandbox_name'          => $sandbox->name,
+			'engine'                => $app->engine,
+			'backup_name'           => $backup_name,
+			'lock_path'             => $this->lock_path( $app ),
+			'tracked_github_repo'   => $sandbox->get_github_repo() ?? $app->get_github_repo(),
+			'tracked_github_branch' => $sandbox->get_github_base_branch() ?? $app->get_github_base_branch(),
+			'tracked_github_dir'    => $sandbox->get_github_dir() ?? $app->get_github_dir(),
+			'label'                 => $this->normalize_optional_string( $options['label'] ?? null ),
+			'notes'                 => $this->normalize_optional_string( $options['notes'] ?? null ),
+			'checks'                => array(
 				'engines_match'       => $sandbox->engine === $app->engine,
 				'subsite_unsupported' => $sandbox->is_subsite(),
 			),
-			'dry_run'                 => ! empty( $options['dry_run'] ),
+			'dry_run'               => ! empty( $options['dry_run'] ),
 		);
 
 		return Hooks::filter( 'rudel_app_deploy_plan', $plan, $app, $sandbox );
@@ -147,6 +147,8 @@ class AppOperationsService {
 	 * @param string|null $backup_name Optional backup name.
 	 * @param array       $options Optional deployment metadata.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \Throwable If deployment fails after hooks begin or validation rejects the pair.
 	 */
 	public function deploy( Environment $app, Environment $sandbox, ?string $backup_name = null, array $options = array() ): array {
 		$plan = $this->preview_deploy( $app, $sandbox, $backup_name, $options );
@@ -220,6 +222,9 @@ class AppOperationsService {
 	 * @param string      $deployment_id Deployment identifier.
 	 * @param array       $options Optional rollback settings.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \RuntimeException If the deployment cannot be resolved to a rollback backup.
+	 * @throws \Throwable If rollback fails after lifecycle hooks begin.
 	 */
 	public function rollback( Environment $app, string $deployment_id, array $options = array() ): array {
 		$deployment = $this->deployment_log( $app )->find( $deployment_id );
@@ -233,10 +238,10 @@ class AppOperationsService {
 		}
 
 		$context = array(
-			'app'          => $app,
-			'deployment'   => $deployment,
-			'backup_name'  => $backup_name,
-			'options'      => $options,
+			'app'         => $app,
+			'deployment'  => $deployment,
+			'backup_name' => $backup_name,
+			'options'     => $options,
 		);
 		Hooks::action( 'rudel_before_app_rollback', $context );
 
@@ -316,8 +321,8 @@ class AppOperationsService {
 					continue;
 				}
 
-				$backup_name                    = $this->auto_name( 'scheduled' );
-				$backup                         = $this->backup( $app, $backup_name );
+				$backup_name                   = $this->auto_name( 'scheduled' );
+				$backup                        = $this->backup( $app, $backup_name );
 				$result['created'][ $app->id ] = $backup['name'];
 			} catch ( \Throwable $e ) {
 				$result['errors'][ $app->id ] = $e->getMessage();
@@ -342,6 +347,8 @@ class AppOperationsService {
 	 *
 	 * @param string $id App identifier.
 	 * @return Environment
+	 *
+	 * @throws \RuntimeException If the app no longer exists after a mutating operation.
 	 */
 	private function require_app( string $id ): Environment {
 		$app = $this->app_manager->get( $id );
@@ -357,6 +364,8 @@ class AppOperationsService {
 	 *
 	 * @param string $id Sandbox identifier.
 	 * @return Environment
+	 *
+	 * @throws \RuntimeException If the sandbox cannot be resolved.
 	 */
 	public function require_sandbox( string $id ): Environment {
 		$sandbox = $this->sandbox_manager->get( $id );
@@ -373,6 +382,8 @@ class AppOperationsService {
 	 * @param Environment $app App environment.
 	 * @param Environment $sandbox Source sandbox.
 	 * @return void
+	 *
+	 * @throws \InvalidArgumentException If the sandbox cannot safely deploy into the app.
 	 */
 	private function validate_deploy_pair( Environment $app, Environment $sandbox ): void {
 		if ( $sandbox->is_subsite() ) {

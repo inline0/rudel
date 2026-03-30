@@ -82,6 +82,8 @@ class EnvironmentStateReplacer {
 	 * @param Environment $source Source environment.
 	 * @param Environment $target Target environment.
 	 * @return void
+	 *
+	 * @throws \RuntimeException If the SQLite replacement cannot stage or promote the rewritten database.
 	 */
 	private function replace_sqlite_environment_state( Environment $source, Environment $target ): void {
 		$source_db = $source->get_db_path();

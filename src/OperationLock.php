@@ -50,7 +50,7 @@ class OperationLock {
 			mkdir( $dir, 0755, true );
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fopen -- Using a local advisory lock file.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fopen,WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Using a local advisory lock file.
 		$this->handle = fopen( $this->path, 'c+' );
 		if ( ! is_resource( $this->handle ) ) {
 			throw new \RuntimeException( sprintf( 'Failed to open lock file: %s', $this->path ) );
@@ -63,13 +63,13 @@ class OperationLock {
 		}
 
 		$payload = array(
-			'pid'        => getmypid(),
-			'acquired_at'=> gmdate( 'c' ),
+			'pid'         => getmypid(),
+			'acquired_at' => gmdate( 'c' ),
 		);
 
 		ftruncate( $this->handle, 0 );
 		rewind( $this->handle );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing local lock metadata.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode,WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Writing local lock metadata.
 		fwrite( $this->handle, json_encode( $payload, JSON_UNESCAPED_SLASHES ) . "\n" );
 		fflush( $this->handle );
 	}
@@ -85,6 +85,7 @@ class OperationLock {
 		}
 
 		flock( $this->handle, LOCK_UN );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing a local advisory lock handle.
 		fclose( $this->handle );
 		$this->handle = null;
 	}
