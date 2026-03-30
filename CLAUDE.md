@@ -8,6 +8,7 @@ WordPress isolation layer for disposable sandboxes and permanent domain-routed a
 # Coding standards
 composer cs
 composer cs:fix
+composer phpstan
 
 # PHPUnit only
 composer test
@@ -24,7 +25,7 @@ npm --prefix docs run build
 ## Workflow
 
 - Default validation path is GitHub Actions. Push changes and watch the `CI` and `Distribution` workflows unless a task explicitly asks for local verification.
-- `CI` enforces coding standards, PHPUnit, docs build, and E2E.
+- `CI` enforces coding standards, PHPStan, PHPUnit, docs build, and E2E.
 - `Distribution` verifies the packaged plugin through zip integrity, Packagist and Composer installs, and WordPress activation.
 
 ## Project Structure
@@ -108,6 +109,7 @@ Define these in `wp-config.php` before Rudel bootstraps. Path and directory cons
 4. Filesystem state is the source of truth. Environment directories, `.rudel.json`, `domains.json`, and snapshot files matter more than in-memory bookkeeping.
 5. Never modify `lib/`. Treat it as bundled external code.
 6. When behavior changes, keep CLI help, docs, and tests aligned with the shipped command surface.
+7. Keep PHPStan green for `src/` and `cli/`; if inference is too weak at a dynamic boundary, tighten the contract or isolate the boundary instead of muting the error.
 
 ## WP-CLI Surface
 

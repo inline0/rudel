@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the full Rudel test suite: coding standards, PHPUnit, and E2E.
+# Run the full Rudel validation suite: coding standards, static analysis, PHPUnit, and E2E.
 #
 set -uo pipefail
 
@@ -28,7 +28,17 @@ else
 fi
 echo ""
 
-# 2. PHPUnit
+# 2. Static analysis
+echo -e "${BOLD}━━━ PHPStan ━━━${NC}"
+if composer phpstan; then
+    echo -e "${GREEN}PHPStan passed${NC}"
+else
+    EXIT_CODE=1
+    echo -e "${RED}PHPStan failed${NC}"
+fi
+echo ""
+
+# 3. PHPUnit
 echo -e "${BOLD}━━━ PHPUnit ━━━${NC}"
 if composer test; then
     echo -e "${GREEN}PHPUnit passed${NC}"
@@ -38,7 +48,7 @@ else
 fi
 echo ""
 
-# 3. E2E tests
+# 4. E2E tests
 echo -e "${BOLD}━━━ E2E ━━━${NC}"
 if bash tests/e2e/run-all.sh; then
     echo -e "${GREEN}E2E passed${NC}"

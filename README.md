@@ -176,11 +176,17 @@ composer install
 # Check coding standards
 composer cs
 
+# Run static analysis for src/ and cli/
+composer phpstan
+
 # Auto-fix coding standards
 composer cs:fix
 
-# Run all tests
+# Run PHPUnit
 composer test
+
+# Run the full validation suite
+bash tests/run-all.sh
 
 # Run specific test suites
 composer test:unit
