@@ -210,6 +210,9 @@ class EnvironmentTest extends RudelTestCase
             last_deployed_from_id: 'sandbox-1234',
             last_deployed_from_type: 'sandbox',
             last_deployed_at: '2026-01-06T00:00:00+00:00',
+            tracked_github_repo: 'inline0/client-a-theme',
+            tracked_github_branch: 'main',
+            tracked_github_dir: 'themes/client-a',
         );
 
         $this->assertSame('dennis', $sandbox->owner);
@@ -223,6 +226,9 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame('sandbox-1234', $sandbox->last_deployed_from_id);
         $this->assertSame('sandbox', $sandbox->last_deployed_from_type);
         $this->assertSame('2026-01-06T00:00:00+00:00', $sandbox->last_deployed_at);
+        $this->assertSame('inline0/client-a-theme', $sandbox->tracked_github_repo);
+        $this->assertSame('main', $sandbox->tracked_github_branch);
+        $this->assertSame('themes/client-a', $sandbox->tracked_github_dir);
     }
 
     // fromPath()
@@ -280,6 +286,22 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame('active', $sandbox->status);
         $this->assertSame([], $sandbox->labels);
         $this->assertFalse($sandbox->is_protected());
+    }
+
+    public function testFromPathReadsTrackedGithubMetadata(): void
+    {
+        $path = $this->createFakeSandbox('tracked-git', 'Tracked Git', [
+            'tracked_github_repo' => 'inline0/client-a-theme',
+            'tracked_github_branch' => 'main',
+            'tracked_github_dir' => 'themes/client-a',
+        ]);
+
+        $sandbox = Environment::from_path($path);
+
+        $this->assertNotNull($sandbox);
+        $this->assertSame('inline0/client-a-theme', $sandbox->tracked_github_repo);
+        $this->assertSame('main', $sandbox->tracked_github_branch);
+        $this->assertSame('themes/client-a', $sandbox->tracked_github_dir);
     }
 
     public function testFromPathTrimsTrailingSlash(): void
@@ -502,6 +524,23 @@ class EnvironmentTest extends RudelTestCase
             'labels' => [],
             'last_used_at' => '2026-01-01',
         ], $arr);
+    }
+
+    public function testGithubHelpersFallBackToTrackedMetadata(): void
+    {
+        $sandbox = new Environment(
+            id: 'git-aware',
+            name: 'Git Aware',
+            path: '/tmp/test',
+            created_at: '2026-01-01',
+            tracked_github_repo: 'inline0/client-a-theme',
+            tracked_github_branch: 'main',
+            tracked_github_dir: 'themes/client-a',
+        );
+
+        $this->assertSame('inline0/client-a-theme', $sandbox->get_github_repo());
+        $this->assertSame('main', $sandbox->get_github_base_branch());
+        $this->assertSame('themes/client-a', $sandbox->get_github_dir());
     }
 
     public function testUpdateMetaBatchPersistsMultipleKeys(): void

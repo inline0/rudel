@@ -443,6 +443,16 @@ class Rudel {
 	}
 
 	/**
+	 * List deployment records for an app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function app_deployments( string $app_id ): array {
+		return self::app_manager()->deployments( $app_id );
+	}
+
+	/**
 	 * Restore an app from a backup.
 	 *
 	 * @param string $app_id App identifier.
@@ -459,10 +469,11 @@ class Rudel {
 	 * @param string      $app_id App identifier.
 	 * @param string      $sandbox_id Sandbox identifier.
 	 * @param string|null $backup_name Optional backup name.
+	 * @param array       $options Optional deployment metadata such as label or notes.
 	 * @return array<string, mixed>
 	 */
-	public static function deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null ): array {
-		return self::app_manager()->deploy( $app_id, $sandbox_id, $backup_name );
+	public static function deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
+		return self::app_manager()->deploy( $app_id, $sandbox_id, $backup_name, $options );
 	}
 
 	/**
@@ -593,6 +604,8 @@ class Rudel {
 			throw new \RuntimeException( 'GitHub repo required. Pass $repo or push via CLI first.' );
 		}
 
+		$subdir = '' !== $subdir ? $subdir : ( $sandbox->get_github_dir() ?? '' );
+
 		$context = array(
 			'environment' => $sandbox,
 			'repo'        => $repo,
@@ -602,12 +615,13 @@ class Rudel {
 		Hooks::action( 'rudel_before_environment_push', $context );
 
 		try {
-			$github = new GitHubIntegration( $repo );
-			$branch = $sandbox->get_git_branch();
+			$github      = new GitHubIntegration( $repo );
+			$branch      = $sandbox->get_git_branch();
+			$base_branch = $sandbox->get_github_base_branch();
 
 			// Repeat pushes are normal, so an existing sandbox branch is not an error.
 			try {
-				$github->create_branch( $branch );
+				$github->create_branch( $branch, $base_branch );
 			} catch ( \RuntimeException $e ) {
 				if ( ! str_contains( $e->getMessage(), 'Reference already exists' ) ) {
 					throw $e;
@@ -674,7 +688,7 @@ class Rudel {
 			$title  = '' !== $title ? $title : $sandbox->name;
 			$body   = '' !== $body ? $body : sprintf( 'Created from Rudel sandbox `%s`', $sandbox->id );
 
-			$result = $github->create_pr( $branch, $title, $body );
+			$result = $github->create_pr( $branch, $title, $body, $sandbox->get_github_base_branch() );
 			Hooks::action( 'rudel_after_environment_pr', $result, $context );
 
 			return $result;

@@ -331,6 +331,9 @@ class EnvironmentManager {
 				last_deployed_from_id: $policy_meta['last_deployed_from_id'] ?? null,
 				last_deployed_from_type: $policy_meta['last_deployed_from_type'] ?? null,
 				last_deployed_at: $policy_meta['last_deployed_at'] ?? null,
+				tracked_github_repo: $policy_meta['tracked_github_repo'] ?? null,
+				tracked_github_branch: $policy_meta['tracked_github_branch'] ?? null,
+				tracked_github_dir: $policy_meta['tracked_github_dir'] ?? null,
 			);
 			$environment->save_meta();
 
@@ -1868,14 +1871,20 @@ class EnvironmentManager {
 
 		return Hooks::filter(
 			'rudel_environment_clone_source',
-			array(
-				'type'           => $source->type,
-				'source_id'      => $source->id,
-				'source_name'    => $source->name,
-				'source_url'     => $source_url,
-				'cloned_at'      => gmdate( 'c' ),
-				'db_cloned'      => true,
-				'content_cloned' => true,
+			array_filter(
+				array(
+					'type'               => $source->type,
+					'source_id'          => $source->id,
+					'source_name'        => $source->name,
+					'source_url'         => $source_url,
+					'cloned_at'          => gmdate( 'c' ),
+					'db_cloned'          => true,
+					'content_cloned'     => true,
+					'github_repo'        => $source->get_github_repo(),
+					'github_dir'         => $source->get_github_dir(),
+					'github_base_branch' => $source->get_github_base_branch(),
+				),
+				static fn( $value ) => null !== $value
 			),
 			$source,
 			$target_id,

@@ -67,14 +67,15 @@ class GitHubIntegration {
 	/**
 	 * Create a new branch from the default branch.
 	 *
-	 * @param string $branch Branch name to create.
+	 * @param string      $branch Branch name to create.
+	 * @param string|null $base_branch Optional base branch. Falls back to the repository default branch.
 	 * @return void
 	 *
 	 * @throws \RuntimeException If the API call fails.
 	 */
-	public function create_branch( string $branch ): void {
-		$default = $this->get_default_branch();
-		$ref     = $this->api( 'GET', "/repos/{$this->repo}/git/ref/heads/{$default}" );
+	public function create_branch( string $branch, ?string $base_branch = null ): void {
+		$base_branch ??= $this->get_default_branch();
+		$ref          = $this->api( 'GET', "/repos/{$this->repo}/git/ref/heads/{$base_branch}" );
 		$sha     = $ref['object']['sha'];
 
 		$this->api(
@@ -230,22 +231,23 @@ class GitHubIntegration {
 	/**
 	 * Create a pull request.
 	 *
-	 * @param string $branch Branch to create PR from.
-	 * @param string $title  PR title.
-	 * @param string $body   PR body/description.
+	 * @param string      $branch Branch to create PR from.
+	 * @param string      $title  PR title.
+	 * @param string      $body   PR body/description.
+	 * @param string|null $base_branch Optional base branch. Falls back to the repository default branch.
 	 * @return array{number: int, url: string, html_url: string} PR data.
 	 *
 	 * @throws \RuntimeException If the API call fails.
 	 */
-	public function create_pr( string $branch, string $title, string $body = '' ): array {
-		$default  = $this->get_default_branch();
+	public function create_pr( string $branch, string $title, string $body = '', ?string $base_branch = null ): array {
+		$base_branch ??= $this->get_default_branch();
 		$response = $this->api(
 			'POST',
 			"/repos/{$this->repo}/pulls",
 			array(
 				'title' => $title,
 				'head'  => $branch,
-				'base'  => $default,
+				'base'  => $base_branch,
 				'body'  => $body,
 			)
 		);

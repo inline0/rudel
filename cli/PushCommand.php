@@ -54,9 +54,10 @@ class PushCommand extends AbstractEnvironmentCommand {
 			WP_CLI::error( 'GitHub repo required. Pass --github=owner/repo (only needed on first push).' );
 		}
 
-		$message   = $assoc_args['message'] ?? 'Update from Rudel sandbox';
-		$subdir    = $assoc_args['dir'] ?? $sandbox->clone_source['github_dir'] ?? '';
-		$branch    = $sandbox->get_git_branch();
+		$message     = $assoc_args['message'] ?? 'Update from Rudel sandbox';
+		$subdir      = $assoc_args['dir'] ?? $sandbox->get_github_dir() ?? '';
+		$branch      = $sandbox->get_git_branch();
+		$base_branch = $sandbox->get_github_base_branch();
 		$local_dir = $sandbox->get_wp_content_path();
 		if ( '' !== $subdir ) {
 			$local_dir .= '/' . ltrim( $subdir, '/' );
@@ -71,7 +72,7 @@ class PushCommand extends AbstractEnvironmentCommand {
 
 			WP_CLI::log( "Ensuring branch {$branch} exists..." );
 			try {
-				$github->create_branch( $branch );
+				$github->create_branch( $branch, $base_branch );
 				WP_CLI::log( '  Branch created.' );
 			} catch ( \RuntimeException $e ) {
 				if ( str_contains( $e->getMessage(), 'Reference already exists' ) ) {

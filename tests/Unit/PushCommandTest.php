@@ -73,9 +73,12 @@ class PushCommandTest extends RudelTestCase
 
             public function __construct() {}
 
-            public function create_branch(string $branch): void
+            public function create_branch(string $branch, ?string $base_branch = null): void
             {
-                $this->branchCalls[] = $branch;
+                $this->branchCalls[] = [
+                    'branch' => $branch,
+                    'base_branch' => $base_branch,
+                ];
             }
 
             public function push(string $branch, string $local_dir, string $message): ?string
@@ -104,7 +107,10 @@ class PushCommandTest extends RudelTestCase
 
         $cmd(['push-box'], ['github' => 'owner/repo', 'dir' => 'themes/my-theme', 'message' => 'Ship it']);
 
-        $this->assertSame(['rudel/push-box'], $fakeGithub->branchCalls);
+        $this->assertSame([[
+            'branch' => 'rudel/push-box',
+            'base_branch' => null,
+        ]], $fakeGithub->branchCalls);
         $this->assertSame('rudel/push-box', $fakeGithub->pushCalls[0]['branch']);
         $this->assertSame($environment->get_wp_content_path() . '/themes/my-theme', $fakeGithub->pushCalls[0]['local_dir']);
         $this->assertSame('Ship it', $fakeGithub->pushCalls[0]['message']);
@@ -124,7 +130,7 @@ class PushCommandTest extends RudelTestCase
         $fakeGithub = new class extends GitHubIntegration {
             public function __construct() {}
 
-            public function create_branch(string $branch): void
+            public function create_branch(string $branch, ?string $base_branch = null): void
             {
                 throw new \RuntimeException('Reference already exists');
             }

@@ -37,6 +37,14 @@ If you want to create an app from an existing sandbox or app instead of cloning 
 wp rudel app create --domain=client-b.com --clone-from=client-a-com-a1b2
 ```
 
+If the app's deployed code lives in a GitHub-backed theme or plugin, track that at creation time:
+
+```bash
+wp rudel app create --domain=client-a.com --github=inline0/client-a-theme --branch=main --dir=themes/client-a
+```
+
+That metadata is not about turning the app into a Git branch. It just tells Rudel which repository, branch, and wp-content slice represent the app's stable deployed code, so app-derived sandboxes can reuse that context automatically.
+
 ## Sandboxes from apps
 
 Apps are meant to be the long-lived runtime target. Sandboxes are where you make and test changes.
@@ -47,7 +55,7 @@ Create a sandbox from an app:
 wp rudel app create-sandbox client-a-com-a1b2 --name="Client A Feature Work"
 ```
 
-That gives you a disposable sandbox with the app's database and `wp-content`, but rewritten to sandbox URLs and prefixes.
+That gives you a disposable sandbox with the app's database and `wp-content`, but rewritten to sandbox URLs and prefixes. If the app tracks a GitHub repo, branch, or subdirectory, the sandbox inherits that metadata too, so `wp rudel push` and `wp rudel pr` already know what they are working against.
 
 You can also attach sandbox lifecycle metadata at creation time:
 
@@ -86,6 +94,53 @@ wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=befo
 ```
 
 Deploy always creates or uses an app backup first, then replaces the app's database and `wp-content` with the sandbox state while rewriting URLs back to the app domain.
+
+Every deploy also writes a deployment record, so you can audit which sandbox shipped, which backup can roll it back, and any operator notes attached to the release:
+
+```bash
+wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --label="Launch candidate" --notes="Approved after QA sign-off" --force
+wp rudel app deployments client-a-com-a1b2
+```
+
+## Deployment workflows
+
+### Git-backed theme or plugin workflow
+
+This is the most common app flow when the deployed code lives in a repository:
+
+```bash
+wp rudel app create --domain=client-a.com --github=inline0/client-a-theme --branch=main --dir=themes/client-a
+wp rudel app create-sandbox client-a-com-a1b2 --name="Client A Header Refresh" --owner=dennis --labels=feature,client-a
+wp rudel push client-a-header-refresh-a1b2
+wp rudel pr client-a-header-refresh-a1b2 --title="Refresh client header"
+wp rudel app deploy client-a-com-a1b2 --from=client-a-header-refresh-a1b2 --backup=before-header-refresh --label="Header refresh" --force
+```
+
+Conceptually:
+
+1. The app holds the deployed state.
+2. The sandbox is the feature workspace.
+3. GitHub review happens from the sandbox branch.
+4. Deploy copies the reviewed sandbox state back into the app and records the release.
+
+### QA sandbox from a live app
+
+Sometimes you want to branch a short-lived QA or debugging environment from a production-like app without changing the app itself:
+
+```bash
+wp rudel app create-sandbox client-a-com-a1b2 --name="Client A QA" --owner=dennis --labels=qa,client-a --ttl-days=7
+```
+
+That keeps the app stable while the sandbox carries its own expiry and stewardship metadata.
+
+### Roll back a bad deploy
+
+Because deploys always point back to a backup, rollback is just an app restore:
+
+```bash
+wp rudel app deployments client-a-com-a1b2
+wp rudel app restore client-a-com-a1b2 --backup=before-launch --force
+```
 
 That is the intended lifecycle:
 

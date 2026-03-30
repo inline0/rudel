@@ -301,8 +301,14 @@ class RudelApiTest extends RudelTestCase
             define('WP_CONTENT_DIR', $this->tmpDir);
         }
 
-        $app = Rudel::create_app('Client A', ['client-a.com'], ['engine' => 'sqlite']);
+        $app = Rudel::create_app('Client A', ['client-a.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/client-a-theme',
+            'tracked_github_branch' => 'main',
+            'tracked_github_dir' => 'themes/client-a',
+        ]);
         $this->assertSame('app', $app->type);
+        $this->assertSame('inline0/client-a-theme', $app->tracked_github_repo);
 
         $found = Rudel::app($app->id);
         $this->assertNotNull($found);
@@ -354,10 +360,12 @@ class RudelApiTest extends RudelTestCase
         $updated = Rudel::update_app($app->id, [
             'owner' => 'dennis',
             'labels' => 'customer',
+            'tracked_github_repo' => 'inline0/client-a-theme',
         ]);
 
         $this->assertSame('dennis', $updated->owner);
         $this->assertSame(['customer'], $updated->labels);
+        $this->assertSame('inline0/client-a-theme', $updated->tracked_github_repo);
     }
 
     #[RunInSeparateProcess]
@@ -374,11 +382,17 @@ class RudelApiTest extends RudelTestCase
             define('WP_HOME', 'https://host.test');
         }
 
-        $app = Rudel::create_app('Client B', ['client-b.com'], ['engine' => 'sqlite']);
+        $app = Rudel::create_app('Client B', ['client-b.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/client-b-theme',
+            'tracked_github_branch' => 'main',
+            'tracked_github_dir' => 'themes/client-b',
+        ]);
         $sandbox = Rudel::create_sandbox_from_app($app->id, 'Client B Sandbox');
 
         $this->assertSame('sandbox', $sandbox->type);
         $this->assertSame($this->tmpDir . '/rudel-environments/' . $sandbox->id, $sandbox->path);
+        $this->assertSame('inline0/client-b-theme', $sandbox->clone_source['github_repo'] ?? null);
 
         $backup = Rudel::backup_app($app->id, 'baseline');
         $this->assertSame('baseline', $backup['name']);
@@ -404,14 +418,25 @@ class RudelApiTest extends RudelTestCase
             define('WP_HOME', 'https://host.test');
         }
 
-        $app = Rudel::create_app('Deploy API App', ['deploy-api.com'], ['engine' => 'sqlite']);
+        $app = Rudel::create_app('Deploy API App', ['deploy-api.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/deploy-api-theme',
+            'tracked_github_branch' => 'main',
+        ]);
         $sandbox = Rudel::create_sandbox_from_app($app->id, 'Deploy API Sandbox');
 
-        $result = Rudel::deploy_sandbox_to_app($app->id, $sandbox->id, 'pre-deploy');
+        $result = Rudel::deploy_sandbox_to_app($app->id, $sandbox->id, 'pre-deploy', [
+            'label' => 'Launch candidate',
+            'notes' => 'Approved after QA sign-off',
+        ]);
+        $deployments = Rudel::app_deployments($app->id);
 
         $this->assertSame($app->id, $result['app_id']);
         $this->assertSame($sandbox->id, $result['sandbox_id']);
         $this->assertSame('pre-deploy', $result['backup']['name']);
+        $this->assertSame('Launch candidate', $result['deployment']['label']);
+        $this->assertCount(1, $deployments);
+        $this->assertSame($result['deployment']['id'], $deployments[0]['id']);
     }
 
     #[RunInSeparateProcess]

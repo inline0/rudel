@@ -343,7 +343,15 @@ Returns a single app by ID, or `null`.
 Creates a new app with the given domains.
 
 ```php
-$app = Rudel::create_app( 'Client A', [ 'client-a.com', 'www.client-a.com' ] );
+$app = Rudel::create_app(
+    'Client A',
+    [ 'client-a.com', 'www.client-a.com' ],
+    [
+        'tracked_github_repo'   => 'inline0/client-a-theme',
+        'tracked_github_branch' => 'main',
+        'tracked_github_dir'    => 'themes/client-a',
+    ]
+);
 echo $app->get_url(); // https://client-a.com/
 ```
 
@@ -353,8 +361,9 @@ Updates app metadata and lifecycle policy.
 
 ```php
 $app = Rudel::update_app( 'client-a-com-a1b2', [
-    'owner'  => 'dennis',
-    'labels' => [ 'customer', 'production' ],
+    'owner'               => 'dennis',
+    'labels'              => [ 'customer', 'production' ],
+    'tracked_github_repo' => 'inline0/client-a-theme',
 ] );
 ```
 
@@ -370,6 +379,8 @@ Creates a sandbox cloned from an app.
 $sandbox = Rudel::create_sandbox_from_app( 'client-a-com-a1b2', 'Client A Feature Work' );
 echo $sandbox->id;
 ```
+
+App-derived sandboxes inherit tracked GitHub repository metadata so later `Rudel::push()` and `Rudel::pr()` calls can reuse the same repository, base branch, and subdirectory defaults.
 
 ### `Rudel::touch_current_environment()`
 
@@ -392,13 +403,26 @@ Lists all backups for an app.
 
 Restores an app from a named backup.
 
-### `Rudel::deploy_sandbox_to_app( $app_id, $sandbox_id, $backup_name )`
+### `Rudel::app_deployments( $app_id )`
 
-Deploys a sandbox into an app. A backup is created first.
+Lists deployment records for an app.
+
+### `Rudel::deploy_sandbox_to_app( $app_id, $sandbox_id, $backup_name, $options )`
+
+Deploys a sandbox into an app. A backup is created first, and the resulting deployment is recorded for later auditing and rollback lookup.
 
 ```php
-$result = Rudel::deploy_sandbox_to_app( 'client-a-com-a1b2', 'client-a-feature-b2c3', 'before-launch' );
+$result = Rudel::deploy_sandbox_to_app(
+    'client-a-com-a1b2',
+    'client-a-feature-b2c3',
+    'before-launch',
+    [
+        'label' => 'Launch candidate',
+        'notes' => 'Approved after QA sign-off',
+    ]
+);
 echo $result['backup']['name'];
+echo $result['deployment']['id'];
 ```
 
 ### `Rudel::apps_dir()`
@@ -441,9 +465,10 @@ Example:
 add_action( 'rudel_after_app_deploy', function ( $result, $context ) {
     error_log(
         sprintf(
-            'Deployed sandbox %s into app %s',
+            'Deployed sandbox %s into app %s as %s',
             $result['sandbox_id'],
-            $result['app_id']
+            $result['app_id'],
+            $result['deployment']['id']
         )
     );
 }, 10, 2 );

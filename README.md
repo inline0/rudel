@@ -131,11 +131,12 @@ Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` 
 
 | Command | Description |
 |---------|-------------|
-| `wp rudel app create --domain=<domain>` | Create a permanent domain-routed app |
+| `wp rudel app create --domain=<domain>` | Create a permanent domain-routed app, optionally tracking a GitHub repo/branch/path |
 | `wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--protected]` | Update app metadata and lifecycle policy |
 | `wp rudel app create-sandbox <id>` | Create a sandbox cloned from an app |
 | `wp rudel app backup <id> --name=<name>` | Create an app backup |
 | `wp rudel app backups <id>` | List backups for an app |
+| `wp rudel app deployments <id>` | List deployment records for an app |
 | `wp rudel app restore <id> --backup=<name>` | Restore an app from a backup |
 | `wp rudel app deploy <id> --from=<sandbox-id>` | Deploy a sandbox into an app |
 | `wp rudel app list` | List all apps |

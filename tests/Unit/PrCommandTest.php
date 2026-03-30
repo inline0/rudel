@@ -68,9 +68,9 @@ class PrCommandTest extends RudelTestCase
 
             public function __construct() {}
 
-            public function create_pr(string $branch, string $title, string $body = ''): array
+            public function create_pr(string $branch, string $title, string $body = '', ?string $base_branch = null): array
             {
-                $this->prCalls[] = compact('branch', 'title', 'body');
+                $this->prCalls[] = compact('branch', 'title', 'body', 'base_branch');
 
                 return [
                     'number' => 7,
@@ -97,6 +97,7 @@ class PrCommandTest extends RudelTestCase
         $this->assertSame('rudel/pr-box', $fakeGithub->prCalls[0]['branch']);
         $this->assertSame('PR Box', $fakeGithub->prCalls[0]['title']);
         $this->assertSame('Created from Rudel sandbox `pr-box`', $fakeGithub->prCalls[0]['body']);
+        $this->assertNull($fakeGithub->prCalls[0]['base_branch']);
         $this->assertSame(['PR #7 created: https://github.test/owner/repo/pull/7'], \WP_CLI::$successes);
     }
 
@@ -112,9 +113,9 @@ class PrCommandTest extends RudelTestCase
 
             public function __construct() {}
 
-            public function create_pr(string $branch, string $title, string $body = ''): array
+            public function create_pr(string $branch, string $title, string $body = '', ?string $base_branch = null): array
             {
-                $this->prCalls[] = compact('branch', 'title', 'body');
+                $this->prCalls[] = compact('branch', 'title', 'body', 'base_branch');
 
                 return [
                     'number' => 8,

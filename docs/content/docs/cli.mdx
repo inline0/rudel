@@ -317,7 +317,7 @@ wp rudel template delete <name> [--force]
 Create a new app (permanent domain-routed environment).
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
+wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
 | Option | Description |
@@ -331,6 +331,9 @@ wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clo
 | `--clone-uploads` | Copy host uploads into the app |
 | `--clone-all` | Clone host database and content |
 | `--clone-from=<id>` | Clone from an existing sandbox or app |
+| `--github=<repo>` | Track the GitHub repository that represents the app's deployed code |
+| `--branch=<branch>` | Stable mainline branch for app-derived sandbox branches and PRs |
+| `--dir=<dir>` | Optional wp-content subdirectory tied to the tracked repository |
 | `--owner=<owner>` | Optional owner for stewardship and policy |
 | `--labels=<labels>` | Comma-separated labels |
 | `--purpose=<purpose>` | Optional description of why the app exists |
@@ -343,7 +346,7 @@ wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clo
 Update app metadata and lifecycle policy.
 
 ```bash
-wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry]
+wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--clear-github]
 ```
 
 | Option | Description |
@@ -357,6 +360,10 @@ wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpo
 | `--ttl-days=<days>` | Set an expiry relative to now |
 | `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
 | `--clear-expiry` | Remove any explicit expiry |
+| `--github=<repo>` | Track the GitHub repository that represents the app's deployed code |
+| `--branch=<branch>` | Stable mainline branch for app-derived sandbox branches and PRs |
+| `--dir=<dir>` | Optional wp-content subdirectory tied to the tracked repository |
+| `--clear-github` | Remove tracked GitHub metadata |
 
 ### `wp rudel app create-sandbox`
 
@@ -394,6 +401,14 @@ List backups for an app.
 wp rudel app backups <id> [--format=<format>]
 ```
 
+### `wp rudel app deployments`
+
+List deployment records for an app.
+
+```bash
+wp rudel app deployments <id> [--format=<format>]
+```
+
 ### `wp rudel app restore`
 
 Restore an app from a backup.
@@ -407,8 +422,10 @@ wp rudel app restore <id> --backup=<name> [--force]
 Deploy a sandbox into an app.
 
 ```bash
-wp rudel app deploy <id> --from=<sandbox-id> [--backup=<name>] [--force]
+wp rudel app deploy <id> --from=<sandbox-id> [--backup=<name>] [--label=<label>] [--notes=<notes>] [--force]
 ```
+
+Deploy creates an app backup first, rewrites sandbox URLs back to the app domain, and stores a deployment record that can be listed with `wp rudel app deployments`.
 
 ### `wp rudel app list`
 

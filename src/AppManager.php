@@ -67,6 +67,7 @@ class AppManager {
 	public function create( string $name, array $domains, array $options = array() ): Environment {
 		$domains = Hooks::filter( 'rudel_app_domains', $domains, $name, $this );
 		$options = Hooks::filter( 'rudel_app_create_options', $options, $name, $domains, $this );
+		$options = $this->normalize_git_tracking_changes( $options );
 
 		if ( empty( $domains ) ) {
 			throw new \InvalidArgumentException( 'At least one domain is required for an app.' );
@@ -100,6 +101,7 @@ class AppManager {
 
 		try {
 			$app = $this->manager->create( $name, $options );
+			$app = $this->inherit_git_tracking_from_source( $app, $options );
 			$this->rebuild_domain_map();
 			Hooks::action( 'rudel_after_app_create', $app, $context );
 
@@ -141,6 +143,7 @@ class AppManager {
 	public function update( string $id, array $changes ): Environment {
 		$app     = $this->require_app( $id );
 		$changes = Hooks::filter( 'rudel_app_update_changes', $changes, $app, $this );
+		$changes = $this->normalize_git_tracking_changes( $changes, $app );
 		$context = array(
 			'app'     => $app,
 			'changes' => $changes,
@@ -269,6 +272,19 @@ class AppManager {
 	}
 
 	/**
+	 * List deployment records for an app.
+	 *
+	 * @param string $id App identifier.
+	 * @return array<int, array<string, mixed>>
+	 *
+	 * @throws \RuntimeException If the app is not found.
+	 */
+	public function deployments( string $id ): array {
+		$app = $this->require_app( $id );
+		return $this->deployment_log( $app )->list();
+	}
+
+	/**
 	 * Restore an app from a backup.
 	 *
 	 * @param string $id App identifier.
@@ -312,13 +328,14 @@ class AppManager {
 	 * @param string      $app_id App identifier.
 	 * @param string      $sandbox_id Sandbox identifier.
 	 * @param string|null $backup_name Optional backup name.
+	 * @param array       $options Optional deployment metadata such as label or notes.
 	 * @return array<string, mixed>
 	 *
 	 * @throws \InvalidArgumentException If deploy requirements are invalid.
 	 * @throws \RuntimeException If the app or sandbox is not found.
 	 * @throws \Throwable If deploy fails after lifecycle hooks begin.
 	 */
-	public function deploy( string $app_id, string $sandbox_id, ?string $backup_name = null ): array {
+	public function deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
 		$app     = $this->require_app( $app_id );
 		$sandbox = $this->sandbox_manager->get( $sandbox_id );
 
@@ -336,24 +353,37 @@ class AppManager {
 			);
 		}
 
+		$options       = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
 		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
 		$context       = array(
 			'app'         => $app,
 			'sandbox'     => $sandbox,
 			'backup_name' => $backup_name,
+			'options'     => $options,
 		);
 		Hooks::action( 'rudel_before_app_deploy', $context );
 
 		try {
 			$backup = $this->backup( $app_id, $backup_name );
 			$state  = $this->manager->replace_environment_state( $sandbox, $app );
+			$deployed_at = gmdate( 'c' );
 			$this->manager->update(
 				$app_id,
 				array(
 					'last_deployed_from_id'   => $sandbox->id,
 					'last_deployed_from_type' => $sandbox->type,
-					'last_deployed_at'        => gmdate( 'c' ),
-					'last_used_at'            => gmdate( 'c' ),
+					'last_deployed_at'        => $deployed_at,
+					'last_used_at'            => $deployed_at,
+				)
+			);
+			$deployment = $this->deployment_log( $this->require_app( $app_id ) )->record(
+				$sandbox,
+				array(
+					'deployed_at'   => $deployed_at,
+					'backup_name'   => $backup['name'],
+					'tables_copied' => $state['tables_copied'],
+					'label'         => $options['label'] ?? null,
+					'notes'         => $options['notes'] ?? null,
 				)
 			);
 
@@ -362,6 +392,7 @@ class AppManager {
 				'sandbox_id'    => $sandbox->id,
 				'backup'        => $backup,
 				'tables_copied' => $state['tables_copied'],
+				'deployment'    => $deployment,
 			);
 			Hooks::action( 'rudel_after_app_deploy', $result, $context );
 
@@ -541,6 +572,16 @@ class AppManager {
 	}
 
 	/**
+	 * Create a deployment log manager for an app.
+	 *
+	 * @param Environment $app App environment.
+	 * @return AppDeploymentLog
+	 */
+	private function deployment_log( Environment $app ): AppDeploymentLog {
+		return new AppDeploymentLog( $app );
+	}
+
+	/**
 	 * Resolve an app or fail.
 	 *
 	 * @param string $id App identifier.
@@ -555,6 +596,114 @@ class AppManager {
 		}
 
 		return $app;
+	}
+
+	/**
+	 * Normalize tracked GitHub metadata for app create/update flows.
+	 *
+	 * @param array            $changes Raw change set.
+	 * @param Environment|null $app Existing app for update validation.
+	 * @return array<string, mixed>
+	 */
+	private function normalize_git_tracking_changes( array $changes, ?Environment $app = null ): array {
+		$normalized = $changes;
+		$clear_git  = ! empty( $normalized['clear_github'] );
+
+		if ( array_key_exists( 'github', $normalized ) ) {
+			$normalized['tracked_github_repo'] = $normalized['github'];
+			unset( $normalized['github'] );
+		}
+
+		if ( array_key_exists( 'branch', $normalized ) ) {
+			$normalized['tracked_github_branch'] = $normalized['branch'];
+			unset( $normalized['branch'] );
+		}
+
+		if ( array_key_exists( 'dir', $normalized ) ) {
+			$normalized['tracked_github_dir'] = $normalized['dir'];
+			unset( $normalized['dir'] );
+		}
+
+		if ( $clear_git ) {
+			unset( $normalized['clear_github'] );
+			$normalized['tracked_github_repo']   = null;
+			$normalized['tracked_github_branch'] = null;
+			$normalized['tracked_github_dir']    = null;
+		}
+
+		$repo_key_present   = array_key_exists( 'tracked_github_repo', $normalized );
+		$branch_key_present = array_key_exists( 'tracked_github_branch', $normalized );
+		$dir_key_present    = array_key_exists( 'tracked_github_dir', $normalized );
+
+		if ( $repo_key_present && is_scalar( $normalized['tracked_github_repo'] ) ) {
+			$repo = trim( (string) $normalized['tracked_github_repo'] );
+			$normalized['tracked_github_repo'] = '' === $repo ? null : $repo;
+		}
+
+		if ( ! $repo_key_present && ! $branch_key_present && ! $dir_key_present ) {
+			return $normalized;
+		}
+
+		$current_repo = $app?->tracked_github_repo;
+		$final_repo   = $repo_key_present ? $normalized['tracked_github_repo'] : $current_repo;
+
+		if ( null === $final_repo && $repo_key_present ) {
+			if ( $branch_key_present || $dir_key_present ) {
+				throw new \InvalidArgumentException( 'Cannot clear the tracked GitHub repository while also setting branch or directory.' );
+			}
+
+			$normalized['tracked_github_branch'] = null;
+			$normalized['tracked_github_dir']    = null;
+			return $normalized;
+		}
+
+		if ( null === $final_repo && ( $branch_key_present || $dir_key_present ) ) {
+			throw new \InvalidArgumentException( 'Tracked GitHub branch and directory require a GitHub repository.' );
+		}
+
+		return $normalized;
+	}
+
+	/**
+	 * Carry tracked GitHub metadata forward when an app is cloned from another environment.
+	 *
+	 * @param Environment $app Newly created app.
+	 * @param array       $options App creation options.
+	 * @return Environment
+	 */
+	private function inherit_git_tracking_from_source( Environment $app, array $options ): Environment {
+		if (
+			array_key_exists( 'tracked_github_repo', $options ) ||
+			array_key_exists( 'tracked_github_branch', $options ) ||
+			array_key_exists( 'tracked_github_dir', $options )
+		) {
+			return $app;
+		}
+
+		$clone_from = $options['clone_from'] ?? null;
+		if ( ! is_string( $clone_from ) || '' === $clone_from ) {
+			return $app;
+		}
+
+		$source = $this->manager->get( $clone_from ) ?? $this->sandbox_manager->get( $clone_from );
+		if ( ! $source ) {
+			return $app;
+		}
+
+		$changes = array_filter(
+			array(
+				'tracked_github_repo'   => $source->get_github_repo(),
+				'tracked_github_branch' => $source->get_github_base_branch(),
+				'tracked_github_dir'    => $source->get_github_dir(),
+			),
+			static fn( $value ) => null !== $value
+		);
+
+		if ( empty( $changes ) ) {
+			return $app;
+		}
+
+		return $this->manager->update( $app->id, $changes );
 	}
 
 	/**

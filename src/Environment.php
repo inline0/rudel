@@ -38,6 +38,9 @@ class Environment {
 	 * @param string|null $last_deployed_from_id    Last sandbox/app deployed into this environment.
 	 * @param string|null $last_deployed_from_type  Type of the environment last deployed into this environment.
 	 * @param string|null $last_deployed_at         ISO 8601 timestamp of the last deploy into this environment.
+	 * @param string|null $tracked_github_repo      GitHub repository this environment tracks as its deployed code source.
+	 * @param string|null $tracked_github_branch    Branch this environment treats as its stable mainline.
+	 * @param string|null $tracked_github_dir       Optional wp-content subdirectory associated with the tracked repository.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -63,6 +66,9 @@ class Environment {
 		public readonly ?string $last_deployed_from_id = null,
 		public readonly ?string $last_deployed_from_type = null,
 		public readonly ?string $last_deployed_at = null,
+		public readonly ?string $tracked_github_repo = null,
+		public readonly ?string $tracked_github_branch = null,
+		public readonly ?string $tracked_github_dir = null,
 	) {}
 
 	/**
@@ -107,6 +113,9 @@ class Environment {
 			last_deployed_from_id: self::string_or_null( $data['last_deployed_from_id'] ?? null ),
 			last_deployed_from_type: self::string_or_null( $data['last_deployed_from_type'] ?? null ),
 			last_deployed_at: self::string_or_null( $data['last_deployed_at'] ?? null ),
+			tracked_github_repo: self::string_or_null( $data['tracked_github_repo'] ?? null ),
+			tracked_github_branch: self::string_or_null( $data['tracked_github_branch'] ?? null ),
+			tracked_github_dir: self::string_or_null( $data['tracked_github_dir'] ?? null ),
 		);
 	}
 
@@ -239,7 +248,25 @@ class Environment {
 	 * @return string|null GitHub repo in owner/repo format, or null.
 	 */
 	public function get_github_repo(): ?string {
-		return $this->clone_source['github_repo'] ?? null;
+		return $this->clone_source['github_repo'] ?? $this->tracked_github_repo;
+	}
+
+	/**
+	 * Get the wp-content subdirectory associated with this environment's GitHub workflow, if any.
+	 *
+	 * @return string|null Relative directory path, or null for all of wp-content.
+	 */
+	public function get_github_dir(): ?string {
+		return $this->clone_source['github_dir'] ?? $this->tracked_github_dir;
+	}
+
+	/**
+	 * Get the base branch this environment treats as its deployed mainline, if any.
+	 *
+	 * @return string|null Branch name, or null when the repository default branch should be used.
+	 */
+	public function get_github_base_branch(): ?string {
+		return $this->clone_source['github_base_branch'] ?? $this->tracked_github_branch;
 	}
 
 	/**
@@ -386,6 +413,18 @@ class Environment {
 
 		if ( null !== $this->last_deployed_at ) {
 			$data['last_deployed_at'] = $this->last_deployed_at;
+		}
+
+		if ( null !== $this->tracked_github_repo ) {
+			$data['tracked_github_repo'] = $this->tracked_github_repo;
+		}
+
+		if ( null !== $this->tracked_github_branch ) {
+			$data['tracked_github_branch'] = $this->tracked_github_branch;
+		}
+
+		if ( null !== $this->tracked_github_dir ) {
+			$data['tracked_github_dir'] = $this->tracked_github_dir;
 		}
 
 		return $data;

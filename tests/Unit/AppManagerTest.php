@@ -24,13 +24,21 @@ class AppManagerTest extends RudelTestCase
     {
         $this->defineConstants();
         $manager = new AppManager($this->tmpDir);
-        $app = $manager->create('Client A', ['client-a.com'], ['engine' => 'sqlite']);
+        $app = $manager->create('Client A', ['client-a.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/client-a-theme',
+            'tracked_github_branch' => 'main',
+            'tracked_github_dir' => 'themes/client-a',
+        ]);
 
         $this->assertNotEmpty($app->id);
         $this->assertSame('Client A', $app->name);
         $this->assertSame('app', $app->type);
         $this->assertTrue($app->is_app());
         $this->assertSame(['client-a.com'], $app->domains);
+        $this->assertSame('inline0/client-a-theme', $app->tracked_github_repo);
+        $this->assertSame('main', $app->tracked_github_branch);
+        $this->assertSame('themes/client-a', $app->tracked_github_dir);
         $this->assertDirectoryExists($app->path);
     }
 
@@ -249,6 +257,28 @@ class AppManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreateSandboxFromAppInheritsTrackedGithubMetadata(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Client A', ['client-a.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/client-a-theme',
+            'tracked_github_branch' => 'main',
+            'tracked_github_dir' => 'themes/client-a',
+        ]);
+
+        $sandbox = $manager->create_sandbox($app->id, 'Client A Sandbox');
+
+        $this->assertSame('inline0/client-a-theme', $sandbox->clone_source['github_repo'] ?? null);
+        $this->assertSame('main', $sandbox->clone_source['github_base_branch'] ?? null);
+        $this->assertSame('themes/client-a', $sandbox->clone_source['github_dir'] ?? null);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testBackupAndRestoreAppRoundTripsState(): void
     {
         $this->defineConstants();
@@ -318,11 +348,13 @@ class AppManagerTest extends RudelTestCase
             'owner' => 'dennis',
             'labels' => 'priority, qa',
             'protected' => true,
+            'tracked_github_repo' => 'inline0/client-a-theme',
         ]);
 
         $this->assertSame('dennis', $updated->owner);
         $this->assertSame(['priority', 'qa'], $updated->labels);
         $this->assertTrue($updated->is_protected());
+        $this->assertSame('inline0/client-a-theme', $updated->tracked_github_repo);
     }
 
     #[RunInSeparateProcess]
@@ -344,5 +376,37 @@ class AppManagerTest extends RudelTestCase
         $this->assertSame($sandbox->id, $updated->last_deployed_from_id);
         $this->assertSame('sandbox', $updated->last_deployed_from_type);
         $this->assertNotNull($updated->last_deployed_at);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeployRecordsDeploymentHistoryWithBackupAndNotes(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Deploy History App', ['deploy-history.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/client-a-theme',
+            'tracked_github_branch' => 'main',
+            'tracked_github_dir' => 'themes/client-a',
+        ]);
+        $sandbox = $manager->create_sandbox($app->id, 'Deploy History Sandbox');
+
+        $result = $manager->deploy($app->id, $sandbox->id, 'before-launch', [
+            'label' => 'Launch candidate',
+            'notes' => 'Approved after QA sign-off',
+        ]);
+
+        $deployments = $manager->deployments($app->id);
+
+        $this->assertSame('before-launch', $result['deployment']['backup_name']);
+        $this->assertSame('Launch candidate', $result['deployment']['label']);
+        $this->assertSame('Approved after QA sign-off', $result['deployment']['notes']);
+        $this->assertSame('inline0/client-a-theme', $result['deployment']['github_repo']);
+        $this->assertSame('main', $result['deployment']['github_base_branch']);
+        $this->assertCount(1, $deployments);
+        $this->assertSame($result['deployment']['id'], $deployments[0]['id']);
     }
 }

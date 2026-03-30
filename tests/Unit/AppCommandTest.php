@@ -30,10 +30,18 @@ class AppCommandTest extends RudelTestCase
     public function testCreateOutputsSuccessWithAppId(): void
     {
         $cmd = $this->createCommand();
-        $cmd->create([], ['domain' => 'client-a.com', 'engine' => 'sqlite']);
+        $cmd->create([], [
+            'domain' => 'client-a.com',
+            'engine' => 'sqlite',
+            'github' => 'inline0/client-a-theme',
+            'branch' => 'main',
+            'dir' => 'themes/client-a',
+        ]);
 
         $this->assertCount(1, \WP_CLI::$successes);
         $this->assertStringContainsString('App created:', \WP_CLI::$successes[0]);
+        $logOutput = implode("\n", array_filter(\WP_CLI::$log, 'is_string'));
+        $this->assertStringContainsString('inline0/client-a-theme', $logOutput);
     }
 
     #[RunInSeparateProcess]
@@ -133,13 +141,19 @@ class AppCommandTest extends RudelTestCase
         $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
         \WP_CLI::reset();
 
-        $cmd->update([$appId], ['owner' => 'dennis', 'labels' => 'priority', 'protected' => true]);
+        $cmd->update([$appId], [
+            'owner' => 'dennis',
+            'labels' => 'priority',
+            'protected' => true,
+            'github' => 'inline0/client-a-theme',
+        ]);
 
         $this->assertCount(1, \WP_CLI::$successes);
         $this->assertStringContainsString('App updated', \WP_CLI::$successes[0]);
         $logOutput = implode("\n", array_filter(\WP_CLI::$log, 'is_string'));
         $this->assertStringContainsString('dennis', $logOutput);
         $this->assertStringContainsString('yes', $logOutput);
+        $this->assertStringContainsString('inline0/client-a-theme', $logOutput);
     }
 
     #[RunInSeparateProcess]
@@ -172,10 +186,47 @@ class AppCommandTest extends RudelTestCase
         $sandboxId = preg_replace('/^Sandbox created from app: ([^ ]+)$/', '$1', \WP_CLI::$successes[0]);
         \WP_CLI::reset();
 
-        $cmd->deploy([$appId], ['from' => $sandboxId, 'backup' => 'before-deploy', 'force' => true]);
+        $cmd->deploy([
+            $appId,
+        ], [
+            'from' => $sandboxId,
+            'backup' => 'before-deploy',
+            'label' => 'Launch candidate',
+            'force' => true,
+        ]);
 
         $this->assertCount(1, \WP_CLI::$successes);
         $this->assertStringContainsString('Sandbox deployed to app', \WP_CLI::$successes[0]);
         $this->assertContains('  Backup:  before-deploy', array_filter(\WP_CLI::$log, fn($m) => is_string($m)));
+        $this->assertNotEmpty(array_filter(\WP_CLI::$log, fn($m) => is_string($m) && str_contains($m, '  Deploy:  deploy-')));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeploymentsFormatsItems(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], [
+            'domain' => 'deployments-app.com',
+            'engine' => 'sqlite',
+            'github' => 'inline0/client-a-theme',
+        ]);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->create_sandbox([$appId], ['name' => 'Deployments Sandbox']);
+        $sandboxId = preg_replace('/^Sandbox created from app: ([^ ]+)$/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->deploy([$appId], ['from' => $sandboxId, 'force' => true]);
+        \WP_CLI::reset();
+
+        $cmd->deployments([$appId], []);
+
+        $formatCalls = array_filter(\WP_CLI::$log, fn($m) => is_array($m) && ($m['__format_items'] ?? false));
+        $this->assertCount(1, $formatCalls);
+        $call = array_values($formatCalls)[0];
+        $this->assertContains('github_repo', $call['fields']);
+        $this->assertContains('backup_name', $call['fields']);
     }
 }

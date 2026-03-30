@@ -114,6 +114,18 @@ class EnvironmentPolicy {
 			$normalized['last_deployed_at'] = self::normalize_timestamp( $changes['last_deployed_at'], 'last_deployed_at' );
 		}
 
+		if ( array_key_exists( 'tracked_github_repo', $changes ) ) {
+			$normalized['tracked_github_repo'] = self::normalize_github_repo( $changes['tracked_github_repo'] );
+		}
+
+		if ( array_key_exists( 'tracked_github_branch', $changes ) ) {
+			$normalized['tracked_github_branch'] = self::normalize_github_branch( $changes['tracked_github_branch'] );
+		}
+
+		if ( array_key_exists( 'tracked_github_dir', $changes ) ) {
+			$normalized['tracked_github_dir'] = self::normalize_github_dir( $changes['tracked_github_dir'] );
+		}
+
 		return $normalized;
 	}
 
@@ -189,6 +201,63 @@ class EnvironmentPolicy {
 
 		$value = trim( (string) $value );
 		return '' === $value ? null : $value;
+	}
+
+	/**
+	 * Normalize a tracked GitHub repository identifier.
+	 *
+	 * @param mixed $value Raw input.
+	 * @return string|null
+	 * @throws \InvalidArgumentException If the value is not a valid owner/repo string.
+	 */
+	private static function normalize_github_repo( $value ): ?string {
+		$value = self::normalize_optional_string( $value );
+		if ( null === $value ) {
+			return null;
+		}
+
+		if ( ! preg_match( '/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $value ) ) {
+			throw new \InvalidArgumentException( 'GitHub repositories must use the owner/repo format.' );
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Normalize an optional tracked GitHub branch.
+	 *
+	 * @param mixed $value Raw input.
+	 * @return string|null
+	 */
+	private static function normalize_github_branch( $value ): ?string {
+		return self::normalize_optional_string( $value );
+	}
+
+	/**
+	 * Normalize an optional tracked wp-content subdirectory.
+	 *
+	 * @param mixed $value Raw input.
+	 * @return string|null
+	 * @throws \InvalidArgumentException If the path is absolute or traverses outside wp-content.
+	 */
+	private static function normalize_github_dir( $value ): ?string {
+		$value = self::normalize_optional_string( $value );
+		if ( null === $value ) {
+			return null;
+		}
+
+		$value = str_replace( '\\', '/', $value );
+		$value = trim( $value, '/' );
+
+		if ( '' === $value || '.' === $value ) {
+			return null;
+		}
+
+		if ( preg_match( '#(^|/)\.\.?(?:/|$)#', $value ) ) {
+			throw new \InvalidArgumentException( 'Tracked GitHub directories must stay within wp-content.' );
+		}
+
+		return $value;
 	}
 
 	/**
