@@ -407,6 +407,22 @@ Restores an app from a named backup.
 
 Lists deployment records for an app.
 
+### `Rudel::plan_app_deploy( $app_id, $sandbox_id, $backup_name, $options )`
+
+Builds a dry-run deploy plan without mutating the app.
+
+```php
+$plan = Rudel::plan_app_deploy(
+    'client-a-com-a1b2',
+    'client-a-feature-b2c3',
+    'before-launch',
+    [ 'label' => 'Launch candidate' ]
+);
+
+echo $plan['lock_path'];
+echo $plan['tracked_github_repo'];
+```
+
 ### `Rudel::deploy_sandbox_to_app( $app_id, $sandbox_id, $backup_name, $options )`
 
 Deploys a sandbox into an app. A backup is created first, and the resulting deployment is recorded for later auditing and rollback lookup.
@@ -425,6 +441,30 @@ echo $result['backup']['name'];
 echo $result['deployment']['id'];
 ```
 
+### `Rudel::rollback_app_deployment( $app_id, $deployment_id, $options )`
+
+Rolls an app back using the backup referenced by a deployment record.
+
+```php
+$rollback = Rudel::rollback_app_deployment(
+    'client-a-com-a1b2',
+    'deploy-20260330-123456'
+);
+
+echo $rollback['backup_name'];
+```
+
+### `Rudel::prune_app_history( $app_id, $options )`
+
+Prunes old app backups and deployment records.
+
+```php
+$result = Rudel::prune_app_history( 'client-a-com-a1b2', [
+    'keep_backups'     => 10,
+    'keep_deployments' => 25,
+] );
+```
+
 ### `Rudel::apps_dir()`
 
 Returns the absolute path to the apps directory.
@@ -435,29 +475,51 @@ $dir = Rudel::apps_dir(); // '/var/www/html/wp-content/rudel-apps'
 
 ### `Rudel::run_scheduled_cleanup()`
 
-Runs the same cleanup automation that Rudel schedules via WP-Cron.
+Runs the same automation pipeline that Rudel schedules via WP-Cron. The name is kept for backward compatibility.
 
 ```php
 $result = Rudel::run_scheduled_cleanup();
 echo count( $result['cleanup']['removed'] );
 ```
 
+### `Rudel::run_automation()`
+
+Runs the full maintenance pipeline directly.
+
+```php
+$result = Rudel::run_automation();
+echo count( $result['app_backups']['created'] );
+```
+
+Automation can include cleanup, merged-branch cleanup, scheduled app backups, app-history retention, and expiry reporting depending on config.
+
+### `Rudel::hooks()`
+
+Returns the documented hook catalog as an associative array.
+
+```php
+$hooks = Rudel::hooks();
+echo $hooks['rudel_app_deploy_plan']['type']; // 'filter'
+```
+
 ## Lifecycle Hooks
 
-Rudel now exposes first-party lifecycle hooks around environment, app, recovery, deploy, and GitHub operations. These are standard WordPress actions and filters.
+Rudel now exposes first-party lifecycle hooks around environment, app, recovery, deploy, GitHub, and automation operations. These are standard WordPress actions and filters, and `Rudel::hooks()` / `HookCatalog::all()` expose the documented contract directly.
 
 Examples:
 
 - `rudel_before_environment_create`
 - `rudel_after_environment_create`
+- `rudel_environment_create_failed`
 - `rudel_before_app_create`
 - `rudel_after_app_create`
 - `rudel_before_app_create_sandbox`
 - `rudel_after_app_deploy`
-- `rudel_before_snapshot_create`
-- `rudel_after_backup_restore`
+- `rudel_app_rollback_failed`
 - `rudel_before_environment_push`
 - `rudel_after_environment_pr`
+- `rudel_after_automation_app_retention`
+- `rudel_after_automation_expiring_environments`
 
 Example:
 
@@ -473,6 +535,8 @@ add_action( 'rudel_after_app_deploy', function ( $result, $context ) {
     );
 }, 10, 2 );
 ```
+
+See [Hooks](/docs/features/hooks) for the broader catalog.
 
 ## Admin bar
 

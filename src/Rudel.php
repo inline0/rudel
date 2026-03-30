@@ -453,6 +453,19 @@ class Rudel {
 	}
 
 	/**
+	 * Build a dry-run deploy plan from a sandbox into an app.
+	 *
+	 * @param string      $app_id App identifier.
+	 * @param string      $sandbox_id Sandbox identifier.
+	 * @param string|null $backup_name Optional backup name.
+	 * @param array       $options Optional deployment metadata.
+	 * @return array<string, mixed>
+	 */
+	public static function plan_app_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
+		return self::app_manager()->preview_deploy( $app_id, $sandbox_id, $backup_name, $options );
+	}
+
+	/**
 	 * Restore an app from a backup.
 	 *
 	 * @param string $app_id App identifier.
@@ -474,6 +487,29 @@ class Rudel {
 	 */
 	public static function deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
 		return self::app_manager()->deploy( $app_id, $sandbox_id, $backup_name, $options );
+	}
+
+	/**
+	 * Roll an app back to the backup captured by a deployment record.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $deployment_id Deployment identifier.
+	 * @param array  $options Optional rollback settings.
+	 * @return array<string, mixed>
+	 */
+	public static function rollback_app_deployment( string $app_id, string $deployment_id, array $options = array() ): array {
+		return self::app_manager()->rollback( $app_id, $deployment_id, $options );
+	}
+
+	/**
+	 * Prune backups and deployment history for one app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param array  $options Retention options.
+	 * @return array{app_id: string, backups_removed: string[], deployments_removed: string[]}
+	 */
+	public static function prune_app_history( string $app_id, array $options = array() ): array {
+		return self::app_manager()->prune_history( $app_id, $options );
 	}
 
 	/**
@@ -566,6 +602,24 @@ class Rudel {
 	 */
 	public static function run_scheduled_cleanup(): array {
 		return Automation::run();
+	}
+
+	/**
+	 * Run all configured automation tasks immediately.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function run_automation(): array {
+		return Automation::run();
+	}
+
+	/**
+	 * Return the documented Rudel hook catalog.
+	 *
+	 * @return array<string, array{type: string, args: string[]}>
+	 */
+	public static function hooks(): array {
+		return HookCatalog::all();
 	}
 
 	/**

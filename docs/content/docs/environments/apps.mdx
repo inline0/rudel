@@ -93,6 +93,12 @@ Deploy a sandbox into an app:
 wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --force
 ```
 
+Preview the deploy first:
+
+```bash
+wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --dry-run
+```
+
 Deploy always creates or uses an app backup first, then replaces the app's database and `wp-content` with the sandbox state while rewriting URLs back to the app domain.
 
 Every deploy also writes a deployment record, so you can audit which sandbox shipped, which backup can roll it back, and any operator notes attached to the release:
@@ -135,10 +141,16 @@ That keeps the app stable while the sandbox carries its own expiry and stewardsh
 
 ### Roll back a bad deploy
 
-Because deploys always point back to a backup, rollback is just an app restore:
+Because deploys always point back to a backup, rollback is a first-class app operation:
 
 ```bash
 wp rudel app deployments client-a-com-a1b2
+wp rudel app rollback client-a-com-a1b2 --deployment=deploy-20260330-123456 --force
+```
+
+If you already know the backup name and want to bypass deployment history, raw app restore is still available:
+
+```bash
 wp rudel app restore client-a-com-a1b2 --backup=before-launch --force
 ```
 

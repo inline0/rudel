@@ -205,6 +205,40 @@ class SnapshotManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testPruneKeepsNewestSnapshots(): void
+    {
+        $this->defineConstants();
+        $sandbox = $this->createRealSandbox('Snap Prune');
+
+        $manager = new SnapshotManager($sandbox);
+        $manager->create('v1');
+        $manager->create('v2');
+        $manager->create('v3');
+
+        file_put_contents($sandbox->path . '/snapshots/v1/snapshot.json', json_encode([
+            'name' => 'v1',
+            'sandbox_id' => $sandbox->id,
+            'created_at' => '2026-01-01T00:00:00+00:00',
+        ], JSON_PRETTY_PRINT));
+        file_put_contents($sandbox->path . '/snapshots/v2/snapshot.json', json_encode([
+            'name' => 'v2',
+            'sandbox_id' => $sandbox->id,
+            'created_at' => '2026-01-02T00:00:00+00:00',
+        ], JSON_PRETTY_PRINT));
+        file_put_contents($sandbox->path . '/snapshots/v3/snapshot.json', json_encode([
+            'name' => 'v3',
+            'sandbox_id' => $sandbox->id,
+            'created_at' => '2026-01-03T00:00:00+00:00',
+        ], JSON_PRETTY_PRINT));
+
+        $removed = $manager->prune(1);
+
+        $this->assertSame(['v2', 'v1'], $removed);
+        $this->assertSame(['v3'], array_column($manager->list_snapshots(), 'name'));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testValidateNameAcceptsValidNames(): void
     {
         $this->assertTrue(SnapshotManager::validate_name('v1'));

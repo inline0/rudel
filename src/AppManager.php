@@ -41,6 +41,20 @@ class AppManager {
 	private string $sandboxes_dir;
 
 	/**
+	 * App operations service.
+	 *
+	 * @var AppOperationsService
+	 */
+	private AppOperationsService $operations;
+
+	/**
+	 * Domain map persistence helper.
+	 *
+	 * @var AppDomainMap
+	 */
+	private AppDomainMap $domain_map;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param string|null $apps_dir Optional override for the apps directory.
@@ -51,6 +65,8 @@ class AppManager {
 		$this->sandboxes_dir   = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
 		$this->manager         = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir );
 		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir );
+		$this->operations      = new AppOperationsService( $this->manager, $this->sandbox_manager );
+		$this->domain_map      = new AppDomainMap( $this->apps_dir );
 	}
 
 	/**
@@ -248,7 +264,7 @@ class AppManager {
 		Hooks::action( 'rudel_before_app_backup', $context );
 
 		try {
-			$meta = $this->backup_manager( $app )->create( $name );
+			$meta = $this->operations->backup( $app, $name );
 			Hooks::action( 'rudel_after_app_backup', $meta, $context );
 
 			return $meta;
@@ -268,7 +284,7 @@ class AppManager {
 	 */
 	public function backups( string $id ): array {
 		$app = $this->require_app( $id );
-		return $this->backup_manager( $app )->list_snapshots();
+		return $this->operations->backups( $app );
 	}
 
 	/**
@@ -281,7 +297,24 @@ class AppManager {
 	 */
 	public function deployments( string $id ): array {
 		$app = $this->require_app( $id );
-		return $this->deployment_log( $app )->list();
+		return $this->operations->deployments( $app );
+	}
+
+	/**
+	 * Build a deploy plan for an app without mutating state.
+	 *
+	 * @param string      $app_id App identifier.
+	 * @param string      $sandbox_id Sandbox identifier.
+	 * @param string|null $backup_name Optional backup name.
+	 * @param array       $options Optional deployment metadata.
+	 * @return array<string, mixed>
+	 */
+	public function preview_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
+		$app     = $this->require_app( $app_id );
+		$sandbox = $this->operations->require_sandbox( $sandbox_id );
+		$options = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
+
+		return $this->operations->preview_deploy( $app, $sandbox, $backup_name, $options );
 	}
 
 	/**
@@ -303,18 +336,7 @@ class AppManager {
 		Hooks::action( 'rudel_before_app_restore', $context );
 
 		try {
-			$config = new RudelConfig();
-			if ( $config->get( 'auto_backup_before_app_restore' ) > 0 ) {
-				$this->backup( $id, 'pre-restore-' . gmdate( 'Ymd_His' ) . '-' . substr( md5( uniqid( '', true ) ), 0, 4 ) );
-			}
-
-			$this->backup_manager( $app )->restore( $name );
-			$this->manager->update(
-				$id,
-				array(
-					'last_used_at' => gmdate( 'c' ),
-				)
-			);
+			$this->operations->restore( $app, $name );
 			Hooks::action( 'rudel_after_app_restore', $context );
 		} catch ( \Throwable $e ) {
 			Hooks::action( 'rudel_app_restore_failed', $context, $e );
@@ -337,70 +359,64 @@ class AppManager {
 	 */
 	public function deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
 		$app     = $this->require_app( $app_id );
-		$sandbox = $this->sandbox_manager->get( $sandbox_id );
+		$sandbox = $this->operations->require_sandbox( $sandbox_id );
 
-		if ( ! $sandbox ) {
-			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		$options = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
+
+		return $this->operations->deploy( $app, $sandbox, $backup_name, $options );
+	}
+
+	/**
+	 * Roll an app back to the backup captured by a deployment record.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param string $deployment_id Deployment identifier.
+	 * @param array  $options Optional rollback settings.
+	 * @return array<string, mixed>
+	 */
+	public function rollback( string $app_id, string $deployment_id, array $options = array() ): array {
+		$app = $this->require_app( $app_id );
+
+		return $this->operations->rollback( $app, $deployment_id, $options );
+	}
+
+	/**
+	 * Prune backups and deployment history for one app.
+	 *
+	 * @param string $app_id App identifier.
+	 * @param array  $options Retention options.
+	 * @return array{app_id: string, backups_removed: string[], deployments_removed: string[]}
+	 */
+	public function prune_history( string $app_id, array $options = array() ): array {
+		$app = $this->require_app( $app_id );
+
+		return $this->operations->prune( $app, $options );
+	}
+
+	/**
+	 * Prune backups and deployment history across all apps.
+	 *
+	 * @param array $options Retention options.
+	 * @return array<int, array{app_id: string, backups_removed: string[], deployments_removed: string[]}>
+	 */
+	public function prune_all_history( array $options = array() ): array {
+		$results = array();
+
+		foreach ( $this->list() as $app ) {
+			$results[] = $this->operations->prune( $app, $options );
 		}
 
-		if ( $sandbox->is_subsite() ) {
-			throw new \InvalidArgumentException( 'Apps cannot be deployed from subsite-engine sandboxes.' );
-		}
+		return $results;
+	}
 
-		if ( $sandbox->engine !== $app->engine ) {
-			throw new \InvalidArgumentException(
-				sprintf( 'Cannot deploy across engines: sandbox is %s, app is %s.', $sandbox->engine, $app->engine )
-			);
-		}
-
-		$options       = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
-		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
-		$context       = array(
-			'app'         => $app,
-			'sandbox'     => $sandbox,
-			'backup_name' => $backup_name,
-			'options'     => $options,
-		);
-		Hooks::action( 'rudel_before_app_deploy', $context );
-
-		try {
-			$backup      = $this->backup( $app_id, $backup_name );
-			$state       = $this->manager->replace_environment_state( $sandbox, $app );
-			$deployed_at = gmdate( 'c' );
-			$this->manager->update(
-				$app_id,
-				array(
-					'last_deployed_from_id'   => $sandbox->id,
-					'last_deployed_from_type' => $sandbox->type,
-					'last_deployed_at'        => $deployed_at,
-					'last_used_at'            => $deployed_at,
-				)
-			);
-			$deployment = $this->deployment_log( $this->require_app( $app_id ) )->record(
-				$sandbox,
-				array(
-					'deployed_at'   => $deployed_at,
-					'backup_name'   => $backup['name'],
-					'tables_copied' => $state['tables_copied'],
-					'label'         => $options['label'] ?? null,
-					'notes'         => $options['notes'] ?? null,
-				)
-			);
-
-			$result = array(
-				'app_id'        => $app->id,
-				'sandbox_id'    => $sandbox->id,
-				'backup'        => $backup,
-				'tables_copied' => $state['tables_copied'],
-				'deployment'    => $deployment,
-			);
-			Hooks::action( 'rudel_after_app_deploy', $result, $context );
-
-			return $result;
-		} catch ( \Throwable $e ) {
-			Hooks::action( 'rudel_app_deploy_failed', $context, $e );
-			throw $e;
-		}
+	/**
+	 * Run scheduled backups for all apps.
+	 *
+	 * @param int $interval_hours Minimum hours between backups for the same app.
+	 * @return array{created: array<string, string>, skipped: string[], errors: array<string, string>}
+	 */
+	public function run_scheduled_backups( int $interval_hours ): array {
+		return $this->operations->run_scheduled_backups( $this->list(), $interval_hours );
 	}
 
 	/**
@@ -499,31 +515,7 @@ class AppManager {
 	 * @return void
 	 */
 	public function rebuild_domain_map(): void {
-		$map  = array();
-		$apps = $this->list();
-
-		foreach ( $apps as $app ) {
-			if ( empty( $app->domains ) ) {
-				continue;
-			}
-			foreach ( $app->domains as $domain ) {
-				$map[ $this->normalize_domain( $domain ) ] = $app->id;
-			}
-		}
-
-		$map_path = $this->apps_dir . '/domains.json';
-
-		if ( ! is_dir( $this->apps_dir ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating apps directory.
-			mkdir( $this->apps_dir, 0755, true );
-		}
-
-		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing domain map.
-		file_put_contents(
-			$map_path,
-			json_encode( $map, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n"
-		);
-		// phpcs:enable
+		$this->domain_map->rebuild( $this->list() );
 	}
 
 	/**
@@ -532,53 +524,7 @@ class AppManager {
 	 * @return array<string, string> Domain to app ID mapping.
 	 */
 	public function get_domain_map(): array {
-		$map_path = $this->apps_dir . '/domains.json';
-		if ( ! file_exists( $map_path ) ) {
-			return array();
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading domain map.
-		$data = json_decode( file_get_contents( $map_path ), true );
-		if ( ! is_array( $data ) ) {
-			return array();
-		}
-
-		$map = array();
-		foreach ( $data as $domain => $id ) {
-			if ( is_string( $domain ) && is_string( $id ) ) {
-				$map[ $this->normalize_domain( $domain ) ] = $id;
-			}
-		}
-
-		return $map;
-	}
-
-	/**
-	 * Create a backup manager for an app.
-	 *
-	 * @param Environment $app App environment.
-	 * @return SnapshotManager
-	 */
-	private function backup_manager( Environment $app ): SnapshotManager {
-		return new SnapshotManager(
-			$app,
-			array(
-				'kind'          => 'backup',
-				'storage_dir'   => 'backups',
-				'metadata_file' => 'backup.json',
-				'owner_id_key'  => 'app_id',
-			)
-		);
-	}
-
-	/**
-	 * Create a deployment log manager for an app.
-	 *
-	 * @param Environment $app App environment.
-	 * @return AppDeploymentLog
-	 */
-	private function deployment_log( Environment $app ): AppDeploymentLog {
-		return new AppDeploymentLog( $app );
+		return $this->domain_map->read();
 	}
 
 	/**

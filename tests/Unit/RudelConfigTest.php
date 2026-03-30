@@ -18,6 +18,11 @@ class RudelConfigTest extends RudelTestCase
         $this->assertSame(0, $config->get('max_idle_days'));
         $this->assertSame(1, $config->get('auto_cleanup_enabled'));
         $this->assertSame(0, $config->get('auto_cleanup_merged'));
+        $this->assertSame(0, $config->get('auto_app_backups_enabled'));
+        $this->assertSame(24, $config->get('auto_app_backup_interval_hours'));
+        $this->assertSame(0, $config->get('auto_app_backup_retention_count'));
+        $this->assertSame(0, $config->get('auto_app_deployment_retention_count'));
+        $this->assertSame(0, $config->get('expiring_environment_notice_days'));
         $this->assertSame(1, $config->get('auto_snapshot_before_restore'));
         $this->assertSame(1, $config->get('auto_backup_before_app_restore'));
     }
@@ -44,6 +49,11 @@ class RudelConfigTest extends RudelTestCase
         $config->set('default_ttl_days', 14);
         $config->set('max_idle_days', 7);
         $config->set('auto_cleanup_merged', 1);
+        $config->set('auto_app_backups_enabled', 1);
+        $config->set('auto_app_backup_interval_hours', 12);
+        $config->set('auto_app_backup_retention_count', 5);
+        $config->set('auto_app_deployment_retention_count', 7);
+        $config->set('expiring_environment_notice_days', 3);
         $config->save();
 
         $this->assertFileExists($path);
@@ -54,6 +64,11 @@ class RudelConfigTest extends RudelTestCase
         $this->assertSame(14, $loaded->get('default_ttl_days'));
         $this->assertSame(7, $loaded->get('max_idle_days'));
         $this->assertSame(1, $loaded->get('auto_cleanup_merged'));
+        $this->assertSame(1, $loaded->get('auto_app_backups_enabled'));
+        $this->assertSame(12, $loaded->get('auto_app_backup_interval_hours'));
+        $this->assertSame(5, $loaded->get('auto_app_backup_retention_count'));
+        $this->assertSame(7, $loaded->get('auto_app_deployment_retention_count'));
+        $this->assertSame(3, $loaded->get('expiring_environment_notice_days'));
         $this->assertSame(0, $loaded->get('max_disk_mb'));
     }
 
@@ -68,6 +83,8 @@ class RudelConfigTest extends RudelTestCase
         $this->assertArrayHasKey('default_ttl_days', $all);
         $this->assertArrayHasKey('max_idle_days', $all);
         $this->assertArrayHasKey('auto_cleanup_enabled', $all);
+        $this->assertArrayHasKey('auto_app_backups_enabled', $all);
+        $this->assertArrayHasKey('auto_app_backup_retention_count', $all);
         $this->assertSame(0, $all['max_sandboxes']);
     }
 

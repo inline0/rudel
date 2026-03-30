@@ -34,6 +34,27 @@ class EnvironmentManager {
 	private string $plugin_dir;
 
 	/**
+	 * Environment metadata repository.
+	 *
+	 * @var EnvironmentRepository
+	 */
+	private EnvironmentRepository $repository;
+
+	/**
+	 * Cleanup orchestration for this environment type.
+	 *
+	 * @var EnvironmentCleanupService
+	 */
+	private EnvironmentCleanupService $cleanup_service;
+
+	/**
+	 * Destructive state replacement helper.
+	 *
+	 * @var EnvironmentStateReplacer
+	 */
+	private EnvironmentStateReplacer $state_replacer;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param string|null $environments_dir Optional override for the sandboxes directory.
@@ -45,15 +66,15 @@ class EnvironmentManager {
 
 		if ( null !== $alternate_environments_dir ) {
 			$this->alternate_environments_dir = $alternate_environments_dir;
-			return;
-		}
-
-		if ( $this->get_default_apps_dir() === $this->environments_dir ) {
+		} elseif ( $this->get_default_apps_dir() === $this->environments_dir ) {
 			$this->alternate_environments_dir = $this->get_default_environments_dir();
-			return;
+		} else {
+			$this->alternate_environments_dir = $this->get_default_apps_dir();
 		}
 
-		$this->alternate_environments_dir = $this->get_default_apps_dir();
+		$this->repository                 = new EnvironmentRepository( $this->environments_dir, $this->alternate_environments_dir );
+		$this->cleanup_service            = new EnvironmentCleanupService( $this->repository, array( $this, 'destroy' ) );
+		$this->state_replacer             = new EnvironmentStateReplacer();
 	}
 
 	/**
@@ -91,7 +112,7 @@ class EnvironmentManager {
 			}
 
 			$id   = Environment::generate_id( $name );
-			$path = $this->environments_dir . '/' . $id;
+			$path = $this->repository->path_for( $id );
 
 			if ( is_dir( $path ) ) {
 				throw new \RuntimeException( sprintf( 'Sandbox directory already exists: %s', $path ) );
@@ -335,7 +356,7 @@ class EnvironmentManager {
 				tracked_github_branch: $policy_meta['tracked_github_branch'] ?? null,
 				tracked_github_dir: $policy_meta['tracked_github_dir'] ?? null,
 			);
-			$environment->save_meta();
+			$this->repository->save( $environment );
 
 			Hooks::action( 'rudel_after_environment_create', $environment, $context );
 
@@ -368,30 +389,7 @@ class EnvironmentManager {
 	 * @return Environment[] Array of sandbox instances.
 	 */
 	public function list(): array {
-		if ( ! is_dir( $this->environments_dir ) ) {
-			return array();
-		}
-
-		$sandboxes = array();
-		$dirs      = scandir( $this->environments_dir );
-
-		foreach ( $dirs as $dir ) {
-			if ( '.' === $dir || '..' === $dir ) {
-				continue;
-			}
-
-			$path = $this->environments_dir . '/' . $dir;
-			if ( ! is_dir( $path ) ) {
-				continue;
-			}
-
-			$sandbox = Environment::from_path( $path );
-			if ( $sandbox ) {
-				$sandboxes[] = $sandbox;
-			}
-		}
-
-		return $sandboxes;
+		return $this->repository->all();
 	}
 
 	/**
@@ -401,12 +399,7 @@ class EnvironmentManager {
 	 * @return Environment|null Sandbox instance or null if not found.
 	 */
 	public function get( string $id ): ?Environment {
-		if ( ! Environment::validate_id( $id ) ) {
-			return null;
-		}
-
-		$path = $this->environments_dir . '/' . $id;
-		return Environment::from_path( $path );
+		return $this->repository->get( $id );
 	}
 
 	/**
@@ -691,16 +684,6 @@ class EnvironmentManager {
 	 * @throws \Throwable If replacement fails after lifecycle hooks begin.
 	 */
 	public function replace_environment_state( Environment $source, Environment $target ): array {
-		if ( $source->is_subsite() || $target->is_subsite() ) {
-			throw new \InvalidArgumentException( 'Environment state replacement does not support subsite environments.' );
-		}
-
-		if ( $source->engine !== $target->engine ) {
-			throw new \InvalidArgumentException(
-				sprintf( 'Cannot replace environment state across engines: source is %s, target is %s.', $source->engine, $target->engine )
-			);
-		}
-
 		$context = array(
 			'source' => $source,
 			'target' => $target,
@@ -708,25 +691,13 @@ class EnvironmentManager {
 		Hooks::action( 'rudel_before_environment_replace_state', $context );
 
 		try {
-			$tables_copied = 0;
-			if ( $source->is_mysql() ) {
-				$tables_copied = $this->replace_mysql_environment_state( $source, $target );
-			} else {
-				$this->replace_sqlite_environment_state( $source, $target );
-			}
-
-			$this->replace_environment_content( $source, $target );
+			$result = $this->state_replacer->replace( $source, $target );
 			$this->write_runtime_mu_plugin( $target->path );
 
 			if ( $target->is_sqlite() ) {
 				$this->write_db_drop_in( $target->path );
 			}
 
-			$result = array(
-				'source_id'     => $source->id,
-				'target_id'     => $target->id,
-				'tables_copied' => $tables_copied,
-			);
 			Hooks::action( 'rudel_after_environment_replace_state', $result, $context );
 
 			return $result;
@@ -850,7 +821,7 @@ class EnvironmentManager {
 
 		$engine = $old_meta['engine'] ?? 'mysql';
 
-		$new_path = $this->environments_dir . '/' . $new_id;
+		$new_path = $this->repository->path_for( $new_id );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Moving extracted sandbox into place.
 		rename( $tmp_dir, $new_path );
 
@@ -935,7 +906,7 @@ class EnvironmentManager {
 			source_environment_id: $imported_meta['source_environment_id'] ?? null,
 			source_environment_type: $imported_meta['source_environment_type'] ?? null,
 		);
-		$sandbox->save_meta();
+		$this->repository->save( $sandbox );
 
 		Hooks::action( 'rudel_after_environment_import', $sandbox, $context );
 
@@ -948,7 +919,7 @@ class EnvironmentManager {
 	 * @return string Absolute path.
 	 */
 	public function get_environments_dir(): string {
-		return $this->environments_dir;
+		return $this->repository->environments_dir();
 	}
 
 	/**
@@ -958,78 +929,7 @@ class EnvironmentManager {
 	 * @return array{removed: string[], skipped: string[], errors: string[], reasons?: array<string, string>} Cleanup results.
 	 */
 	public function cleanup( array $options = array() ): array {
-		$options = Hooks::filter( 'rudel_environment_cleanup_options', $options, $this );
-		Hooks::action( 'rudel_before_environment_cleanup', $options );
-
-		$dry_run       = ! empty( $options['dry_run'] );
-		$max_age_days  = $options['max_age_days'] ?? 0;
-		$max_idle_days = $options['max_idle_days'] ?? 0;
-		$config        = new RudelConfig();
-
-		if ( 0 === $max_age_days ) {
-			$max_age_days = $config->get( 'max_age_days' );
-		}
-
-		if ( 0 === $max_idle_days ) {
-			$max_idle_days = $config->get( 'max_idle_days' );
-		}
-
-		$result = array(
-			'removed' => array(),
-			'skipped' => array(),
-			'errors'  => array(),
-			'reasons' => array(),
-		);
-
-		if ( $max_age_days <= 0 && $max_idle_days <= 0 ) {
-			$has_explicit_expiry = false;
-			foreach ( $this->list() as $environment ) {
-				if ( null !== $environment->expires_at ) {
-					$has_explicit_expiry = true;
-					break;
-				}
-			}
-
-			if ( ! $has_explicit_expiry ) {
-				Hooks::action( 'rudel_after_environment_cleanup', $result, $options );
-				return $result;
-			}
-		}
-
-		$now       = time();
-		$sandboxes = $this->list();
-
-		foreach ( $sandboxes as $sandbox ) {
-			if ( $sandbox->is_protected() ) {
-				$result['skipped'][]               = $sandbox->id;
-				$result['reasons'][ $sandbox->id ] = 'protected';
-				continue;
-			}
-
-			$reason = EnvironmentPolicy::cleanup_reason( $sandbox, $now, $max_age_days, $max_idle_days );
-
-			if ( null === $reason ) {
-				$result['skipped'][] = $sandbox->id;
-				continue;
-			}
-
-			$result['reasons'][ $sandbox->id ] = $reason;
-
-			if ( $dry_run ) {
-				$result['removed'][] = $sandbox->id;
-				continue;
-			}
-
-			if ( $this->destroy( $sandbox->id ) ) {
-				$result['removed'][] = $sandbox->id;
-			} else {
-				$result['errors'][] = $sandbox->id;
-			}
-		}
-
-		Hooks::action( 'rudel_after_environment_cleanup', $result, $options );
-
-		return $result;
+		return $this->cleanup_service->cleanup( $options );
 	}
 
 	/**
@@ -1039,102 +939,7 @@ class EnvironmentManager {
 	 * @return array{removed: string[], skipped: string[], errors: string[], reasons?: array<string, string>} Cleanup results.
 	 */
 	public function cleanup_merged( array $options = array() ): array {
-		$options = Hooks::filter( 'rudel_environment_cleanup_merged_options', $options, $this );
-		Hooks::action( 'rudel_before_environment_cleanup_merged', $options );
-
-		$dry_run = ! empty( $options['dry_run'] );
-		$git     = new GitIntegration();
-		$result  = array(
-			'removed' => array(),
-			'skipped' => array(),
-			'errors'  => array(),
-			'reasons' => array(),
-		);
-
-		$sandboxes = $this->list();
-
-		foreach ( $sandboxes as $sandbox ) {
-			if ( $sandbox->is_protected() ) {
-				$result['skipped'][]               = $sandbox->id;
-				$result['reasons'][ $sandbox->id ] = 'protected';
-				continue;
-			}
-
-			$branch      = $sandbox->get_git_branch();
-			$github_repo = $sandbox->get_github_repo();
-			$worktrees   = $sandbox->clone_source['git_worktrees'] ?? array();
-			$has_git     = ! empty( $worktrees );
-			$has_github  = ! empty( $github_repo );
-
-			if ( ! $has_git && ! $has_github ) {
-				$result['skipped'][] = $sandbox->id;
-				continue;
-			}
-
-			$is_merged = false;
-
-			// Prefer GitHub when possible because many shared hosts can hit the API but cannot inspect local git history reliably.
-			if ( $has_github ) {
-				try {
-					$github    = new GitHubIntegration( $github_repo );
-					$is_merged = $github->is_branch_merged( $branch );
-				} catch ( \RuntimeException $e ) {
-					// Local worktrees are still a useful fallback when GitHub metadata is unavailable.
-					$is_merged = false;
-				}
-			}
-
-			if ( ! $is_merged && $has_git ) {
-				$all_local_merged = true;
-				foreach ( $worktrees as $wt ) {
-					$default_branch = $git->get_default_branch( $wt['repo'] );
-					if ( ! $git->is_branch_merged( $wt['repo'], $wt['branch'], $default_branch ) ) {
-						$all_local_merged = false;
-						break;
-					}
-				}
-				$is_merged = $all_local_merged;
-			}
-
-			if ( ! $is_merged ) {
-				$result['skipped'][] = $sandbox->id;
-				continue;
-			}
-
-			$result['reasons'][ $sandbox->id ] = 'merged';
-
-			if ( $dry_run ) {
-				$result['removed'][] = $sandbox->id;
-				continue;
-			}
-
-			// Remove worktrees first so the source repos do not retain dead branches after the sandbox is gone.
-			foreach ( $worktrees as $wt ) {
-				$worktree_path = $sandbox->get_wp_content_path() . '/' . $wt['type'] . '/' . $wt['name'];
-				$git->remove_worktree( $wt['repo'], $worktree_path );
-				$git->delete_branch( $wt['repo'], $wt['branch'] );
-			}
-
-			// Mirror sandbox cleanup to GitHub so remote branches do not accumulate indefinitely.
-			if ( $has_github ) {
-				try {
-					$github = new GitHubIntegration( $github_repo );
-					$github->delete_branch( $branch );
-				} catch ( \RuntimeException $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Best-effort cleanup; failure is acceptable.
-					unset( $e );
-				}
-			}
-
-			if ( $this->destroy( $sandbox->id ) ) {
-				$result['removed'][] = $sandbox->id;
-			} else {
-				$result['errors'][] = $sandbox->id;
-			}
-		}
-
-		Hooks::action( 'rudel_after_environment_cleanup_merged', $result, $options );
-
-		return $result;
+		return $this->cleanup_service->cleanup_merged( $options );
 	}
 
 	/**
@@ -1194,20 +999,7 @@ class EnvironmentManager {
 	 * @return Environment|null
 	 */
 	private function resolve_clone_source_environment( string $id ): ?Environment {
-		$source = $this->get( $id );
-		if ( $source ) {
-			return $source;
-		}
-
-		if ( '' === $this->alternate_environments_dir || $this->alternate_environments_dir === $this->environments_dir ) {
-			return null;
-		}
-
-		if ( ! Environment::validate_id( $id ) ) {
-			return null;
-		}
-
-		return Environment::from_path( $this->alternate_environments_dir . '/' . $id );
+		return $this->repository->resolve( $id );
 	}
 
 	/**
@@ -1252,9 +1044,10 @@ class EnvironmentManager {
 		$config        = $config ?? new RudelConfig();
 		$max_sandboxes = $config->get( 'max_sandboxes' );
 		$max_disk_mb   = $config->get( 'max_disk_mb' );
+		$environments  = $this->repository->all();
 
 		if ( $max_sandboxes > 0 ) {
-			$count = count( $this->list() );
+			$count = count( $environments );
 			if ( $count >= $max_sandboxes ) {
 				throw new \RuntimeException(
 					sprintf( 'Sandbox limit reached: %d of %d', $count, $max_sandboxes )
@@ -1264,7 +1057,7 @@ class EnvironmentManager {
 
 		if ( $max_disk_mb > 0 ) {
 			$total_bytes = 0;
-			foreach ( $this->list() as $sandbox ) {
+			foreach ( $environments as $sandbox ) {
 				$total_bytes += $sandbox->get_size();
 			}
 			$total_mb = $total_bytes / ( 1024 * 1024 );
@@ -1890,106 +1683,6 @@ class EnvironmentManager {
 			$target_id,
 			$target_type
 		);
-	}
-
-	/**
-	 * Replace the database state of a MySQL environment.
-	 *
-	 * @param Environment $source Source environment.
-	 * @param Environment $target Target environment.
-	 * @return int Number of tables copied.
-	 */
-	private function replace_mysql_environment_state( Environment $source, Environment $target ): int {
-		global $wpdb;
-
-		$source_prefix = $source->get_table_prefix();
-		$target_prefix = $target->get_table_prefix();
-		$source_url    = $this->get_environment_site_url( $source );
-		$target_url    = $this->get_environment_site_url( $target );
-
-		$mysql_cloner = new MySQLCloner();
-		$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
-		$count = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $source_prefix . 'snap_' ) );
-		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
-		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
-
-		return $count;
-	}
-
-	/**
-	 * Replace the database state of a SQLite environment.
-	 *
-	 * @param Environment $source Source environment.
-	 * @param Environment $target Target environment.
-	 * @return void
-	 *
-	 * @throws \RuntimeException If the database files are missing or replacement fails.
-	 */
-	private function replace_sqlite_environment_state( Environment $source, Environment $target ): void {
-		$source_db = $source->get_db_path();
-		$target_db = $target->get_db_path();
-		if ( ! $source_db || ! $target_db ) {
-			throw new \RuntimeException( 'SQLite environment replacement requires both source and target database files.' );
-		}
-
-		$tmp_db = $target->path . '/tmp/' . $target->id . '-replace.db';
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file into place for replacement.
-		if ( ! copy( $source_db, $tmp_db ) ) {
-			throw new \RuntimeException( sprintf( 'Failed to copy SQLite database from source environment: %s', $source->id ) );
-		}
-
-		$source_prefix = $source->get_table_prefix();
-		$target_prefix = $target->get_table_prefix();
-		$source_url    = $this->get_environment_site_url( $source );
-		$target_url    = $this->get_environment_site_url( $target );
-
-		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite database requires PDO.
-		$pdo = new \PDO( 'sqlite:' . $tmp_db );
-		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-		// phpcs:enable
-
-		$db_cloner = new DatabaseCloner( $this->plugin_dir );
-		$db_cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $target_url );
-
-		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO operations for table renaming.
-		$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
-			->fetchAll( \PDO::FETCH_COLUMN );
-		// phpcs:enable
-
-		foreach ( $tables as $old_table ) {
-			$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
-			$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
-		}
-
-		$db_cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
-		$pdo = null;
-
-		if ( file_exists( $target_db ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Replacing the previous SQLite database file.
-			unlink( $target_db );
-		}
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Promoting the rewritten SQLite database into place.
-		rename( $tmp_db, $target_db );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Matching generated database permissions.
-		chmod( $target_db, 0664 );
-	}
-
-	/**
-	 * Replace one environment's wp-content directory with another's.
-	 *
-	 * @param Environment $source Source environment.
-	 * @param Environment $target Target environment.
-	 * @return void
-	 */
-	private function replace_environment_content( Environment $source, Environment $target ): void {
-		$target_content = $target->get_wp_content_path();
-		if ( is_dir( $target_content ) ) {
-			$this->delete_directory( $target_content );
-		}
-
-		$content_cloner = new ContentCloner();
-		$content_cloner->copy_directory( $source->get_wp_content_path(), $target_content );
 	}
 
 	/**

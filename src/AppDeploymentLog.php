@@ -117,6 +117,66 @@ class AppDeploymentLog {
 	}
 
 	/**
+	 * Resolve a single deployment record by ID.
+	 *
+	 * @param string $id Deployment identifier.
+	 * @return array<string, mixed>|null
+	 */
+	public function find( string $id ): ?array {
+		if ( '' === $id ) {
+			return null;
+		}
+
+		return $this->read_record( $this->deployments_dir . '/' . $id . '.json' );
+	}
+
+	/**
+	 * Delete a deployment record.
+	 *
+	 * @param string $id Deployment identifier.
+	 * @return bool
+	 */
+	public function delete( string $id ): bool {
+		$path = $this->deployments_dir . '/' . $id . '.json';
+		if ( ! file_exists( $path ) ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing local deployment metadata.
+		unlink( $path );
+		return true;
+	}
+
+	/**
+	 * Prune older deployment records beyond the requested retention count.
+	 *
+	 * @param int $keep Number of newest deployments to retain.
+	 * @return string[] Removed deployment IDs.
+	 */
+	public function prune( int $keep ): array {
+		if ( $keep <= 0 ) {
+			return array();
+		}
+
+		$removed     = array();
+		$deployments = $this->list();
+		$stale       = array_slice( $deployments, $keep );
+
+		foreach ( $stale as $deployment ) {
+			$id = $deployment['id'] ?? null;
+			if ( ! is_string( $id ) || '' === $id ) {
+				continue;
+			}
+
+			if ( $this->delete( $id ) ) {
+				$removed[] = $id;
+			}
+		}
+
+		return $removed;
+	}
+
+	/**
 	 * Persist a deployment record.
 	 *
 	 * @param array<string, mixed> $record Deployment record payload.

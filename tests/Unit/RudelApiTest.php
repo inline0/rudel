@@ -441,6 +441,77 @@ class RudelApiTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testPlanRollbackAndHooksAreExposedThroughApi(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+        if (! defined('WP_HOME')) {
+            define('WP_HOME', 'https://host.test');
+        }
+
+        $app = Rudel::create_app('API Rollback App', ['api-rollback.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/api-theme',
+            'tracked_github_branch' => 'main',
+        ]);
+        file_put_contents($app->get_wp_content_path() . '/plugins/original.txt', 'before');
+
+        $sandbox = Rudel::create_sandbox_from_app($app->id, 'API Rollback Sandbox');
+        file_put_contents($sandbox->get_wp_content_path() . '/plugins/deployed.txt', 'after');
+
+        $plan = Rudel::plan_app_deploy($app->id, $sandbox->id, 'preflight', ['label' => 'Preview']);
+        $deploy = Rudel::deploy_sandbox_to_app($app->id, $sandbox->id, 'before-deploy');
+        $rollback = Rudel::rollback_app_deployment($app->id, $deploy['deployment']['id']);
+
+        $this->assertSame('preflight', $plan['backup_name']);
+        $this->assertSame($app->id, $rollback['app_id']);
+        $this->assertSame('before-deploy', $rollback['backup_name']);
+        $this->assertFileDoesNotExist($app->get_wp_content_path() . '/plugins/deployed.txt');
+        $this->assertArrayHasKey('rudel_before_app_deploy', Rudel::hooks());
+        $this->assertSame('filter', Rudel::hooks()['rudel_app_deploy_plan']['type']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testRunAutomationReturnsAppMaintenanceSections(): void
+    {
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
+
+        $sandbox = Rudel::create('Expiring Sandbox', ['engine' => 'sqlite']);
+        $sandboxMeta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
+        $sandboxMeta['expires_at'] = gmdate('c', strtotime('+1 day'));
+        file_put_contents($sandbox->path . '/.rudel.json', json_encode($sandboxMeta));
+
+        $app = Rudel::create_app('Automation API App', ['automation-api.com'], ['engine' => 'sqlite']);
+
+        $config = new RudelConfig();
+        $config->set('auto_cleanup_enabled', 0);
+        $config->set('auto_cleanup_merged', 0);
+        $config->set('auto_app_backups_enabled', 1);
+        $config->set('auto_app_backup_interval_hours', 1);
+        $config->set('auto_app_backup_retention_count', 2);
+        $config->set('auto_app_deployment_retention_count', 2);
+        $config->set('expiring_environment_notice_days', 2);
+        $config->save();
+
+        $result = Rudel::run_automation();
+
+        $this->assertArrayHasKey($app->id, $result['app_backups']['created']);
+        $this->assertSame(2, $result['expiring_environments']['days']);
+        $this->assertContains($sandbox->id, array_column($result['expiring_environments']['expiring'], 'id'));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testTouchCurrentEnvironmentPersistsLastUsed(): void
     {
         $path = $this->tmpDir . '/touch-api';

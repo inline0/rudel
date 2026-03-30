@@ -375,13 +375,19 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * @when after_wp_load
 	 */
 	public function status( $args, $assoc_args ): void {
-		$writer      = new \Rudel\ConfigWriter();
-		$sandboxes   = $this->manager->list();
-		$config      = new RudelConfig();
-		$sqlite_path = defined( 'RUDEL_PLUGIN_DIR' )
+		$writer       = new \Rudel\ConfigWriter();
+		$sandboxes    = $this->manager->list();
+		$apps         = ( new \Rudel\AppManager() )->list();
+		$config       = new RudelConfig();
+		$sqlite_path  = defined( 'RUDEL_PLUGIN_DIR' )
 			? RUDEL_PLUGIN_DIR . 'lib/sqlite-database-integration'
 			: dirname( __DIR__ ) . '/lib/sqlite-database-integration';
-
+		$automation_on = $config->get( 'auto_cleanup_enabled' ) > 0
+			|| $config->get( 'auto_cleanup_merged' ) > 0
+			|| $config->get( 'auto_app_backups_enabled' ) > 0
+			|| $config->get( 'auto_app_backup_retention_count' ) > 0
+			|| $config->get( 'auto_app_deployment_retention_count' ) > 0
+			|| $config->get( 'expiring_environment_notice_days' ) > 0;
 		$active_sandbox = Rudel::is_sandbox() ? Rudel::id() : 'none';
 
 		$items = array(
@@ -400,6 +406,10 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			array(
 				'Field' => 'Active sandboxes',
 				'Value' => (string) count( $sandboxes ),
+			),
+			array(
+				'Field' => 'Active apps',
+				'Value' => (string) count( $apps ),
 			),
 			array(
 				'Field' => 'Config file',
@@ -424,6 +434,30 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			array(
 				'Field' => 'Auto cleanup merged',
 				'Value' => $config->get( 'auto_cleanup_merged' ) > 0 ? 'yes' : 'no',
+			),
+			array(
+				'Field' => 'Auto app backups',
+				'Value' => $config->get( 'auto_app_backups_enabled' ) > 0 ? 'yes' : 'no',
+			),
+			array(
+				'Field' => 'App backup interval',
+				'Value' => (string) $config->get( 'auto_app_backup_interval_hours' ) . 'h',
+			),
+			array(
+				'Field' => 'App backup retention',
+				'Value' => (string) $config->get( 'auto_app_backup_retention_count' ),
+			),
+			array(
+				'Field' => 'App deployment retention',
+				'Value' => (string) $config->get( 'auto_app_deployment_retention_count' ),
+			),
+			array(
+				'Field' => 'Expiry notice days',
+				'Value' => (string) $config->get( 'expiring_environment_notice_days' ),
+			),
+			array(
+				'Field' => 'Automation scheduled',
+				'Value' => $automation_on ? 'yes' : 'no',
 			),
 			array(
 				'Field' => 'Multisite',

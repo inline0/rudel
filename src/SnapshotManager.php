@@ -190,6 +190,22 @@ class SnapshotManager {
 			}
 		}
 
+		usort(
+			$snapshots,
+			static function ( array $left, array $right ): int {
+				$left_time  = strtotime( (string) ( $left['created_at'] ?? '' ) );
+				$right_time = strtotime( (string) ( $right['created_at'] ?? '' ) );
+				$left_time  = false !== $left_time ? $left_time : 0;
+				$right_time = false !== $right_time ? $right_time : 0;
+
+				if ( $left_time === $right_time ) {
+					return strcmp( (string) ( $right['name'] ?? '' ), (string) ( $left['name'] ?? '' ) );
+				}
+
+				return $right_time <=> $left_time;
+			}
+		);
+
 		return $snapshots;
 	}
 
@@ -314,6 +330,35 @@ class SnapshotManager {
 			$this->emit_action( 'failed', 'delete', $context, $e );
 			throw $e;
 		}
+	}
+
+	/**
+	 * Prune older recovery points beyond the requested retention count.
+	 *
+	 * @param int $keep Number of newest recovery points to retain.
+	 * @return string[] Names of removed recovery points.
+	 */
+	public function prune( int $keep ): array {
+		if ( $keep <= 0 ) {
+			return array();
+		}
+
+		$removed   = array();
+		$snapshots = $this->list_snapshots();
+		$stale     = array_slice( $snapshots, $keep );
+
+		foreach ( $stale as $snapshot ) {
+			$name = $snapshot['name'] ?? null;
+			if ( ! is_string( $name ) || '' === $name ) {
+				continue;
+			}
+
+			if ( $this->delete( $name ) ) {
+				$removed[] = $name;
+			}
+		}
+
+		return $removed;
 	}
 
 	/**

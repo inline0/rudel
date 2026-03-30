@@ -1,0 +1,107 @@
+---
+title: Policy Metadata
+description: Stewardship, expiry, and lineage metadata for sandboxes and apps.
+---
+
+# Policy Metadata
+
+Rudel environments carry more than just IDs and paths. Sandboxes and apps can both store metadata that explains who owns them, why they exist, when they should expire, and how they relate to other environments.
+
+## Core fields
+
+The most useful fields are:
+
+- `owner`
+- `labels`
+- `purpose`
+- `protected`
+- `expires_at`
+- `last_used_at`
+- `source_environment_id`
+- `source_environment_type`
+- `last_deployed_from_id`
+- `last_deployed_from_type`
+- `last_deployed_at`
+
+Tracked GitHub context also lives in metadata on apps:
+
+- `tracked_github_repo`
+- `tracked_github_branch`
+- `tracked_github_dir`
+
+That GitHub metadata is workflow context, not identity. It tells Rudel what code represents the app's deployed mainline so app-derived sandboxes and deploy records can inherit it.
+
+## Setting metadata at creation time
+
+Sandboxes:
+
+```bash
+wp rudel create --name="Client A QA" --owner=dennis --labels=qa,client-a --purpose="Final QA before launch" --ttl-days=7
+```
+
+Apps:
+
+```bash
+wp rudel app create --domain=client-a.com --owner=dennis --labels=customer,production --protected
+```
+
+## Updating metadata later
+
+Sandboxes:
+
+```bash
+wp rudel update client-a-qa-a1b2 --owner=qa-team --labels=qa,blocked --expires-at=2026-04-15T10:00:00Z
+```
+
+Apps:
+
+```bash
+wp rudel app update client-a-com-a1b2 --purpose="Stable deployed site" --unprotected --clear-expiry
+```
+
+## Protection and expiry
+
+`protected` is the hard stop for automated removal. A protected sandbox or app can still be changed deliberately, but cleanup automation skips it.
+
+Expiry can be assigned in two ways:
+
+- `--ttl-days=<days>` computes `expires_at` relative to creation or update time
+- `--expires-at=<timestamp>` sets the exact cutoff directly
+
+`last_used_at` is maintained automatically as environments are visited or restored. Cleanup policy can use that to distinguish old-but-active environments from ones that have gone stale.
+
+## Lineage
+
+Rudel records lineage when environments are created from one another and when apps receive deploys from sandboxes.
+
+Examples:
+
+- a sandbox created from an app records `source_environment_id` and `source_environment_type`
+- an app deployed from a sandbox records `last_deployed_from_id`, `last_deployed_from_type`, and `last_deployed_at`
+
+That metadata is what lets cleanup, deploy history, and automation reason about environments without guessing from names alone.
+
+## API access
+
+The same fields are available through the PHP API:
+
+```php
+use Rudel\Rudel;
+
+$sandbox = Rudel::update( 'client-a-qa-a1b2', [
+    'owner'     => 'dennis',
+    'labels'    => [ 'qa', 'client-a' ],
+    'protected' => true,
+    'ttl_days'  => 7,
+] );
+```
+
+For apps:
+
+```php
+$app = Rudel::update_app( 'client-a-com-a1b2', [
+    'tracked_github_repo'   => 'inline0/client-a-theme',
+    'tracked_github_branch' => 'main',
+    'tracked_github_dir'    => 'themes/client-a',
+] );
+```

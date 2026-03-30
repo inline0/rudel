@@ -626,6 +626,9 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--notes=<notes>]
 	 * : Optional operator notes stored with the deployment record.
 	 *
+	 * [--dry-run]
+	 * : Show the deploy plan without changing the app.
+	 *
 	 * [--force]
 	 * : Skip confirmation prompt.
 	 *
@@ -644,6 +647,36 @@ class AppCommand extends \WP_CLI_Command {
 			WP_CLI::error( "App not found: {$id}" );
 		}
 
+		$backup_name = $assoc_args['backup'] ?? null;
+		$options     = array(
+			'label' => $assoc_args['label'] ?? null,
+			'notes' => $assoc_args['notes'] ?? null,
+		);
+
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false ) ) {
+			try {
+				$plan = $this->manager->preview_deploy( $id, $sandbox_id, $backup_name, $options );
+			} catch ( \Throwable $e ) {
+				WP_CLI::error( $e->getMessage() );
+			}
+
+			$items = array();
+			foreach ( $plan as $key => $value ) {
+				if ( is_array( $value ) ) {
+					$value = wp_json_encode( $value );
+				}
+
+				$items[] = array(
+					'Field' => $key,
+					'Value' => (string) $value,
+				);
+			}
+
+			WP_CLI::success( 'Deploy plan generated.' );
+			WP_CLI\Utils\format_items( 'table', $items, array( 'Field', 'Value' ) );
+			return;
+		}
+
 		$force = \WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false );
 		if ( ! $force ) {
 			WP_CLI::warning( "This will replace app '{$app->name}' with sandbox '{$sandbox_id}'." );
@@ -655,11 +688,8 @@ class AppCommand extends \WP_CLI_Command {
 			$result = $this->manager->deploy(
 				$id,
 				$sandbox_id,
-				$assoc_args['backup'] ?? null,
-				array(
-					'label' => $assoc_args['label'] ?? null,
-					'notes' => $assoc_args['notes'] ?? null,
-				)
+				$backup_name,
+				$options
 			);
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
@@ -671,6 +701,53 @@ class AppCommand extends \WP_CLI_Command {
 		WP_CLI::log( "  Backup:  {$result['backup']['name']}" );
 		WP_CLI::log( "  Tables:  {$result['tables_copied']}" );
 		WP_CLI::log( "  Deploy:  {$result['deployment']['id']}" );
+	}
+
+	/**
+	 * Roll an app back to the backup captured by a deployment record.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : App ID.
+	 *
+	 * --deployment=<deployment-id>
+	 * : Deployment record to roll back.
+	 *
+	 * [--force]
+	 * : Skip confirmation prompt.
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 * @return void
+	 *
+	 * @when after_wp_load
+	 */
+	public function rollback( $args, $assoc_args ): void {
+		$id            = $args[0];
+		$deployment_id = $assoc_args['deployment'];
+		$app           = $this->manager->get( $id );
+
+		if ( ! $app ) {
+			WP_CLI::error( "App not found: {$id}" );
+		}
+
+		$force = \WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false );
+		if ( ! $force ) {
+			WP_CLI::warning( "This will restore app '{$app->name}' from deployment '{$deployment_id}'." );
+			WP_CLI::confirm( 'Are you sure?', $assoc_args );
+		}
+
+		try {
+			$result = $this->manager->rollback( $id, $deployment_id );
+		} catch ( \Throwable $e ) {
+			WP_CLI::error( $e->getMessage() );
+		}
+
+		WP_CLI::success( "App rolled back: {$id}" );
+		WP_CLI::log( '' );
+		WP_CLI::log( "  Deployment: {$result['deployment_id']}" );
+		WP_CLI::log( "  Backup:     {$result['backup_name']}" );
 	}
 
 	/**

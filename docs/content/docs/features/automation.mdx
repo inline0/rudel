@@ -1,0 +1,97 @@
+---
+title: Automation
+description: Scheduled cleanup, app backups, retention, and expiry reporting.
+---
+
+# Automation
+
+Rudel's automation layer is not just sandbox cleanup anymore. The hourly WP-Cron runner can now sweep stale sandboxes, create scheduled app backups, prune old recovery history, and surface environments that are close to expiry.
+
+## What runs automatically
+
+When any automation feature is enabled, Rudel schedules an hourly cron event and runs:
+
+- standard cleanup
+- merged-branch cleanup
+- scheduled app backups
+- app backup retention pruning
+- app deployment-history pruning
+- expiring-environment reporting
+
+## Key config values
+
+| Key | Meaning | Default |
+|---|---|---|
+| `auto_cleanup_enabled` | Run standard sandbox cleanup automatically | `1` |
+| `auto_cleanup_merged` | Run merged-branch cleanup automatically | `0` |
+| `auto_app_backups_enabled` | Create scheduled app backups | `0` |
+| `auto_app_backup_interval_hours` | Minimum hours between scheduled backups for the same app | `24` |
+| `auto_app_backup_retention_count` | Keep only the newest N app backups | `0` |
+| `auto_app_deployment_retention_count` | Keep only the newest N deployment records per app | `0` |
+| `expiring_environment_notice_days` | Include environments expiring within N days in automation output | `0` |
+
+## Scheduled app backups
+
+If an app is a long-lived runtime target, it often deserves its own regular recovery points even when no sandbox deploy is happening.
+
+Enable that flow:
+
+```php
+$config = new \Rudel\RudelConfig();
+$config->set( 'auto_app_backups_enabled', 1 );
+$config->set( 'auto_app_backup_interval_hours', 24 );
+$config->save();
+```
+
+Rudel will then create a scheduled backup for each app only when the most recent backup is older than the configured interval.
+
+## Retention
+
+App recovery history can grow indefinitely if you never prune it. Retention settings let Rudel trim that state automatically:
+
+```php
+$config = new \Rudel\RudelConfig();
+$config->set( 'auto_app_backup_retention_count', 10 );
+$config->set( 'auto_app_deployment_retention_count', 25 );
+$config->save();
+```
+
+Backups and deployment records are pruned per app, newest first.
+
+## Expiry reporting
+
+Some teams want cleanup to be aggressive. Others want a warning window first. `expiring_environment_notice_days` gives you that second option by surfacing upcoming expiries through the automation result and hook layer.
+
+```php
+$config = new \Rudel\RudelConfig();
+$config->set( 'expiring_environment_notice_days', 3 );
+$config->save();
+```
+
+That does not delete anything by itself. It just reports what is close to expiry so your own code can notify owners or open tickets.
+
+## Running automation on demand
+
+From PHP:
+
+```php
+use Rudel\Rudel;
+
+$result = Rudel::run_automation();
+```
+
+You can still call `Rudel::run_scheduled_cleanup()` for backward compatibility, but `Rudel::run_automation()` is the more accurate name now because it runs the full maintenance pipeline.
+
+## Hooks
+
+Automation is designed to be integrated rather than hidden. The main hooks are:
+
+- `rudel_before_automation_cleanup`
+- `rudel_after_automation_cleanup`
+- `rudel_before_automation_app_backups`
+- `rudel_after_automation_app_backups`
+- `rudel_before_automation_app_retention`
+- `rudel_after_automation_app_retention`
+- `rudel_after_automation_expiring_environments`
+
+See [Hooks](/docs/features/hooks) for the broader extension contract.

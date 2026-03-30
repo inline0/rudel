@@ -68,7 +68,9 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 - **GitHub workflows** -- push sandbox changes and open PRs without a local git binary
 - **App mode** -- permanent domain-routed environments for client sites and multi-tenant hosting
 - **Policy metadata** -- owner, labels, purpose, protection, expiry, and deploy lineage
-- **Auto cleanup** -- configurable age, idle, expiry, and merged-branch cleanup for stale sandboxes
+- **Deploy history** -- app deploy plans, deployment records, and rollback by deployment ID
+- **Automation** -- configurable cleanup, scheduled app backups, retention, and expiry reporting
+- **Hooks** -- documented lifecycle actions and filters exposed through a stable catalog
 - **Agent ready** -- scoped WP-CLI and CLAUDE.md support per sandbox
 
 ## How It Works
@@ -138,7 +140,8 @@ Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` 
 | `wp rudel app backups <id>` | List backups for an app |
 | `wp rudel app deployments <id>` | List deployment records for an app |
 | `wp rudel app restore <id> --backup=<name>` | Restore an app from a backup |
-| `wp rudel app deploy <id> --from=<sandbox-id>` | Deploy a sandbox into an app |
+| `wp rudel app deploy <id> --from=<sandbox-id>` | Deploy a sandbox into an app, with optional `--dry-run` planning |
+| `wp rudel app rollback <id> --deployment=<deployment-id>` | Roll an app back using the backup referenced by a deployment record |
 | `wp rudel app list` | List all apps |
 | `wp rudel app info <id>` | Show app details |
 | `wp rudel app destroy <id>` | Delete an app and remove its domain mappings |

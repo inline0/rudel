@@ -33,7 +33,7 @@ Each environment lives in its own directory with a `.rudel.json` metadata file, 
 
 Rudel is designed around a few principles: environments should be instant to create, fully isolated, and managed entirely through WP-CLI and the PHP API.
 
-Beyond basic creation and destruction, sandboxes support point-in-time snapshots, reusable templates, zip-based export and import, promotion to replace the host site, per-environment error logging, and git/GitHub integration for branch-based workflows with merge-based cleanup. Apps support domain mapping with multiple domains per app.
+Beyond basic creation and destruction, sandboxes support point-in-time snapshots, reusable templates, zip-based export and import, promotion to replace the host site, per-environment error logging, and git/GitHub integration for branch-based workflows with merge-based cleanup. Apps support domain mapping, app backups, deploy history, rollback, and deploy planning from sandboxes.
 
 Everything is accessible through the `Rudel\Rudel` static class for programmatic use, and through the `wp rudel` CLI for command-line workflows.
 

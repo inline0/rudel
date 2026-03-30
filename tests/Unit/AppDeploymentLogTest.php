@@ -71,4 +71,28 @@ class AppDeploymentLogTest extends RudelTestCase
         $this->assertSame('main', $record['github_base_branch']);
         $this->assertSame('themes/fallback-theme', $record['github_dir']);
     }
+
+    public function testFindDeleteAndPruneManageDeploymentHistory(): void
+    {
+        $app = Environment::from_path($this->createFakeSandbox('history-app', 'History App', [
+            'type' => 'app',
+            'domains' => ['history-app.com'],
+        ]));
+        $sandbox = Environment::from_path($this->createFakeSandbox('history-sandbox', 'History Sandbox'));
+
+        $log = new AppDeploymentLog($app);
+
+        $first = $log->record($sandbox, ['deployed_at' => '2026-01-01T00:00:00+00:00']);
+        $second = $log->record($sandbox, ['deployed_at' => '2026-01-02T00:00:00+00:00']);
+        $third = $log->record($sandbox, ['deployed_at' => '2026-01-03T00:00:00+00:00']);
+
+        $this->assertSame($second['id'], $log->find($second['id'])['id']);
+        $this->assertTrue($log->delete($first['id']));
+        $this->assertNull($log->find($first['id']));
+
+        $removed = $log->prune(1);
+        $this->assertSame([$second['id']], $removed);
+        $this->assertCount(1, $log->list());
+        $this->assertSame($third['id'], $log->list()[0]['id']);
+    }
 }

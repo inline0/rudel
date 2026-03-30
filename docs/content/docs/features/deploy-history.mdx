@@ -1,0 +1,76 @@
+---
+title: Deploy History
+description: Planning, recording, and rolling back app deploys from sandboxes.
+---
+
+# Deploy History
+
+Apps are long-lived deploy targets. Sandboxes are where you prepare change. The deploy history layer is what connects those two sides safely.
+
+## Dry-run first
+
+Before replacing an app, generate a deploy plan:
+
+```bash
+wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --dry-run
+```
+
+That shows:
+
+- which app and sandbox are involved
+- the backup name that will be created
+- the tracked GitHub context that will be attached to the deployment
+- the lock file path Rudel uses to prevent overlapping destructive operations
+
+## Real deploy
+
+```bash
+wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --label="Launch candidate" --notes="Approved after QA sign-off" --force
+```
+
+Every deploy:
+
+1. creates or uses an app backup
+2. copies sandbox DB and `wp-content` into the app
+3. rewrites runtime identifiers back to the app domain
+4. records a deployment ledger entry
+
+## Inspect history
+
+```bash
+wp rudel app deployments client-a-com-a1b2
+```
+
+Each deployment record stores:
+
+- deployment ID
+- deployed sandbox ID and name
+- deploy timestamp
+- backup name for rollback
+- copied table count
+- label and notes
+- GitHub repo, base branch, and directory context
+
+## Roll back
+
+Rudel now exposes rollback as a first-class app operation:
+
+```bash
+wp rudel app rollback client-a-com-a1b2 --deployment=deploy-20260330-123456 --force
+```
+
+Rollback restores the backup referenced by that deployment record. You can still restore directly from a named backup if you want, but rollback is cleaner when operators are reasoning from deploy history rather than filesystem names.
+
+## API
+
+```php
+use Rudel\Rudel;
+
+$plan = Rudel::plan_app_deploy( $app_id, $sandbox_id, 'before-launch' );
+$result = Rudel::deploy_sandbox_to_app( $app_id, $sandbox_id, 'before-launch', [
+    'label' => 'Launch candidate',
+] );
+$rollback = Rudel::rollback_app_deployment( $app_id, $result['deployment']['id'] );
+```
+
+That API is intentionally explicit: plan, deploy, inspect history, roll back.

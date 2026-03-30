@@ -25,6 +25,11 @@ class RudelConfig {
 		'max_idle_days'                  => 0,
 		'auto_cleanup_enabled'           => 1,
 		'auto_cleanup_merged'            => 0,
+		'auto_app_backups_enabled'       => 0,
+		'auto_app_backup_interval_hours' => 24,
+		'auto_app_backup_retention_count'=> 0,
+		'auto_app_deployment_retention_count' => 0,
+		'expiring_environment_notice_days' => 0,
 		'auto_snapshot_before_restore'   => 1,
 		'auto_backup_before_app_restore' => 1,
 	);

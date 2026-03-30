@@ -455,4 +455,121 @@ class AppManagerTest extends RudelTestCase
         $this->assertCount(1, $deployments);
         $this->assertSame($result['deployment']['id'], $deployments[0]['id']);
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPreviewDeployReturnsPlanWithoutMutatingState(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Preview App', ['preview-app.com'], [
+            'engine' => 'sqlite',
+            'tracked_github_repo' => 'inline0/preview-theme',
+            'tracked_github_branch' => 'main',
+        ]);
+        $sandbox = $manager->create_sandbox($app->id, 'Preview Sandbox');
+
+        $plan = $manager->preview_deploy($app->id, $sandbox->id, 'preflight', [
+            'label' => 'Preview only',
+            'notes' => 'No changes yet',
+        ]);
+
+        $this->assertSame($app->id, $plan['app_id']);
+        $this->assertSame($sandbox->id, $plan['sandbox_id']);
+        $this->assertSame('preflight', $plan['backup_name']);
+        $this->assertSame('inline0/preview-theme', $plan['tracked_github_repo']);
+        $this->assertStringEndsWith('/tmp/app-state.lock', $plan['lock_path']);
+        $this->assertSame([], $manager->deployments($app->id));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testRollbackRestoresBackupReferencedByDeployment(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Rollback App', ['rollback-app.com'], ['engine' => 'sqlite']);
+        file_put_contents($app->get_wp_content_path() . '/plugins/original.txt', 'before');
+
+        $sandbox = $manager->create_sandbox($app->id, 'Rollback Sandbox');
+        file_put_contents($sandbox->get_wp_content_path() . '/plugins/deployed.txt', 'after');
+
+        $deploy = $manager->deploy($app->id, $sandbox->id, 'before-deploy');
+        $rollback = $manager->rollback($app->id, $deploy['deployment']['id']);
+
+        $this->assertSame($deploy['deployment']['id'], $rollback['deployment_id']);
+        $this->assertSame('before-deploy', $rollback['backup_name']);
+        $this->assertFileExists($app->get_wp_content_path() . '/plugins/original.txt');
+        $this->assertFileDoesNotExist($app->get_wp_content_path() . '/plugins/deployed.txt');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testRunScheduledBackupsSkipsAppsWithFreshBackups(): void
+    {
+        $this->defineConstants();
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Scheduled Backup App', ['scheduled-backup-app.com'], ['engine' => 'sqlite']);
+
+        $manager->backup($app->id, 'baseline');
+        $result = $manager->run_scheduled_backups(24);
+
+        $this->assertSame([], $result['created']);
+        $this->assertSame([$app->id], $result['skipped']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testPruneHistoryRemovesOlderBackupsAndDeployments(): void
+    {
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Prune History App', ['prune-history-app.com'], ['engine' => 'sqlite']);
+        $sandbox = $manager->create_sandbox($app->id, 'Prune History Sandbox');
+
+        $manager->backup($app->id, 'manual-backup');
+        $deployOne = $manager->deploy($app->id, $sandbox->id, 'before-deploy-1');
+        $deployTwo = $manager->deploy($app->id, $sandbox->id, 'before-deploy-2');
+
+        file_put_contents($app->path . '/backups/manual-backup/backup.json', json_encode([
+            'name' => 'manual-backup',
+            'app_id' => $app->id,
+            'created_at' => '2026-01-01T00:00:00+00:00',
+        ], JSON_PRETTY_PRINT));
+        file_put_contents($app->path . '/backups/before-deploy-1/backup.json', json_encode([
+            'name' => 'before-deploy-1',
+            'app_id' => $app->id,
+            'created_at' => '2026-01-02T00:00:00+00:00',
+        ], JSON_PRETTY_PRINT));
+        file_put_contents($app->path . '/backups/before-deploy-2/backup.json', json_encode([
+            'name' => 'before-deploy-2',
+            'app_id' => $app->id,
+            'created_at' => '2026-01-03T00:00:00+00:00',
+        ], JSON_PRETTY_PRINT));
+        file_put_contents($app->path . '/deployments/' . $deployOne['deployment']['id'] . '.json', json_encode(array_merge(
+            $deployOne['deployment'],
+            ['deployed_at' => '2026-01-02T00:00:00+00:00']
+        ), JSON_PRETTY_PRINT));
+        file_put_contents($app->path . '/deployments/' . $deployTwo['deployment']['id'] . '.json', json_encode(array_merge(
+            $deployTwo['deployment'],
+            ['deployed_at' => '2026-01-03T00:00:00+00:00']
+        ), JSON_PRETTY_PRINT));
+
+        $removed = $manager->prune_history($app->id, [
+            'keep_backups' => 1,
+            'keep_deployments' => 1,
+        ]);
+
+        $this->assertContains('manual-backup', $removed['backups_removed']);
+        $this->assertContains('before-deploy-1', $removed['backups_removed']);
+        $this->assertSame([$deployOne['deployment']['id']], $removed['deployments_removed']);
+        $this->assertSame([$deployTwo['deployment']['id']], array_column($manager->deployments($app->id), 'id'));
+    }
 }

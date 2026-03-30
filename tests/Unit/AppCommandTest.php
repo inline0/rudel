@@ -270,4 +270,64 @@ class AppCommandTest extends RudelTestCase
         $this->assertContains('github_repo', $call['fields']);
         $this->assertContains('backup_name', $call['fields']);
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeployDryRunOutputsPlanWithoutCreatingDeployment(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['domain' => 'deploy-dry-run.com', 'engine' => 'sqlite']);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->create_sandbox([$appId], ['name' => 'Dry Run Sandbox']);
+        $sandboxId = preg_replace('/^Sandbox created from app: ([^ ]+)$/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->deploy([$appId], [
+            'from' => $sandboxId,
+            'backup' => 'preflight',
+            'dry-run' => true,
+        ]);
+
+        $this->assertCount(1, \WP_CLI::$successes);
+        $this->assertStringContainsString('Deploy plan generated', \WP_CLI::$successes[0]);
+        $formatCalls = array_filter(\WP_CLI::$log, fn($m) => is_array($m) && ($m['__format_items'] ?? false));
+        $this->assertCount(1, $formatCalls);
+
+        $manager = new \Rudel\AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $this->assertSame([], $manager->deployments($appId));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testRollbackReportsSuccess(): void
+    {
+        $cmd = $this->createCommand();
+        $cmd->create([], ['domain' => 'rollback-app.com', 'engine' => 'sqlite']);
+        $appId = preg_replace('/^App created: ([^ ]+) .*/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->create_sandbox([$appId], ['name' => 'Rollback Sandbox']);
+        $sandboxId = preg_replace('/^Sandbox created from app: ([^ ]+)$/', '$1', \WP_CLI::$successes[0]);
+        \WP_CLI::reset();
+
+        $cmd->deploy([$appId], [
+            'from' => $sandboxId,
+            'backup' => 'before-deploy',
+            'force' => true,
+        ]);
+        $manager = new \Rudel\AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $deploymentId = $manager->deployments($appId)[0]['id'];
+        \WP_CLI::reset();
+
+        $cmd->rollback([$appId], [
+            'deployment' => $deploymentId,
+            'force' => true,
+        ]);
+
+        $this->assertCount(1, \WP_CLI::$successes);
+        $this->assertStringContainsString('App rolled back', \WP_CLI::$successes[0]);
+        $this->assertContains('  Backup:     before-deploy', array_filter(\WP_CLI::$log, fn($m) => is_string($m)));
+    }
 }

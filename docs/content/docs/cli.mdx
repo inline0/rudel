@@ -138,6 +138,8 @@ Show Rudel status and configuration.
 wp rudel status
 ```
 
+Status includes sandbox counts, app counts, and the active automation settings so you can see whether cleanup, scheduled app backups, retention, and expiry reporting are enabled.
+
 ### `wp rudel promote`
 
 Replace the host site with a sandbox's state.
@@ -422,10 +424,20 @@ wp rudel app restore <id> --backup=<name> [--force]
 Deploy a sandbox into an app.
 
 ```bash
-wp rudel app deploy <id> --from=<sandbox-id> [--backup=<name>] [--label=<label>] [--notes=<notes>] [--force]
+wp rudel app deploy <id> --from=<sandbox-id> [--backup=<name>] [--label=<label>] [--notes=<notes>] [--dry-run] [--force]
 ```
 
 Deploy creates an app backup first, rewrites sandbox URLs back to the app domain, and stores a deployment record that can be listed with `wp rudel app deployments`.
+
+Use `--dry-run` to print the deploy plan, backup name, lock path, and inherited GitHub context without mutating the app.
+
+### `wp rudel app rollback`
+
+Roll an app back using the backup referenced by a deployment record.
+
+```bash
+wp rudel app rollback <id> --deployment=<deployment-id> [--force]
+```
 
 ### `wp rudel app list`
 
