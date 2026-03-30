@@ -364,7 +364,7 @@ class AppManager {
 		Hooks::action( 'rudel_before_app_deploy', $context );
 
 		try {
-			$backup = $this->backup( $app_id, $backup_name );
+			$backup      = $this->backup( $app_id, $backup_name );
 			$state       = $this->manager->replace_environment_state( $sandbox, $app );
 			$deployed_at = gmdate( 'c' );
 			$this->manager->update(
