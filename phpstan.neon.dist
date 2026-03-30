@@ -1,16 +1,11 @@
 parameters:
-	level: 1
+	level: 5
+	treatPhpDocTypesAsCertain: false
 	paths:
 		- src
 		- cli
-	bootstrapFiles:
-		- phpstan-bootstrap.php
+	tmpDir: .phpstan
 	scanFiles:
-		- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
-		- vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
-		- vendor/php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
-		- vendor/php-stubs/wp-cli-stubs/wp-cli-tools-stubs.php
-		- vendor/php-stubs/wp-cli-stubs/wp-cli-i18n-stubs.php
-		- phpstan-symbols.php
-	stubFiles:
-		- phpstan-stubs.php
+		- phpstan/stubs/wp-config.php
+		- phpstan/stubs/wordpress.php
+		- phpstan/stubs/wp-cli.php

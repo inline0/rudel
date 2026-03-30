@@ -30,7 +30,7 @@ echo ""
 
 # 2. Static analysis
 echo -e "${BOLD}━━━ PHPStan ━━━${NC}"
-if composer phpstan; then
+if composer stan; then
     echo -e "${GREEN}PHPStan passed${NC}"
 else
     EXIT_CODE=1

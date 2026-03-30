@@ -177,7 +177,7 @@ composer install
 composer cs
 
 # Run static analysis for src/ and cli/
-composer phpstan
+composer stan
 
 # Auto-fix coding standards
 composer cs:fix

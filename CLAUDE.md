@@ -8,7 +8,7 @@ WordPress isolation layer for disposable sandboxes and permanent domain-routed a
 # Coding standards
 composer cs
 composer cs:fix
-composer phpstan
+composer stan
 
 # PHPUnit only
 composer test

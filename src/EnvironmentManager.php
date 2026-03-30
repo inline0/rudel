@@ -490,7 +490,7 @@ class EnvironmentManager {
 	 *
 	 * @param string $id         Sandbox identifier.
 	 * @param string $backup_dir Directory to store the host backup.
-	 * @return array{backup_path: string, tables_copied: int} Promotion results.
+	 * @return array{backup_path: string, backup_prefix: string, tables_copied: int} Promotion results.
 	 *
 	 * @throws \RuntimeException If the sandbox is not found or promotion fails.
 	 * @throws \Throwable If promotion fails after lifecycle hooks begin.

@@ -1,0 +1,164 @@
+<?php
+
+if ( ! class_exists( 'WP_Error' ) ) {
+	class WP_Error {}
+}
+
+if ( ! class_exists( 'wpdb' ) ) {
+	class wpdb {
+		public string $prefix = 'wp_';
+		public string $base_prefix = 'wp_';
+
+		public function query( string $query ): int|false {
+			return 0;
+		}
+
+		public function prepare( string $query, mixed ...$args ): string {
+			return $query;
+		}
+
+		public function esc_like( string $text ): string {
+			return $text;
+		}
+
+		/**
+		 * @return array<int, mixed>
+		 */
+		public function get_results( string $query, string $output = OBJECT ): array {
+			return array();
+		}
+
+		/**
+		 * @return array<int, mixed>
+		 */
+		public function get_col( string $query ): array {
+			return array();
+		}
+
+		public function get_var( ?string $query = null ): mixed {
+			return null;
+		}
+
+		public function get_row( string $query, string $output = OBJECT ): mixed {
+			return null;
+		}
+
+		/**
+		 * @param array<string, mixed>     $data
+		 * @param array<int, string>|null $format
+		 */
+		public function insert( string $table, array $data, ?array $format = null ): int|false {
+			return 1;
+		}
+
+		public function get_charset_collate(): string {
+			return '';
+		}
+	}
+}
+
+/** @var wpdb $wpdb */
+$wpdb = new wpdb();
+
+if ( ! function_exists( 'add_filter' ) ) {
+	function add_filter( string $hook_name, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'remove_filter' ) ) {
+	function remove_filter( string $hook_name, callable $callback, int $priority = 10 ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'apply_filters' ) ) {
+	function apply_filters( string $hook_name, mixed $value, mixed ...$args ): mixed {
+		return $value;
+	}
+}
+
+if ( ! function_exists( 'do_action' ) ) {
+	function do_action( string $hook_name, mixed ...$args ): void {}
+}
+
+if ( ! function_exists( 'home_url' ) ) {
+	function home_url( string $path = '', ?string $scheme = null ): string {
+		return WP_HOME;
+	}
+}
+
+if ( ! function_exists( 'current_time' ) ) {
+	function current_time( string $type, bool|int $gmt = false ): string|int {
+		return 'mysql' === $type ? '2026-01-01 00:00:00' : time();
+	}
+}
+
+if ( ! function_exists( 'is_multisite' ) ) {
+	function is_multisite(): bool {
+		return false;
+	}
+}
+
+if ( ! function_exists( 'is_wp_error' ) ) {
+	/**
+	 * @phpstan-assert-if-true WP_Error $thing
+	 */
+	function is_wp_error( mixed $thing ): bool {
+		return $thing instanceof WP_Error;
+	}
+}
+
+if ( ! function_exists( 'get_blog_details' ) ) {
+	function get_blog_details( mixed $fields = null, bool $get_all = true ): object|false {
+		return (object) array(
+			'siteurl' => WP_HOME,
+		);
+	}
+}
+
+if ( ! function_exists( 'wpmu_create_blog' ) ) {
+	function wpmu_create_blog( string $domain, string $path, string $title, int $user_id, array $options = array(), int $network_id = 1 ): int|WP_Error {
+		return 1;
+	}
+}
+
+if ( ! function_exists( 'wpmu_delete_blog' ) ) {
+	function wpmu_delete_blog( int $blog_id, bool $drop = false ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	function wp_next_scheduled( string $hook ): int|false {
+		return false;
+	}
+}
+
+if ( ! function_exists( 'wp_schedule_event' ) ) {
+	function wp_schedule_event( int $timestamp, string $recurrence, string $hook, array $args = array() ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
+	function wp_clear_scheduled_hook( string $hook, array $args = array() ): int|false {
+		return 0;
+	}
+}
+
+if ( ! function_exists( 'wp_json_encode' ) ) {
+	function wp_json_encode( mixed $value, int $flags = 0, int $depth = 512 ): string|false {
+		return json_encode( $value, $flags, $depth );
+	}
+}
+
+if ( ! class_exists( 'WP_SQLite_Translator' ) ) {
+	class WP_SQLite_Translator {
+		public function __construct( \PDO $pdo ) {}
+
+		public function query( string $sql ): mixed {
+			return null;
+		}
+	}
+}
