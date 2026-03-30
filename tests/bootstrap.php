@@ -49,18 +49,6 @@ if ( ! function_exists( 'apply_filters' ) ) {
 	}
 }
 
-if ( ! function_exists( 'add_action' ) ) {
-	function add_action( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): void {
-		$GLOBALS['rudel_test_action_callbacks'][ $hook ][] = $callback;
-	}
-}
-
-if ( ! function_exists( 'add_filter' ) ) {
-	function add_filter( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): void {
-		$GLOBALS['rudel_test_filter_callbacks'][ $hook ][] = $callback;
-	}
-}
-
 if ( ! function_exists( 'wp_json_encode' ) ) {
 	function wp_json_encode( $value, int $flags = 0, int $depth = 512 ) {
 		return json_encode( $value, $flags, $depth );

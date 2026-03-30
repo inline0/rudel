@@ -627,9 +627,19 @@ class AppManager {
 
 		if ( $clear_git ) {
 			unset( $normalized['clear_github'] );
+
+			if (
+				array_key_exists( 'tracked_github_repo', $normalized ) ||
+				array_key_exists( 'tracked_github_branch', $normalized ) ||
+				array_key_exists( 'tracked_github_dir', $normalized )
+			) {
+				throw new \InvalidArgumentException( 'Cannot clear the tracked GitHub repository while also setting branch or directory.' );
+			}
+
 			$normalized['tracked_github_repo']   = null;
 			$normalized['tracked_github_branch'] = null;
 			$normalized['tracked_github_dir']    = null;
+			return $normalized;
 		}
 
 		$repo_key_present   = array_key_exists( 'tracked_github_repo', $normalized );

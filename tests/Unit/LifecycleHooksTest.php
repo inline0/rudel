@@ -10,6 +10,25 @@ use Rudel\Tests\RudelTestCase;
 
 class LifecycleHooksTest extends RudelTestCase
 {
+    private function defineHookRegistrationFunctions(): void
+    {
+        eval(<<<'PHP'
+namespace {
+    if (! function_exists('add_action')) {
+        function add_action(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void {
+            $GLOBALS['rudel_test_action_callbacks'][$hook][] = $callback;
+        }
+    }
+
+    if (! function_exists('add_filter')) {
+        function add_filter(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void {
+            $GLOBALS['rudel_test_filter_callbacks'][$hook][] = $callback;
+        }
+    }
+}
+PHP);
+    }
+
     private function defineConstants(): void
     {
         if (! defined('RUDEL_PLUGIN_DIR')) {
@@ -84,6 +103,7 @@ class LifecycleHooksTest extends RudelTestCase
     public function testAppDeployHooksExposeContextAndRespectFilteredOptions(): void
     {
         $this->defineConstants();
+        $this->defineHookRegistrationFunctions();
         define('WP_HOME', 'https://host.test');
 
         $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
