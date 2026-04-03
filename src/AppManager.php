@@ -73,7 +73,10 @@ class AppManager {
 		$this->store           = RudelDatabase::for_paths( $this->apps_dir, $this->sandboxes_dir );
 		$this->manager         = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir, 'app', $this->store );
 		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir, 'sandbox', $this->store );
-		$this->apps            = new AppRepository( $this->store, $this->manager );
+		$this->apps            = new AppRepository(
+			$this->store,
+			new EnvironmentRepository( $this->store, $this->apps_dir, $this->sandboxes_dir, 'app' )
+		);
 		$this->operations      = new AppOperationsService( $this->manager, $this->sandbox_manager );
 	}
 
