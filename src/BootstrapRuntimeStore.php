@@ -39,7 +39,7 @@ class BootstrapRuntimeStore {
 	/**
 	 * WordPress database object when already available.
 	 *
-	 * @var object|null
+	 * @var \wpdb|null
 	 */
 	private ?object $wpdb = null;
 
@@ -138,10 +138,14 @@ class BootstrapRuntimeStore {
 	 * connection model WordPress uses once core has booted.
 	 *
 	 * @param string|null $config_path wp-config.php path when known.
-	 * @return object|null
+	 * @return \wpdb|null
 	 */
 	private function bootstrap_wpdb( ?string $config_path ): ?object {
 		if ( '' === $this->mysql['name'] || '' === $this->mysql['user'] ) {
+			return null;
+		}
+
+		if ( ! extension_loaded( 'mysqli' ) ) {
 			return null;
 		}
 

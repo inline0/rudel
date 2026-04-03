@@ -15,7 +15,7 @@ class WpdbStore implements DatabaseStore {
 	/**
 	 * WordPress database object.
 	 *
-	 * @var object
+	 * @var \wpdb
 	 */
 	private object $wpdb;
 
@@ -29,7 +29,7 @@ class WpdbStore implements DatabaseStore {
 	/**
 	 * Constructor.
 	 *
-	 * @param object|null $wpdb Optional database object override.
+	 * @param \wpdb|null $wpdb Optional database object override.
 	 */
 	public function __construct( ?object $wpdb = null ) {
 		$this->wpdb   = $wpdb ?? $this->resolve_wpdb();
@@ -181,7 +181,7 @@ class WpdbStore implements DatabaseStore {
 	/**
 	 * Resolve the global WordPress DB object.
 	 *
-	 * @return object
+	 * @return \wpdb
 	 *
 	 * @throws \RuntimeException When WordPress has not created $wpdb yet.
 	 */
@@ -217,7 +217,13 @@ class WpdbStore implements DatabaseStore {
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Placeholder conversion handled above.
-		return $this->wpdb->prepare( $query, $values );
+		$prepared = $this->wpdb->prepare( $query, $values );
+
+		if ( null === $prepared ) {
+			throw new \RuntimeException( 'Failed to prepare Rudel runtime query.' );
+		}
+
+		return $prepared;
 	}
 
 	/**
