@@ -17,17 +17,17 @@ class BootstrapRuntimeStore {
 	/**
 	 * Environment table suffix.
 	 */
-	private const ENVIRONMENTS_TABLE = 'environments';
+	private const ENVIRONMENTS_TABLE = 'rudel_environments';
 
 	/**
 	 * Apps table suffix.
 	 */
-	private const APPS_TABLE = 'apps';
+	private const APPS_TABLE = 'rudel_apps';
 
 	/**
 	 * App domains table suffix.
 	 */
-	private const APP_DOMAINS_TABLE = 'app_domains';
+	private const APP_DOMAINS_TABLE = 'rudel_app_domains';
 
 	/**
 	 * MySQL configuration.

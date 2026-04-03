@@ -109,21 +109,21 @@ else
     fail "install() didn't inject require_once" ""
 fi
 
-# Require line should be near the top (line 2)
+# Require line should be injected immediately before wp-settings.php
 REQUIRE_LINE=$(grep -n "require_once.*// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1)
-if [[ -n "$REQUIRE_LINE" && "$REQUIRE_LINE" -le 3 ]]; then
-    pass "Bootstrap require is near the top (line $REQUIRE_LINE)"
+SETTINGS_LINE=$(grep -n "wp-settings.php" "$WP_DIR/wp-config.php" | grep -v "Rudel" | head -1 | cut -d: -f1)
+if [[ -n "$REQUIRE_LINE" && -n "$SETTINGS_LINE" && "$REQUIRE_LINE" -eq $((SETTINGS_LINE - 1)) ]]; then
+    pass "Bootstrap require is immediately before wp-settings.php (line $REQUIRE_LINE)"
 else
-    fail "Bootstrap require not near top" "Line: $REQUIRE_LINE"
+    fail "Bootstrap require not before wp-settings.php" "Require: $REQUIRE_LINE, Settings: $SETTINGS_LINE"
 fi
 
-# Table prefix fixup should be just before wp-settings.php
-SETTINGS_LINE=$(grep -n "wp-settings.php" "$WP_DIR/wp-config.php" | grep -v "Rudel" | head -1 | cut -d: -f1)
-FIXUP_LINE=$(grep -n "table_prefix.*// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1)
-if [[ -n "$SETTINGS_LINE" && -n "$FIXUP_LINE" && "$FIXUP_LINE" -eq $((SETTINGS_LINE - 1)) ]]; then
-    pass "Table prefix fixup is before wp-settings.php (line $FIXUP_LINE)"
+# No separate fixup line should remain once bootstrap itself runs at the wp-settings boundary.
+FIXUP_LINE=$(grep -n "table_prefix.*// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1 || true)
+if [[ -z "$FIXUP_LINE" ]]; then
+    pass "No standalone table prefix fixup line remains"
 else
-    fail "Table prefix fixup not before wp-settings.php" "Fixup: $FIXUP_LINE, Settings: $SETTINGS_LINE"
+    fail "Unexpected standalone table prefix fixup line" "Fixup: $FIXUP_LINE"
 fi
 
 # isInstalled should now return true
@@ -179,10 +179,10 @@ else
 fi
 
 MARKER_COUNT=$(grep -c "// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php")
-if [[ "$MARKER_COUNT" -eq 2 ]]; then
-    pass "Exactly two marker lines after double install"
+if [[ "$MARKER_COUNT" -eq 1 ]]; then
+    pass "Exactly one marker line after double install"
 else
-    fail "Wrong marker line count" "Expected 2, got: $MARKER_COUNT"
+    fail "Wrong marker line count" "Expected 1, got: $MARKER_COUNT"
 fi
 
 # --------------------------------------------------------------------------

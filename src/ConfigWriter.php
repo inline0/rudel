@@ -52,29 +52,30 @@ class ConfigWriter {
 			throw new \RuntimeException( sprintf( 'Failed to read wp-config.php: %s', $config_path ) );
 		}
 
-		// The bootstrap has to run before wp-config.php hard-codes host-specific constants.
+		// Run immediately before wp-settings.php so dynamic DB constants from wp-config.php are already available.
 		$result = preg_replace(
-			'/^<\?php\s*/i',
-			"<?php\n{$line}\n",
+			'/^(\s*require(?:_once)?\s.*wp-settings\.php.*$)/mi',
+			"{$line}\n$1",
 			$contents,
 			1
 		);
 		if ( null === $result ) {
 			throw new \RuntimeException( 'Failed to inject bootstrap line into wp-config.php' );
 		}
-		$contents = $result;
 
-		// WordPress assigns $table_prefix later in wp-config.php, so restore the sandbox prefix immediately before core boots.
-		$fixup  = "if ( defined( 'RUDEL_TABLE_PREFIX' ) ) { \$table_prefix = RUDEL_TABLE_PREFIX; } " . self::MARKER;
-		$result = preg_replace(
-			'/^(\s*require(?:_once)?\s.*wp-settings\.php.*$)/mi',
-			"{$fixup}\n$1",
-			$contents,
-			1
-		);
-		if ( null !== $result ) {
-			$contents = $result;
+		if ( $result === $contents ) {
+			$result = preg_replace(
+				'/^<\?php\s*/i',
+				"<?php\n{$line}\n",
+				$contents,
+				1
+			);
+			if ( null === $result ) {
+				throw new \RuntimeException( 'Failed to inject bootstrap line into wp-config.php' );
+			}
 		}
+
+		$contents = $result;
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing local wp-config.php.
 		file_put_contents( $config_path, $contents );

@@ -114,15 +114,10 @@ class ConfigWriterTest extends RudelTestCase
         $lines  = file($configPath);
         $marker = '// Rudel sandbox bootstrap';
 
-        // Should have exactly two marker lines
+        // Should have exactly one marker line immediately before wp-settings.php.
         $markerLines = array_filter($lines, fn($l) => str_contains($l, $marker));
-        $this->assertCount(2, $markerLines);
+        $this->assertCount(1, $markerLines);
 
-        // First marker: require_once near the top (line 2)
-        $this->assertStringContainsString('require_once', $lines[1]);
-        $this->assertStringContainsString($marker, $lines[1]);
-
-        // Second marker: table_prefix fixup just before wp-settings.php
         $settingsIdx = null;
         foreach ($lines as $i => $line) {
             if (str_contains($line, 'wp-settings.php') && !str_contains($line, $marker)) {
@@ -130,7 +125,8 @@ class ConfigWriterTest extends RudelTestCase
             }
         }
         $this->assertNotNull($settingsIdx);
-        $this->assertStringContainsString('table_prefix', $lines[$settingsIdx - 1]);
+        $this->assertStringContainsString('require_once', $lines[$settingsIdx - 1]);
+        $this->assertStringContainsString('bootstrap.php', $lines[$settingsIdx - 1]);
     }
 
     #[RunInSeparateProcess]
@@ -148,7 +144,7 @@ class ConfigWriterTest extends RudelTestCase
         $lines  = file($configPath);
         $marker = '// Rudel sandbox bootstrap';
 
-        // Only the require_once line (no wp-settings.php to inject fixup before)
+        // Without wp-settings.php the bootstrap falls back to a top-of-file injection.
         $markerLines = array_filter($lines, fn($l) => str_contains($l, $marker));
         $this->assertCount(1, $markerLines);
         $this->assertStringStartsWith('<?php', $lines[0]);
