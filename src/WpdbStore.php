@@ -37,8 +37,7 @@ class WpdbStore implements DatabaseStore {
 		}
 
 		$this->wpdb   = $wpdb;
-		$prefix       = $this->wpdb->base_prefix ?? $this->wpdb->prefix ?? 'wp_';
-		$this->prefix = is_string( $prefix ) && '' !== $prefix ? $prefix : 'wp_';
+		$this->prefix = $this->wpdb->base_prefix;
 	}
 
 	/**
@@ -133,7 +132,7 @@ class WpdbStore implements DatabaseStore {
 	public function insert( string $table, array $data ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Routed through wpdb::insert.
 		$this->wpdb->insert( $table, $data );
-		return isset( $this->wpdb->insert_id ) ? (int) $this->wpdb->insert_id : 0;
+		return (int) $this->wpdb->insert_id;
 	}
 
 	/**
@@ -205,6 +204,8 @@ class WpdbStore implements DatabaseStore {
 	 * @param string $sql SQL with ? placeholders.
 	 * @param array  $params Bound parameters.
 	 * @return string
+	 *
+	 * @throws \RuntimeException When wpdb cannot prepare the query.
 	 */
 	private function prepare_query( string $sql, array $params ): string {
 		if ( empty( $params ) ) {

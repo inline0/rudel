@@ -185,7 +185,7 @@ class BootstrapRuntimeStore {
 		$candidates = array();
 
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : null;
-		if ( is_string( $abspath ) && '' !== $abspath ) {
+		if ( null !== $abspath ) {
 			$candidates[] = rtrim( $abspath, '/' ) . '/wp-includes/class-wpdb.php';
 		}
 
