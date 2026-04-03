@@ -81,7 +81,12 @@ class RudelDatabase {
 		}
 
 		$parts = array_map(
-			static fn( string $path ): array => array_values( array_filter( explode( '/', trim( $path, '/' ) ), 'strlen' ) ),
+			static fn( string $path ): array => array_values(
+				array_filter(
+					explode( '/', trim( $path, '/' ) ),
+					static fn( string $segment ): bool => '' !== $segment
+				)
+			),
 			$paths
 		);
 

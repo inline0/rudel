@@ -286,7 +286,7 @@ class BootstrapRuntimeStore {
 
 		if ( null !== $config_path && file_exists( $config_path ) ) {
 			$contents = file_get_contents( $config_path );
-			if ( false !== $contents && preg_match( "/\\$table_prefix\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]\\s*;/", $contents, $match ) ) {
+			if ( false !== $contents && preg_match( "/\\\$table_prefix\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]\\s*;/", $contents, $match ) ) {
 				return $match[1];
 			}
 		}

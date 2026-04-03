@@ -27,13 +27,6 @@ class EnvironmentRepository {
 	private string $environments_dir;
 
 	/**
-	 * Related directory for cross-type resolution.
-	 *
-	 * @var string
-	 */
-	private string $alternate_environments_dir;
-
-	/**
 	 * Type this repository primarily manages.
 	 *
 	 * @var string|null
@@ -61,11 +54,10 @@ class EnvironmentRepository {
 		?string $alternate_environments_dir = null,
 		?string $managed_type = 'sandbox'
 	) {
-		$this->store                      = $store;
-		$this->environments_dir           = rtrim( $environments_dir, '/' );
-		$this->alternate_environments_dir = null === $alternate_environments_dir ? '' : rtrim( $alternate_environments_dir, '/' );
-		$this->managed_type               = $managed_type;
-		$this->worktrees                  = new EnvironmentWorktreeRepository( $store );
+		$this->store            = $store;
+		$this->environments_dir = rtrim( $environments_dir, '/' );
+		$this->managed_type     = $managed_type;
+		$this->worktrees        = new EnvironmentWorktreeRepository( $store );
 	}
 
 	/**
