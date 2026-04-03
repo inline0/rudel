@@ -64,6 +64,17 @@ wpenv_run() {
     npx wp-env run cli -- "$@" 2>&1 | strip_wpenv
 }
 
+runtime_env_json() {
+    local id="$1"
+    wp_cli eval "\$repo = new Rudel\\EnvironmentRepository(new Rudel\\WpdbStore(\$GLOBALS['wpdb']), WP_CONTENT_DIR . '/rudel-environments', WP_CONTENT_DIR . '/rudel-apps', null); \$env = \$repo->resolve('${id}'); echo \$env ? wp_json_encode(\$env->to_array()) : 'null';" | tail -1
+}
+
+runtime_env_field() {
+    local id="$1"
+    local field="$2"
+    runtime_env_json "$id" | php -r 'echo json_decode(file_get_contents("php://stdin"), true)["'"$field"'"] ?? "missing";'
+}
+
 http_body() {
     curl -sL "$1" 2>&1
 }
@@ -211,10 +222,10 @@ else
     fail "Alpha has db.php but should use MySQL" "$ALPHA_NO_DROPIN"
 fi
 
-# Engine should be mysql in metadata
-ALPHA_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-environments/${ALPHA_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
+# Engine should be mysql in runtime store
+ALPHA_ENGINE=$(runtime_env_field "$ALPHA_ID" "engine")
 if [[ "$ALPHA_ENGINE" == "mysql" ]]; then
-    pass "Alpha engine is mysql in .rudel.json"
+    pass "Alpha engine is mysql in runtime store"
 else
     fail "Alpha engine wrong" "Got: $ALPHA_ENGINE"
 fi
@@ -545,9 +556,9 @@ else
     fail "SQLite sandbox missing db.php" "$SQLITE_DROPIN_EXISTS"
 fi
 
-SQLITE_ENGINE=$(wpenv_run bash -c "php -r \"echo json_decode(file_get_contents('/var/www/html/wp-content/rudel-environments/${SQLITE_ID}/.rudel.json'), true)['engine'] ?? 'missing';\"" | tail -1)
+SQLITE_ENGINE=$(runtime_env_field "$SQLITE_ID" "engine")
 if [[ "$SQLITE_ENGINE" == "sqlite" ]]; then
-    pass "SQLite engine in .rudel.json"
+    pass "SQLite engine in runtime store"
 else
     fail "SQLite engine wrong" "Got: $SQLITE_ENGINE"
 fi

@@ -40,7 +40,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Files Test', ['engine' => 'sqlite']);
 
-        $this->assertFileExists($sandbox->path . '/.rudel.json');
+        $this->assertFileDoesNotExist($sandbox->path . '/.rudel.json');
         $this->assertFileExists($sandbox->path . '/wordpress.db');
         $this->assertFileExists($sandbox->path . '/wp-cli.yml');
         $this->assertFileExists($sandbox->path . '/bootstrap.php');
@@ -176,18 +176,17 @@ class EnvironmentManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testCreateRudelJsonIsValidAndReadable(): void
+    public function testCreatePersistsEnvironmentRecord(): void
     {
         $this->defineConstants();
         $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Json Test', ['engine' => 'sqlite']);
 
-        $raw = file_get_contents($sandbox->path . '/.rudel.json');
-        $data = json_decode($raw, true);
-        $this->assertNotNull($data);
-        $this->assertSame($sandbox->id, $data['id']);
-        $this->assertSame('Json Test', $data['name']);
-        $this->assertSame('active', $data['status']);
+        $stored = Environment::from_path($sandbox->path);
+        $this->assertNotNull($stored);
+        $this->assertSame($sandbox->id, $stored->id);
+        $this->assertSame('Json Test', $stored->name);
+        $this->assertSame('active', $stored->status);
     }
 
     // create() -- file permissions
@@ -447,7 +446,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Real Sandbox', ['engine' => 'sqlite']);
 
-        // Create a junk directory with no .rudel.json
+        // Create a junk directory with no matching DB record.
         mkdir($this->tmpDir . '/not-a-sandbox', 0755);
 
         $list = $manager->list();
@@ -898,8 +897,9 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Engine Meta', ['engine' => 'sqlite']);
 
-        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $this->assertSame('sqlite', $meta['engine']);
+        $stored = Environment::from_path($sandbox->path);
+        $this->assertNotNull($stored);
+        $this->assertSame('sqlite', $stored->engine);
         $this->assertSame('sqlite', $sandbox->engine);
         $this->assertTrue($sandbox->is_sqlite());
     }
@@ -993,9 +993,11 @@ class EnvironmentManagerTest extends RudelTestCase
 
         // Create a sandbox with an old created_at.
         $sandbox = $manager->create('Old Sandbox', ['engine' => 'sqlite', 'skip_limits' => true]);
-        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
-        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            ['created_at' => '2020-01-01T00:00:00+00:00'],
+            ['slug' => $sandbox->id]
+        );
 
         $result = $manager->cleanup(['max_age_days' => 1]);
 
@@ -1011,9 +1013,11 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
 
         $sandbox = $manager->create('DryRun Sandbox', ['engine' => 'sqlite', 'skip_limits' => true]);
-        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
-        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            ['created_at' => '2020-01-01T00:00:00+00:00'],
+            ['slug' => $sandbox->id]
+        );
 
         $result = $manager->cleanup(['max_age_days' => 1, 'dry_run' => true]);
 
@@ -1077,10 +1081,14 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->defineConstants();
         $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Protected Cleanup', ['engine' => 'sqlite', 'skip_limits' => true]);
-        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
-        $meta['protected'] = true;
-        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            [
+                'created_at' => '2020-01-01T00:00:00+00:00',
+                'is_protected' => 1,
+            ],
+            ['slug' => $sandbox->id]
+        );
 
         $result = $manager->cleanup(['max_age_days' => 1]);
 
@@ -1096,9 +1104,11 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->defineConstants();
         $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Expiry Cleanup', ['engine' => 'sqlite', 'skip_limits' => true]);
-        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $meta['expires_at'] = '2020-01-01T00:00:00+00:00';
-        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            ['expires_at' => '2020-01-01T00:00:00+00:00'],
+            ['slug' => $sandbox->id]
+        );
 
         $result = $manager->cleanup(['max_age_days' => 0, 'max_idle_days' => 0]);
 
@@ -1113,10 +1123,14 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->defineConstants();
         $manager = new EnvironmentManager($this->tmpDir);
         $sandbox = $manager->create('Idle Cleanup', ['engine' => 'sqlite', 'skip_limits' => true]);
-        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $meta['created_at'] = gmdate('c');
-        $meta['last_used_at'] = '2020-01-01T00:00:00+00:00';
-        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            [
+                'created_at' => gmdate('c'),
+                'last_used_at' => '2020-01-01T00:00:00+00:00',
+            ],
+            ['slug' => $sandbox->id]
+        );
 
         $result = $manager->cleanup(['max_idle_days' => 1]);
 
@@ -1198,7 +1212,7 @@ class EnvironmentManagerTest extends RudelTestCase
         }
         $zip->close();
 
-        $this->assertContains('.rudel.json', $names);
+        $this->assertContains('rudel-export.json', $names);
         $this->assertContains('wordpress.db', $names);
     }
 
@@ -1305,12 +1319,12 @@ class EnvironmentManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testImportThrowsOnMissingRudelJson(): void
+    public function testImportThrowsOnMissingExportManifest(): void
     {
         $this->defineConstants();
         $manager = new EnvironmentManager($this->tmpDir);
 
-        // Create a zip without .rudel.json.
+        // Create a zip without the Rudel export manifest.
         $zipPath = $this->tmpDir . '/no-meta.zip';
         $zip = new \ZipArchive();
         $zip->open($zipPath, \ZipArchive::CREATE);
@@ -1318,7 +1332,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $zip->close();
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('missing .rudel.json');
+        $this->expectExceptionMessage('missing rudel-export.json');
         $manager->import($zipPath, 'No Meta Import');
     }
 
@@ -1343,24 +1357,14 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->defineConstants();
         $manager = new EnvironmentManager($this->tmpDir);
 
-        // Create a fake subsite sandbox by writing metadata directly.
-        $id = 'subsite-promote-test';
-        $path = $this->tmpDir . '/' . $id;
-        mkdir($path, 0755, true);
-        mkdir($path . '/wp-content', 0755);
-        mkdir($path . '/tmp', 0755);
-        file_put_contents($path . '/.rudel.json', json_encode([
-            'id' => $id,
-            'name' => 'Subsite Test',
-            'path' => $path,
-            'created_at' => gmdate('c'),
+        $this->createFakeSandbox('subsite-promote-test', 'Subsite Test', [
             'engine' => 'subsite',
             'blog_id' => 99,
-        ]));
+        ]);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('not supported for subsite');
-        $manager->promote($id, $this->tmpDir . '/backup');
+        $manager->promote('subsite-promote-test', $this->tmpDir . '/backup');
     }
 
     #[RunInSeparateProcess]

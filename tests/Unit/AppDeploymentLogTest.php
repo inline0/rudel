@@ -48,8 +48,8 @@ class AppDeploymentLogTest extends RudelTestCase
         $this->assertNull($records[1]['notes']);
         $this->assertSame('before-launch', $records[0]['backup_name']);
         $this->assertSame('release/2026', $records[0]['github_base_branch']);
-        $this->assertFileExists($app->path . '/deployments/' . $first['id'] . '.json');
-        $this->assertFileExists($app->path . '/deployments/' . $second['id'] . '.json');
+        $this->assertSame($first['id'], $log->find($first['id'])['id']);
+        $this->assertSame($second['id'], $log->find($second['id'])['id']);
     }
 
     public function testRecordFallsBackToAppGitMetadataWhenSandboxHasNoGitContext(): void

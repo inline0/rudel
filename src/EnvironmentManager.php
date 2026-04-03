@@ -55,14 +55,34 @@ class EnvironmentManager {
 	private EnvironmentStateReplacer $state_replacer;
 
 	/**
+	 * Runtime store.
+	 *
+	 * @var DatabaseStore
+	 */
+	private DatabaseStore $store;
+
+	/**
+	 * Managed environment type.
+	 *
+	 * @var string
+	 */
+	private string $managed_type;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param string|null $environments_dir Optional override for the sandboxes directory.
 	 * @param string|null $alternate_environments_dir Optional override for the related environments directory.
 	 */
-	public function __construct( ?string $environments_dir = null, ?string $alternate_environments_dir = null ) {
+	public function __construct(
+		?string $environments_dir = null,
+		?string $alternate_environments_dir = null,
+		string $managed_type = 'sandbox',
+		?DatabaseStore $store = null
+	) {
 		$this->plugin_dir       = defined( 'RUDEL_PLUGIN_DIR' ) ? RUDEL_PLUGIN_DIR : dirname( __DIR__ ) . '/';
 		$this->environments_dir = $environments_dir ?? $this->get_default_environments_dir();
+		$this->managed_type     = $managed_type;
 
 		if ( null !== $alternate_environments_dir ) {
 			$this->alternate_environments_dir = $alternate_environments_dir;
@@ -72,7 +92,8 @@ class EnvironmentManager {
 			$this->alternate_environments_dir = $this->get_default_apps_dir();
 		}
 
-		$this->repository      = new EnvironmentRepository( $this->environments_dir, $this->alternate_environments_dir );
+		$this->store           = $store ?? RudelDatabase::for_paths( $this->environments_dir, $this->alternate_environments_dir );
+		$this->repository      = new EnvironmentRepository( $this->store, $this->environments_dir, $this->alternate_environments_dir, $this->managed_type );
 		$this->cleanup_service = new EnvironmentCleanupService( $this->repository, array( $this, 'destroy' ) );
 		$this->state_replacer  = new EnvironmentStateReplacer();
 	}
@@ -223,6 +244,9 @@ class EnvironmentManager {
 						sprintf( 'Cannot clone across engines: source is %s, target is %s.', $source->engine, $engine )
 					);
 				}
+				if ( ! isset( $options['app_id'] ) && null !== $source->app_record_id && 'sandbox' === $target_type ) {
+					$options['app_id'] = $source->app_record_id;
+				}
 				$clone_source  = $this->clone_from_environment( $source, $id, $path, $engine, $target_type, $target_domains );
 				$clone_lineage = array(
 					'source_environment_id'   => $source->id,
@@ -355,8 +379,9 @@ class EnvironmentManager {
 				tracked_github_repo: $policy_meta['tracked_github_repo'] ?? null,
 				tracked_github_branch: $policy_meta['tracked_github_branch'] ?? null,
 				tracked_github_dir: $policy_meta['tracked_github_dir'] ?? null,
+				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
-			$this->repository->save( $environment );
+			$environment = $this->repository->save( $environment );
 
 			Hooks::action( 'rudel_after_environment_create', $environment, $context );
 
@@ -426,12 +451,7 @@ class EnvironmentManager {
 		Hooks::action( 'rudel_before_environment_update', $context );
 
 		try {
-			$environment->update_meta_batch( $changes );
-			$updated = $this->get( $id );
-			if ( ! $updated ) {
-				throw new \RuntimeException( sprintf( 'Environment not found after update: %s', $id ) );
-			}
-
+			$updated = $this->repository->update_fields( $id, $changes, $environment->type );
 			Hooks::action( 'rudel_after_environment_update', $updated, $context );
 			return $updated;
 		} catch ( \Throwable $e ) {
@@ -472,6 +492,7 @@ class EnvironmentManager {
 
 			$result = $this->delete_directory( $sandbox->path );
 			if ( $result ) {
+				$this->repository->delete( $sandbox->id, $sandbox->type );
 				Hooks::action( 'rudel_after_environment_destroy', $context );
 			}
 
@@ -734,6 +755,17 @@ class EnvironmentManager {
 				throw new \RuntimeException( sprintf( 'Failed to create zip archive: %s', $output_path ) );
 			}
 
+			$zip->addFromString(
+				'rudel-export.json',
+				wp_json_encode(
+					array(
+						'environment' => $sandbox->to_array(),
+						'exported_at' => gmdate( 'c' ),
+					),
+					JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+				) . "\n"
+			);
+
 			$base_path = $sandbox->path;
 			$iterator  = new \RecursiveIteratorIterator(
 				new \RecursiveDirectoryIterator( $base_path, \FilesystemIterator::SKIP_DOTS ),
@@ -797,17 +829,18 @@ class EnvironmentManager {
 		$zip->extractTo( $tmp_dir );
 		$zip->close();
 
-		$meta_file = $tmp_dir . '/.rudel.json';
+		$meta_file = $tmp_dir . '/rudel-export.json';
 		if ( ! file_exists( $meta_file ) ) {
 			$this->delete_directory( $tmp_dir );
-			throw new \RuntimeException( 'Invalid sandbox archive: missing .rudel.json' );
+			throw new \RuntimeException( 'Invalid sandbox archive: missing rudel-export.json' );
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading extracted metadata.
-		$old_meta = json_decode( file_get_contents( $meta_file ), true );
+		$export_meta = json_decode( file_get_contents( $meta_file ), true );
+		$old_meta    = is_array( $export_meta['environment'] ?? null ) ? $export_meta['environment'] : $export_meta;
 		if ( ! is_array( $old_meta ) || empty( $old_meta['id'] ) ) {
 			$this->delete_directory( $tmp_dir );
-			throw new \RuntimeException( 'Invalid sandbox archive: malformed .rudel.json' );
+			throw new \RuntimeException( 'Invalid sandbox archive: malformed rudel-export.json' );
 		}
 
 		$old_id = $old_meta['id'];
@@ -823,13 +856,17 @@ class EnvironmentManager {
 		$new_path = $this->repository->path_for( $new_id );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Moving extracted sandbox into place.
 		rename( $tmp_dir, $new_path );
+		if ( file_exists( $new_path . '/rudel-export.json' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing archive manifest from runtime directory.
+			unlink( $new_path . '/rudel-export.json' );
+		}
 
 		if ( 'sqlite' === $engine ) {
 			$this->ensure_sqlite_integration();
 			$this->write_db_drop_in( $new_path );
 		}
 		$this->write_sandbox_bootstrap( $new_id, $new_path, false, $engine );
-		$this->write_wp_cli_yml( $new_path );
+		$this->write_wp_cli_yml( $new_path, $engine, $new_id );
 		$this->write_claude_md( $new_id, $name, $new_path );
 
 		// Imported archives must be re-keyed so they do not keep the source environment's URLs or table prefix.
@@ -904,8 +941,9 @@ class EnvironmentManager {
 			last_used_at: $imported_meta['last_used_at'],
 			source_environment_id: $imported_meta['source_environment_id'] ?? null,
 			source_environment_type: $imported_meta['source_environment_type'] ?? null,
+			app_record_id: isset( $old_meta['app_record_id'] ) ? (int) $old_meta['app_record_id'] : null,
 		);
-		$this->repository->save( $sandbox );
+		$sandbox = $this->repository->save( $sandbox );
 
 		Hooks::action( 'rudel_after_environment_import', $sandbox, $context );
 

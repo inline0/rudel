@@ -246,42 +246,37 @@ class EnvironmentTest extends RudelTestCase
         $this->assertSame('2026-01-01T00:00:00+00:00', $sandbox->last_used_at);
     }
 
-    public function testFromPathReturnsNullWhenNoMetaFile(): void
+    public function testFromPathReturnsNullWhenNoRuntimeRecordExists(): void
     {
-        $path = $this->tmpDir . '/no-meta';
+        $path = $this->tmpDir . '/no-record';
         mkdir($path, 0755);
         $this->assertNull(Environment::from_path($path));
     }
 
-    public function testFromPathReturnsNullForInvalidJson(): void
+    public function testFromPathIgnoresStrayMetadataFilesWithoutDbRecord(): void
     {
-        $path = $this->tmpDir . '/bad-json';
+        $path = $this->tmpDir . '/stray-files';
         mkdir($path, 0755);
-        file_put_contents($path . '/.rudel.json', 'not json at all {{{');
+        file_put_contents($path . '/.rudel.json', 'legacy metadata that should be ignored');
         $this->assertNull(Environment::from_path($path));
     }
 
-    public function testFromPathReturnsNullForEmptyJson(): void
+    public function testFromPathDoesNotResolveUnknownDirectoryJustBecauseItExists(): void
     {
-        $path = $this->tmpDir . '/empty-json';
+        $path = $this->tmpDir . '/directory-only';
         mkdir($path, 0755);
-        file_put_contents($path . '/.rudel.json', '');
         $this->assertNull(Environment::from_path($path));
     }
 
-    public function testFromPathHandlesMissingOptionalFields(): void
+    public function testFromPathHydratesEnvironmentFromRuntimeRecord(): void
     {
-        $path = $this->tmpDir . '/minimal';
-        mkdir($path, 0755);
-        file_put_contents($path . '/.rudel.json', json_encode([
-            'id' => 'minimal',
-            'name' => 'Minimal',
-        ]));
-
+        $path = $this->createFakeSandbox('minimal', 'Minimal');
         $sandbox = Environment::from_path($path);
+
         $this->assertNotNull($sandbox);
         $this->assertSame('minimal', $sandbox->id);
-        $this->assertSame('', $sandbox->created_at);
+        $this->assertSame('Minimal', $sandbox->name);
+        $this->assertSame('2026-01-01T00:00:00+00:00', $sandbox->created_at);
         $this->assertSame('blank', $sandbox->template);
         $this->assertSame('active', $sandbox->status);
         $this->assertSame([], $sandbox->labels);
@@ -512,6 +507,8 @@ class EnvironmentTest extends RudelTestCase
 
         $arr = $sandbox->to_array();
         $this->assertSame([
+            'record_id' => null,
+            'app_record_id' => null,
             'id' => 'test-id',
             'name' => 'Test Name',
             'path' => '/tmp/test',
@@ -576,7 +573,7 @@ class EnvironmentTest extends RudelTestCase
 
     // saveMeta()
 
-    public function testSaveMetaWritesJsonFile(): void
+    public function testSaveMetaPersistsEnvironmentRecord(): void
     {
         $path = $this->tmpDir . '/save-meta-test';
         mkdir($path, 0755);
@@ -584,28 +581,21 @@ class EnvironmentTest extends RudelTestCase
         $sandbox = new Environment('save-test', 'Save Test', $path, '2026-01-01');
         $sandbox->save_meta();
 
-        $metaPath = $path . '/.rudel.json';
-        $this->assertFileExists($metaPath);
-
-        $data = json_decode(file_get_contents($metaPath), true);
-        $this->assertSame('save-test', $data['id']);
-        $this->assertSame('Save Test', $data['name']);
+        $saved = Environment::from_path($path);
+        $this->assertNotNull($saved);
+        $this->assertSame('save-test', $saved->id);
+        $this->assertSame('Save Test', $saved->name);
     }
 
-    public function testSaveMetaUsesUnescapedSlashes(): void
+    public function testSaveMetaDoesNotCreateLegacyMetadataFile(): void
     {
         $path = $this->tmpDir . '/slash-test';
         mkdir($path, 0755);
 
-        // Use the same path for both the sandbox path and where saveMeta writes
         $sandbox = new Environment('id', 'name', $path, '2026-01-01');
         $sandbox->save_meta();
 
-        $raw = file_get_contents($path . '/.rudel.json');
-        // JSON_UNESCAPED_SLASHES means no \/ in the output
-        $this->assertStringNotContainsString('\\/', $raw);
-        // But the path should still contain forward slashes
-        $this->assertStringContainsString('/', $raw);
+        $this->assertFileDoesNotExist($path . '/.rudel.json');
     }
 
     public function testSaveMetaRoundTrips(): void

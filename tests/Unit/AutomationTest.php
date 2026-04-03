@@ -108,14 +108,16 @@ PHP);
             'app_id' => $app->id,
             'created_at' => '2026-01-02T00:00:00+00:00',
         ], JSON_PRETTY_PRINT));
-        file_put_contents($app->path . '/deployments/' . $first['deployment']['id'] . '.json', json_encode(array_merge(
-            $first['deployment'],
-            ['deployed_at' => '2026-01-01T00:00:00+00:00']
-        ), JSON_PRETTY_PRINT));
-        file_put_contents($app->path . '/deployments/' . $second['deployment']['id'] . '.json', json_encode(array_merge(
-            $second['deployment'],
-            ['deployed_at' => '2026-01-02T00:00:00+00:00']
-        ), JSON_PRETTY_PRINT));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('app_deployments'),
+            ['deployed_at' => '2026-01-01T00:00:00+00:00'],
+            ['deployment_key' => $first['deployment']['id']]
+        );
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('app_deployments'),
+            ['deployed_at' => '2026-01-02T00:00:00+00:00'],
+            ['deployment_key' => $second['deployment']['id']]
+        );
 
         $config = new RudelConfig();
         $config->set('auto_cleanup_enabled', 0);

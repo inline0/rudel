@@ -631,7 +631,12 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			$clone_source                = $sandbox->clone_source ?? array();
 			$clone_source['github_repo'] = $github_repo;
 			$clone_source['github_dir']  = $type_dir . '/' . $repo_name;
-			$sandbox->update_meta( 'clone_source', $clone_source );
+			$this->manager->update(
+				$sandbox->id,
+				array(
+					'clone_source' => $clone_source,
+				)
+			);
 		} catch ( \Throwable $e ) {
 			WP_CLI::warning( "GitHub setup failed: {$e->getMessage()}" );
 			WP_CLI::warning( 'Sandbox was created but GitHub worktree was not set up.' );

@@ -3,6 +3,11 @@
 namespace Rudel\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Rudel\AppRepository;
+use Rudel\DatabaseStore;
+use Rudel\Environment;
+use Rudel\EnvironmentRepository;
+use Rudel\RudelDatabase;
 
 /**
  * Base test case for Rudel tests.
@@ -20,6 +25,7 @@ abstract class RudelTestCase extends TestCase
         $GLOBALS['rudel_test_filters'] = [];
         $GLOBALS['rudel_test_action_callbacks'] = [];
         $GLOBALS['rudel_test_filter_callbacks'] = [];
+        RudelDatabase::reset();
         $this->tmpDir = RUDEL_TEST_TMPDIR . '/' . uniqid('test-');
         mkdir($this->tmpDir, 0755, true);
     }
@@ -33,7 +39,7 @@ abstract class RudelTestCase extends TestCase
     }
 
     /**
-     * Create a fake sandbox directory with a .rudel.json file.
+     * Create a fake environment directory and persist its runtime record in the test DB.
      */
     protected function createFakeSandbox(string $id, string $name = 'test', array $extraMeta = []): string
     {
@@ -46,17 +52,71 @@ abstract class RudelTestCase extends TestCase
         mkdir($path . '/wp-content/mu-plugins', 0755);
         mkdir($path . '/tmp', 0755);
 
-        $meta = array_merge([
-            'id' => $id,
-            'name' => $name,
-            'path' => $path,
-            'created_at' => '2026-01-01T00:00:00+00:00',
-            'template' => 'blank',
-            'status' => 'active',
-        ], $extraMeta);
+        $meta = array_merge(
+            [
+                'created_at' => '2026-01-01T00:00:00+00:00',
+                'template' => 'blank',
+                'status' => 'active',
+                'engine' => 'mysql',
+                'type' => 'sandbox',
+            ],
+            $extraMeta
+        );
 
-        file_put_contents($path . '/.rudel.json', json_encode($meta, JSON_PRETTY_PRINT));
+        $environment = new Environment(
+            id: $id,
+            name: $name,
+            path: $path,
+            created_at: (string) $meta['created_at'],
+            template: (string) ($meta['template'] ?? 'blank'),
+            status: (string) ($meta['status'] ?? 'active'),
+            clone_source: isset($meta['clone_source']) && is_array($meta['clone_source']) ? $meta['clone_source'] : null,
+            multisite: ! empty($meta['multisite']),
+            engine: (string) ($meta['engine'] ?? 'mysql'),
+            blog_id: isset($meta['blog_id']) ? (int) $meta['blog_id'] : null,
+            type: (string) ($meta['type'] ?? 'sandbox'),
+            domains: isset($meta['domains']) && is_array($meta['domains']) ? array_values($meta['domains']) : null,
+            owner: isset($meta['owner']) && is_scalar($meta['owner']) ? (string) $meta['owner'] : null,
+            labels: isset($meta['labels']) && is_array($meta['labels']) ? array_values($meta['labels']) : [],
+            purpose: isset($meta['purpose']) && is_scalar($meta['purpose']) ? (string) $meta['purpose'] : null,
+            is_protected: ! empty($meta['protected']) || ! empty($meta['is_protected']),
+            expires_at: isset($meta['expires_at']) && is_scalar($meta['expires_at']) ? (string) $meta['expires_at'] : null,
+            last_used_at: isset($meta['last_used_at']) && is_scalar($meta['last_used_at']) ? (string) $meta['last_used_at'] : (string) $meta['created_at'],
+            source_environment_id: isset($meta['source_environment_id']) && is_scalar($meta['source_environment_id']) ? (string) $meta['source_environment_id'] : null,
+            source_environment_type: isset($meta['source_environment_type']) && is_scalar($meta['source_environment_type']) ? (string) $meta['source_environment_type'] : null,
+            last_deployed_from_id: isset($meta['last_deployed_from_id']) && is_scalar($meta['last_deployed_from_id']) ? (string) $meta['last_deployed_from_id'] : null,
+            last_deployed_from_type: isset($meta['last_deployed_from_type']) && is_scalar($meta['last_deployed_from_type']) ? (string) $meta['last_deployed_from_type'] : null,
+            last_deployed_at: isset($meta['last_deployed_at']) && is_scalar($meta['last_deployed_at']) ? (string) $meta['last_deployed_at'] : null,
+            tracked_github_repo: isset($meta['tracked_github_repo']) && is_scalar($meta['tracked_github_repo']) ? (string) $meta['tracked_github_repo'] : null,
+            tracked_github_branch: isset($meta['tracked_github_branch']) && is_scalar($meta['tracked_github_branch']) ? (string) $meta['tracked_github_branch'] : null,
+            tracked_github_dir: isset($meta['tracked_github_dir']) && is_scalar($meta['tracked_github_dir']) ? (string) $meta['tracked_github_dir'] : null,
+        );
+
+        $repository = $this->environmentRepository((string) ($meta['type'] ?? 'sandbox'));
+        $saved = $repository->save($environment);
+
+        if ('app' === $saved->type) {
+            $apps = new AppRepository($this->runtimeStore(), $this->environmentRepository('app'));
+            $apps->create($saved, isset($meta['domains']) && is_array($meta['domains']) ? $meta['domains'] : []);
+        }
+
         return $path;
+    }
+
+    /**
+     * Return the shared runtime store for the current test workspace.
+     */
+    protected function runtimeStore(): DatabaseStore
+    {
+        return RudelDatabase::for_paths($this->tmpDir);
+    }
+
+    /**
+     * Build an environment repository for the current test workspace.
+     */
+    protected function environmentRepository(?string $managedType = 'sandbox'): EnvironmentRepository
+    {
+        return new EnvironmentRepository($this->runtimeStore(), $this->tmpDir, null, $managedType);
     }
 
     /**

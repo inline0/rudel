@@ -175,7 +175,7 @@ And remove them:
 wp rudel app domain-remove client-a-com-a1b2 --domain=www.client-a.com
 ```
 
-An app must always have at least one domain. Domains are stored in the app's `.rudel.json` metadata and compiled into a `domains.json` lookup file that the bootstrap reads on every request. Domains are normalized to lowercase and matched case-insensitively at runtime, so `Client-A.com` and `client-a.com` are treated as the same mapping.
+An app must always have at least one domain. Domains are stored in Rudel's runtime tables and resolved directly by the bootstrap on every request. Domains are normalized to lowercase and matched case-insensitively at runtime, so `Client-A.com` and `client-a.com` are treated as the same mapping.
 
 ## How routing works
 

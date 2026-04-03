@@ -41,9 +41,45 @@ fail() {
     fi
 }
 
-# Create sandboxes directory with a test sandbox
-mkdir -p "$SANDBOXES_DIR/test-sandbox-001"
-echo '{"id":"test-sandbox-001","name":"test","engine":"sqlite"}' > "$SANDBOXES_DIR/test-sandbox-001/.rudel.json"
+seed_runtime_environment() {
+    local id="$1"
+    local engine="${2:-sqlite}"
+
+    TEST_ENV_ID="$id" \
+    TEST_ENV_ENGINE="$engine" \
+    TEST_ENV_DIR="$SANDBOXES_DIR" \
+    TEST_DB_PATH="$TEST_TMPDIR/rudel-state.sqlite" \
+    TEST_RUDEL_DIR="$RUDEL_DIR" \
+    php -r '
+        require getenv("TEST_RUDEL_DIR") . "/vendor/autoload.php";
+        $path = getenv("TEST_ENV_DIR") . "/" . getenv("TEST_ENV_ID");
+        if (!is_dir($path)) {
+            mkdir($path, 0755, true);
+        }
+        $store = new Rudel\SqliteStore(getenv("TEST_DB_PATH"));
+        Rudel\RudelSchema::ensure($store);
+        $repository = new Rudel\EnvironmentRepository($store, getenv("TEST_ENV_DIR"));
+        $repository->save(
+            new Rudel\Environment(
+                id: getenv("TEST_ENV_ID"),
+                name: getenv("TEST_ENV_ID"),
+                path: $path,
+                created_at: "2026-01-01T00:00:00+00:00",
+                engine: getenv("TEST_ENV_ENGINE")
+            )
+        );
+    ' 2>/dev/null
+}
+
+mkdir -p "$SANDBOXES_DIR"
+seed_runtime_environment "test-sandbox-001" "sqlite"
+cat > "$TEST_TMPDIR/wp-config-runtime.php" <<EOF
+<?php
+define('DB_ENGINE', 'sqlite');
+define('DB_DIR', '$TEST_TMPDIR');
+define('DB_FILE', 'rudel-state.sqlite');
+\$table_prefix = 'wp_';
+EOF
 
 # Helper: run bootstrap.php in a child process and get constants as JSON
 run_bootstrap() {
@@ -76,6 +112,7 @@ if ($defines_json) {
 }
 
 define('WP_CONTENT_DIR', getenv('TEST_TMPDIR'));
+define('RUDEL_WP_CONFIG_PATH', getenv('TEST_WP_CONFIG'));
 
 require getenv('TEST_BOOTSTRAP');
 
@@ -99,6 +136,7 @@ INNEREOF
     TEST_COOKIE_VARS="$cookie_vars" \
     TEST_EXTRA_DEFINES="$extra_defines" \
     TEST_TMPDIR="$TEST_TMPDIR" \
+    TEST_WP_CONFIG="$TEST_TMPDIR/wp-config-runtime.php" \
     TEST_BOOTSTRAP="$BOOTSTRAP" \
     php "$TEST_TMPDIR/run.php" 2>/dev/null
 }
@@ -201,10 +239,8 @@ echo ""
 echo -e "${BOLD}Priority order${NC}"
 
 # Header wins over cookie
-mkdir -p "$SANDBOXES_DIR/header-wins"
-echo '{"id":"header-wins","engine":"sqlite"}' > "$SANDBOXES_DIR/header-wins/.rudel.json"
-mkdir -p "$SANDBOXES_DIR/cookie-loses"
-echo '{"id":"cookie-loses","engine":"sqlite"}' > "$SANDBOXES_DIR/cookie-loses/.rudel.json"
+seed_runtime_environment "header-wins" "sqlite"
+seed_runtime_environment "cookie-loses" "sqlite"
 
 RESULT=$(run_bootstrap '{"HTTP_X_RUDEL_SANDBOX":"header-wins","HTTP_HOST":"example.com"}' '{"rudel_sandbox":"cookie-loses"}')
 SID=$(get_json_field "$RESULT" "sandbox_id")
@@ -309,8 +345,7 @@ fi
 echo ""
 echo -e "${BOLD}MySQL engine${NC}"
 
-mkdir -p "$SANDBOXES_DIR/mysql-sandbox"
-echo '{"id":"mysql-sandbox","name":"mysql-test","engine":"mysql"}' > "$SANDBOXES_DIR/mysql-sandbox/.rudel.json"
+seed_runtime_environment "mysql-sandbox" "mysql"
 
 RESULT=$(run_bootstrap '{"HTTP_X_RUDEL_SANDBOX":"mysql-sandbox","HTTP_HOST":"localhost"}')
 SID=$(get_json_field "$RESULT" "sandbox_id")

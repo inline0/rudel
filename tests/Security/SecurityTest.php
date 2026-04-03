@@ -6,6 +6,7 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use Rudel\Environment;
 use Rudel\EnvironmentManager;
+use Rudel\EnvironmentRepository;
 use Rudel\Tests\RudelTestCase;
 
 /**
@@ -18,12 +19,18 @@ class SecurityTest extends RudelTestCase
 {
     private array $originalServer;
     private array $originalCookie;
+    private string $runtimeConfigPath;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->originalServer = $_SERVER;
         $this->originalCookie = $_COOKIE;
+        $this->runtimeConfigPath = $this->tmpDir . '/wp-config-runtime.php';
+        file_put_contents(
+            $this->runtimeConfigPath,
+            "<?php\ndefine('DB_ENGINE', 'sqlite');\ndefine('DB_DIR', '" . addslashes($this->tmpDir) . "');\ndefine('DB_FILE', 'rudel-state.sqlite');\n\$table_prefix = 'wp_';\n"
+        );
     }
 
     protected function tearDown(): void
@@ -325,15 +332,7 @@ class SecurityTest extends RudelTestCase
      */
     private function runBootstrapAndGetConstant(string $sandboxId, string $constant): string
     {
-        $sandboxesDir = $this->tmpDir . '/rudel-environments';
-        if (! is_dir($sandboxesDir)) {
-            mkdir($sandboxesDir, 0755, true);
-        }
-        $sandboxPath = $sandboxesDir . '/' . $sandboxId;
-        if (! is_dir($sandboxPath)) {
-            mkdir($sandboxPath, 0755);
-            file_put_contents($sandboxPath . '/.rudel.json', json_encode(['id' => $sandboxId]));
-        }
+        $this->createBootstrapSandbox($sandboxId);
 
         $bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
 
@@ -341,6 +340,7 @@ class SecurityTest extends RudelTestCase
         $script .= "\$_SERVER['HTTP_X_RUDEL_SANDBOX'] = " . var_export($sandboxId, true) . ";\n";
         $script .= "\$_SERVER['HTTP_HOST'] = 'localhost';\n";
         $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
+        $script .= "define('RUDEL_WP_CONFIG_PATH', " . var_export($this->runtimeConfigPath, true) . ");\n";
         $script .= "require " . var_export($bootstrapPath, true) . ";\n";
         $script .= "echo defined(" . var_export($constant, true) . ") ? constant(" . var_export($constant, true) . ") : '';\n";
 
@@ -408,11 +408,7 @@ class SecurityTest extends RudelTestCase
 
     public function testBootstrapSetsOpenBasedir(): void
     {
-        $sandboxesDir = $this->tmpDir . '/rudel-environments';
-        mkdir($sandboxesDir, 0755, true);
-        $sandboxPath = $sandboxesDir . '/openbasedir-test';
-        mkdir($sandboxPath, 0755);
-        file_put_contents($sandboxPath . '/.rudel.json', json_encode(['id' => 'openbasedir-test']));
+        $sandboxPath = $this->createBootstrapSandbox('openbasedir-test');
 
         $bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
 
@@ -420,6 +416,7 @@ class SecurityTest extends RudelTestCase
         $script .= "\$_SERVER['HTTP_X_RUDEL_SANDBOX'] = 'openbasedir-test';\n";
         $script .= "\$_SERVER['HTTP_HOST'] = 'localhost';\n";
         $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
+        $script .= "define('RUDEL_WP_CONFIG_PATH', " . var_export($this->runtimeConfigPath, true) . ");\n";
         $script .= "require " . var_export($bootstrapPath, true) . ";\n";
         $script .= "echo ini_get('open_basedir');\n";
 
@@ -429,5 +426,30 @@ class SecurityTest extends RudelTestCase
 
         $this->assertNotEmpty($output, 'open_basedir should be set');
         $this->assertStringContainsString($sandboxPath, $output);
+    }
+
+    private function createBootstrapSandbox(string $sandboxId): string
+    {
+        $sandboxesDir = $this->tmpDir . '/rudel-environments';
+        if (! is_dir($sandboxesDir)) {
+            mkdir($sandboxesDir, 0755, true);
+        }
+
+        $path = $sandboxesDir . '/' . $sandboxId;
+        if (! is_dir($path)) {
+            mkdir($path, 0755, true);
+        }
+
+        $environment = new Environment(
+            id: $sandboxId,
+            name: $sandboxId,
+            path: $path,
+            created_at: '2026-01-01T00:00:00+00:00',
+            engine: 'sqlite',
+        );
+
+        (new EnvironmentRepository($this->runtimeStore(), $sandboxesDir))->save($environment);
+
+        return $path;
     }
 }

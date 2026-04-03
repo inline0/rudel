@@ -2,6 +2,9 @@
 
 namespace Rudel\Tests\Integration;
 
+use Rudel\AppRepository;
+use Rudel\Environment;
+use Rudel\EnvironmentRepository;
 use Rudel\Tests\RudelTestCase;
 
 /**
@@ -18,6 +21,7 @@ class BootstrapTest extends RudelTestCase
     private string $bootstrapPath;
     private string $sandboxesDir;
     private string $appsDir;
+    private string $runtimeConfigPath;
 
     protected function setUp(): void
     {
@@ -25,7 +29,12 @@ class BootstrapTest extends RudelTestCase
         $this->bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
         $this->sandboxesDir = $this->tmpDir . '/rudel-environments';
         $this->appsDir = $this->tmpDir . '/rudel-apps';
+        $this->runtimeConfigPath = $this->tmpDir . '/wp-config-runtime.php';
         mkdir($this->sandboxesDir, 0755, true);
+        file_put_contents(
+            $this->runtimeConfigPath,
+            "<?php\ndefine('DB_ENGINE', 'sqlite');\ndefine('DB_DIR', '" . addslashes($this->tmpDir) . "');\ndefine('DB_FILE', 'rudel-state.sqlite');\n\$table_prefix = 'wp_';\n"
+        );
     }
 
     /**
@@ -48,6 +57,10 @@ class BootstrapTest extends RudelTestCase
         if (! $skipWpContentDir) {
             // Define WP_CONTENT_DIR so bootstrap can find sandboxes
             $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
+        }
+
+        if (! array_key_exists('RUDEL_WP_CONFIG_PATH', $extraDefines)) {
+            $script .= "define('RUDEL_WP_CONFIG_PATH', " . var_export($this->runtimeConfigPath, true) . ");\n";
         }
 
         foreach ($extraDefines as $name => $value) {
@@ -414,9 +427,7 @@ class BootstrapTest extends RudelTestCase
     {
         $customDir = $this->tmpDir . '/custom-sandboxes';
         mkdir($customDir, 0755, true);
-        $path = $customDir . '/const-test';
-        mkdir($path, 0755);
-        file_put_contents($path . '/.rudel.json', json_encode(['id' => 'const-test', 'name' => 'const-test']));
+        $this->createRuntimeSandbox('const-test', $customDir);
 
         $result = $this->runBootstrap(
             serverVars: [
@@ -433,11 +444,7 @@ class BootstrapTest extends RudelTestCase
     public function testSandboxesDirFromAbspathFallback(): void
     {
         $absDir = $this->tmpDir . '/wproot';
-        mkdir($absDir . '/wp-content/rudel-environments/abs-test', 0755, true);
-        file_put_contents(
-            $absDir . '/wp-content/rudel-environments/abs-test/.rudel.json',
-            json_encode(['id' => 'abs-test', 'name' => 'abs-test'])
-        );
+        $this->createRuntimeSandbox('abs-test', $absDir . '/wp-content/rudel-environments');
 
         $result = $this->runBootstrap(
             serverVars: [
@@ -602,11 +609,9 @@ class BootstrapTest extends RudelTestCase
         $this->assertSame('sqlite', $result['database_type']);
     }
 
-    public function testMissingEngineDefaultsToMysql(): void
+    public function testMysqlEngineWithoutSqliteDoesNotSetSqliteConstants(): void
     {
-        $path = $this->sandboxesDir . '/no-engine-box';
-        mkdir($path, 0755, true);
-        file_put_contents($path . '/.rudel.json', json_encode(['id' => 'no-engine-box', 'name' => 'test']));
+        $this->createFakeSandboxInDir('no-engine-box', 'mysql');
 
         $result = $this->runBootstrap([
             'HTTP_X_RUDEL_SANDBOX' => 'no-engine-box',
@@ -830,31 +835,37 @@ class BootstrapTest extends RudelTestCase
 
     private function createFakeSandboxInDir(string $id, string $engine = 'sqlite'): string
     {
-        $path = $this->sandboxesDir . '/' . $id;
-        mkdir($path, 0755, true);
-        file_put_contents($path . '/.rudel.json', json_encode(['id' => $id, 'name' => $id, 'engine' => $engine]));
-        return $path;
+        return $this->createRuntimeSandbox($id, $this->sandboxesDir, $engine);
     }
 
     private function createFakeAppInDir(string $id, array $domains, string $engine = 'sqlite'): string
     {
         mkdir($this->appsDir, 0755, true);
+        return $this->createRuntimeSandbox($id, $this->appsDir, $engine, 'app', $domains);
+    }
 
-        $path = $this->appsDir . '/' . $id;
+    private function createRuntimeSandbox(string $id, string $baseDir, string $engine = 'sqlite', string $type = 'sandbox', array $domains = []): string
+    {
+        $path = $baseDir . '/' . $id;
         mkdir($path, 0755, true);
-        file_put_contents($path . '/.rudel.json', json_encode([
-            'id' => $id,
-            'name' => $id,
-            'engine' => $engine,
-            'type' => 'app',
-            'domains' => $domains,
-        ]));
 
-        $map = [];
-        foreach ($domains as $domain) {
-            $map[$domain] = $id;
+        $environment = new Environment(
+            id: $id,
+            name: $id,
+            path: $path,
+            created_at: '2026-01-01T00:00:00+00:00',
+            engine: $engine,
+            type: $type,
+            domains: 'app' === $type ? $domains : null,
+        );
+
+        $repository = new EnvironmentRepository($this->runtimeStore(), $baseDir, null, $type);
+        $saved = $repository->save($environment);
+
+        if ('app' === $type) {
+            $apps = new AppRepository($this->runtimeStore(), new EnvironmentRepository($this->runtimeStore(), $baseDir, null, 'app'));
+            $apps->create($saved, $domains);
         }
-        file_put_contents($this->appsDir . '/domains.json', json_encode($map, JSON_PRETTY_PRINT));
 
         return $path;
     }

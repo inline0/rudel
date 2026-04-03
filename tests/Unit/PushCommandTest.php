@@ -116,8 +116,9 @@ class PushCommandTest extends RudelTestCase
         $this->assertSame('Ship it', $fakeGithub->pushCalls[0]['message']);
         $this->assertSame(['Pushed to rudel/push-box (abc1234)'], \WP_CLI::$successes);
 
-        $meta = json_decode(file_get_contents($environment->path . '/.rudel.json'), true);
-        $this->assertSame('owner/repo', $meta['clone_source']['github_repo']);
+        $updated = \Rudel\Environment::from_path($environment->path);
+        $this->assertNotNull($updated);
+        $this->assertSame('owner/repo', $updated->clone_source['github_repo']);
     }
 
     #[RunInSeparateProcess]

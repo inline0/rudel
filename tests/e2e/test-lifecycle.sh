@@ -68,6 +68,7 @@ run_php() {
         require_once '$RUDEL_DIR/vendor/autoload.php';
         define('RUDEL_PLUGIN_DIR', '$RUDEL_DIR/');
         define('RUDEL_ENVIRONMENTS_DIR', '$TEST_TMPDIR/sandboxes');
+        define('RUDEL_TEST_TMPDIR', '$TEST_TMPDIR');
         define('RUDEL_PATH_PREFIX', '__rudel');
         define('WP_HOME', 'http://localhost:8888');
         $1
@@ -119,7 +120,7 @@ done
 echo ""
 echo -e "${BOLD}Verify generated files${NC}"
 
-for file in .rudel.json wordpress.db wp-cli.yml bootstrap.php CLAUDE.md wp-content/db.php; do
+for file in wordpress.db wp-cli.yml bootstrap.php CLAUDE.md wp-content/db.php; do
     if assert_file_exists "$SANDBOX_PATH/$file"; then
         pass "File exists: $file"
     else
@@ -127,21 +128,29 @@ for file in .rudel.json wordpress.db wp-cli.yml bootstrap.php CLAUDE.md wp-conte
     fi
 done
 
+if [[ ! -f "$SANDBOX_PATH/.rudel.json" ]]; then
+    pass "Legacy .rudel.json is not written"
+else
+    fail "Legacy .rudel.json should not exist" "$SANDBOX_PATH/.rudel.json"
+fi
+
 # Verify file contents
 echo ""
 echo -e "${BOLD}Verify file contents${NC}"
 
-# .rudel.json
-META=$(cat "$SANDBOX_PATH/.rudel.json")
-if assert_contains "$META" '"id"'; then
-    pass ".rudel.json has id field"
+ENV_JSON=$(run_php '
+    $environment = Rudel\Environment::from_path("'"$SANDBOX_PATH"'");
+    echo json_encode($environment ? $environment->to_array() : null);
+')
+if assert_contains "$ENV_JSON" '"id":"'"$SANDBOX_ID"'"'; then
+    pass "Runtime store has sandbox id"
 else
-    fail ".rudel.json missing id" "$META"
+    fail "Runtime store missing sandbox id" "$ENV_JSON"
 fi
-if assert_contains "$META" '"name": "e2e-test"'; then
-    pass ".rudel.json has correct name"
+if assert_contains "$ENV_JSON" '"name":"e2e-test"'; then
+    pass "Runtime store has sandbox name"
 else
-    fail ".rudel.json wrong name" "$META"
+    fail "Runtime store missing sandbox name" "$ENV_JSON"
 fi
 
 # wp-cli.yml

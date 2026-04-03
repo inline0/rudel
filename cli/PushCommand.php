@@ -88,7 +88,12 @@ class PushCommand extends AbstractEnvironmentCommand {
 				if ( ! $sandbox->get_github_repo() ) {
 					$clone_source                = $sandbox->clone_source ?? array();
 					$clone_source['github_repo'] = $repo;
-					$sandbox->update_meta( 'clone_source', $clone_source );
+					$this->manager->update(
+						$sandbox->id,
+						array(
+							'clone_source' => $clone_source,
+						)
+					);
 				}
 				WP_CLI::success( "Pushed to {$branch} ({$sha})" );
 			} else {

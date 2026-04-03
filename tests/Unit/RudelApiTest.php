@@ -106,14 +106,11 @@ class RudelApiTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testEngineReadsFromMetadata(): void
+    public function testEngineReadsFromRuntimeConstant(): void
     {
-        $path = $this->tmpDir . '/engine-test';
-        mkdir($path, 0755, true);
-        file_put_contents($path . '/.rudel.json', json_encode(['engine' => 'sqlite']));
-
         define('RUDEL_ID', 'engine-test');
-        define('RUDEL_PATH', $path);
+        define('RUDEL_PATH', $this->tmpDir . '/engine-test');
+        define('RUDEL_ENGINE', 'sqlite');
 
         $this->assertSame('sqlite', Rudel::engine());
     }
@@ -122,12 +119,8 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testEngineDefaultsToMysql(): void
     {
-        $path = $this->tmpDir . '/no-engine';
-        mkdir($path, 0755, true);
-        file_put_contents($path . '/.rudel.json', json_encode(['id' => 'no-engine']));
-
         define('RUDEL_ID', 'no-engine');
-        define('RUDEL_PATH', $path);
+        define('RUDEL_PATH', $this->tmpDir . '/no-engine');
 
         $this->assertSame('mysql', Rudel::engine());
     }
@@ -487,9 +480,11 @@ class RudelApiTest extends RudelTestCase
         }
 
         $sandbox = Rudel::create('Expiring Sandbox', ['engine' => 'sqlite']);
-        $sandboxMeta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $sandboxMeta['expires_at'] = gmdate('c', strtotime('+1 day'));
-        file_put_contents($sandbox->path . '/.rudel.json', json_encode($sandboxMeta));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            ['expires_at' => gmdate('c', strtotime('+1 day'))],
+            ['slug' => $sandbox->id]
+        );
 
         $app = Rudel::create_app('Automation API App', ['automation-api.com'], ['engine' => 'sqlite']);
 
@@ -514,22 +509,28 @@ class RudelApiTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testTouchCurrentEnvironmentPersistsLastUsed(): void
     {
-        $path = $this->tmpDir . '/touch-api';
-        mkdir($path, 0755, true);
-        file_put_contents($path . '/.rudel.json', json_encode([
-            'id' => 'touch-api',
-            'name' => 'Touch API',
-            'created_at' => '2026-01-01T00:00:00+00:00',
-            'last_used_at' => '2020-01-01T00:00:00+00:00',
-        ]));
+        if (! defined('RUDEL_PLUGIN_DIR')) {
+            define('RUDEL_PLUGIN_DIR', dirname(__DIR__, 2) . '/');
+        }
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $this->tmpDir);
+        }
 
-        define('RUDEL_ID', 'touch-api');
-        define('RUDEL_PATH', $path);
+        $sandbox = Rudel::create('Touch API', ['engine' => 'sqlite']);
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            ['last_used_at' => '2020-01-01T00:00:00+00:00'],
+            ['slug' => $sandbox->id]
+        );
+
+        define('RUDEL_ID', $sandbox->id);
+        define('RUDEL_PATH', $sandbox->path);
 
         Rudel::touch_current_environment();
 
-        $meta = json_decode(file_get_contents($path . '/.rudel.json'), true);
-        $this->assertNotSame('2020-01-01T00:00:00+00:00', $meta['last_used_at']);
+        $updated = \Rudel\Environment::from_path($sandbox->path);
+        $this->assertNotNull($updated);
+        $this->assertNotSame('2020-01-01T00:00:00+00:00', $updated->last_used_at);
     }
 
     #[RunInSeparateProcess]
@@ -544,9 +545,11 @@ class RudelApiTest extends RudelTestCase
         }
 
         $sandbox = Rudel::create('Scheduled Cleanup', ['engine' => 'sqlite']);
-        $meta = json_decode(file_get_contents($sandbox->path . '/.rudel.json'), true);
-        $meta['created_at'] = '2020-01-01T00:00:00+00:00';
-        file_put_contents($sandbox->path . '/.rudel.json', json_encode($meta));
+        $this->runtimeStore()->update(
+            $this->runtimeStore()->table('environments'),
+            ['created_at' => '2020-01-01T00:00:00+00:00'],
+            ['slug' => $sandbox->id]
+        );
 
         $config = new RudelConfig();
         $config->set('auto_cleanup_enabled', 1);

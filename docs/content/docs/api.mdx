@@ -7,6 +7,8 @@ description: The Rudel\Rudel class provides a complete PHP API for environment m
 
 Everything in Rudel is accessible through the `Rudel\Rudel` static class. It's the single entry point for checking environment context, managing sandboxes and apps, and building UI around them.
 
+Rudel's live runtime state is DB-backed only. Apps, environments, domain mappings, worktree metadata, and deployment history are stored in WordPress tables and exposed through Rudel's repositories and service layer.
+
 ```php
 use Rudel\Rudel;
 ```

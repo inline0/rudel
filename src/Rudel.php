@@ -129,14 +129,7 @@ class Rudel {
 			return null;
 		}
 
-		$meta_file = self::path() . '/.rudel.json';
-		if ( ! file_exists( $meta_file ) ) {
-			return 'mysql';
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local metadata.
-		$meta = json_decode( file_get_contents( $meta_file ), true );
-		return $meta['engine'] ?? 'mysql';
+		return self::string_constant( 'RUDEL_ENGINE' ) ?? 'mysql';
 	}
 
 	/**
@@ -372,7 +365,12 @@ class Rudel {
 			$clone_source                = $sandbox->clone_source ?? array();
 			$clone_source['github_repo'] = $repo;
 			$clone_source['github_dir']  = $type_dir . '/' . $repo_name;
-			$sandbox->update_meta( 'clone_source', $clone_source );
+			self::manager()->update(
+				$sandbox->id,
+				array(
+					'clone_source' => $clone_source,
+				)
+			);
 		} catch ( \Throwable $e ) {
 			$result['github']['error'] = $e->getMessage();
 		}
@@ -718,15 +716,17 @@ class Rudel {
 			return;
 		}
 
-		$path = self::path();
-		if ( ! $path ) {
+		$id = self::environment_id();
+		if ( null === $id ) {
 			return;
 		}
 
-		$environment = Environment::from_path( $path );
-		if ( $environment ) {
-			$environment->touch_last_used();
+		if ( self::is_app() ) {
+			self::app_manager()->update( $id, array( 'last_used_at' => gmdate( 'c' ) ) );
+			return;
 		}
+
+		self::manager()->update( $id, array( 'last_used_at' => gmdate( 'c' ) ) );
 	}
 
 	/**
@@ -1003,7 +1003,12 @@ class Rudel {
 			if ( $sha && ! $sandbox->get_github_repo() ) {
 				$clone_source                = $sandbox->clone_source ?? array();
 				$clone_source['github_repo'] = $repo;
-				$sandbox->update_meta( 'clone_source', $clone_source );
+				self::manager()->update(
+					$sandbox->id,
+					array(
+						'clone_source' => $clone_source,
+					)
+				);
 			}
 
 			Hooks::action( 'rudel_after_environment_push', $sha, $context );

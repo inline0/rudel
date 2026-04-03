@@ -69,53 +69,75 @@ class Environment {
 		public readonly ?string $tracked_github_repo = null,
 		public readonly ?string $tracked_github_branch = null,
 		public readonly ?string $tracked_github_dir = null,
+		public readonly ?int $record_id = null,
+		public readonly ?int $app_record_id = null,
 	) {}
 
 	/**
-	 * Load a sandbox from its directory path.
+	 * Load an environment from its directory path.
 	 *
-	 * @param string $path Absolute path to the sandbox directory.
-	 * @return self|null Sandbox instance or null if metadata is missing/invalid.
+	 * @param string $path Absolute path to the environment directory.
+	 * @return self|null Environment instance or null if no DB record matches the path.
 	 */
 	public static function from_path( string $path ): ?self {
-		$meta_file = rtrim( $path, '/' ) . '/.rudel.json';
-		if ( ! file_exists( $meta_file ) ) {
+		$path = rtrim( $path, '/' );
+		if ( '' === $path ) {
 			return null;
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file read.
-		$data = json_decode( file_get_contents( $meta_file ), true );
-		if ( ! is_array( $data ) || ! isset( $data['id'], $data['name'] ) ) {
+		try {
+			$store      = RudelDatabase::for_paths( dirname( $path ) );
+			$repository = new EnvironmentRepository( $store, dirname( $path ) );
+			return $repository->get_by_path( $path );
+		} catch ( \Throwable $e ) {
 			return null;
+		}
+	}
+
+	/**
+	 * Hydrate one environment from a DB record.
+	 *
+	 * @param array<string, mixed>   $record DB record.
+	 * @param array<int, string>|null $domains Normalized app domains.
+	 * @param array<int, array<string, mixed>> $worktrees Git worktree metadata.
+	 * @return self
+	 */
+	public static function from_record( array $record, ?array $domains = null, array $worktrees = array() ): self {
+		$clone_source = self::json_array_or_null( $record['clone_source'] ?? null );
+		if ( ! empty( $worktrees ) ) {
+			$clone_source                  = is_array( $clone_source ) ? $clone_source : array();
+			$clone_source['git_worktrees'] = $worktrees;
 		}
 
 		return new self(
-			id: $data['id'],
-			name: $data['name'],
-			path: rtrim( $path, '/' ),
-			created_at: $data['created_at'] ?? '',
-			template: $data['template'] ?? 'blank',
-			status: $data['status'] ?? 'active',
-			clone_source: $data['clone_source'] ?? null,
-			multisite: ! empty( $data['multisite'] ),
-			engine: $data['engine'] ?? 'mysql',
-			blog_id: isset( $data['blog_id'] ) ? (int) $data['blog_id'] : null,
-			type: $data['type'] ?? 'sandbox',
-			domains: $data['domains'] ?? null,
-			owner: self::string_or_null( $data['owner'] ?? null ),
-			labels: self::normalize_labels( $data['labels'] ?? array() ),
-			purpose: self::string_or_null( $data['purpose'] ?? null ),
-			is_protected: ! empty( $data['protected'] ),
-			expires_at: self::string_or_null( $data['expires_at'] ?? null ),
-			last_used_at: self::string_or_null( $data['last_used_at'] ?? ( $data['created_at'] ?? null ) ),
-			source_environment_id: self::string_or_null( $data['source_environment_id'] ?? null ),
-			source_environment_type: self::string_or_null( $data['source_environment_type'] ?? null ),
-			last_deployed_from_id: self::string_or_null( $data['last_deployed_from_id'] ?? null ),
-			last_deployed_from_type: self::string_or_null( $data['last_deployed_from_type'] ?? null ),
-			last_deployed_at: self::string_or_null( $data['last_deployed_at'] ?? null ),
-			tracked_github_repo: self::string_or_null( $data['tracked_github_repo'] ?? null ),
-			tracked_github_branch: self::string_or_null( $data['tracked_github_branch'] ?? null ),
-			tracked_github_dir: self::string_or_null( $data['tracked_github_dir'] ?? null ),
+			id: (string) ( $record['slug'] ?? '' ),
+			name: (string) ( $record['name'] ?? '' ),
+			path: (string) ( $record['path'] ?? '' ),
+			created_at: (string) ( $record['created_at'] ?? '' ),
+			template: (string) ( $record['template'] ?? 'blank' ),
+			status: (string) ( $record['status'] ?? 'active' ),
+			clone_source: $clone_source,
+			multisite: ! empty( $record['multisite'] ),
+			engine: (string) ( $record['engine'] ?? 'mysql' ),
+			blog_id: isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
+			type: (string) ( $record['type'] ?? 'sandbox' ),
+			domains: ! empty( $domains ) ? array_values( $domains ) : null,
+			owner: self::string_or_null( $record['owner'] ?? null ),
+			labels: self::normalize_labels( self::json_array_or_null( $record['labels'] ?? null ) ?? array() ),
+			purpose: self::string_or_null( $record['purpose'] ?? null ),
+			is_protected: ! empty( $record['is_protected'] ),
+			expires_at: self::string_or_null( $record['expires_at'] ?? null ),
+			last_used_at: self::string_or_null( $record['last_used_at'] ?? ( $record['created_at'] ?? null ) ),
+			source_environment_id: self::string_or_null( $record['source_environment_slug'] ?? null ),
+			source_environment_type: self::string_or_null( $record['source_environment_type'] ?? null ),
+			last_deployed_from_id: self::string_or_null( $record['last_deployed_from_slug'] ?? null ),
+			last_deployed_from_type: self::string_or_null( $record['last_deployed_from_type'] ?? null ),
+			last_deployed_at: self::string_or_null( $record['last_deployed_at'] ?? null ),
+			tracked_github_repo: self::string_or_null( $record['tracked_github_repo'] ?? null ),
+			tracked_github_branch: self::string_or_null( $record['tracked_github_branch'] ?? null ),
+			tracked_github_dir: self::string_or_null( $record['tracked_github_dir'] ?? null ),
+			record_id: isset( $record['id'] ) ? (int) $record['id'] : null,
+			app_record_id: isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
 		);
 	}
 
@@ -279,9 +301,9 @@ class Environment {
 	}
 
 	/**
-	 * Update a key in the environment metadata and persist to disk.
+	 * Update one environment field and persist it through the runtime store.
 	 *
-	 * @param string $key   Top-level key in .rudel.json.
+	 * @param string $key   Field name.
 	 * @param mixed  $value Value to set.
 	 * @return void
 	 */
@@ -294,9 +316,9 @@ class Environment {
 	}
 
 	/**
-	 * Update multiple metadata keys in one write.
+	 * Update multiple environment fields in one write.
 	 *
-	 * @param array<string, mixed> $changes Metadata changes.
+	 * @param array<string, mixed> $changes Field changes.
 	 * @return void
 	 */
 	public function update_meta_batch( array $changes ): void {
@@ -312,10 +334,8 @@ class Environment {
 			)
 		);
 
-		$meta_file = $this->path . '/.rudel.json';
-		$data      = $this->read_meta_file( $meta_file );
-		$data      = array_merge( $data, $changes );
-		$this->persist_meta( $meta_file, $data );
+		$repository = new EnvironmentRepository( RudelDatabase::for_paths( dirname( $this->path ) ), dirname( $this->path ) );
+		$repository->update_fields( $this->id, $changes, $this->type );
 
 		Hooks::action(
 			'rudel_after_environment_update_meta',
@@ -354,6 +374,8 @@ class Environment {
 	 */
 	public function to_array(): array {
 		$data = array(
+			'record_id'    => $this->record_id,
+			'app_record_id' => $this->app_record_id,
 			'id'           => $this->id,
 			'name'         => $this->name,
 			'path'         => $this->path,
@@ -431,13 +453,13 @@ class Environment {
 	}
 
 	/**
-	 * Write metadata to .rudel.json inside the sandbox directory.
+	 * Persist the current environment record.
 	 *
 	 * @return void
 	 */
 	public function save_meta(): void {
-		$meta_file = $this->path . '/.rudel.json';
-		$this->persist_meta( $meta_file, $this->to_array() );
+		$repository = new EnvironmentRepository( RudelDatabase::for_paths( dirname( $this->path ) ), dirname( $this->path ) );
+		$repository->save( $this );
 	}
 
 	/**
@@ -474,34 +496,6 @@ class Environment {
 			return 'sandbox-' . $hash;
 		}
 		return $slug . '-' . $hash;
-	}
-
-	/**
-	 * Read an environment metadata file.
-	 *
-	 * @param string $meta_file Absolute metadata path.
-	 * @return array<string, mixed>
-	 */
-	private function read_meta_file( string $meta_file ): array {
-		if ( ! file_exists( $meta_file ) ) {
-			return array();
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local metadata.
-		$data = json_decode( file_get_contents( $meta_file ), true );
-		return is_array( $data ) ? $data : array();
-	}
-
-	/**
-	 * Persist environment metadata to disk.
-	 *
-	 * @param string               $meta_file Absolute metadata path.
-	 * @param array<string, mixed> $data      Metadata payload.
-	 * @return void
-	 */
-	private function persist_meta( string $meta_file, array $data ): void {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- No WP dependency in model.
-		file_put_contents( $meta_file, json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
 	}
 
 	/**
@@ -543,5 +537,24 @@ class Environment {
 
 		$value = trim( (string) $value );
 		return '' === $value ? null : $value;
+	}
+
+	/**
+	 * Decode an optional JSON array string.
+	 *
+	 * @param mixed $value Raw DB value.
+	 * @return array<string, mixed>|array<int, mixed>|null
+	 */
+	private static function json_array_or_null( $value ): ?array {
+		if ( is_array( $value ) ) {
+			return $value;
+		}
+
+		if ( ! is_string( $value ) || '' === trim( $value ) ) {
+			return null;
+		}
+
+		$decoded = json_decode( $value, true );
+		return is_array( $decoded ) ? $decoded : null;
 	}
 }

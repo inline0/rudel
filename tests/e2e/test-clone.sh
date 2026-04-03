@@ -63,6 +63,11 @@ wpenv_run() {
     npx wp-env run cli -- "$@" 2>&1 | strip_wpenv
 }
 
+runtime_env_json() {
+    local id="$1"
+    wp_cli eval "\$repo = new Rudel\\EnvironmentRepository(new Rudel\\WpdbStore(\$GLOBALS['wpdb']), WP_CONTENT_DIR . '/rudel-environments', WP_CONTENT_DIR . '/rudel-apps', null); \$env = \$repo->resolve('${id}'); echo \$env ? wp_json_encode(\$env->to_array()) : 'null';" | tail -1
+}
+
 cleanup() {
     if [[ ${#SANDBOX_IDS[@]} -gt 0 ]]; then
         for sid in "${SANDBOX_IDS[@]}"; do
@@ -244,18 +249,18 @@ else
     fail "Clone missing themes" ""
 fi
 
-# Verify clone metadata in .rudel.json
-CLONE_META=$(wpenv_run bash -c "cat /var/www/html/wp-content/rudel-environments/${CLONE_ID}/.rudel.json" | tail -30)
+# Verify clone metadata in runtime store
+CLONE_META=$(runtime_env_json "$CLONE_ID")
 if echo "$CLONE_META" | grep -q "clone_source"; then
-    pass "Clone metadata has clone_source"
+    pass "Clone runtime record has clone_source"
 else
-    fail "Clone metadata missing clone_source" "$CLONE_META"
+    fail "Clone runtime record missing clone_source" "$CLONE_META"
 fi
 
 if echo "$CLONE_META" | grep -q '"db_cloned": true'; then
-    pass "Clone metadata shows db_cloned: true"
+    pass "Clone runtime record shows db_cloned: true"
 else
-    fail "Clone metadata db_cloned not true" "$CLONE_META"
+    fail "Clone runtime record db_cloned not true" "$CLONE_META"
 fi
 
 # Clone DB only
@@ -316,17 +321,17 @@ else
 fi
 
 # Verify clone_source metadata
-THEME_META=$(wpenv_run bash -c "cat /var/www/html/wp-content/rudel-environments/${THEME_CLONE_ID}/.rudel.json" | tail -30)
+THEME_META=$(runtime_env_json "$THEME_CLONE_ID")
 if echo "$THEME_META" | grep -q '"db_cloned": false'; then
-    pass "Themes-only metadata shows db_cloned: false"
+    pass "Themes-only runtime record shows db_cloned: false"
 else
-    fail "Themes-only metadata wrong db_cloned" "$THEME_META"
+    fail "Themes-only runtime record wrong db_cloned" "$THEME_META"
 fi
 
 if echo "$THEME_META" | grep -q '"themes_cloned": true'; then
-    pass "Themes-only metadata shows themes_cloned: true"
+    pass "Themes-only runtime record shows themes_cloned: true"
 else
-    fail "Themes-only metadata wrong themes_cloned" "$THEME_META"
+    fail "Themes-only runtime record wrong themes_cloned" "$THEME_META"
 fi
 
 # Isolation: modifying clone doesn't affect host

@@ -48,11 +48,18 @@ class AppManager {
 	private AppOperationsService $operations;
 
 	/**
-	 * Domain map persistence helper.
+	 * Runtime store.
 	 *
-	 * @var AppDomainMap
+	 * @var DatabaseStore
 	 */
-	private AppDomainMap $domain_map;
+	private DatabaseStore $store;
+
+	/**
+	 * App repository.
+	 *
+	 * @var AppRepository
+	 */
+	private AppRepository $apps;
 
 	/**
 	 * Constructor.
@@ -63,10 +70,11 @@ class AppManager {
 	public function __construct( ?string $apps_dir = null, ?string $sandboxes_dir = null ) {
 		$this->apps_dir        = $apps_dir ?? $this->get_default_apps_dir();
 		$this->sandboxes_dir   = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
-		$this->manager         = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir );
-		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir );
+		$this->store           = RudelDatabase::for_paths( $this->apps_dir, $this->sandboxes_dir );
+		$this->manager         = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir, 'app', $this->store );
+		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir, 'sandbox', $this->store );
+		$this->apps            = new AppRepository( $this->store, $this->manager );
 		$this->operations      = new AppOperationsService( $this->manager, $this->sandbox_manager );
-		$this->domain_map      = new AppDomainMap( $this->apps_dir );
 	}
 
 	/**
@@ -117,8 +125,8 @@ class AppManager {
 
 		try {
 			$app = $this->manager->create( $name, $options );
+			$app = $this->apps->create( $app, $domains );
 			$app = $this->inherit_git_tracking_from_source( $app, $options );
-			$this->rebuild_domain_map();
 			Hooks::action( 'rudel_after_app_create', $app, $context );
 
 			return $app;
@@ -134,7 +142,7 @@ class AppManager {
 	 * @return Environment[] Array of app instances.
 	 */
 	public function list(): array {
-		return $this->manager->list();
+		return $this->apps->all();
 	}
 
 	/**
@@ -144,7 +152,7 @@ class AppManager {
 	 * @return Environment|null App instance or null if not found.
 	 */
 	public function get( string $id ): ?Environment {
-		return $this->manager->get( $id );
+		return $this->apps->get( $id );
 	}
 
 	/**
@@ -198,7 +206,7 @@ class AppManager {
 		try {
 			$result = $this->manager->destroy( $id );
 			if ( $result ) {
-				$this->rebuild_domain_map();
+				$this->apps->delete( $id );
 				Hooks::action( 'rudel_after_app_destroy', $context );
 			}
 
@@ -225,6 +233,7 @@ class AppManager {
 		$options               = Hooks::filter( 'rudel_app_create_sandbox_options', $options, $app, $name, $this );
 		$options['clone_from'] = $app->id;
 		$options['engine']     = $options['engine'] ?? $app->engine;
+		$options['app_id']     = $app->app_record_id;
 		unset( $options['type'], $options['domains'], $options['skip_limits'] );
 
 		$context = array(
@@ -444,13 +453,13 @@ class AppManager {
 		try {
 			$domains   = array_map( array( $this, 'normalize_domain' ), $app->domains ?? array() );
 			$domains[] = $domain;
-			$app->update_meta_batch(
+			$this->apps->replace_domains( (int) $app->app_record_id, array_values( array_unique( $domains ) ) );
+			$this->manager->update(
+				$app->id,
 				array(
-					'domains'      => array_values( array_unique( $domains ) ),
 					'last_used_at' => gmdate( 'c' ),
 				)
 			);
-			$this->rebuild_domain_map();
 			Hooks::action( 'rudel_after_app_domain_add', $context );
 		} catch ( \Throwable $e ) {
 			Hooks::action( 'rudel_app_domain_add_failed', $context, $e );
@@ -486,13 +495,13 @@ class AppManager {
 		Hooks::action( 'rudel_before_app_domain_remove', $context );
 
 		try {
-			$app->update_meta_batch(
+			$this->apps->replace_domains( (int) $app->app_record_id, $domains );
+			$this->manager->update(
+				$app->id,
 				array(
-					'domains'      => $domains,
 					'last_used_at' => gmdate( 'c' ),
 				)
 			);
-			$this->rebuild_domain_map();
 			Hooks::action( 'rudel_after_app_domain_remove', $context );
 		} catch ( \Throwable $e ) {
 			Hooks::action( 'rudel_app_domain_remove_failed', $context, $e );
@@ -510,12 +519,12 @@ class AppManager {
 	}
 
 	/**
-	 * Rebuild the domains.json mapping file from all app metadata.
+	 * Retained as a no-op for callers that expect an explicit rebuild step.
 	 *
 	 * @return void
 	 */
 	public function rebuild_domain_map(): void {
-		$this->domain_map->rebuild( $this->list() );
+		// DB-backed runtime lookup does not require a compiled file map.
 	}
 
 	/**
@@ -524,7 +533,17 @@ class AppManager {
 	 * @return array<string, string> Domain to app ID mapping.
 	 */
 	public function get_domain_map(): array {
-		return $this->domain_map->read();
+		$map = array();
+
+		foreach ( $this->list() as $app ) {
+			foreach ( $app->domains ?? array() as $domain ) {
+				if ( is_string( $domain ) && '' !== $domain ) {
+					$map[ $this->normalize_domain( $domain ) ] = $app->id;
+				}
+			}
+		}
+
+		return $map;
 	}
 
 	/**
@@ -697,10 +716,10 @@ class AppManager {
 	 * @throws \InvalidArgumentException If the domain is already mapped to another app.
 	 */
 	private function check_domain_conflict( string $domain, ?string $exclude_id = null ): void {
-		$map = $this->get_domain_map();
-		if ( isset( $map[ $domain ] ) && $map[ $domain ] !== $exclude_id ) {
+		$app = $this->apps->get_by_domain( $domain );
+		if ( $app && $app->id !== $exclude_id ) {
 			throw new \InvalidArgumentException(
-				sprintf( 'Domain "%s" is already mapped to app "%s".', $domain, $map[ $domain ] )
+				sprintf( 'Domain "%s" is already mapped to app "%s".', $domain, $app->id )
 			);
 		}
 	}

@@ -75,7 +75,7 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 
 ## How It Works
 
-On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects environment context from the incoming request via domain, path prefix, cookie, header, or subdomain and rewires WordPress constants to point to the isolated environment. When no environment is active, WordPress boots normally with zero overhead.
+On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects environment context from the incoming request via domain, path prefix, cookie, header, or subdomain and rewires WordPress constants to point to the isolated environment. Runtime state lives in WordPress tables, not JSON files, so WordPress-native code can reference environments and apps by stable DB IDs. When no environment is active, WordPress boots normally with zero overhead.
 
 By default, sandboxes use MySQL with an isolated table prefix. Pass `--engine=sqlite` for file-based SQLite isolation, or `--engine=subsite` on multisite installations to create sandboxes as native sub-sites.
 
@@ -83,7 +83,6 @@ Each sandbox is a self-contained directory:
 
 ```
 /wp-content/rudel-environments/{id}/
-├── .rudel.json       # Sandbox metadata
 ├── wp-cli.yml        # Auto-scopes all WP-CLI commands
 ├── bootstrap.php     # Sets WP constants for this sandbox
 ├── wordpress.db      # SQLite database (only with --engine=sqlite)
@@ -94,6 +93,16 @@ Each sandbox is a self-contained directory:
 ```
 
 Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` and are reached by their mapped domains instead of a path prefix.
+
+Runtime records live in WordPress tables:
+
+- `wp_rudel_environments`
+- `wp_rudel_apps`
+- `wp_rudel_app_domains`
+- `wp_rudel_worktrees`
+- `wp_rudel_app_deployments`
+
+Those tables are the only supported source of truth for apps, environments, worktrees, deploy history, and domain routing.
 
 ## WP-CLI Commands
 

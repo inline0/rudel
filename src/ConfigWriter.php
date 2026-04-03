@@ -44,7 +44,7 @@ class ConfigWriter {
 		$this->backup( $config_path );
 
 		$bootstrap_path = dirname( RUDEL_PLUGIN_FILE ) . '/bootstrap.php';
-		$line           = "require_once '{$bootstrap_path}'; " . self::MARKER;
+		$line           = "if ( ! defined( 'RUDEL_WP_CONFIG_PATH' ) ) { define( 'RUDEL_WP_CONFIG_PATH', __FILE__ ); } require_once '{$bootstrap_path}'; " . self::MARKER;
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local wp-config.php.
 		$contents = file_get_contents( $config_path );

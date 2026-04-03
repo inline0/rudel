@@ -44,16 +44,14 @@ class AppManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testCreateAppWritesDomainMap(): void
+    public function testCreateAppPersistsDomainsInRuntimeStore(): void
     {
         $this->defineConstants();
         $manager = new AppManager($this->tmpDir);
         $app = $manager->create('Domain Map Test', ['mapped.com'], ['engine' => 'sqlite']);
 
-        $mapPath = $this->tmpDir . '/domains.json';
-        $this->assertFileExists($mapPath);
-
-        $map = json_decode(file_get_contents($mapPath), true);
+        $this->assertFileDoesNotExist($this->tmpDir . '/domains.json');
+        $map = $manager->get_domain_map();
         $this->assertArrayHasKey('mapped.com', $map);
         $this->assertSame($app->id, $map['mapped.com']);
     }
@@ -553,15 +551,6 @@ class AppManagerTest extends RudelTestCase
             'app_id' => $app->id,
             'created_at' => '2026-01-03T00:00:00+00:00',
         ], JSON_PRETTY_PRINT));
-        file_put_contents($app->path . '/deployments/' . $deployOne['deployment']['id'] . '.json', json_encode(array_merge(
-            $deployOne['deployment'],
-            ['deployed_at' => '2026-01-02T00:00:00+00:00']
-        ), JSON_PRETTY_PRINT));
-        file_put_contents($app->path . '/deployments/' . $deployTwo['deployment']['id'] . '.json', json_encode(array_merge(
-            $deployTwo['deployment'],
-            ['deployed_at' => '2026-01-03T00:00:00+00:00']
-        ), JSON_PRETTY_PRINT));
-
         $removed = $manager->prune_history($app->id, [
             'keep_backups' => 1,
             'keep_deployments' => 1,

@@ -31,9 +31,23 @@ if ( file_exists( $rudel_autoload ) ) {
 }
 unset( $rudel_autoload );
 
+/**
+ * Ensure Rudel's runtime tables exist whenever WordPress has a DB connection.
+ *
+ * @return void
+ */
+function rudel_ensure_runtime_schema() {
+	if ( ! isset( $GLOBALS['wpdb'] ) || ! is_object( $GLOBALS['wpdb'] ) ) {
+		return;
+	}
+
+	Rudel\RudelSchema::ensure( new Rudel\WpdbStore( $GLOBALS['wpdb'] ) );
+}
+
 register_activation_hook(
 	__FILE__,
 	function () {
+		rudel_ensure_runtime_schema();
 		$writer = new Rudel\ConfigWriter();
 		$writer->install();
 		Rudel\Automation::ensure_scheduled();
@@ -48,6 +62,8 @@ register_deactivation_hook(
 		$writer->uninstall();
 	}
 );
+
+add_action( 'plugins_loaded', 'rudel_ensure_runtime_schema', 1 );
 
 if ( ! defined( 'RUDEL_CLI_COMMAND' ) ) {
 	define( 'RUDEL_CLI_COMMAND', 'rudel' );

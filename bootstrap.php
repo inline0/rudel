@@ -35,6 +35,8 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	define( 'RUDEL_PATH_PREFIX', '__rudel' );
 }
 
+require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
+
 ( function () use ( &$rudel_bootstrap_prefix, &$rudel_bootstrap_is_app, &$rudel_bootstrap_requested_url ) {
 	$plugin_dir       = __DIR__;
 	$environments_dir = null;
@@ -61,87 +63,108 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 		return;
 	}
 
-	$domains_map = array();
-	if ( is_dir( $apps_dir ) ) {
-		$domain_map_path = $apps_dir . '/domains.json';
-		if ( file_exists( $domain_map_path ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
-			$domains_raw     = file_get_contents( $domain_map_path );
-			$domains_decoded = json_decode( $domains_raw, true );
-			if ( is_array( $domains_decoded ) ) {
-				foreach ( $domains_decoded as $domain => $id ) {
-					if ( is_string( $domain ) && is_string( $id ) ) {
-						$domains_map[ strtolower( (string) preg_replace( '/:\d+$/', '', $domain ) ) ] = $id;
-					}
-				}
-			}
-		}
-	}
+	$runtime_store = new \Rudel\BootstrapRuntimeStore();
 
 	$validate_id = function ( ?string $id ): bool {
 		return $id && preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/', $id );
 	};
 
-	$validate_path = function ( string $id ) use ( $environments_dir, $apps_dir ): ?array {
-		$path = $environments_dir . '/' . $id;
-		if ( is_dir( $path ) ) {
-			$real = realpath( $path );
-			$base = realpath( $environments_dir );
-			if ( false !== $real && false !== $base && 0 === strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
-				return array(
-					'path'   => $real,
-					'is_app' => false,
-				);
-			}
+	$validate_record = function ( array $record ) use ( $environments_dir, $apps_dir ): ?array {
+		$slug = isset( $record['slug'] ) ? (string) $record['slug'] : '';
+		$path = isset( $record['path'] ) ? (string) $record['path'] : '';
+		$type = isset( $record['type'] ) ? (string) $record['type'] : 'sandbox';
+
+		if ( '' === $slug || '' === $path ) {
+			return null;
 		}
 
-		if ( is_dir( $apps_dir ) ) {
-			$path = $apps_dir . '/' . $id;
-			if ( is_dir( $path ) ) {
-				$real = realpath( $path );
-				$base = realpath( $apps_dir );
-				if ( false !== $real && false !== $base && 0 === strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
-					return array(
-						'path'   => $real,
-						'is_app' => true,
-					);
-				}
-			}
+		$real = realpath( $path );
+		if ( false === $real || ! is_dir( $real ) ) {
+			return null;
 		}
 
-		return null;
+		$base_dir = 'app' === $type ? $apps_dir : $environments_dir;
+		$base     = realpath( $base_dir );
+		if ( false === $base || 0 !== strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
+			return null;
+		}
+
+		return array(
+			'id'         => $slug,
+			'path'       => $real,
+			'is_app'     => 'app' === $type,
+			'record_id'  => isset( $record['id'] ) ? (int) $record['id'] : null,
+			'app_id'     => isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
+			'engine'     => isset( $record['engine'] ) ? (string) $record['engine'] : 'mysql',
+			'multisite'  => ! empty( $record['multisite'] ),
+			'blog_id'    => isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
+		);
 	};
 
-	$sandbox_id   = null;
-	$sandbox_path = null;
+	$sandbox_id         = null;
+	$sandbox_path       = null;
+	$environment_engine = 'mysql';
+	$environment_blog   = null;
+	$environment_multi  = false;
+	$environment_row_id = null;
+	$app_row_id         = null;
 
 	$normalize_host = function ( string $host ): string {
 		return strtolower( (string) preg_replace( '/:\d+$/', '', $host ) );
 	};
 
-	$try_resolve = function ( string $id ) use ( $validate_id, $validate_path, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app ): bool {
+	$try_resolve = function ( string $id ) use ( $validate_id, $runtime_store, $validate_record, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id ): bool {
 		if ( ! $validate_id( $id ) ) {
 			return false;
 		}
 
-		$result = $validate_path( $id );
+		$result = $runtime_store->environment_by_slug( $id );
+		if ( ! is_array( $result ) ) {
+			return false;
+		}
+
+		$result = $validate_record( $result );
 		if ( $result ) {
-			$sandbox_id             = $id;
+			$sandbox_id             = $result['id'];
 			$sandbox_path           = $result['path'];
 			$rudel_bootstrap_is_app = $result['is_app'];
+			$environment_engine     = $result['engine'];
+			$environment_blog       = $result['blog_id'];
+			$environment_multi      = $result['multisite'];
+			$environment_row_id     = $result['record_id'];
+			$app_row_id             = $result['app_id'];
 			return true;
 		}
 
 		return false;
 	};
 
-	$try_resolve_domain = function ( string $host ) use ( $domains_map, $normalize_host, $try_resolve ): bool {
+	$try_resolve_domain = function ( string $host ) use ( $runtime_store, $validate_record, $normalize_host, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id ): bool {
 		$domain = $normalize_host( $host );
-		if ( '' === $domain || ! isset( $domains_map[ $domain ] ) ) {
+		if ( '' === $domain ) {
 			return false;
 		}
 
-		return $try_resolve( $domains_map[ $domain ] );
+		$result = $runtime_store->app_by_domain( $domain );
+		if ( ! is_array( $result ) ) {
+			return false;
+		}
+
+		$result = $validate_record( $result );
+		if ( ! is_array( $result ) ) {
+			return false;
+		}
+
+		$sandbox_id             = $result['id'];
+		$sandbox_path           = $result['path'];
+		$rudel_bootstrap_is_app = true;
+		$environment_engine     = $result['engine'];
+		$environment_blog       = $result['blog_id'];
+		$environment_multi      = $result['multisite'];
+		$environment_row_id     = $result['record_id'];
+		$app_row_id             = $result['app_id'];
+
+		return true;
 	};
 
 	$extract_cli_url = function (): ?string {
@@ -285,17 +308,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	ini_set( 'open_basedir', $allowed_paths );
 
 	// WordPress reads DB constants during bootstrap, so the engine choice has to be known first.
-	$_rudel_engine    = 'mysql';
-	$_rudel_meta_file = $sandbox_path . '/.rudel.json';
-	$_rudel_meta      = null;
-	if ( file_exists( $_rudel_meta_file ) ) {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap.
-		$_rudel_meta_raw = file_get_contents( $_rudel_meta_file );
-		$_rudel_meta     = json_decode( $_rudel_meta_raw, true );
-		if ( is_array( $_rudel_meta ) && isset( $_rudel_meta['engine'] ) ) {
-			$_rudel_engine = $_rudel_meta['engine'];
-		}
-	}
+	$_rudel_engine = $environment_engine;
 
 	if ( 'sqlite' === $_rudel_engine ) {
 		$def( 'DB_DIR', $sandbox_path );
@@ -371,25 +384,28 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	$def( 'NONCE_SALT', hash( 'sha256', $sandbox_id . 'NONCE_SALT' ) );
 
 	// Mirror multisite shape from metadata so WordPress keeps generating network-aware URLs inside the environment.
-	if ( is_array( $_rudel_meta ) ) {
-		if ( ! empty( $_rudel_meta['multisite'] ) ) {
-			$def( 'WP_ALLOW_MULTISITE', true );
-			$def( 'MULTISITE', true );
-			$def( 'SUBDOMAIN_INSTALL', false );
-			$def( 'DOMAIN_CURRENT_SITE', $normalize_host( $host ) );
-			$def( 'PATH_CURRENT_SITE', $rudel_bootstrap_is_app ? '/' : '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
-			$def( 'SITE_ID_CURRENT_SITE', 1 );
-			$def( 'BLOG_ID_CURRENT_SITE', 1 );
-		} else {
-			$def( 'MULTISITE', false );
-			$def( 'WP_ALLOW_MULTISITE', false );
-		}
+	if ( $environment_multi ) {
+		$def( 'WP_ALLOW_MULTISITE', true );
+		$def( 'MULTISITE', true );
+		$def( 'SUBDOMAIN_INSTALL', false );
+		$def( 'DOMAIN_CURRENT_SITE', $normalize_host( $host ) );
+		$def( 'PATH_CURRENT_SITE', $rudel_bootstrap_is_app ? '/' : '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
+		$def( 'SITE_ID_CURRENT_SITE', 1 );
+		$def( 'BLOG_ID_CURRENT_SITE', null !== $environment_blog ? $environment_blog : 1 );
+	} else {
+		$def( 'MULTISITE', false );
+		$def( 'WP_ALLOW_MULTISITE', false );
 	}
 
 	$def( 'RUDEL_ID', $sandbox_id );
 	$def( 'RUDEL_PATH', $sandbox_path );
 	$def( 'RUDEL_IS_APP', $rudel_bootstrap_is_app );
 	$def( 'RUDEL_ENV_TYPE', $rudel_bootstrap_is_app ? 'app' : 'sandbox' );
+	$def( 'RUDEL_ENGINE', $_rudel_engine );
+	$def( 'RUDEL_ENV_RECORD_ID', $environment_row_id );
+	if ( null !== $app_row_id ) {
+		$def( 'RUDEL_APP_RECORD_ID', $app_row_id );
+	}
 } )();
 
 // WP-CLI eval runs outside normal global setup, so expose the resolved prefix in the caller's scope as well.

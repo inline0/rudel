@@ -27,7 +27,7 @@ Both modes share the same isolation layer: isolated database tables (with a `rud
 
 On activation, Rudel adds one line to `wp-config.php` that loads a bootstrap file before WordPress boots. For every incoming request, the bootstrap checks whether it targets an environment (via domain, path prefix, cookie, header, or subdomain). If it does, it rewires WordPress's constants to point to that environment's isolated resources. If it doesn't, WordPress boots normally with zero overhead.
 
-Each environment lives in its own directory with a `.rudel.json` metadata file, a `wp-cli.yml` that auto-scopes CLI commands, and an isolated `wp-content` with its own themes, plugins, and uploads.
+Each environment lives in its own directory with a `wp-cli.yml` that auto-scopes CLI commands and an isolated `wp-content` with its own themes, plugins, and uploads. Runtime state is stored in WordPress tables, not JSON files, so apps and environments can be referenced by stable DB IDs.
 
 ## Key features
 
