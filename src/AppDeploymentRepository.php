@@ -85,7 +85,7 @@ class AppDeploymentRepository {
 	 */
 	public function list( int $app_id ): array {
 		$rows = $this->store->fetch_all(
-			'SELECT * FROM ' . $this->table() . ' WHERE app_id = ? ORDER BY deployed_at DESC, deployment_key DESC',
+			'SELECT * FROM ' . $this->table() . ' WHERE app_id = ? ORDER BY deployed_at DESC, id DESC',
 			array( $app_id )
 		);
 
