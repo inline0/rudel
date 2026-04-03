@@ -162,27 +162,15 @@ class BootstrapRuntimeStore {
 			return null;
 		}
 
-		try {
-			$wpdb = new \wpdb(
-				$this->mysql['user'],
-				$this->mysql['password'],
-				$this->mysql['name'],
-				$this->mysql['host']
-			);
-		} catch ( \Throwable $e ) {
-			return null;
-		}
+		$wpdb = new \wpdb(
+			$this->mysql['user'],
+			$this->mysql['password'],
+			$this->mysql['name'],
+			$this->mysql['host']
+		);
 
-		if ( method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( true );
-		}
-
-		if ( method_exists( $wpdb, 'set_prefix' ) ) {
-			$wpdb->set_prefix( $this->prefix, false );
-		} else {
-			$wpdb->prefix      = $this->prefix;
-			$wpdb->base_prefix = $this->prefix;
-		}
+		$wpdb->suppress_errors( true );
+		$wpdb->set_prefix( $this->prefix, false );
 
 		return $wpdb;
 	}
@@ -196,8 +184,9 @@ class BootstrapRuntimeStore {
 	private function wpdb_class_path( ?string $config_path ): ?string {
 		$candidates = array();
 
-		if ( defined( 'ABSPATH' ) && is_string( ABSPATH ) && '' !== ABSPATH ) {
-			$candidates[] = rtrim( ABSPATH, '/' ) . '/wp-includes/class-wpdb.php';
+		$abspath = defined( 'ABSPATH' ) ? ABSPATH : null;
+		if ( is_string( $abspath ) && '' !== $abspath ) {
+			$candidates[] = rtrim( $abspath, '/' ) . '/wp-includes/class-wpdb.php';
 		}
 
 		if ( null !== $config_path ) {

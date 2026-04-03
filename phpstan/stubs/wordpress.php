@@ -10,8 +10,16 @@ if ( ! class_exists( 'WP_Error' ) ) {
 
 if ( ! class_exists( 'wpdb' ) ) {
 	class wpdb {
-		public string $prefix = 'wp_';
+		public string $prefix      = 'wp_';
 		public string $base_prefix = 'wp_';
+		public int $insert_id      = 0;
+
+		public function __construct(
+			string $dbuser = '',
+			string $dbpassword = '',
+			string $dbname = '',
+			string $dbhost = ''
+		) {}
 
 		public function query( string $query ): int|false {
 			return 0;
@@ -48,11 +56,39 @@ if ( ! class_exists( 'wpdb' ) ) {
 		}
 
 		/**
-		 * @param array<string, mixed>     $data
+		 * @param array<string, mixed>    $data
 		 * @param array<int, string>|null $format
 		 */
 		public function insert( string $table, array $data, ?array $format = null ): int|false {
 			return 1;
+		}
+
+		/**
+		 * @param array<string, mixed>    $data
+		 * @param array<string, mixed>    $where
+		 * @param array<int, string>|null $format
+		 * @param array<int, string>|null $where_format
+		 */
+		public function update( string $table, array $data, array $where, ?array $format = null, ?array $where_format = null ): int|false {
+			return 1;
+		}
+
+		/**
+		 * @param array<string, mixed>    $where
+		 * @param array<int, string>|null $where_format
+		 */
+		public function delete( string $table, array $where, ?array $where_format = null ): int|false {
+			return 1;
+		}
+
+		public function suppress_errors( bool $suppress = true ): bool {
+			return $suppress;
+		}
+
+		public function set_prefix( string $prefix, bool $set_table_names = true ): string {
+			$this->prefix      = $prefix;
+			$this->base_prefix = $prefix;
+			return $prefix;
 		}
 
 		public function get_charset_collate(): string {

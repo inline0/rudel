@@ -32,7 +32,11 @@ class WpdbStore implements DatabaseStore {
 	 * @param \wpdb|null $wpdb Optional database object override.
 	 */
 	public function __construct( ?object $wpdb = null ) {
-		$this->wpdb   = $wpdb ?? $this->resolve_wpdb();
+		if ( null === $wpdb ) {
+			$wpdb = $this->resolve_wpdb();
+		}
+
+		$this->wpdb   = $wpdb;
 		$prefix       = $this->wpdb->base_prefix ?? $this->wpdb->prefix ?? 'wp_';
 		$this->prefix = is_string( $prefix ) && '' !== $prefix ? $prefix : 'wp_';
 	}
