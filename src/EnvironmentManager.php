@@ -71,8 +71,10 @@ class EnvironmentManager {
 	/**
 	 * Constructor.
 	 *
-	 * @param string|null $environments_dir Optional override for the sandboxes directory.
-	 * @param string|null $alternate_environments_dir Optional override for the related environments directory.
+	 * @param string|null        $environments_dir Optional override for the sandboxes directory.
+	 * @param string|null        $alternate_environments_dir Optional override for the related environments directory.
+	 * @param string             $managed_type Managed environment type.
+	 * @param DatabaseStore|null $store Optional runtime store override.
 	 */
 	public function __construct(
 		?string $environments_dir = null,

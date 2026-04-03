@@ -90,14 +90,14 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		}
 
 		return array(
-			'id'         => $slug,
-			'path'       => $real,
-			'is_app'     => 'app' === $type,
-			'record_id'  => isset( $record['id'] ) ? (int) $record['id'] : null,
-			'app_id'     => isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
-			'engine'     => isset( $record['engine'] ) ? (string) $record['engine'] : 'mysql',
-			'multisite'  => ! empty( $record['multisite'] ),
-			'blog_id'    => isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
+			'id'        => $slug,
+			'path'      => $real,
+			'is_app'    => 'app' === $type,
+			'record_id' => isset( $record['id'] ) ? (int) $record['id'] : null,
+			'app_id'    => isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
+			'engine'    => isset( $record['engine'] ) ? (string) $record['engine'] : 'mysql',
+			'multisite' => ! empty( $record['multisite'] ),
+			'blog_id'   => isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
 		);
 	};
 

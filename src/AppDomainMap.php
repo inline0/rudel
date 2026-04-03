@@ -7,6 +7,9 @@
 
 namespace Rudel;
 
+/**
+ * Reads the current app-domain mapping from DB-backed app records.
+ */
 class AppDomainMap {
 
 	/**

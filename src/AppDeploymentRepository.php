@@ -35,6 +35,8 @@ class AppDeploymentRepository {
 	 * @param Environment $sandbox Source environment.
 	 * @param array       $data Deployment metadata.
 	 * @return array<string, mixed>
+	 *
+	 * @throws \RuntimeException When the insert fails or the deployment cannot be reloaded.
 	 */
 	public function record( Environment $app, Environment $sandbox, array $data = array() ): array {
 		$deployed_at    = is_string( $data['deployed_at'] ?? null ) ? $data['deployed_at'] : gmdate( 'c' );
@@ -43,26 +45,26 @@ class AppDeploymentRepository {
 			: $this->generate_key( $deployed_at );
 		$now            = gmdate( 'c' );
 		$record         = array(
-			'deployment_key'         => $deployment_key,
-			'app_id'                 => $app->app_record_id,
-			'environment_id'         => $sandbox->record_id,
-			'app_slug'               => $app->id,
-			'app_name'               => $app->name,
-			'app_domains'            => wp_json_encode( $app->domains ?? array() ),
-			'sandbox_slug'           => $sandbox->id,
-			'sandbox_name'           => $sandbox->name,
+			'deployment_key'          => $deployment_key,
+			'app_id'                  => $app->app_record_id,
+			'environment_id'          => $sandbox->record_id,
+			'app_slug'                => $app->id,
+			'app_name'                => $app->name,
+			'app_domains'             => wp_json_encode( $app->domains ?? array() ),
+			'sandbox_slug'            => $sandbox->id,
+			'sandbox_name'            => $sandbox->name,
 			'source_environment_type' => $sandbox->type,
-			'backup_name'            => $data['backup_name'] ?? null,
-			'tables_copied'          => isset( $data['tables_copied'] ) ? (int) $data['tables_copied'] : null,
-			'label'                  => $this->normalize_optional_string( $data['label'] ?? null ),
-			'notes'                  => $this->normalize_optional_string( $data['notes'] ?? null ),
-			'github_repo'            => $data['github_repo'] ?? $sandbox->get_github_repo() ?? $app->get_github_repo(),
-			'github_branch'          => $data['github_branch'] ?? $sandbox->get_git_branch(),
-			'github_base_branch'     => $data['github_base_branch'] ?? $sandbox->get_github_base_branch() ?? $app->get_github_base_branch(),
-			'github_dir'             => $data['github_dir'] ?? $sandbox->get_github_dir() ?? $app->get_github_dir(),
-			'deployed_at'            => $deployed_at,
-			'created_at'             => $now,
-			'updated_at'             => $now,
+			'backup_name'             => $data['backup_name'] ?? null,
+			'tables_copied'           => isset( $data['tables_copied'] ) ? (int) $data['tables_copied'] : null,
+			'label'                   => $this->normalize_optional_string( $data['label'] ?? null ),
+			'notes'                   => $this->normalize_optional_string( $data['notes'] ?? null ),
+			'github_repo'             => $data['github_repo'] ?? $sandbox->get_github_repo() ?? $app->get_github_repo(),
+			'github_branch'           => $data['github_branch'] ?? $sandbox->get_git_branch(),
+			'github_base_branch'      => $data['github_base_branch'] ?? $sandbox->get_github_base_branch() ?? $app->get_github_base_branch(),
+			'github_dir'              => $data['github_dir'] ?? $sandbox->get_github_dir() ?? $app->get_github_dir(),
+			'deployed_at'             => $deployed_at,
+			'created_at'              => $now,
+			'updated_at'              => $now,
 		);
 
 		$this->store->insert( $this->table(), $record );
@@ -117,7 +119,7 @@ class AppDeploymentRepository {
 		return $this->store->delete(
 			$this->table(),
 			array(
-				'app_id'          => $app_id,
+				'app_id'         => $app_id,
 				'deployment_key' => $deployment_key,
 			)
 		) > 0;
@@ -136,7 +138,7 @@ class AppDeploymentRepository {
 		}
 
 		$removed = array();
-		$stale   = array_slice( $this->list( $app_id ), $keep );
+		$stale   = array_reverse( array_slice( $this->list( $app_id ), $keep ) );
 
 		foreach ( $stale as $deployment ) {
 			$key = $deployment['id'] ?? null;

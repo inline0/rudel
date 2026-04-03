@@ -29,6 +29,8 @@ class RudelDatabase {
 	 * @param string|null $primary_path Primary filesystem root.
 	 * @param string|null $secondary_path Secondary filesystem root.
 	 * @return DatabaseStore
+	 *
+	 * @throws \RuntimeException When WordPress has not initialized a DB connection.
 	 */
 	public static function for_paths( ?string $primary_path = null, ?string $secondary_path = null ): DatabaseStore {
 		unset( $primary_path, $secondary_path );

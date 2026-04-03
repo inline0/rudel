@@ -31,7 +31,7 @@ class RudelSchema {
 			return;
 		}
 
-		foreach ( self::statements( $store ) as $sql ) {
+		foreach ( self::mysql_statements( $store ) as $sql ) {
 			$store->execute( $sql );
 		}
 
@@ -48,20 +48,6 @@ class RudelSchema {
 	}
 
 	/**
-	 * Schema statements for the active driver.
-	 *
-	 * @param DatabaseStore $store Runtime store.
-	 * @return array<int, string>
-	 */
-	private static function statements( DatabaseStore $store ): array {
-		if ( 'sqlite' === $store->driver() ) {
-			return self::sqlite_statements( $store );
-		}
-
-		return self::mysql_statements( $store );
-	}
-
-	/**
 	 * MySQL schema.
 	 *
 	 * @param DatabaseStore $store Runtime store.
@@ -69,7 +55,7 @@ class RudelSchema {
 	 */
 	private static function mysql_statements( DatabaseStore $store ): array {
 		return array(
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'environments' ) . " (
+			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'environments' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				app_id BIGINT UNSIGNED NULL,
 				slug VARCHAR(64) NOT NULL,
@@ -104,8 +90,8 @@ class RudelSchema {
 				KEY rudel_env_type (type),
 				KEY rudel_env_status (status),
 				KEY rudel_env_app (app_id)
-			)",
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'apps' ) . " (
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'apps' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				environment_id BIGINT UNSIGNED NOT NULL,
 				slug VARCHAR(64) NOT NULL,
@@ -114,8 +100,8 @@ class RudelSchema {
 				PRIMARY KEY (id),
 				UNIQUE KEY rudel_app_environment (environment_id),
 				UNIQUE KEY rudel_app_slug (slug)
-			)",
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_domains' ) . " (
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_domains' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				app_id BIGINT UNSIGNED NOT NULL,
 				domain VARCHAR(191) NOT NULL,
@@ -125,8 +111,8 @@ class RudelSchema {
 				PRIMARY KEY (id),
 				UNIQUE KEY rudel_app_domain (domain),
 				KEY rudel_app_domain_app (app_id)
-			)",
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'worktrees' ) . " (
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'worktrees' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				environment_id BIGINT UNSIGNED NOT NULL,
 				content_type VARCHAR(32) NOT NULL,
@@ -138,8 +124,8 @@ class RudelSchema {
 				PRIMARY KEY (id),
 				UNIQUE KEY rudel_worktree_environment_name (environment_id, content_type, name),
 				KEY rudel_worktree_environment (environment_id)
-			)",
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_deployments' ) . " (
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_deployments' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				deployment_key VARCHAR(64) NOT NULL,
 				app_id BIGINT UNSIGNED NOT NULL,
@@ -165,104 +151,7 @@ class RudelSchema {
 				UNIQUE KEY rudel_app_deployment_key (deployment_key),
 				KEY rudel_app_deployment_app (app_id),
 				KEY rudel_app_deployment_environment (environment_id)
-			)",
-		);
-	}
-
-	/**
-	 * SQLite schema.
-	 *
-	 * @param DatabaseStore $store Runtime store.
-	 * @return array<int, string>
-	 */
-	private static function sqlite_statements( DatabaseStore $store ): array {
-		return array(
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'environments' ) . " (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				app_id INTEGER NULL,
-				slug TEXT NOT NULL UNIQUE,
-				name TEXT NOT NULL,
-				path TEXT NOT NULL UNIQUE,
-				type TEXT NOT NULL,
-				engine TEXT NOT NULL,
-				template TEXT NOT NULL,
-				status TEXT NOT NULL,
-				multisite INTEGER NOT NULL DEFAULT 0,
-				blog_id INTEGER NULL,
-				clone_source TEXT NULL,
-				owner TEXT NULL,
-				labels TEXT NULL,
-				purpose TEXT NULL,
-				is_protected INTEGER NOT NULL DEFAULT 0,
-				expires_at TEXT NULL,
-				last_used_at TEXT NULL,
-				source_environment_slug TEXT NULL,
-				source_environment_type TEXT NULL,
-				last_deployed_from_slug TEXT NULL,
-				last_deployed_from_type TEXT NULL,
-				last_deployed_at TEXT NULL,
-				tracked_github_repo TEXT NULL,
-				tracked_github_branch TEXT NULL,
-				tracked_github_dir TEXT NULL,
-				created_at TEXT NOT NULL,
-				updated_at TEXT NOT NULL
-			)",
-			'CREATE INDEX IF NOT EXISTS ' . $store->table( 'environments' ) . '_type_idx ON ' . $store->table( 'environments' ) . ' (type)',
-			'CREATE INDEX IF NOT EXISTS ' . $store->table( 'environments' ) . '_status_idx ON ' . $store->table( 'environments' ) . ' (status)',
-			'CREATE INDEX IF NOT EXISTS ' . $store->table( 'environments' ) . '_app_idx ON ' . $store->table( 'environments' ) . ' (app_id)',
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'apps' ) . " (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				environment_id INTEGER NOT NULL UNIQUE,
-				slug TEXT NOT NULL UNIQUE,
-				created_at TEXT NOT NULL,
-				updated_at TEXT NOT NULL
-			)",
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_domains' ) . " (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				app_id INTEGER NOT NULL,
-				domain TEXT NOT NULL UNIQUE,
-				is_primary INTEGER NOT NULL DEFAULT 0,
-				created_at TEXT NOT NULL,
-				updated_at TEXT NOT NULL
-			)",
-			'CREATE INDEX IF NOT EXISTS ' . $store->table( 'app_domains' ) . '_app_idx ON ' . $store->table( 'app_domains' ) . ' (app_id)',
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'worktrees' ) . " (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				environment_id INTEGER NOT NULL,
-				content_type TEXT NOT NULL,
-				name TEXT NOT NULL,
-				branch TEXT NOT NULL,
-				repo_path TEXT NOT NULL,
-				created_at TEXT NOT NULL,
-				updated_at TEXT NOT NULL
-			)",
-			'CREATE UNIQUE INDEX IF NOT EXISTS ' . $store->table( 'worktrees' ) . '_unique_idx ON ' . $store->table( 'worktrees' ) . ' (environment_id, content_type, name)',
-			'CREATE INDEX IF NOT EXISTS ' . $store->table( 'worktrees' ) . '_environment_idx ON ' . $store->table( 'worktrees' ) . ' (environment_id)',
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_deployments' ) . " (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				deployment_key TEXT NOT NULL UNIQUE,
-				app_id INTEGER NOT NULL,
-				environment_id INTEGER NULL,
-				app_slug TEXT NOT NULL,
-				app_name TEXT NOT NULL,
-				app_domains TEXT NULL,
-				sandbox_slug TEXT NOT NULL,
-				sandbox_name TEXT NOT NULL,
-				source_environment_type TEXT NOT NULL,
-				backup_name TEXT NULL,
-				tables_copied INTEGER NULL,
-				label TEXT NULL,
-				notes TEXT NULL,
-				github_repo TEXT NULL,
-				github_branch TEXT NULL,
-				github_base_branch TEXT NULL,
-				github_dir TEXT NULL,
-				deployed_at TEXT NOT NULL,
-				created_at TEXT NOT NULL,
-				updated_at TEXT NOT NULL
-			)",
-			'CREATE INDEX IF NOT EXISTS ' . $store->table( 'app_deployments' ) . '_app_idx ON ' . $store->table( 'app_deployments' ) . ' (app_id)',
-			'CREATE INDEX IF NOT EXISTS ' . $store->table( 'app_deployments' ) . '_environment_idx ON ' . $store->table( 'app_deployments' ) . ' (environment_id)',
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
 		);
 	}
 }

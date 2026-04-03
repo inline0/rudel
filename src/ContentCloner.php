@@ -111,9 +111,17 @@ class ContentCloner {
 		$iterator = new \FilesystemIterator( $source, \FilesystemIterator::SKIP_DOTS );
 
 		foreach ( $iterator as $item ) {
-			$source_path = $item->getPathname();
+			$source_path  = $item->getPathname();
+			$source_real  = realpath( $source_path );
+			$compare_path = false !== $source_real ? $source_real : $source_path;
 
-			if ( null !== $excluded_path && $source_path === $excluded_path ) {
+			if (
+				null !== $excluded_path
+				&& (
+					$compare_path === $excluded_path
+					|| str_starts_with( $excluded_path, $compare_path . DIRECTORY_SEPARATOR )
+				)
+			) {
 				continue;
 			}
 

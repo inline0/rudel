@@ -150,6 +150,12 @@ class SnapshotManagerTest extends RudelTestCase
         $mockWpdb->prefix = 'wp_';
         $GLOBALS['wpdb'] = $mockWpdb;
 
+        $sandbox = ( new \Rudel\EnvironmentRepository(
+            new \Rudel\WpdbStore($mockWpdb),
+            dirname($sandboxPath),
+            'sandbox'
+        ) )->save($sandbox);
+
         $sandboxPrefix = $sandbox->get_table_prefix();
         $mockWpdb->addTable("{$sandboxPrefix}options", "CREATE TABLE {$sandboxPrefix}options (option_id int)", [
             ['option_id' => '1', 'option_name' => 'blogname', 'option_value' => 'Before Snapshot'],

@@ -68,7 +68,7 @@ class EnvironmentRepository {
 		$sql    = 'SELECT * FROM ' . $this->table() . ' ORDER BY created_at DESC, slug DESC';
 
 		if ( null !== $this->managed_type ) {
-			$sql     = 'SELECT * FROM ' . $this->table() . ' WHERE type = ? ORDER BY created_at DESC, slug DESC';
+			$sql      = 'SELECT * FROM ' . $this->table() . ' WHERE type = ? ORDER BY created_at DESC, slug DESC';
 			$params[] = $this->managed_type;
 		}
 
@@ -169,9 +169,11 @@ class EnvironmentRepository {
 	 *
 	 * @param Environment $environment Environment payload.
 	 * @return Environment
+	 *
+	 * @throws \RuntimeException When the write fails or the persisted row cannot be reloaded.
 	 */
 	public function save( Environment $environment ): Environment {
-		$payload = $this->payload_for_environment( $environment );
+		$payload  = $this->payload_for_environment( $environment );
 		$existing = $this->find_row_by_slug( $environment->id, null );
 
 		if ( is_array( $existing ) ) {
@@ -202,6 +204,8 @@ class EnvironmentRepository {
 	 * @param array       $changes Field changes.
 	 * @param string|null $type Optional exact type filter.
 	 * @return Environment
+	 *
+	 * @throws \RuntimeException When the update fails or the environment cannot be reloaded.
 	 */
 	public function update_fields( string $slug, array $changes, ?string $type = null ): Environment {
 		$row = $this->find_row_by_slug( $slug, $type );
@@ -326,33 +330,33 @@ class EnvironmentRepository {
 		}
 
 		return array(
-			'app_id'                      => $environment->app_record_id,
-			'slug'                        => $environment->id,
-			'name'                        => $environment->name,
-			'path'                        => rtrim( $environment->path, '/' ),
-			'type'                        => $environment->type,
-			'engine'                      => $environment->engine,
-			'template'                    => $environment->template,
-			'status'                      => $environment->status,
-			'multisite'                   => $environment->multisite ? 1 : 0,
-			'blog_id'                     => $environment->blog_id,
-			'clone_source'                => null === $clone_source ? null : wp_json_encode( $clone_source ),
-			'owner'                       => $environment->owner,
-			'labels'                      => wp_json_encode( $environment->labels ),
-			'purpose'                     => $environment->purpose,
-			'is_protected'                => $environment->is_protected ? 1 : 0,
-			'expires_at'                  => $environment->expires_at,
-			'last_used_at'                => $environment->last_used_at,
-			'source_environment_slug'     => $environment->source_environment_id,
-			'source_environment_type'     => $environment->source_environment_type,
-			'last_deployed_from_slug'     => $environment->last_deployed_from_id,
-			'last_deployed_from_type'     => $environment->last_deployed_from_type,
-			'last_deployed_at'            => $environment->last_deployed_at,
-			'tracked_github_repo'         => $environment->tracked_github_repo,
-			'tracked_github_branch'       => $environment->tracked_github_branch,
-			'tracked_github_dir'          => $environment->tracked_github_dir,
-			'created_at'                  => $environment->created_at,
-			'updated_at'                  => gmdate( 'c' ),
+			'app_id'                  => $environment->app_record_id,
+			'slug'                    => $environment->id,
+			'name'                    => $environment->name,
+			'path'                    => rtrim( $environment->path, '/' ),
+			'type'                    => $environment->type,
+			'engine'                  => $environment->engine,
+			'template'                => $environment->template,
+			'status'                  => $environment->status,
+			'multisite'               => $environment->multisite ? 1 : 0,
+			'blog_id'                 => $environment->blog_id,
+			'clone_source'            => null === $clone_source ? null : wp_json_encode( $clone_source ),
+			'owner'                   => $environment->owner,
+			'labels'                  => wp_json_encode( $environment->labels ),
+			'purpose'                 => $environment->purpose,
+			'is_protected'            => $environment->is_protected ? 1 : 0,
+			'expires_at'              => $environment->expires_at,
+			'last_used_at'            => $environment->last_used_at,
+			'source_environment_slug' => $environment->source_environment_id,
+			'source_environment_type' => $environment->source_environment_type,
+			'last_deployed_from_slug' => $environment->last_deployed_from_id,
+			'last_deployed_from_type' => $environment->last_deployed_from_type,
+			'last_deployed_at'        => $environment->last_deployed_at,
+			'tracked_github_repo'     => $environment->tracked_github_repo,
+			'tracked_github_branch'   => $environment->tracked_github_branch,
+			'tracked_github_dir'      => $environment->tracked_github_dir,
+			'created_at'              => $environment->created_at,
+			'updated_at'              => gmdate( 'c' ),
 		);
 	}
 

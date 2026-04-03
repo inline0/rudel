@@ -200,7 +200,8 @@ class MockWpdb
             return isset($this->tables[$table]) ? (string) count($this->tables[$table]['rows']) : '0';
         }
 
-        $row = $this->get_row($query, ARRAY_A);
+        $output = defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A';
+        $row = $this->get_row($query, $output);
         if (is_array($row)) {
             $value = reset($row);
             return false === $value ? null : $value;
@@ -279,26 +280,6 @@ class MockWpdb
             return true;
         }
 
-        if (preg_match('/UPDATE\s+`?(\w+)`?\s+SET\s+(.+?)\s+WHERE\s+(.+)$/is', trim($query), $m)) {
-            $table = $m[1];
-            $assignments = $this->parseAssignments($m[2]);
-            $conditions = $this->parseWhereClause($m[3]);
-            if (! isset($this->tables[$table])) {
-                return true;
-            }
-
-            foreach ($this->tables[$table]['rows'] as &$row) {
-                if ($this->rowMatches($row, $conditions)) {
-                    foreach ($assignments as $column => $value) {
-                        $row[$column] = $value;
-                    }
-                }
-            }
-            unset($row);
-
-            return true;
-        }
-
         // UPDATE with REPLACE (URL rewriting)
         if (preg_match('/UPDATE `(\w+)` SET `(\w+)` = REPLACE\(`\w+`,/i', $query, $m)) {
             $table = $m[1];
@@ -339,6 +320,26 @@ class MockWpdb
             return true;
         }
 
+        if (preg_match('/UPDATE\s+`?(\w+)`?\s+SET\s+(.+?)\s+WHERE\s+(.+)$/is', trim($query), $m)) {
+            $table = $m[1];
+            $assignments = $this->parseAssignments($m[2]);
+            $conditions = $this->parseWhereClause($m[3]);
+            if (! isset($this->tables[$table])) {
+                return true;
+            }
+
+            foreach ($this->tables[$table]['rows'] as &$row) {
+                if ($this->rowMatches($row, $conditions)) {
+                    foreach ($assignments as $column => $value) {
+                        $row[$column] = $value;
+                    }
+                }
+            }
+            unset($row);
+
+            return true;
+        }
+
         return true;
     }
 
@@ -351,6 +352,9 @@ class MockWpdb
             $this->tables[$table] = ['ddl' => '', 'rows' => []];
             $this->autoIncrement[$table] = 0;
         }
+
+        $this->assertNoUniqueConflict($table, $data);
+
         if (! array_key_exists('id', $data)) {
             $nextId = ($this->autoIncrement[$table] ?? 0) + 1;
             $data['id'] = $nextId;
@@ -402,6 +406,56 @@ class MockWpdb
         ));
 
         return $before - count($this->tables[$table]['rows']);
+    }
+
+    /**
+     * Mirror the unique indexes that the real Rudel runtime tables enforce.
+     */
+    private function assertNoUniqueConflict(string $table, array $data): void
+    {
+        $rows = $this->tables[$table]['rows'] ?? [];
+
+        foreach ($rows as $row) {
+            if (str_ends_with($table, 'rudel_environments')) {
+                if (
+                    (($row['slug'] ?? null) === ($data['slug'] ?? null)) ||
+                    (($row['path'] ?? null) === ($data['path'] ?? null))
+                ) {
+                    throw new \PDOException('Duplicate environment row');
+                }
+            }
+
+            if (str_ends_with($table, 'rudel_apps')) {
+                if (
+                    (($row['environment_id'] ?? null) === ($data['environment_id'] ?? null)) ||
+                    (($row['slug'] ?? null) === ($data['slug'] ?? null))
+                ) {
+                    throw new \PDOException('Duplicate app row');
+                }
+            }
+
+            if (str_ends_with($table, 'rudel_app_domains')) {
+                if (($row['domain'] ?? null) === ($data['domain'] ?? null)) {
+                    throw new \PDOException('Duplicate app domain');
+                }
+            }
+
+            if (str_ends_with($table, 'rudel_worktrees')) {
+                if (
+                    (($row['environment_id'] ?? null) === ($data['environment_id'] ?? null)) &&
+                    (($row['content_type'] ?? null) === ($data['content_type'] ?? null)) &&
+                    (($row['name'] ?? null) === ($data['name'] ?? null))
+                ) {
+                    throw new \PDOException('Duplicate worktree row');
+                }
+            }
+
+            if (str_ends_with($table, 'rudel_app_deployments')) {
+                if (($row['deployment_key'] ?? null) === ($data['deployment_key'] ?? null)) {
+                    throw new \PDOException('Duplicate deployment row');
+                }
+            }
+        }
     }
 
     /**

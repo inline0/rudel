@@ -62,13 +62,16 @@ class BootstrapRuntimeStore {
 		}
 
 		$this->prefix = $this->resolve_prefix( $config_path, $config );
-
-		$this->mysql = array(
+		$this->mysql  = array(
 			'host'     => defined( 'DB_HOST' ) && is_string( DB_HOST ) ? DB_HOST : ( $config['DB_HOST'] ?? 'localhost' ),
 			'name'     => defined( 'DB_NAME' ) && is_string( DB_NAME ) ? DB_NAME : ( $config['DB_NAME'] ?? '' ),
 			'user'     => defined( 'DB_USER' ) && is_string( DB_USER ) ? DB_USER : ( $config['DB_USER'] ?? '' ),
 			'password' => defined( 'DB_PASSWORD' ) && is_string( DB_PASSWORD ) ? DB_PASSWORD : ( $config['DB_PASSWORD'] ?? '' ),
 		);
+
+		if ( null === $this->wpdb ) {
+			$this->wpdb = $this->bootstrap_wpdb( $config_path );
+		}
 	}
 
 	/**
@@ -109,11 +112,11 @@ class BootstrapRuntimeStore {
 	 * @return array<string, mixed>|null
 	 */
 	private function fetch_environment( string $sql, array $params ): ?array {
-		if ( null !== $this->wpdb ) {
-			return $this->fetch_wpdb_row( $sql, $params );
+		if ( null === $this->wpdb ) {
+			return null;
 		}
 
-		return $this->fetch_mysql_row( $sql, $params );
+		return $this->fetch_wpdb_row( $sql, $params );
 	}
 
 	/**
@@ -128,82 +131,82 @@ class BootstrapRuntimeStore {
 	}
 
 	/**
-	 * Fetch one row from MySQL.
+	 * Bootstrap a temporary wpdb instance from wp-config credentials.
 	 *
-	 * @param string $sql SQL query.
-	 * @param array  $params Bound params.
-	 * @return array<string, mixed>|null
+	 * The sandbox bootstrap runs before WordPress has initialized globals, but
+	 * Rudel runtime state still needs to be queried through the same MySQL
+	 * connection model WordPress uses once core has booted.
+	 *
+	 * @param string|null $config_path wp-config.php path when known.
+	 * @return object|null
 	 */
-	private function fetch_mysql_row( string $sql, array $params ): ?array {
+	private function bootstrap_wpdb( ?string $config_path ): ?object {
 		if ( '' === $this->mysql['name'] || '' === $this->mysql['user'] ) {
 			return null;
 		}
 
-		$connection = mysqli_init();
-		if ( false === $connection ) {
-			return null;
-		}
-
-		$host = $this->mysql['host'];
-		$port = 3306;
-		$socket = null;
-
-		if ( str_contains( $host, ':' ) ) {
-			$parts = explode( ':', $host );
-			$host  = $parts[0];
-			if ( isset( $parts[1] ) && ctype_digit( $parts[1] ) ) {
-				$port = (int) $parts[1];
-			} elseif ( isset( $parts[1] ) && '' !== $parts[1] ) {
-				$socket = $parts[1];
+		if ( ! class_exists( '\wpdb', false ) ) {
+			$wpdb_class = $this->wpdb_class_path( $config_path );
+			if ( null === $wpdb_class ) {
+				return null;
 			}
+
+			require_once $wpdb_class;
 		}
 
-		if ( ! @mysqli_real_connect( $connection, $host, $this->mysql['user'], $this->mysql['password'], $this->mysql['name'], $port, $socket ) ) {
-			mysqli_close( $connection );
+		if ( ! class_exists( '\wpdb', false ) ) {
 			return null;
 		}
 
-		$stmt = mysqli_prepare( $connection, $sql );
-		if ( false === $stmt ) {
-			mysqli_close( $connection );
+		try {
+			$wpdb = new \wpdb(
+				$this->mysql['user'],
+				$this->mysql['password'],
+				$this->mysql['name'],
+				$this->mysql['host']
+			);
+		} catch ( \Throwable $e ) {
 			return null;
 		}
 
-		if ( ! empty( $params ) && ! $this->bind_mysql_params( $stmt, $params ) ) {
-			mysqli_stmt_close( $stmt );
-			mysqli_close( $connection );
-			return null;
+		if ( method_exists( $wpdb, 'suppress_errors' ) ) {
+			$wpdb->suppress_errors( true );
 		}
 
-		mysqli_stmt_execute( $stmt );
-		$result = mysqli_stmt_get_result( $stmt );
-		$row    = false !== $result ? mysqli_fetch_assoc( $result ) : null;
-		mysqli_stmt_close( $stmt );
-		mysqli_close( $connection );
+		if ( method_exists( $wpdb, 'set_prefix' ) ) {
+			$wpdb->set_prefix( $this->prefix, false );
+		} else {
+			$wpdb->prefix      = $this->prefix;
+			$wpdb->base_prefix = $this->prefix;
+		}
 
-		return is_array( $row ) ? $row : null;
+		return $wpdb;
 	}
 
 	/**
-	 * Bind positional params for one mysqli statement.
+	 * Locate WordPress's wpdb class file from the known bootstrap roots.
 	 *
-	 * mysqli requires references for the variadic values, so the bootstrap cannot
-	 * rely on a simple splat here even though the queries are tiny.
-	 *
-	 * @param \mysqli_stmt $stmt Prepared statement.
-	 * @param array<int, mixed> $params Positional params.
-	 * @return bool
+	 * @param string|null $config_path wp-config.php path when known.
+	 * @return string|null
 	 */
-	private function bind_mysql_params( \mysqli_stmt $stmt, array $params ): bool {
-		$types = str_repeat( 's', count( $params ) );
-		$args  = array( $stmt, $types );
+	private function wpdb_class_path( ?string $config_path ): ?string {
+		$candidates = array();
 
-		foreach ( array_values( $params ) as $index => $value ) {
-			$params[ $index ] = is_scalar( $value ) || null === $value ? (string) $value : '';
-			$args[]           = &$params[ $index ];
+		if ( defined( 'ABSPATH' ) && is_string( ABSPATH ) && '' !== ABSPATH ) {
+			$candidates[] = rtrim( ABSPATH, '/' ) . '/wp-includes/class-wpdb.php';
 		}
 
-		return (bool) call_user_func_array( 'mysqli_stmt_bind_param', $args );
+		if ( null !== $config_path ) {
+			$candidates[] = dirname( $config_path ) . '/wp-includes/class-wpdb.php';
+		}
+
+		foreach ( array_unique( $candidates ) as $candidate ) {
+			if ( is_file( $candidate ) ) {
+				return $candidate;
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -217,6 +220,7 @@ class BootstrapRuntimeStore {
 			return array();
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap reads one local config file directly.
 		$contents = file_get_contents( $path );
 		if ( false === $contents ) {
 			return array();
@@ -235,7 +239,7 @@ class BootstrapRuntimeStore {
 	/**
 	 * Resolve the WordPress base prefix.
 	 *
-	 * @param string|null         $config_path Config path.
+	 * @param string|null           $config_path Config path.
 	 * @param array<string, string> $config Parsed config.
 	 * @return string
 	 */
@@ -252,6 +256,7 @@ class BootstrapRuntimeStore {
 		}
 
 		if ( null !== $config_path && file_exists( $config_path ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap reads one local config file directly.
 			$contents = file_get_contents( $config_path );
 			if ( false !== $contents && preg_match( "/\\\$table_prefix\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]\\s*;/", $contents, $match ) ) {
 				return $match[1];

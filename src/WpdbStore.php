@@ -32,8 +32,8 @@ class WpdbStore implements DatabaseStore {
 	 * @param object|null $wpdb Optional database object override.
 	 */
 	public function __construct( ?object $wpdb = null ) {
-		$this->wpdb = $wpdb ?? $this->resolve_wpdb();
-		$prefix     = $this->wpdb->base_prefix ?? $this->wpdb->prefix ?? 'wp_';
+		$this->wpdb   = $wpdb ?? $this->resolve_wpdb();
+		$prefix       = $this->wpdb->base_prefix ?? $this->wpdb->prefix ?? 'wp_';
 		$this->prefix = is_string( $prefix ) && '' !== $prefix ? $prefix : 'wp_';
 	}
 
@@ -60,6 +60,8 @@ class WpdbStore implements DatabaseStore {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string $suffix Logical table suffix.
 	 */
 	public function table( string $suffix ): string {
 		return $this->prefix . 'rudel_' . $suffix;
@@ -67,6 +69,9 @@ class WpdbStore implements DatabaseStore {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string $sql SQL query with ? placeholders.
+	 * @param array  $params Bound parameters.
 	 */
 	public function execute( string $sql, array $params = array() ): int {
 		$query = $this->prepare_query( $sql, $params );
@@ -77,26 +82,37 @@ class WpdbStore implements DatabaseStore {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string $sql SQL query with ? placeholders.
+	 * @param array  $params Bound parameters.
 	 */
 	public function fetch_row( string $sql, array $params = array() ): ?array {
-		$query = $this->prepare_query( $sql, $params );
+		$query  = $this->prepare_query( $sql, $params );
+		$output = defined( 'ARRAY_A' ) ? \ARRAY_A : 'ARRAY_A';
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared -- Prepared by WpdbStore.
-		$row = $this->wpdb->get_row( $query, \ARRAY_A );
+		$row = $this->wpdb->get_row( $query, $output );
 		return is_array( $row ) ? $row : null;
 	}
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string $sql SQL query with ? placeholders.
+	 * @param array  $params Bound parameters.
 	 */
 	public function fetch_all( string $sql, array $params = array() ): array {
-		$query = $this->prepare_query( $sql, $params );
+		$query  = $this->prepare_query( $sql, $params );
+		$output = defined( 'ARRAY_A' ) ? \ARRAY_A : 'ARRAY_A';
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared -- Prepared by WpdbStore.
-		$rows = $this->wpdb->get_results( $query, \ARRAY_A );
+		$rows = $this->wpdb->get_results( $query, $output );
 		return is_array( $rows ) ? $rows : array();
 	}
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string $sql SQL query with ? placeholders.
+	 * @param array  $params Bound parameters.
 	 */
 	public function fetch_var( string $sql, array $params = array() ) {
 		$query = $this->prepare_query( $sql, $params );
@@ -106,6 +122,9 @@ class WpdbStore implements DatabaseStore {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string               $table Table name.
+	 * @param array<string, mixed> $data Column values.
 	 */
 	public function insert( string $table, array $data ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Routed through wpdb::insert.
@@ -115,6 +134,10 @@ class WpdbStore implements DatabaseStore {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string               $table Table name.
+	 * @param array<string, mixed> $data Column values.
+	 * @param array<string, mixed> $where Row selector.
 	 */
 	public function update( string $table, array $data, array $where ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Routed through wpdb::update.
@@ -124,6 +147,9 @@ class WpdbStore implements DatabaseStore {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string               $table Table name.
+	 * @param array<string, mixed> $where Row selector.
 	 */
 	public function delete( string $table, array $where ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Routed through wpdb::delete.
@@ -156,6 +182,8 @@ class WpdbStore implements DatabaseStore {
 	 * Resolve the global WordPress DB object.
 	 *
 	 * @return object
+	 *
+	 * @throws \RuntimeException When WordPress has not created $wpdb yet.
 	 */
 	private function resolve_wpdb(): object {
 		global $wpdb;
@@ -184,7 +212,7 @@ class WpdbStore implements DatabaseStore {
 		$values   = array();
 
 		foreach ( $params as $index => $value ) {
-			$query .= $this->placeholder_for( $value ) . ( $segments[ $index ] ?? '' );
+			$query   .= $this->placeholder_for( $value ) . ( $segments[ $index ] ?? '' );
 			$values[] = $this->normalize_param( $value );
 		}
 

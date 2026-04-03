@@ -41,6 +41,8 @@ class Environment {
 	 * @param string|null $tracked_github_repo      GitHub repository this environment tracks as its deployed code source.
 	 * @param string|null $tracked_github_branch    Branch this environment treats as its stable mainline.
 	 * @param string|null $tracked_github_dir       Optional wp-content subdirectory associated with the tracked repository.
+	 * @param int|null    $record_id                DB record ID for the environment row.
+	 * @param int|null    $app_record_id            DB record ID for the related app row, when present.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -97,8 +99,8 @@ class Environment {
 	/**
 	 * Hydrate one environment from a DB record.
 	 *
-	 * @param array<string, mixed>   $record DB record.
-	 * @param array<int, string>|null $domains Normalized app domains.
+	 * @param array<string, mixed>             $record DB record.
+	 * @param array<int, string>|null          $domains Normalized app domains.
 	 * @param array<int, array<string, mixed>> $worktrees Git worktree metadata.
 	 * @return self
 	 */
@@ -374,19 +376,19 @@ class Environment {
 	 */
 	public function to_array(): array {
 		$data = array(
-			'record_id'    => $this->record_id,
+			'record_id'     => $this->record_id,
 			'app_record_id' => $this->app_record_id,
-			'id'           => $this->id,
-			'name'         => $this->name,
-			'path'         => $this->path,
-			'created_at'   => $this->created_at,
-			'template'     => $this->template,
-			'status'       => $this->status,
-			'engine'       => $this->engine,
-			'type'         => $this->type,
-			'protected'    => $this->is_protected,
-			'labels'       => $this->labels,
-			'last_used_at' => $this->last_activity_at(),
+			'id'            => $this->id,
+			'name'          => $this->name,
+			'path'          => $this->path,
+			'created_at'    => $this->created_at,
+			'template'      => $this->template,
+			'status'        => $this->status,
+			'engine'        => $this->engine,
+			'type'          => $this->type,
+			'protected'     => $this->is_protected,
+			'labels'        => $this->labels,
+			'last_used_at'  => $this->last_activity_at(),
 		);
 
 		if ( null !== $this->clone_source ) {

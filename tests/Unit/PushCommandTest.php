@@ -43,6 +43,19 @@ class PushCommandTest extends RudelTestCase
             {
                 return $id === $this->environment->id ? $this->environment : null;
             }
+
+            public function update(string $id, array $changes): Environment
+            {
+                $repository = new \Rudel\EnvironmentRepository(
+                    \Rudel\RudelDatabase::for_paths(dirname($this->environment->path)),
+                    dirname($this->environment->path),
+                    $this->environment->type
+                );
+
+                $this->environment = $repository->update_fields($id, $changes, $this->environment->type);
+
+                return $this->environment;
+            }
         };
     }
 

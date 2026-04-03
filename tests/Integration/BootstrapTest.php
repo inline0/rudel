@@ -47,6 +47,8 @@ class BootstrapTest extends RudelTestCase
         $script = '<?php' . "\n";
         $script .= "require " . var_export(dirname(__DIR__, 2) . '/vendor/autoload.php', true) . ";\n";
         $script .= "require_once " . var_export(dirname(__DIR__) . '/Stubs/MockWpdb.php', true) . ";\n";
+        $script .= "defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');\n";
+        $script .= "defined('ARRAY_N') || define('ARRAY_N', 'ARRAY_N');\n";
         $script .= '$GLOBALS["wpdb"] = new \MockWpdb();' . "\n";
         $script .= '$GLOBALS["wpdb"]->prefix = "wp_";' . "\n";
         $script .= '$GLOBALS["wpdb"]->base_prefix = "wp_";' . "\n";

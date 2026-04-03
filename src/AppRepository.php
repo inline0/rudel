@@ -43,6 +43,8 @@ class AppRepository {
 	 * @param Environment $environment App environment.
 	 * @param array       $domains Normalized domains.
 	 * @return Environment
+	 *
+	 * @throws \RuntimeException When the insert fails or the app cannot be reloaded.
 	 */
 	public function create( Environment $environment, array $domains ): Environment {
 		$now        = gmdate( 'c' );
@@ -140,7 +142,7 @@ class AppRepository {
 			array( $app_id )
 		);
 
-		$now       = gmdate( 'c' );
+		$now        = gmdate( 'c' );
 		$normalized = $this->normalize_domains( $domains );
 
 		foreach ( $normalized as $index => $domain ) {
