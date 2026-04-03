@@ -45,13 +45,11 @@ class EnvironmentRepository {
 	 *
 	 * @param DatabaseStore $store Runtime store.
 	 * @param string        $environments_dir Primary directory.
-	 * @param string|null   $alternate_environments_dir Alternate directory.
 	 * @param string|null   $managed_type Managed type, usually sandbox or app.
 	 */
 	public function __construct(
 		DatabaseStore $store,
 		string $environments_dir,
-		?string $alternate_environments_dir = null,
 		?string $managed_type = 'sandbox'
 	) {
 		$this->store            = $store;

@@ -13,11 +13,14 @@
 class MockWpdb
 {
     public string $prefix = 'wp_';
+    public string $base_prefix = 'wp_';
+    public int $insert_id = 0;
 
     /**
      * Registered tables: table_name => ['ddl' => string, 'rows' => array[]]
      */
     private array $tables = [];
+    private array $autoIncrement = [];
 
     /**
      * Register a table with its MySQL CREATE TABLE DDL and row data.
@@ -28,6 +31,13 @@ class MockWpdb
             'ddl' => $ddl,
             'rows' => $rows,
         ];
+        $maxId = 0;
+        foreach ($rows as $row) {
+            if (isset($row['id'])) {
+                $maxId = max($maxId, (int) $row['id']);
+            }
+        }
+        $this->autoIncrement[$name] = $maxId;
     }
 
     /**
@@ -103,6 +113,14 @@ class MockWpdb
                 return [$table, $this->tables[$table]['ddl']];
             }
         }
+
+        $rows = $this->selectRows($query);
+        if (empty($rows)) {
+            return null;
+        }
+
+        return $rows[0];
+
         return null;
     }
 
@@ -155,7 +173,7 @@ class MockWpdb
             return isset($this->tables[$table]) ? [['COUNT(*)' => count($this->tables[$table]['rows'])]] : [['COUNT(*)' => 0]];
         }
 
-        return [];
+        return $this->selectRows($query);
     }
 
     /**
@@ -182,6 +200,12 @@ class MockWpdb
             return isset($this->tables[$table]) ? (string) count($this->tables[$table]['rows']) : '0';
         }
 
+        $row = $this->get_row($query, ARRAY_A);
+        if (is_array($row)) {
+            $value = reset($row);
+            return false === $value ? null : $value;
+        }
+
         return null;
     }
 
@@ -195,6 +219,22 @@ class MockWpdb
     {
         $this->queriesExecuted[] = $query;
 
+        if (preg_match('/^(START TRANSACTION|COMMIT|ROLLBACK)$/i', trim($query))) {
+            return true;
+        }
+
+        if (preg_match('/CREATE TABLE IF NOT EXISTS\s+`?(\w+)`?/i', $query, $m)) {
+            $table = $m[1];
+            if (! isset($this->tables[$table])) {
+                $this->tables[$table] = [
+                    'ddl' => $query,
+                    'rows' => [],
+                ];
+                $this->autoIncrement[$table] = 0;
+            }
+            return true;
+        }
+
         // CREATE TABLE target LIKE source
         if (preg_match('/CREATE TABLE `(\w+)` LIKE `(\w+)`/i', $query, $m)) {
             $target = $m[1];
@@ -204,6 +244,7 @@ class MockWpdb
                     'ddl' => str_replace($source, $target, $this->tables[$source]['ddl']),
                     'rows' => [],
                 ];
+                $this->autoIncrement[$target] = 0;
             }
             return true;
         }
@@ -221,6 +262,40 @@ class MockWpdb
         // DROP TABLE IF EXISTS
         if (preg_match('/DROP TABLE IF EXISTS `(\w+)`/i', $query, $m)) {
             unset($this->tables[$m[1]]);
+            unset($this->autoIncrement[$m[1]]);
+            return true;
+        }
+
+        if (preg_match('/DELETE FROM\s+`?(\w+)`?\s+WHERE\s+(.+)$/i', trim($query), $m)) {
+            $table = $m[1];
+            $conditions = $this->parseWhereClause($m[2]);
+            if (! isset($this->tables[$table])) {
+                return true;
+            }
+            $this->tables[$table]['rows'] = array_values(array_filter(
+                $this->tables[$table]['rows'],
+                fn(array $row): bool => ! $this->rowMatches($row, $conditions)
+            ));
+            return true;
+        }
+
+        if (preg_match('/UPDATE\s+`?(\w+)`?\s+SET\s+(.+?)\s+WHERE\s+(.+)$/is', trim($query), $m)) {
+            $table = $m[1];
+            $assignments = $this->parseAssignments($m[2]);
+            $conditions = $this->parseWhereClause($m[3]);
+            if (! isset($this->tables[$table])) {
+                return true;
+            }
+
+            foreach ($this->tables[$table]['rows'] as &$row) {
+                if ($this->rowMatches($row, $conditions)) {
+                    foreach ($assignments as $column => $value) {
+                        $row[$column] = $value;
+                    }
+                }
+            }
+            unset($row);
+
             return true;
         }
 
@@ -274,9 +349,59 @@ class MockWpdb
     {
         if (! isset($this->tables[$table])) {
             $this->tables[$table] = ['ddl' => '', 'rows' => []];
+            $this->autoIncrement[$table] = 0;
+        }
+        if (! array_key_exists('id', $data)) {
+            $nextId = ($this->autoIncrement[$table] ?? 0) + 1;
+            $data['id'] = $nextId;
+            $this->autoIncrement[$table] = $nextId;
+        } else {
+            $this->autoIncrement[$table] = max($this->autoIncrement[$table] ?? 0, (int) $data['id']);
         }
         $this->tables[$table]['rows'][] = $data;
+        $this->insert_id = (int) $data['id'];
         return true;
+    }
+
+    /**
+     * Simulate $wpdb->update().
+     */
+    public function update(string $table, array $data, array $where)
+    {
+        if (! isset($this->tables[$table])) {
+            return 0;
+        }
+
+        $updated = 0;
+        foreach ($this->tables[$table]['rows'] as &$row) {
+            if ($this->rowMatches($row, $where)) {
+                foreach ($data as $column => $value) {
+                    $row[$column] = $value;
+                }
+                $updated++;
+            }
+        }
+        unset($row);
+
+        return $updated;
+    }
+
+    /**
+     * Simulate $wpdb->delete().
+     */
+    public function delete(string $table, array $where)
+    {
+        if (! isset($this->tables[$table])) {
+            return 0;
+        }
+
+        $before = count($this->tables[$table]['rows']);
+        $this->tables[$table]['rows'] = array_values(array_filter(
+            $this->tables[$table]['rows'],
+            fn(array $row): bool => ! $this->rowMatches($row, $where)
+        ));
+
+        return $before - count($this->tables[$table]['rows']);
     }
 
     /**
@@ -309,5 +434,201 @@ class MockWpdb
     public function hasTable(string $table): bool
     {
         return isset($this->tables[$table]);
+    }
+
+    private function selectRows(string $query): array
+    {
+        $query = trim($query);
+
+        if (str_contains($query, 'INNER JOIN')) {
+            return $this->selectJoinedRows($query);
+        }
+
+        if (! preg_match('/^SELECT\s+(.+?)\s+FROM\s+`?(\w+)`?(?:\s+WHERE\s+(.+?))?(?:\s+ORDER BY\s+(.+?))?(?:\s+LIMIT\s+(\d+))?$/is', $query, $m)) {
+            return [];
+        }
+
+        $columns = trim($m[1]);
+        $table = $m[2];
+        $where = $m[3] ?? null;
+        $order = $m[4] ?? null;
+        $limit = isset($m[5]) ? (int) $m[5] : null;
+
+        $rows = $this->tables[$table]['rows'] ?? [];
+
+        if (null !== $where && '' !== trim($where)) {
+            $conditions = $this->parseWhereClause($where);
+            $rows = array_values(array_filter(
+                $rows,
+                fn(array $row): bool => $this->rowMatches($row, $conditions)
+            ));
+        }
+
+        if (null !== $order && '' !== trim($order)) {
+            $rows = $this->orderRows($rows, $order);
+        }
+
+        if (null !== $limit) {
+            $rows = array_slice($rows, 0, $limit);
+        }
+
+        if ('*' === $columns) {
+            return array_values($rows);
+        }
+
+        $selected = array_map('trim', explode(',', $columns));
+
+        return array_values(array_map(
+            function (array $row) use ($selected): array {
+                $result = [];
+                foreach ($selected as $column) {
+                    $column = trim($column, '` ');
+                    $result[$column] = $row[$column] ?? null;
+                }
+                return $result;
+            },
+            $rows
+        ));
+    }
+
+    private function selectJoinedRows(string $query): array
+    {
+        if (! preg_match("/WHERE\\s+d\\.domain\\s*=\\s*'([^']+)'/i", $query, $m)) {
+            return [];
+        }
+
+        if (! preg_match('/FROM\s+`?(\w+)`?\s+d\s+INNER JOIN\s+`?(\w+)`?\s+a\s+ON\s+a\.id\s*=\s*d\.app_id\s+INNER JOIN\s+`?(\w+)`?\s+e\s+ON\s+e\.id\s*=\s*a\.environment_id/i', $query, $tables)) {
+            return [];
+        }
+
+        $domainTable = $tables[1];
+        $appsTable = $tables[2];
+        $envTable = $tables[3];
+        $domain = stripslashes($m[1]);
+
+        foreach ($this->tables[$domainTable]['rows'] ?? [] as $domainRow) {
+            if (($domainRow['domain'] ?? null) !== $domain) {
+                continue;
+            }
+
+            $appId = $domainRow['app_id'] ?? null;
+            foreach ($this->tables[$appsTable]['rows'] ?? [] as $appRow) {
+                if (($appRow['id'] ?? null) !== $appId) {
+                    continue;
+                }
+
+                $environmentId = $appRow['environment_id'] ?? null;
+                foreach ($this->tables[$envTable]['rows'] ?? [] as $environmentRow) {
+                    if (($environmentRow['id'] ?? null) === $environmentId) {
+                        return [[
+                            'id' => $environmentRow['id'] ?? null,
+                            'app_id' => $environmentRow['app_id'] ?? null,
+                            'slug' => $environmentRow['slug'] ?? null,
+                            'path' => $environmentRow['path'] ?? null,
+                            'type' => $environmentRow['type'] ?? null,
+                            'engine' => $environmentRow['engine'] ?? null,
+                            'multisite' => $environmentRow['multisite'] ?? null,
+                            'blog_id' => $environmentRow['blog_id'] ?? null,
+                        ]];
+                    }
+                }
+            }
+        }
+
+        return [];
+    }
+
+    private function parseWhereClause(string $where): array
+    {
+        $conditions = [];
+
+        foreach (preg_split('/\s+AND\s+/i', trim($where)) ?: [] as $clause) {
+            $clause = preg_replace('/\s+LIMIT\s+\d+$/i', '', trim($clause));
+
+            if (preg_match('/`?(\w+)`?\s+IS\s+NULL/i', $clause, $m)) {
+                $conditions[$m[1]] = null;
+                continue;
+            }
+
+            if (preg_match('/`?(\w+)`?\s*=\s*(NULL|\'(?:\\\\\'|[^\'])*\'|-?\d+(?:\.\d+)?)$/i', $clause, $m)) {
+                $conditions[$m[1]] = $this->normalizeSqlLiteral($m[2]);
+            }
+        }
+
+        return $conditions;
+    }
+
+    private function parseAssignments(string $assignments): array
+    {
+        $parsed = [];
+
+        foreach (preg_split('/\s*,\s*/', trim($assignments)) ?: [] as $assignment) {
+            if (preg_match('/`?(\w+)`?\s*=\s*(NULL|\'(?:\\\\\'|[^\'])*\'|-?\d+(?:\.\d+)?)$/i', trim($assignment), $m)) {
+                $parsed[$m[1]] = $this->normalizeSqlLiteral($m[2]);
+            }
+        }
+
+        return $parsed;
+    }
+
+    private function normalizeSqlLiteral(string $value)
+    {
+        if ('NULL' === strtoupper($value)) {
+            return null;
+        }
+
+        if (preg_match('/^-?\d+$/', $value)) {
+            return (int) $value;
+        }
+
+        if (preg_match('/^-?\d+\.\d+$/', $value)) {
+            return (float) $value;
+        }
+
+        return stripslashes(trim($value, "'"));
+    }
+
+    private function rowMatches(array $row, array $conditions): bool
+    {
+        foreach ($conditions as $column => $expected) {
+            $actual = $row[$column] ?? null;
+            if ($actual != $expected) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function orderRows(array $rows, string $order): array
+    {
+        $clauses = array_map('trim', explode(',', $order));
+
+        usort(
+            $rows,
+            function (array $left, array $right) use ($clauses): int {
+                foreach ($clauses as $clause) {
+                    if (! preg_match('/`?(\w+)`?(?:\s+(ASC|DESC))?/i', $clause, $m)) {
+                        continue;
+                    }
+
+                    $column = $m[1];
+                    $direction = strtoupper($m[2] ?? 'ASC');
+                    $leftValue = $left[$column] ?? null;
+                    $rightValue = $right[$column] ?? null;
+
+                    if ($leftValue == $rightValue) {
+                        continue;
+                    }
+
+                    $result = $leftValue <=> $rightValue;
+                    return 'DESC' === $direction ? -$result : $result;
+                }
+
+                return 0;
+            }
+        );
+
+        return $rows;
     }
 }

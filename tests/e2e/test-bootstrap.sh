@@ -12,6 +12,7 @@ RUDEL_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BOOTSTRAP="$RUDEL_DIR/bootstrap.php"
 TEST_TMPDIR=$(mktemp -d)
 SANDBOXES_DIR="$TEST_TMPDIR/rudel-environments"
+RUNTIME_STATE_JSON="$TEST_TMPDIR/runtime-state.json"
 PASSED=0
 FAILED=0
 TOTAL=0
@@ -48,7 +49,7 @@ seed_runtime_environment() {
     TEST_ENV_ID="$id" \
     TEST_ENV_ENGINE="$engine" \
     TEST_ENV_DIR="$SANDBOXES_DIR" \
-    TEST_DB_PATH="$TEST_TMPDIR/rudel-state.sqlite" \
+    TEST_RUNTIME_STATE_JSON="$RUNTIME_STATE_JSON" \
     TEST_RUDEL_DIR="$RUDEL_DIR" \
     php -r '
         require getenv("TEST_RUDEL_DIR") . "/vendor/autoload.php";
@@ -56,28 +57,58 @@ seed_runtime_environment() {
         if (!is_dir($path)) {
             mkdir($path, 0755, true);
         }
-        $store = new Rudel\SqliteStore(getenv("TEST_DB_PATH"));
-        Rudel\RudelSchema::ensure($store);
-        $repository = new Rudel\EnvironmentRepository($store, getenv("TEST_ENV_DIR"));
-        $repository->save(
-            new Rudel\Environment(
-                id: getenv("TEST_ENV_ID"),
-                name: getenv("TEST_ENV_ID"),
-                path: $path,
-                created_at: "2026-01-01T00:00:00+00:00",
-                engine: getenv("TEST_ENV_ENGINE")
-            )
-        );
+        $statePath = getenv("TEST_RUNTIME_STATE_JSON");
+        $state = file_exists($statePath) ? json_decode(file_get_contents($statePath), true) : [];
+        if (!is_array($state)) {
+            $state = [];
+        }
+        foreach (["wp_rudel_environments", "wp_rudel_apps", "wp_rudel_app_domains", "wp_rudel_worktrees"] as $table) {
+            if (!isset($state[$table]) || !is_array($state[$table])) {
+                $state[$table] = [];
+            }
+        }
+        $nextId = count($state["wp_rudel_environments"]) + 1;
+        $state["wp_rudel_environments"][] = [
+            "id" => $nextId,
+            "app_id" => null,
+            "slug" => getenv("TEST_ENV_ID"),
+            "name" => getenv("TEST_ENV_ID"),
+            "path" => $path,
+            "type" => "sandbox",
+            "engine" => getenv("TEST_ENV_ENGINE"),
+            "template" => "blank",
+            "status" => "active",
+            "multisite" => 0,
+            "blog_id" => null,
+            "clone_source" => null,
+            "owner" => null,
+            "labels" => "[]",
+            "purpose" => null,
+            "is_protected" => 0,
+            "expires_at" => null,
+            "last_used_at" => "2026-01-01T00:00:00+00:00",
+            "source_environment_slug" => null,
+            "source_environment_type" => null,
+            "last_deployed_from_slug" => null,
+            "last_deployed_from_type" => null,
+            "last_deployed_at" => null,
+            "tracked_github_repo" => null,
+            "tracked_github_branch" => null,
+            "tracked_github_dir" => null,
+            "created_at" => "2026-01-01T00:00:00+00:00",
+            "updated_at" => "2026-01-01T00:00:00+00:00",
+        ];
+        file_put_contents($statePath, json_encode($state));
     ' 2>/dev/null
 }
 
 mkdir -p "$SANDBOXES_DIR"
+cat > "$RUNTIME_STATE_JSON" <<'EOF'
+{"wp_rudel_environments":[],"wp_rudel_apps":[],"wp_rudel_app_domains":[],"wp_rudel_worktrees":[]}
+EOF
 seed_runtime_environment "test-sandbox-001" "sqlite"
 cat > "$TEST_TMPDIR/wp-config-runtime.php" <<EOF
 <?php
-define('DB_ENGINE', 'sqlite');
-define('DB_DIR', '$TEST_TMPDIR');
-define('DB_FILE', 'rudel-state.sqlite');
 \$table_prefix = 'wp_';
 EOF
 
@@ -89,6 +120,23 @@ run_bootstrap() {
 
     cat > "$TEST_TMPDIR/run.php" << 'INNEREOF'
 <?php
+require getenv('TEST_RUDEL_DIR') . '/vendor/autoload.php';
+require_once getenv('TEST_RUDEL_DIR') . '/tests/Stubs/MockWpdb.php';
+
+$GLOBALS['wpdb'] = new MockWpdb();
+$GLOBALS['wpdb']->prefix = 'wp_';
+$GLOBALS['wpdb']->base_prefix = 'wp_';
+\Rudel\RudelSchema::ensure(new \Rudel\WpdbStore($GLOBALS['wpdb']));
+
+$runtime_state = json_decode(file_get_contents(getenv('TEST_RUNTIME_STATE_JSON')), true);
+if (is_array($runtime_state)) {
+    foreach ($runtime_state as $table => $rows) {
+        foreach ($rows as $row) {
+            $GLOBALS['wpdb']->insert($table, $row);
+        }
+    }
+}
+
 // Server vars (passed via env)
 $server_json = getenv('TEST_SERVER_VARS');
 if ($server_json) {
@@ -136,6 +184,8 @@ INNEREOF
     TEST_COOKIE_VARS="$cookie_vars" \
     TEST_EXTRA_DEFINES="$extra_defines" \
     TEST_TMPDIR="$TEST_TMPDIR" \
+    TEST_RUDEL_DIR="$RUDEL_DIR" \
+    TEST_RUNTIME_STATE_JSON="$RUNTIME_STATE_JSON" \
     TEST_WP_CONFIG="$TEST_TMPDIR/wp-config-runtime.php" \
     TEST_BOOTSTRAP="$BOOTSTRAP" \
     php "$TEST_TMPDIR/run.php" 2>/dev/null

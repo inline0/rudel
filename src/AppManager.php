@@ -75,7 +75,7 @@ class AppManager {
 		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir, 'sandbox', $this->store );
 		$this->apps            = new AppRepository(
 			$this->store,
-			new EnvironmentRepository( $this->store, $this->apps_dir, $this->sandboxes_dir, 'app' )
+			new EnvironmentRepository( $this->store, $this->apps_dir, 'app' )
 		);
 		$this->operations      = new AppOperationsService( $this->manager, $this->sandbox_manager );
 	}

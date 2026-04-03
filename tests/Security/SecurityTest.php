@@ -333,10 +333,19 @@ class SecurityTest extends RudelTestCase
     private function runBootstrapAndGetConstant(string $sandboxId, string $constant): string
     {
         $this->createBootstrapSandbox($sandboxId);
+        $runtimeTables = $this->exportRuntimeTables();
 
         $bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
 
         $script = '<?php' . "\n";
+        $script .= "require " . var_export(dirname(__DIR__, 2) . '/vendor/autoload.php', true) . ";\n";
+        $script .= "require_once " . var_export(dirname(__DIR__) . '/Stubs/MockWpdb.php', true) . ";\n";
+        $script .= '$GLOBALS["wpdb"] = new \MockWpdb();' . "\n";
+        $script .= '$GLOBALS["wpdb"]->prefix = "wp_";' . "\n";
+        $script .= '$GLOBALS["wpdb"]->base_prefix = "wp_";' . "\n";
+        $script .= '\Rudel\RudelSchema::ensure(new \Rudel\WpdbStore($GLOBALS["wpdb"]));' . "\n";
+        $script .= '$rudel_tables = ' . var_export($runtimeTables, true) . ";\n";
+        $script .= 'foreach ($rudel_tables as $table => $rows) { foreach ($rows as $row) { $GLOBALS["wpdb"]->insert($table, $row); } }' . "\n";
         $script .= "\$_SERVER['HTTP_X_RUDEL_SANDBOX'] = " . var_export($sandboxId, true) . ";\n";
         $script .= "\$_SERVER['HTTP_HOST'] = 'localhost';\n";
         $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
@@ -409,10 +418,19 @@ class SecurityTest extends RudelTestCase
     public function testBootstrapSetsOpenBasedir(): void
     {
         $sandboxPath = $this->createBootstrapSandbox('openbasedir-test');
+        $runtimeTables = $this->exportRuntimeTables();
 
         $bootstrapPath = dirname(__DIR__, 2) . '/bootstrap.php';
 
         $script = '<?php' . "\n";
+        $script .= "require " . var_export(dirname(__DIR__, 2) . '/vendor/autoload.php', true) . ";\n";
+        $script .= "require_once " . var_export(dirname(__DIR__) . '/Stubs/MockWpdb.php', true) . ";\n";
+        $script .= '$GLOBALS["wpdb"] = new \MockWpdb();' . "\n";
+        $script .= '$GLOBALS["wpdb"]->prefix = "wp_";' . "\n";
+        $script .= '$GLOBALS["wpdb"]->base_prefix = "wp_";' . "\n";
+        $script .= '\Rudel\RudelSchema::ensure(new \Rudel\WpdbStore($GLOBALS["wpdb"]));' . "\n";
+        $script .= '$rudel_tables = ' . var_export($runtimeTables, true) . ";\n";
+        $script .= 'foreach ($rudel_tables as $table => $rows) { foreach ($rows as $row) { $GLOBALS["wpdb"]->insert($table, $row); } }' . "\n";
         $script .= "\$_SERVER['HTTP_X_RUDEL_SANDBOX'] = 'openbasedir-test';\n";
         $script .= "\$_SERVER['HTTP_HOST'] = 'localhost';\n";
         $script .= "define('WP_CONTENT_DIR', " . var_export($this->tmpDir, true) . ");\n";
@@ -451,5 +469,18 @@ class SecurityTest extends RudelTestCase
         (new EnvironmentRepository($this->runtimeStore(), $sandboxesDir))->save($environment);
 
         return $path;
+    }
+
+    private function exportRuntimeTables(): array
+    {
+        /** @var \MockWpdb $wpdb */
+        $wpdb = $GLOBALS['wpdb'];
+
+        $tables = [];
+        foreach (['wp_rudel_environments', 'wp_rudel_apps', 'wp_rudel_app_domains', 'wp_rudel_worktrees'] as $table) {
+            $tables[$table] = $wpdb->getTableRows($table);
+        }
+
+        return $tables;
     }
 }

@@ -8,6 +8,8 @@ use Rudel\DatabaseStore;
 use Rudel\Environment;
 use Rudel\EnvironmentRepository;
 use Rudel\RudelDatabase;
+use Rudel\RudelSchema;
+use Rudel\WpdbStore;
 
 /**
  * Base test case for Rudel tests.
@@ -25,9 +27,13 @@ abstract class RudelTestCase extends TestCase
         $GLOBALS['rudel_test_filters'] = [];
         $GLOBALS['rudel_test_action_callbacks'] = [];
         $GLOBALS['rudel_test_filter_callbacks'] = [];
+        $GLOBALS['wpdb'] = new \MockWpdb();
+        $GLOBALS['wpdb']->prefix = 'wp_';
+        $GLOBALS['wpdb']->base_prefix = 'wp_';
         RudelDatabase::reset();
         $this->tmpDir = RUDEL_TEST_TMPDIR . '/' . uniqid('test-');
         mkdir($this->tmpDir, 0755, true);
+        RudelSchema::ensure($this->runtimeStore());
     }
 
     protected function tearDown(): void
@@ -108,7 +114,7 @@ abstract class RudelTestCase extends TestCase
      */
     protected function runtimeStore(): DatabaseStore
     {
-        return RudelDatabase::for_paths($this->tmpDir);
+        return new WpdbStore($GLOBALS['wpdb']);
     }
 
     /**
@@ -116,7 +122,7 @@ abstract class RudelTestCase extends TestCase
      */
     protected function environmentRepository(?string $managedType = 'sandbox'): EnvironmentRepository
     {
-        return new EnvironmentRepository($this->runtimeStore(), $this->tmpDir, null, $managedType);
+        return new EnvironmentRepository($this->runtimeStore(), $this->tmpDir, $managedType);
     }
 
     /**

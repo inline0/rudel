@@ -22,29 +22,19 @@ class RudelDatabase {
 	/**
 	 * Build or reuse the appropriate store for the current runtime.
 	 *
+	 * Rudel runtime state always lives in the host WordPress database. Path
+	 * arguments remain accepted so older call sites do not need a parallel
+	 * signature change during the DB-backed cutover.
+	 *
 	 * @param string|null $primary_path Primary filesystem root.
 	 * @param string|null $secondary_path Secondary filesystem root.
 	 * @return DatabaseStore
 	 */
 	public static function for_paths( ?string $primary_path = null, ?string $secondary_path = null ): DatabaseStore {
+		unset( $primary_path, $secondary_path );
+
 		if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ) {
 			$store = new WpdbStore( $GLOBALS['wpdb'] );
-			$key   = $store->cache_key();
-
-			if ( ! isset( self::$stores[ $key ] ) ) {
-				self::$stores[ $key ] = $store;
-			}
-
-			RudelSchema::ensure( self::$stores[ $key ] );
-
-			return self::$stores[ $key ];
-		}
-
-		if ( defined( 'RUDEL_TEST_TMPDIR' ) ) {
-			$root  = self::common_root( array_filter( array( $primary_path, $secondary_path ) ) );
-			$root  = $root ?: RUDEL_TEST_TMPDIR;
-			$path  = rtrim( $root, '/' ) . '/rudel-state.sqlite';
-			$store = new SqliteStore( $path );
 			$key   = $store->cache_key();
 
 			if ( ! isset( self::$stores[ $key ] ) ) {
@@ -67,53 +57,5 @@ class RudelDatabase {
 	public static function reset(): void {
 		self::$stores = array();
 		RudelSchema::reset();
-	}
-
-	/**
-	 * Find the nearest shared root for a set of paths.
-	 *
-	 * @param array<int, string> $paths Absolute paths.
-	 * @return string|null
-	 */
-	private static function common_root( array $paths ): ?string {
-		if ( empty( $paths ) ) {
-			return null;
-		}
-
-		$parts = array_map(
-			static fn( string $path ): array => array_values(
-				array_filter(
-					explode( '/', trim( $path, '/' ) ),
-					static fn( string $segment ): bool => '' !== $segment
-				)
-			),
-			$paths
-		);
-
-		$common = array_shift( $parts );
-		if ( ! is_array( $common ) ) {
-			return null;
-		}
-
-		foreach ( $parts as $path_parts ) {
-			$max    = min( count( $common ), count( $path_parts ) );
-			$shared = array();
-
-			for ( $i = 0; $i < $max; ++$i ) {
-				if ( $common[ $i ] !== $path_parts[ $i ] ) {
-					break;
-				}
-
-				$shared[] = $common[ $i ];
-			}
-
-			$common = $shared;
-		}
-
-		if ( empty( $common ) ) {
-			return null;
-		}
-
-		return '/' . implode( '/', $common );
 	}
 }

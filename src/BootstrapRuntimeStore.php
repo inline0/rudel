@@ -30,13 +30,6 @@ class BootstrapRuntimeStore {
 	private const APP_DOMAINS_TABLE = 'rudel_app_domains';
 
 	/**
-	 * Database driver.
-	 *
-	 * @var string
-	 */
-	private string $driver = 'mysql';
-
-	/**
 	 * MySQL configuration.
 	 *
 	 * @var array<string, string>
@@ -44,11 +37,11 @@ class BootstrapRuntimeStore {
 	private array $mysql = array();
 
 	/**
-	 * SQLite path.
+	 * WordPress database object when already available.
 	 *
-	 * @var string|null
+	 * @var object|null
 	 */
-	private ?string $sqlite_path = null;
+	private ?object $wpdb = null;
 
 	/**
 	 * Base table prefix.
@@ -64,26 +57,11 @@ class BootstrapRuntimeStore {
 		$config_path = defined( 'RUDEL_WP_CONFIG_PATH' ) && is_string( RUDEL_WP_CONFIG_PATH ) ? RUDEL_WP_CONFIG_PATH : null;
 		$config      = $this->parse_config_file( $config_path );
 
-		if ( defined( 'DB_ENGINE' ) && 'sqlite' === DB_ENGINE ) {
-			$this->driver = 'sqlite';
-		} elseif ( defined( 'DATABASE_TYPE' ) && 'sqlite' === DATABASE_TYPE ) {
-			$this->driver = 'sqlite';
-		} elseif ( isset( $config['DB_ENGINE'] ) && 'sqlite' === $config['DB_ENGINE'] ) {
-			$this->driver = 'sqlite';
-		} elseif ( isset( $config['DATABASE_TYPE'] ) && 'sqlite' === $config['DATABASE_TYPE'] ) {
-			$this->driver = 'sqlite';
+		if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ) {
+			$this->wpdb = $GLOBALS['wpdb'];
 		}
 
 		$this->prefix = $this->resolve_prefix( $config_path, $config );
-
-		if ( 'sqlite' === $this->driver ) {
-			$db_dir  = defined( 'DB_DIR' ) && is_string( DB_DIR ) ? DB_DIR : ( $config['DB_DIR'] ?? null );
-			$db_file = defined( 'DB_FILE' ) && is_string( DB_FILE ) ? DB_FILE : ( $config['DB_FILE'] ?? 'wordpress.db' );
-			if ( is_string( $db_dir ) && '' !== $db_dir ) {
-				$this->sqlite_path = rtrim( $db_dir, '/' ) . '/' . $db_file;
-			}
-			return;
-		}
 
 		$this->mysql = array(
 			'host'     => defined( 'DB_HOST' ) && is_string( DB_HOST ) ? DB_HOST : ( $config['DB_HOST'] ?? 'localhost' ),
@@ -131,33 +109,22 @@ class BootstrapRuntimeStore {
 	 * @return array<string, mixed>|null
 	 */
 	private function fetch_environment( string $sql, array $params ): ?array {
-		if ( 'sqlite' === $this->driver ) {
-			return $this->fetch_sqlite_row( $sql, $params );
+		if ( null !== $this->wpdb ) {
+			return $this->fetch_wpdb_row( $sql, $params );
 		}
 
 		return $this->fetch_mysql_row( $sql, $params );
 	}
 
 	/**
-	 * Fetch one row from SQLite.
+	 * Fetch one row from an already-loaded WordPress DB object.
 	 *
 	 * @param string $sql SQL query.
 	 * @param array  $params Bound params.
 	 * @return array<string, mixed>|null
 	 */
-	private function fetch_sqlite_row( string $sql, array $params ): ?array {
-		if ( null === $this->sqlite_path || ! file_exists( $this->sqlite_path ) ) {
-			return null;
-		}
-
-		$pdo = new \PDO( 'sqlite:' . $this->sqlite_path );
-		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-		$stmt = $pdo->prepare( $sql );
-		$stmt->execute( array_values( $params ) );
-		$row = $stmt->fetch( \PDO::FETCH_ASSOC );
-		$pdo = null;
-
-		return is_array( $row ) ? $row : null;
+	private function fetch_wpdb_row( string $sql, array $params ): ?array {
+		return ( new WpdbStore( $this->wpdb ) )->fetch_row( $sql, $params );
 	}
 
 	/**
@@ -256,7 +223,7 @@ class BootstrapRuntimeStore {
 		}
 
 		$config = array();
-		foreach ( array( 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_DIR', 'DB_FILE', 'DB_ENGINE', 'DATABASE_TYPE' ) as $constant ) {
+		foreach ( array( 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD' ) as $constant ) {
 			if ( preg_match( "/define\\(\\s*['\\\"]" . preg_quote( $constant, '/' ) . "['\\\"]\\s*,\\s*['\\\"]([^'\\\"]+)['\\\"]\\s*\\)/", $contents, $match ) ) {
 				$config[ $constant ] = $match[1];
 			}

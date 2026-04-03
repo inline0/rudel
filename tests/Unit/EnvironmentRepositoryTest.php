@@ -11,12 +11,12 @@ class EnvironmentRepositoryTest extends RudelTestCase
 {
     private function sandboxRepository(): EnvironmentRepository
     {
-        return new EnvironmentRepository($this->runtimeStore(), $this->tmpDir . '/sandboxes', $this->tmpDir . '/apps', 'sandbox');
+        return new EnvironmentRepository($this->runtimeStore(), $this->tmpDir . '/sandboxes', 'sandbox');
     }
 
     private function appRepository(): EnvironmentRepository
     {
-        return new EnvironmentRepository($this->runtimeStore(), $this->tmpDir . '/apps', $this->tmpDir . '/sandboxes', 'app');
+        return new EnvironmentRepository($this->runtimeStore(), $this->tmpDir . '/apps', 'app');
     }
 
     public function testSaveRoundTripsEnvironmentThroughDbState(): void

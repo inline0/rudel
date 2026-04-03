@@ -7,6 +7,7 @@
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
+require_once __DIR__ . '/Stubs/MockWpdb.php';
 
 // WordPress constants used by production code.
 if ( ! defined( 'ARRAY_N' ) ) {
@@ -54,6 +55,10 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 		return json_encode( $value, $flags, $depth );
 	}
 }
+
+$GLOBALS['wpdb']              = new \MockWpdb();
+$GLOBALS['wpdb']->prefix      = 'wp_';
+$GLOBALS['wpdb']->base_prefix = 'wp_';
 
 // Global temp directory for all tests -- each test class manages its own subdirectory.
 define( 'RUDEL_TEST_TMPDIR', sys_get_temp_dir() . '/rudel-tests-' . getmypid() );

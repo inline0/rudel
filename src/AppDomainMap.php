@@ -38,7 +38,7 @@ class AppDomainMap {
 	public function __construct( string $apps_dir ) {
 		$this->apps_dir = $apps_dir;
 		$this->store    = RudelDatabase::for_paths( $apps_dir );
-		$repository     = new EnvironmentRepository( $this->store, $apps_dir, null, 'app' );
+		$repository     = new EnvironmentRepository( $this->store, $apps_dir, 'app' );
 		$this->apps     = new AppRepository( $this->store, $repository );
 	}
 

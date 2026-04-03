@@ -93,7 +93,7 @@ class EnvironmentManager {
 		}
 
 		$this->store           = $store ?? RudelDatabase::for_paths( $this->environments_dir, $this->alternate_environments_dir );
-		$this->repository      = new EnvironmentRepository( $this->store, $this->environments_dir, $this->alternate_environments_dir, $this->managed_type );
+		$this->repository      = new EnvironmentRepository( $this->store, $this->environments_dir, $this->managed_type );
 		$this->cleanup_service = new EnvironmentCleanupService( $this->repository, array( $this, 'destroy' ) );
 		$this->state_replacer  = new EnvironmentStateReplacer();
 	}
