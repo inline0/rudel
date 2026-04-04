@@ -1149,7 +1149,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager->create('Limit A', ['engine' => 'sqlite', 'skip_limits' => true]);
         $manager->create('Limit B', ['engine' => 'sqlite', 'skip_limits' => true]);
 
-        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config = new RudelConfig();
         $config->set('max_sandboxes', 2);
 
         $this->expectException(\RuntimeException::class);
@@ -1165,7 +1165,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Under Limit', ['engine' => 'sqlite', 'skip_limits' => true]);
 
-        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config = new RudelConfig();
         $config->set('max_sandboxes', 5);
 
         // Should not throw.
@@ -1181,7 +1181,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
         $manager->create('Unlimited', ['engine' => 'sqlite', 'skip_limits' => true]);
 
-        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config = new RudelConfig();
         $config->set('max_sandboxes', 0);
 
         // Should not throw.

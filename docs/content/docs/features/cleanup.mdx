@@ -37,7 +37,7 @@ wp rudel cleanup --max-idle-days=3 --dry-run
 
 ## Configuration
 
-Cleanup behavior is controlled by the Rudel configuration file (`rudel-config.json` in the `wp-content` directory):
+Cleanup behavior is controlled by Rudel's configuration record in the host WordPress database. Rudel stores these settings in the `wp_options` row named `rudel_config`:
 
 | Setting | Description | Default |
 |---|---|---|

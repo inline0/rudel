@@ -326,7 +326,7 @@ class RudelCommandTest extends RudelTestCase
         $this->assertContains('Bootstrap installed', $fieldNames);
         $this->assertContains('Sandboxes directory', $fieldNames);
         $this->assertContains('Active sandboxes', $fieldNames);
-        $this->assertContains('Config file', $fieldNames);
+        $this->assertContains('Config storage', $fieldNames);
         $this->assertContains('Default TTL days', $fieldNames);
         $this->assertContains('Max idle days', $fieldNames);
         $this->assertContains('Auto cleanup', $fieldNames);

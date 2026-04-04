@@ -412,8 +412,8 @@ class RudelCommand extends AbstractEnvironmentCommand {
 				'Value' => (string) count( $apps ),
 			),
 			array(
-				'Field' => 'Config file',
-				'Value' => $config->get_config_path(),
+				'Field' => 'Config storage',
+				'Value' => 'wp_options.' . $config->option_name(),
 			),
 			array(
 				'Field' => 'Default TTL days',

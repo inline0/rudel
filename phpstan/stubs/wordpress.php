@@ -193,6 +193,36 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( string $option, mixed $default_value = false ): mixed {
+		return $default_value;
+	}
+}
+
+if ( ! function_exists( 'update_option' ) ) {
+	function update_option( string $option, mixed $value, bool|string|null $autoload = null ): bool {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'maybe_serialize' ) ) {
+	function maybe_serialize( mixed $data ): string {
+		return serialize( $data );
+	}
+}
+
+if ( ! function_exists( 'maybe_unserialize' ) ) {
+	function maybe_unserialize( mixed $data ): mixed {
+		if ( ! is_string( $data ) ) {
+			return $data;
+		}
+
+		$value = @unserialize( $data, array( 'allowed_classes' => false ) );
+
+		return false === $value && 'b:0;' !== $data ? $data : $value;
+	}
+}
+
 if ( ! class_exists( 'WP_SQLite_Translator' ) ) {
 	class WP_SQLite_Translator {
 		public function __construct( \PDO $pdo ) {}

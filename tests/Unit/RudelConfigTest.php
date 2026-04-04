@@ -7,9 +7,9 @@ use Rudel\Tests\RudelTestCase;
 
 class RudelConfigTest extends RudelTestCase
 {
-    public function testDefaultValuesWhenNoFile(): void
+    public function testDefaultValuesWhenNoOptionExists(): void
     {
-        $config = new RudelConfig($this->tmpDir . '/nonexistent.json');
+        $config = new RudelConfig();
 
         $this->assertSame(0, $config->get('max_sandboxes'));
         $this->assertSame(0, $config->get('max_age_days'));
@@ -29,21 +29,20 @@ class RudelConfigTest extends RudelTestCase
 
     public function testGetReturnsZeroForUnknownKey(): void
     {
-        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config = new RudelConfig();
         $this->assertSame(0, $config->get('unknown_key'));
     }
 
     public function testSetAndGet(): void
     {
-        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config = new RudelConfig();
         $config->set('max_sandboxes', 10);
         $this->assertSame(10, $config->get('max_sandboxes'));
     }
 
-    public function testSaveAndLoad(): void
+    public function testSaveAndLoadFromWordPressOptions(): void
     {
-        $path = $this->tmpDir . '/config.json';
-        $config = new RudelConfig($path);
+        $config = new RudelConfig();
         $config->set('max_sandboxes', 5);
         $config->set('max_age_days', 30);
         $config->set('default_ttl_days', 14);
@@ -56,9 +55,13 @@ class RudelConfigTest extends RudelTestCase
         $config->set('expiring_environment_notice_days', 3);
         $config->save();
 
-        $this->assertFileExists($path);
+        $rows = $this->runtimeStore()->fetch_all(
+            'SELECT * FROM `wp_options` WHERE option_name = ?',
+            [ $config->option_name() ]
+        );
+        $this->assertCount(1, $rows);
 
-        $loaded = new RudelConfig($path);
+        $loaded = new RudelConfig();
         $this->assertSame(5, $loaded->get('max_sandboxes'));
         $this->assertSame(30, $loaded->get('max_age_days'));
         $this->assertSame(14, $loaded->get('default_ttl_days'));
@@ -74,7 +77,7 @@ class RudelConfigTest extends RudelTestCase
 
     public function testAllReturnsDefaults(): void
     {
-        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config = new RudelConfig();
         $all = $config->all();
 
         $this->assertArrayHasKey('max_sandboxes', $all);
@@ -90,29 +93,50 @@ class RudelConfigTest extends RudelTestCase
 
     public function testAllIncludesSetValues(): void
     {
-        $config = new RudelConfig($this->tmpDir . '/config.json');
+        $config = new RudelConfig();
         $config->set('max_sandboxes', 20);
         $all = $config->all();
 
         $this->assertSame(20, $all['max_sandboxes']);
     }
 
-    public function testLoadHandlesCorruptFile(): void
+    public function testLoadHandlesCorruptOptionPayload(): void
     {
-        $path = $this->tmpDir . '/bad-config.json';
-        file_put_contents($path, 'not json');
+        $this->runtimeStore()->insert('wp_options', [
+            'option_name' => 'rudel_config',
+            'option_value' => 'not serialized',
+            'autoload' => 'no',
+        ]);
 
-        $config = new RudelConfig($path);
+        $config = new RudelConfig();
         $this->assertSame(0, $config->get('max_sandboxes'));
     }
 
-    public function testSaveCreatesDirectory(): void
+    public function testSaveUpdatesExistingOptionRow(): void
     {
-        $path = $this->tmpDir . '/nested/dir/config.json';
-        $config = new RudelConfig($path);
+        $this->runtimeStore()->insert('wp_options', [
+            'option_name' => 'rudel_config',
+            'option_value' => serialize(['max_sandboxes' => 1]),
+            'autoload' => 'no',
+        ]);
+
+        $config = new RudelConfig();
         $config->set('max_sandboxes', 3);
         $config->save();
 
-        $this->assertFileExists($path);
+        $rows = $this->runtimeStore()->fetch_all(
+            'SELECT * FROM `wp_options` WHERE option_name = ?',
+            [ $config->option_name() ]
+        );
+        $this->assertCount(1, $rows);
+
+        $loaded = new RudelConfig();
+        $this->assertSame(3, $loaded->get('max_sandboxes'));
+    }
+
+    public function testOptionNameIsStable(): void
+    {
+        $config = new RudelConfig();
+        $this->assertSame('rudel_config', $config->option_name());
     }
 }

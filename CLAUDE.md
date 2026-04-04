@@ -108,7 +108,7 @@ Define these in `wp-config.php` before Rudel bootstraps. Path and directory cons
 1. 100% WordPress Coding Standards. If a PHPCS ignore is necessary, the reason must be explicit and defensible.
 2. CI is the source of truth for repo work. Prefer push-and-watch over local suite runs unless the task explicitly asks for local execution.
 3. `bootstrap.php` is self-contained. No autoloader, no WordPress functions, plain PHP only.
-4. Runtime state is DB-backed only. Environment directories hold files and isolated content, but apps, environments, domains, worktrees, and deployment records live in WordPress tables and must be read and written through repositories/services.
+4. Runtime state is DB-backed only. Environment directories hold files and isolated content, but apps, environments, domains, worktrees, deployment records, and Rudel config live in the host WordPress database and must be read and written through repositories/services or WordPress-native DB APIs.
 5. Never modify `lib/`. Treat it as bundled external code.
 6. When behavior changes, keep CLI help, docs, and tests aligned with the shipped command surface.
 7. Keep `CliCommandMap` and `CliCommandAdapters` aligned with the real CLI surface. New or changed commands need a stable operation ID, a public API target, and resolver coverage.

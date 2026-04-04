@@ -30,6 +30,17 @@ abstract class RudelTestCase extends TestCase
         $GLOBALS['wpdb'] = new \MockWpdb();
         $GLOBALS['wpdb']->prefix = 'wp_';
         $GLOBALS['wpdb']->base_prefix = 'wp_';
+        $GLOBALS['wpdb']->addTable(
+            'wp_options',
+            'CREATE TABLE `wp_options` (
+                `option_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                `option_name` varchar(191) NOT NULL,
+                `option_value` longtext NOT NULL,
+                `autoload` varchar(20) NOT NULL DEFAULT \'yes\',
+                PRIMARY KEY (`option_id`)
+            )',
+            []
+        );
         RudelDatabase::reset();
         $this->tmpDir = RUDEL_TEST_TMPDIR . '/' . uniqid('test-');
         mkdir($this->tmpDir, 0755, true);

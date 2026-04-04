@@ -5,13 +5,15 @@ description: Rudel stores apps, environments, domains, worktrees, and deploy his
 
 # Runtime state
 
-Rudel is DB-backed only. JSON files are not part of the supported runtime model for apps, environments, domains, worktrees, or deployment history.
+Rudel is DB-backed only. JSON files are not part of the supported runtime model for apps, environments, domains, worktrees, deployment history, or configuration.
 
 That means:
 
 - the bootstrap resolves apps and environments from WordPress tables
 - managers and public APIs read and write state through repositories and services
 - Divine or any other integrator can reference Rudel records by stable DB IDs
+- those Rudel tables always live in the host WordPress MySQL database
+- SQLite is only for sandbox site databases, never for Rudel's own metadata
 
 ## Tables
 
@@ -44,3 +46,5 @@ Rudel's live runtime reads and writes should go through repositories and service
 - managers and higher-level services compose those repositories for lifecycle operations
 
 The filesystem still matters for isolated `wp-content`, SQLite databases, backups, templates, snapshots, and exported archives. It does not define which apps or environments exist.
+
+Rudel configuration follows the same rule. Cleanup, automation, retention, and expiry settings are stored in the host WordPress database through the `wp_options` row named `rudel_config`.

@@ -20,6 +20,8 @@ When any automation feature is enabled, Rudel schedules an hourly cron event and
 
 ## Key config values
 
+These settings are persisted in the host WordPress database through the `wp_options` row named `rudel_config`. They are not stored in JSON files.
+
 | Key | Meaning | Default |
 |---|---|---|
 | `auto_cleanup_enabled` | Run standard sandbox cleanup automatically | `1` |
