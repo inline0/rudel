@@ -280,13 +280,14 @@ class AppManagerTest extends RudelTestCase
         $sandboxesDir = $this->tmpDir . '/sandboxes';
         $manager = new AppManager($appsDir, $sandboxesDir);
         $app = $manager->create('Client A', ['client-a.com'], ['engine' => 'sqlite']);
-        file_put_contents($app->get_wp_content_path() . '/themes/app.txt', 'from-app');
+        mkdir($app->get_wp_content_path() . '/themes/client-a', 0755, true);
+        file_put_contents($app->get_wp_content_path() . '/themes/client-a/style.css', 'from-app');
 
         $sandbox = $manager->create_sandbox($app->id, 'Client A Sandbox');
 
         $this->assertSame('sandbox', $sandbox->type);
-        $this->assertFileExists($sandboxesDir . '/' . $sandbox->id . '/wp-content/themes/app.txt');
-        $this->assertSame('from-app', file_get_contents($sandbox->get_wp_content_path() . '/themes/app.txt'));
+        $this->assertFileExists($sandboxesDir . '/' . $sandbox->id . '/wp-content/themes/client-a/style.css');
+        $this->assertSame('from-app', file_get_contents($sandbox->get_wp_content_path() . '/themes/client-a/style.css'));
     }
 
     #[RunInSeparateProcess]

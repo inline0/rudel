@@ -799,13 +799,13 @@ class EnvironmentManagerTest extends RudelTestCase
         $manager = new EnvironmentManager($this->tmpDir);
         $source = $manager->create('Content Source', ['engine' => 'sqlite']);
 
-        // Add a file to source wp-content.
-        file_put_contents($source->get_wp_content_path() . '/themes/test.txt', 'hello');
+        mkdir($source->get_wp_content_path() . '/themes/test-theme', 0755, true);
+        file_put_contents($source->get_wp_content_path() . '/themes/test-theme/style.css', 'hello');
 
         $clone = $manager->create('Content Target', ['engine' => 'sqlite', 'clone_from' => $source->id]);
 
-        $this->assertFileExists($clone->get_wp_content_path() . '/themes/test.txt');
-        $this->assertSame('hello', file_get_contents($clone->get_wp_content_path() . '/themes/test.txt'));
+        $this->assertFileExists($clone->get_wp_content_path() . '/themes/test-theme/style.css');
+        $this->assertSame('hello', file_get_contents($clone->get_wp_content_path() . '/themes/test-theme/style.css'));
     }
 
     #[RunInSeparateProcess]
@@ -860,7 +860,8 @@ class EnvironmentManagerTest extends RudelTestCase
         $sandboxManager = new EnvironmentManager($sandboxesDir, $appsDir);
 
         $app = $appManager->create('Client App', ['client-a.com'], ['engine' => 'sqlite']);
-        file_put_contents($app->get_wp_content_path() . '/plugins/app-only.txt', 'app');
+        mkdir($app->get_wp_content_path() . '/plugins/app-only', 0755, true);
+        file_put_contents($app->get_wp_content_path() . '/plugins/app-only/app-only.php', 'app');
 
         $clone = $sandboxManager->create('App Sandbox', ['engine' => 'sqlite', 'clone_from' => $app->id]);
 
@@ -868,7 +869,7 @@ class EnvironmentManagerTest extends RudelTestCase
         $prefix = 'rudel_' . substr(md5($clone->id), 0, 6) . '_';
         $siteurl = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='siteurl'")->fetchColumn();
 
-        $this->assertSame('app', file_get_contents($clone->get_wp_content_path() . '/plugins/app-only.txt'));
+        $this->assertSame('app', file_get_contents($clone->get_wp_content_path() . '/plugins/app-only/app-only.php'));
         $this->assertStringContainsString($clone->id, $siteurl);
         $this->assertStringNotContainsString('client-a.com', $siteurl);
         $this->assertSame('app', $clone->clone_source['type']);
