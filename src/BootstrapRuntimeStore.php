@@ -44,6 +44,13 @@ class BootstrapRuntimeStore {
 	private ?object $wpdb = null;
 
 	/**
+	 * Direct MySQL connection for pre-WordPress lookups.
+	 *
+	 * @var \mysqli|null
+	 */
+	private $mysqli = null;
+
+	/**
 	 * Base table prefix.
 	 *
 	 * @var string
@@ -70,7 +77,7 @@ class BootstrapRuntimeStore {
 		);
 
 		if ( null === $this->wpdb ) {
-			$this->wpdb = $this->bootstrap_wpdb( $config_path );
+			$this->mysqli = $this->bootstrap_mysqli();
 		}
 	}
 
@@ -112,11 +119,15 @@ class BootstrapRuntimeStore {
 	 * @return array<string, mixed>|null
 	 */
 	private function fetch_environment( string $sql, array $params ): ?array {
-		if ( null === $this->wpdb ) {
+		if ( null !== $this->wpdb ) {
+			return $this->fetch_wpdb_row( $sql, $params );
+		}
+
+		if ( null === $this->mysqli ) {
 			return null;
 		}
 
-		return $this->fetch_wpdb_row( $sql, $params );
+		return $this->fetch_mysqli_row( $sql, $params );
 	}
 
 	/**
@@ -131,16 +142,33 @@ class BootstrapRuntimeStore {
 	}
 
 	/**
-	 * Bootstrap a temporary wpdb instance from wp-config credentials.
+	 * Fetch one row through a direct mysqli connection.
 	 *
-	 * The sandbox bootstrap runs before WordPress has initialized globals, but
-	 * Rudel runtime state still needs to be queried through the same MySQL
-	 * connection model WordPress uses once core has booted.
-	 *
-	 * @param string|null $config_path wp-config.php path when known.
-	 * @return \wpdb|null
+	 * @param string $sql SQL query with ? placeholders.
+	 * @param array  $params Bound params.
+	 * @return array<string, mixed>|null
 	 */
-	private function bootstrap_wpdb( ?string $config_path ): ?object {
+	private function fetch_mysqli_row( string $sql, array $params ): ?array {
+		$query = $this->prepare_mysqli_query( $sql, $params );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared -- Pre-WP bootstrap cannot use wpdb and only executes Rudel-owned lookup SQL.
+		$result = mysqli_query( $this->mysqli, $query );
+		if ( false === $result ) {
+			return null;
+		}
+
+		$row = mysqli_fetch_assoc( $result );
+		mysqli_free_result( $result );
+
+		return is_array( $row ) ? $row : null;
+	}
+
+	/**
+	 * Bootstrap a direct MySQL connection from wp-config credentials.
+	 *
+	 * @return \mysqli|null
+	 */
+	private function bootstrap_mysqli() {
 		if ( '' === $this->mysql['name'] || '' === $this->mysql['user'] ) {
 			return null;
 		}
@@ -149,57 +177,95 @@ class BootstrapRuntimeStore {
 			return null;
 		}
 
-		if ( ! class_exists( '\wpdb', false ) ) {
-			$wpdb_class = $this->wpdb_class_path( $config_path );
-			if ( null === $wpdb_class ) {
-				return null;
-			}
+		$parsed_host  = $this->parse_db_host( $this->mysql['host'] );
+		$host         = $parsed_host['host'];
+		$port         = $parsed_host['port'];
+		$socket       = $parsed_host['socket'];
+		$client_flags = defined( 'MYSQL_CLIENT_FLAGS' ) ? MYSQL_CLIENT_FLAGS : 0;
 
-			require_once $wpdb_class;
-		}
-
-		if ( ! class_exists( '\wpdb', false ) ) {
+		mysqli_report( MYSQLI_REPORT_OFF );
+		$mysqli = mysqli_init();
+		if ( false === $mysqli ) {
 			return null;
 		}
 
-		$wpdb = new \wpdb(
+		$connected = mysqli_real_connect(
+			$mysqli,
+			$host,
 			$this->mysql['user'],
 			$this->mysql['password'],
 			$this->mysql['name'],
-			$this->mysql['host']
+			$port,
+			$socket,
+			$client_flags
 		);
 
-		$wpdb->suppress_errors( true );
-		$wpdb->set_prefix( $this->prefix, false );
+		if ( false === $connected ) {
+			return null;
+		}
 
-		return $wpdb;
+		$charset = defined( 'DB_CHARSET' ) && is_string( DB_CHARSET ) && '' !== DB_CHARSET ? DB_CHARSET : 'utf8mb4';
+		if ( '' !== $charset ) {
+			mysqli_set_charset( $mysqli, $charset );
+		}
+
+		return $mysqli;
 	}
 
 	/**
-	 * Locate WordPress's wpdb class file from the known bootstrap roots.
+	 * Parse DB_HOST into mysqli connection parts.
 	 *
-	 * @param string|null $config_path wp-config.php path when known.
-	 * @return string|null
+	 * @param string $host DB host string.
+	 * @return array{host: string, port: int, socket: string|null}
 	 */
-	private function wpdb_class_path( ?string $config_path ): ?string {
-		$candidates = array();
+	private function parse_db_host( string $host ): array {
+		$socket = null;
+		$port   = 0;
 
-		$abspath = defined( 'ABSPATH' ) ? ABSPATH : null;
-		if ( null !== $abspath ) {
-			$candidates[] = rtrim( $abspath, '/' ) . '/wp-includes/class-wpdb.php';
+		$socket_pos = strpos( $host, ':/' );
+		if ( false !== $socket_pos ) {
+			$socket = substr( $host, $socket_pos + 1 );
+			$host   = substr( $host, 0, $socket_pos );
 		}
 
-		if ( null !== $config_path ) {
-			$candidates[] = dirname( $config_path ) . '/wp-includes/class-wpdb.php';
-		}
-
-		foreach ( array_unique( $candidates ) as $candidate ) {
-			if ( is_file( $candidate ) ) {
-				return $candidate;
+		if ( substr_count( $host, ':' ) > 1 ) {
+			if ( preg_match( '#^(?:\\[)?(?P<host>[0-9a-fA-F:]+)(?:\\]:(?P<port>[\\d]+))?#', $host, $match ) ) {
+				$host = $match['host'];
+				$port = isset( $match['port'] ) && '' !== $match['port'] ? (int) $match['port'] : 0;
 			}
+		} elseif ( preg_match( '#^(?P<host>[^:/]*)(?::(?P<port>[\\d]+))?#', $host, $match ) ) {
+			$host = $match['host'];
+			$port = isset( $match['port'] ) && '' !== $match['port'] ? (int) $match['port'] : 0;
 		}
 
-		return null;
+		return array(
+			'host'   => $host,
+			'port'   => $port,
+			'socket' => $socket,
+		);
+	}
+
+	/**
+	 * Prepare a lookup query for mysqli without relying on wpdb.
+	 *
+	 * @param string $sql SQL with ? placeholders.
+	 * @param array  $params Bound params.
+	 * @return string
+	 */
+	private function prepare_mysqli_query( string $sql, array $params ): string {
+		if ( empty( $params ) ) {
+			return $sql;
+		}
+
+		$segments = explode( '?', $sql );
+		$query    = array_shift( $segments );
+
+		foreach ( $params as $index => $value ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Values are escaped with mysqli_real_escape_string before interpolation into Rudel-owned lookup SQL.
+			$query .= "'" . mysqli_real_escape_string( $this->mysqli, (string) $value ) . "'" . ( $segments[ $index ] ?? '' );
+		}
+
+		return $query;
 	}
 
 	/**
