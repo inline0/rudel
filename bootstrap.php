@@ -269,8 +269,8 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		return;
 	}
 
-	// Path-routed sandboxes still arrive through the host front controller, so WordPress has to see the in-environment path rather than the host routing prefix.
-	if ( 'cli' !== php_sapi_name() && ! $rudel_bootstrap_is_app ) {
+	// Path-routed sandboxes still arrive through the host routing prefix, so WordPress has to see the in-environment path rather than the outer routed URL.
+	if ( ! $rudel_bootstrap_is_app ) {
 		$strip_routed_prefix = function ( string $value ) use ( $sandbox_id ): string {
 			$routed_prefix = '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
 
