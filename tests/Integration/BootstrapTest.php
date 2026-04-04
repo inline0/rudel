@@ -99,6 +99,7 @@ class BootstrapTest extends RudelTestCase
         $script .= '  "rudel_table_prefix" => defined("RUDEL_TABLE_PREFIX") ? RUDEL_TABLE_PREFIX : null,' . "\n";
         $script .= '  "wp_siteurl" => defined("WP_SITEURL") ? WP_SITEURL : null,' . "\n";
         $script .= '  "wp_home" => defined("WP_HOME") ? WP_HOME : null,' . "\n";
+        $script .= '  "rudel_environment_url" => defined("RUDEL_ENVIRONMENT_URL") ? RUDEL_ENVIRONMENT_URL : null,' . "\n";
         $script .= '  "uploads" => defined("UPLOADS") ? UPLOADS : null,' . "\n";
         $script .= '  "table_prefix_caller_scope" => isset($table_prefix) ? $table_prefix : null,' . "\n";
         $script .= '  "cookie_sandbox" => $_COOKIE["rudel_sandbox"] ?? null,' . "\n";
@@ -218,6 +219,27 @@ class BootstrapTest extends RudelTestCase
         $this->assertSame('path-normalize', $result['sandbox_id']);
         $this->assertSame('/', $result['request_uri']);
         $this->assertSame('/wp-admin/', $result['path_info']);
+    }
+
+    public function testBootstrapExposesEnvironmentUrlWhenHostConstantsAlreadyExist(): void
+    {
+        $this->createFakeSandboxInDir('const-host');
+
+        $result = $this->runBootstrap(
+            [
+                'REQUEST_URI' => '/' . RUDEL_PATH_PREFIX . '/const-host/',
+                'HTTP_HOST' => 'localhost:8888',
+            ],
+            [],
+            [],
+            [
+                'WP_HOME' => 'http://localhost:8888',
+                'WP_SITEURL' => 'http://localhost:8888',
+            ]
+        );
+
+        $this->assertSame('const-host', $result['sandbox_id']);
+        $this->assertSame('http://localhost:8888/' . RUDEL_PATH_PREFIX . '/const-host', $result['rudel_environment_url']);
     }
 
     // Subdomain resolution

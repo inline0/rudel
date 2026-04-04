@@ -23,11 +23,17 @@ define('UPLOADS', 'wp-content/uploads');
 // Sandbox site URL (CLI context: build from SERVER_NAME or default to localhost)
 $_rudel_host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
 $_rudel_sandbox_url = 'http://' . $_rudel_host . '/{{path_prefix}}/' . $sandbox_id;
+if (! defined('RUDEL_ENVIRONMENT_URL')) {
+    define('RUDEL_ENVIRONMENT_URL', $_rudel_sandbox_url);
+}
 if (! defined('WP_SITEURL')) {
     define('WP_SITEURL', $_rudel_sandbox_url);
 }
 if (! defined('WP_HOME')) {
     define('WP_HOME', $_rudel_sandbox_url);
+}
+if (! defined('RUDEL_ENVIRONMENT_CONTENT_URL')) {
+    define('RUDEL_ENVIRONMENT_CONTENT_URL', $_rudel_sandbox_url . '/wp-content');
 }
 if (! defined('WP_CONTENT_URL')) {
     define('WP_CONTENT_URL', $_rudel_sandbox_url . '/wp-content');

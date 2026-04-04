@@ -374,9 +374,11 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	} else {
 		$environment_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
 	}
+	$def( 'RUDEL_ENVIRONMENT_URL', $environment_url );
 	$def( 'WP_SITEURL', $environment_url );
 	$def( 'WP_HOME', $environment_url );
 
+	$def( 'RUDEL_ENVIRONMENT_CONTENT_URL', $environment_url . '/wp-content' );
 	$def( 'WP_CONTENT_URL', $environment_url . '/wp-content' );
 	$def( 'WP_PLUGIN_DIR', $sandbox_path . '/wp-content/plugins' );
 	$def( 'WPMU_PLUGIN_DIR', $sandbox_path . '/wp-content/mu-plugins' );

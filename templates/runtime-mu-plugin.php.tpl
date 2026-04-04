@@ -16,6 +16,40 @@ if ( defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 
 define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
+/**
+ * Return the resolved environment URL even when the host defines WP_HOME/WP_SITEURL.
+ *
+ * @return string|null
+ */
+function rudel_runtime_environment_url() {
+	if ( defined( 'RUDEL_ENVIRONMENT_URL' ) && is_string( RUDEL_ENVIRONMENT_URL ) && '' !== RUDEL_ENVIRONMENT_URL ) {
+		return rtrim( RUDEL_ENVIRONMENT_URL, '/' );
+	}
+
+	if ( defined( 'WP_HOME' ) && is_string( WP_HOME ) && '' !== WP_HOME ) {
+		return rtrim( WP_HOME, '/' );
+	}
+
+	return null;
+}
+
+if ( null !== rudel_runtime_environment_url() ) {
+	// Host-level WP_HOME/WP_SITEURL constants override database reads, so sandboxes/apps need a runtime pre_option override.
+	add_filter(
+		'pre_option_home',
+		function ( $value ) {
+			return rudel_runtime_environment_url();
+		}
+	);
+
+	add_filter(
+		'pre_option_siteurl',
+		function ( $value ) {
+			return rudel_runtime_environment_url();
+		}
+	);
+}
+
 add_filter(
 	'pre_wp_mail',
 	function ( $null, $atts ) {
@@ -47,9 +81,10 @@ if ( defined( 'RUDEL_ID' ) && '' !== RUDEL_ID ) {
 		function ( $wp_admin_bar ) {
 			$is_app = defined( 'RUDEL_IS_APP' ) && RUDEL_IS_APP;
 			$title  = '&#9632; ' . ( $is_app ? 'App' : 'Sandbox' ) . ': ' . RUDEL_ID;
+			$base   = rudel_runtime_environment_url();
 			$href   = $is_app
-				? ( defined( 'WP_HOME' ) ? WP_HOME : '/' )
-				: ( defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) . '/?adminExit' : '/?adminExit' );
+				? ( $base ?? '/' )
+				: ( $base ? $base . '/?adminExit' : '/?adminExit' );
 
 			$wp_admin_bar->add_node(
 				array(
