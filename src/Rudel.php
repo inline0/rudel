@@ -210,7 +210,12 @@ class Rudel {
 	 * @return string
 	 */
 	public static function cli_command(): string {
-		return defined( 'RUDEL_CLI_COMMAND' ) ? RUDEL_CLI_COMMAND : 'rudel';
+		if ( ! defined( 'RUDEL_CLI_COMMAND' ) ) {
+			return 'rudel';
+		}
+
+		$command = trim( (string) constant( 'RUDEL_CLI_COMMAND' ) );
+		return '' !== $command ? $command : 'rudel';
 	}
 
 	/**
@@ -223,7 +228,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get all sandbox context as an array. Useful for debugging or passing to templates.
+	 * Bundle the active environment context for templates or diagnostics.
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -247,7 +252,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the EnvironmentManager instance.
+	 * Reuse one environment manager per request.
 	 *
 	 * @return EnvironmentManager
 	 */
@@ -260,7 +265,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the AppManager instance.
+	 * Reuse one app manager per request.
 	 *
 	 * @return AppManager
 	 */

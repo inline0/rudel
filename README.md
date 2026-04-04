@@ -104,6 +104,8 @@ Runtime records live in WordPress tables:
 
 Those tables are the only supported source of truth for apps, environments, worktrees, deploy history, and domain routing. Rudel's cleanup and automation settings live alongside them in the host WordPress database through the `wp_options` row `rudel_config`.
 
+For advanced embedding and theme-style installs, you can change only the Rudel portion of those table names by defining `RUDEL_RUNTIME_TABLE_PREFIX` before Rudel installs or bootstraps its persisted runtime tables. Explicit per-table constants like `RUDEL_RUNTIME_TABLE_ENVIRONMENTS` still win over the shared prefix. The WordPress DB prefix itself stays untouched, so `wp_rudel_environments` can become `wp_themeworkspace_environments`, but never `customprefix_themeworkspace_environments`.
+
 ## WP-CLI Commands
 
 ### Sandbox commands

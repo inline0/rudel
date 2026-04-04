@@ -9,6 +9,8 @@ Everything in Rudel is accessible through the `Rudel\Rudel` static class. It's t
 
 Rudel's live runtime state is DB-backed only. Apps, environments, domain mappings, worktree metadata, deployment history, and Rudel configuration are stored in the host WordPress database and exposed through Rudel's repositories and service layer. SQLite is only used for sandbox site databases.
 
+Advanced embedded installs can also override the host runtime table names through `RUDEL_RUNTIME_TABLE_PREFIX` or explicit `RUDEL_RUNTIME_TABLE_*` constants. Define those before Rudel installs or bootstraps persisted runtime tables.
+
 ```php
 use Rudel\Rudel;
 ```
@@ -96,6 +98,8 @@ Returns the Rudel plugin version string.
 ### `Rudel::cli_command()`
 
 Returns the configured WP-CLI command name (default: `'rudel'`).
+
+Define `RUDEL_CLI_COMMAND` before Rudel boots if you want the same command tree under a different root, such as `wp sandbox`.
 
 ### `Rudel::path_prefix()`
 

@@ -17,13 +17,24 @@ That means:
 
 ## Tables
 
-Rudel creates a small set of runtime tables:
+By default, Rudel creates a small set of runtime tables:
 
 - `wp_rudel_environments`
 - `wp_rudel_apps`
 - `wp_rudel_app_domains`
 - `wp_rudel_worktrees`
 - `wp_rudel_app_deployments`
+
+Advanced embedded installs can change only the Rudel portion after the WordPress DB prefix:
+
+- `RUDEL_RUNTIME_TABLE_PREFIX` changes the shared base name, so `$wpdb->base_prefix = 'wp_'` and `RUDEL_RUNTIME_TABLE_PREFIX = 'themeworkspace_'` produce tables like `wp_themeworkspace_environments`
+- `RUDEL_RUNTIME_TABLE_ENVIRONMENTS`
+- `RUDEL_RUNTIME_TABLE_APPS`
+- `RUDEL_RUNTIME_TABLE_APP_DOMAINS`
+- `RUDEL_RUNTIME_TABLE_WORKTREES`
+- `RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS`
+
+Explicit per-table constants win over the shared `RUDEL_RUNTIME_TABLE_PREFIX`. Define any of these before Rudel installs or bootstraps persisted runtime tables. The WordPress DB prefix itself is never replaced.
 
 `wp_rudel_environments` is the main record for both apps and sandboxes. It stores identifiers, paths, engine, lifecycle state, policy metadata, lineage, timestamps, and optional GitHub linkage.
 

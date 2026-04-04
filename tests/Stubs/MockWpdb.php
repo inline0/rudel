@@ -416,7 +416,7 @@ class MockWpdb
         $rows = $this->tables[$table]['rows'] ?? [];
 
         foreach ($rows as $row) {
-            if (str_ends_with($table, 'rudel_environments')) {
+            if (str_ends_with($table, '_environments')) {
                 if (
                     (($row['slug'] ?? null) === ($data['slug'] ?? null)) ||
                     (($row['path'] ?? null) === ($data['path'] ?? null))
@@ -425,7 +425,7 @@ class MockWpdb
                 }
             }
 
-            if (str_ends_with($table, 'rudel_apps')) {
+            if (str_ends_with($table, '_apps')) {
                 if (
                     (($row['environment_id'] ?? null) === ($data['environment_id'] ?? null)) ||
                     (($row['slug'] ?? null) === ($data['slug'] ?? null))
@@ -434,13 +434,13 @@ class MockWpdb
                 }
             }
 
-            if (str_ends_with($table, 'rudel_app_domains')) {
+            if (str_ends_with($table, '_app_domains')) {
                 if (($row['domain'] ?? null) === ($data['domain'] ?? null)) {
                     throw new \PDOException('Duplicate app domain');
                 }
             }
 
-            if (str_ends_with($table, 'rudel_worktrees')) {
+            if (str_ends_with($table, '_worktrees')) {
                 if (
                     (($row['environment_id'] ?? null) === ($data['environment_id'] ?? null)) &&
                     (($row['content_type'] ?? null) === ($data['content_type'] ?? null)) &&
@@ -450,7 +450,7 @@ class MockWpdb
                 }
             }
 
-            if (str_ends_with($table, 'rudel_app_deployments')) {
+            if (str_ends_with($table, '_app_deployments')) {
                 if (($row['deployment_key'] ?? null) === ($data['deployment_key'] ?? null)) {
                     throw new \PDOException('Duplicate deployment row');
                 }

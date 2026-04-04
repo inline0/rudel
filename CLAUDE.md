@@ -63,6 +63,7 @@ rudel/
 │   ├── Environment.php
 │   ├── CliCommandMap.php          # Serializable CLI-to-PHP command catalog for harnesses
 │   ├── CliCommandAdapters.php     # CLI argument normalization into execution plans
+│   ├── RuntimeTableConfig.php     # Advanced runtime-table naming overrides for embedded installs
 │   ├── Rudel.php
 │   ├── RudelConfig.php
 │   └── SubsiteCloner.php
@@ -82,12 +83,14 @@ rudel/
 
 ## Comment Policy
 
-- Production code comments must explain why the code is shaped this way: invariants, ordering requirements, isolation boundaries, compatibility constraints, or failure modes.
-- Delete comments that only narrate what the code is already saying.
-- Internal helpers usually do not need PHPDoc. Add it only when the contract is not obvious from the signature or when side effects or constraints matter.
-- Public entry points should keep concise PHPDoc. That includes externally consumed API methods, WP-CLI commands, and hooks or filters whose contract is not obvious.
-- Examples belong in PHPDoc only when they clarify real usage. Do not add boilerplate examples for obvious methods.
-- Tests should only comment non-obvious fixture setup, shell or environment gotchas, or regression context.
+- Use PHPDoc, not JSDoc terminology.
+- Inline comments explain why, not what. Keep them for isolation boundaries, ordering requirements, compatibility edges, persistence quirks, or failure modes.
+- Public APIs and real contracts get PHPDoc when they need to explain behavior, caveats, or usage.
+- PHPCS-required doc comments should stay terse. Avoid filler like `Constructor.` or `Get the X.` when the signature already says that.
+- Private and internal methods only need longer PHPDoc when the contract is non-obvious.
+- Typed properties may still need short doc comments for WPCS. Keep them low-noise.
+- Every `phpcs:ignore` or `phpcs:disable` needs an explicit reason.
+- Tests should comment only non-obvious setup, environment gotchas, or regression context.
 - No banner comments or decorative separators.
 - No em dashes in code, docs, or copy.
 
@@ -99,9 +102,17 @@ Define these in `wp-config.php` before Rudel bootstraps. Path and directory cons
 |----------|---------|-------------|
 | `RUDEL_CLI_COMMAND` | `rudel` | Root WP-CLI command name |
 | `RUDEL_PATH_PREFIX` | `__rudel` | Path prefix for sandbox URLs |
+| `RUDEL_RUNTIME_TABLE_PREFIX` | `rudel_` | Shared runtime-table prefix after the WordPress DB prefix for advanced embedded installs |
+| `RUDEL_RUNTIME_TABLE_ENVIRONMENTS` | `rudel_environments` | Explicit environments-table base name override |
+| `RUDEL_RUNTIME_TABLE_APPS` | `rudel_apps` | Explicit apps-table base name override |
+| `RUDEL_RUNTIME_TABLE_APP_DOMAINS` | `rudel_app_domains` | Explicit app-domains-table base name override |
+| `RUDEL_RUNTIME_TABLE_WORKTREES` | `rudel_worktrees` | Explicit worktrees-table base name override |
+| `RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS` | `rudel_app_deployments` | Explicit app-deployments-table base name override |
 | `RUDEL_ENVIRONMENTS_DIR` | `WP_CONTENT_DIR . '/rudel-environments'` | Base directory for sandbox environments |
 | `RUDEL_APPS_DIR` | `WP_CONTENT_DIR . '/rudel-apps'` | Base directory for apps |
 | `RUDEL_GITHUB_TOKEN` | unset | Token for GitHub API-backed push and PR flows |
+
+The runtime-table constants are for advanced embedding and theme-style installs only. They change only the Rudel portion after `$wpdb->base_prefix`, and explicit per-table constants win over the shared `RUDEL_RUNTIME_TABLE_PREFIX`. Define them before Rudel installs or bootstraps persisted runtime tables.
 
 ## Key Rules
 

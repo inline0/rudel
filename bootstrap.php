@@ -35,6 +35,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 	define( 'RUDEL_PATH_PREFIX', '__rudel' );
 }
 
+require_once __DIR__ . '/src/RuntimeTableConfig.php';
 require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
 ( function () use ( &$rudel_bootstrap_prefix, &$rudel_bootstrap_is_app, &$rudel_bootstrap_requested_url ) {

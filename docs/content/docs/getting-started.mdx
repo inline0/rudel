@@ -51,13 +51,16 @@ wp rudel status
 
 ## Configuration
 
-Rudel works out of the box with sensible defaults. If you need to customize the CLI command name or the URL path prefix, define these constants in `wp-config.php` before the plugin loads:
+Rudel works out of the box with sensible defaults. If you need to customize the CLI command name, the URL path prefix, or the host runtime table names, define these constants in `wp-config.php` before Rudel boots:
 
 | Constant | Default | Description |
 |---|---|---|
 | `RUDEL_CLI_COMMAND` | `rudel` | WP-CLI command name. Set to e.g. `sandbox` for white-label use. |
 | `RUDEL_PATH_PREFIX` | `__rudel` | URL path prefix for sandbox access. |
+| `RUDEL_RUNTIME_TABLE_PREFIX` | `rudel_` | Shared runtime-table prefix after the WordPress DB prefix for advanced embedded installs. |
 | `RUDEL_GITHUB_TOKEN` | (none) | GitHub personal access token for push/PR integration. |
+
+`RUDEL_RUNTIME_TABLE_PREFIX` changes only the Rudel portion after the WordPress DB prefix. For example, `$wpdb->base_prefix = 'wp_'` and `RUDEL_RUNTIME_TABLE_PREFIX = 'themeworkspace_'` produce tables like `wp_themeworkspace_environments`. Explicit per-table overrides still win. See [Runtime State](/docs/features/runtime-state) for the per-table constants and precedence rules.
 
 ## Create a sandbox
 

@@ -7,9 +7,7 @@
 
 namespace Rudel;
 
-/**
- * Wraps $wpdb for Rudel repositories.
- */
+/** Wraps `$wpdb` for Rudel repositories. */
 class WpdbStore implements DatabaseStore {
 
 	/**
@@ -20,7 +18,7 @@ class WpdbStore implements DatabaseStore {
 	private object $wpdb;
 
 	/**
-	 * Base table prefix.
+	 * WordPress base table prefix.
 	 *
 	 * @var string
 	 */
@@ -44,7 +42,7 @@ class WpdbStore implements DatabaseStore {
 	 * {@inheritDoc}
 	 */
 	public function cache_key(): string {
-		return 'wpdb:' . $this->prefix;
+		return 'wpdb:' . $this->prefix . ':' . RuntimeTableConfig::signature();
 	}
 
 	/**
@@ -67,7 +65,7 @@ class WpdbStore implements DatabaseStore {
 	 * @param string $suffix Logical table suffix.
 	 */
 	public function table( string $suffix ): string {
-		return $this->prefix . 'rudel_' . $suffix;
+		return $this->prefix . RuntimeTableConfig::table( $suffix );
 	}
 
 	/**

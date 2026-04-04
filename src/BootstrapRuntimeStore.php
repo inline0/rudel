@@ -15,20 +15,14 @@ namespace Rudel;
  */
 class BootstrapRuntimeStore {
 
-	/**
-	 * Environment table suffix.
-	 */
-	private const ENVIRONMENTS_TABLE = 'rudel_environments';
+	/** Environment table suffix. */
+	private const ENVIRONMENTS_TABLE = 'environments';
 
-	/**
-	 * Apps table suffix.
-	 */
-	private const APPS_TABLE = 'rudel_apps';
+	/** Apps table suffix. */
+	private const APPS_TABLE = 'apps';
 
-	/**
-	 * App domains table suffix.
-	 */
-	private const APP_DOMAINS_TABLE = 'rudel_app_domains';
+	/** App domains table suffix. */
+	private const APP_DOMAINS_TABLE = 'app_domains';
 
 	/**
 	 * MySQL configuration.
@@ -51,11 +45,7 @@ class BootstrapRuntimeStore {
 	 */
 	private $mysqli = null;
 
-	/**
-	 * Base table prefix.
-	 *
-	 * @var string
-	 */
+	/** WordPress base table prefix. */
 	private string $prefix = 'wp_';
 
 	/**
@@ -330,6 +320,6 @@ class BootstrapRuntimeStore {
 	 * @return string
 	 */
 	private function table( string $suffix ): string {
-		return $this->prefix . $suffix;
+		return $this->prefix . RuntimeTableConfig::table( $suffix );
 	}
 }
