@@ -112,12 +112,23 @@ echo ""
 
 # Wait for WordPress to respond
 echo "Waiting for WordPress..."
-for i in $(seq 1 30); do
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8888/ | grep -qE '200|301|302'; then
+WP_READY=0
+for i in $(seq 1 60); do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8888/ || true)
+    if [[ "$HTTP_CODE" =~ ^(200|301|302)$ ]] && wp_cli core is-installed > /dev/null 2>&1; then
+        WP_READY=1
         break
     fi
     sleep 1
 done
+
+if [[ "$WP_READY" -eq 1 ]]; then
+    pass "WordPress host and CLI are ready"
+else
+    fail "WordPress did not become ready in time" "Last HTTP code: ${HTTP_CODE:-unknown}"
+    wp_cli core is-installed || true
+    exit 1
+fi
 echo ""
 
 # Pre-flight
