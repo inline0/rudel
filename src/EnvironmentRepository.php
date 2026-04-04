@@ -340,9 +340,9 @@ class EnvironmentRepository {
 			'status'                  => $environment->status,
 			'multisite'               => $environment->multisite ? 1 : 0,
 			'blog_id'                 => $environment->blog_id,
-			'clone_source'            => null === $clone_source ? null : wp_json_encode( $clone_source ),
+			'clone_source'            => null === $clone_source ? null : RuntimeJson::encode( $clone_source ),
 			'owner'                   => $environment->owner,
-			'labels'                  => wp_json_encode( $environment->labels ),
+			'labels'                  => RuntimeJson::encode( $environment->labels ),
 			'purpose'                 => $environment->purpose,
 			'is_protected'            => $environment->is_protected ? 1 : 0,
 			'expires_at'              => $environment->expires_at,
@@ -397,11 +397,11 @@ class EnvironmentRepository {
 						$worktrees = $value['git_worktrees'];
 						unset( $value['git_worktrees'] );
 					}
-					$payload['clone_source'] = null === $value ? null : wp_json_encode( $value );
+					$payload['clone_source'] = null === $value ? null : RuntimeJson::encode( $value );
 					$payload['__worktrees']  = $worktrees;
 					break;
 				case 'labels':
-					$payload['labels'] = wp_json_encode( is_array( $value ) ? array_values( $value ) : array() );
+					$payload['labels'] = RuntimeJson::encode( is_array( $value ) ? array_values( $value ) : array() );
 					break;
 				case 'source_environment_id':
 					$payload['source_environment_slug'] = $value;

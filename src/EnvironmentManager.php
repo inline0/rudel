@@ -759,7 +759,7 @@ class EnvironmentManager {
 
 			$zip->addFromString(
 				'rudel-export.json',
-				wp_json_encode(
+				RuntimeJson::encode(
 					array(
 						'environment' => $sandbox->to_array(),
 						'exported_at' => gmdate( 'c' ),

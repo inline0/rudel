@@ -50,7 +50,7 @@ class AppDeploymentRepository {
 			'environment_id'          => $sandbox->record_id,
 			'app_slug'                => $app->id,
 			'app_name'                => $app->name,
-			'app_domains'             => wp_json_encode( $app->domains ?? array() ),
+			'app_domains'             => RuntimeJson::encode( $app->domains ?? array() ),
 			'sandbox_slug'            => $sandbox->id,
 			'sandbox_name'            => $sandbox->name,
 			'source_environment_type' => $sandbox->type,
