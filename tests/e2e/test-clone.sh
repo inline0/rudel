@@ -257,7 +257,7 @@ else
     fail "Clone runtime record missing clone_source" "$CLONE_META"
 fi
 
-if echo "$CLONE_META" | grep -q '"db_cloned": true'; then
+if echo "$CLONE_META" | grep -Eq '"db_cloned"[[:space:]]*:[[:space:]]*true'; then
     pass "Clone runtime record shows db_cloned: true"
 else
     fail "Clone runtime record db_cloned not true" "$CLONE_META"
@@ -322,13 +322,13 @@ fi
 
 # Verify clone_source metadata
 THEME_META=$(runtime_env_json "$THEME_CLONE_ID")
-if echo "$THEME_META" | grep -q '"db_cloned": false'; then
+if echo "$THEME_META" | grep -Eq '"db_cloned"[[:space:]]*:[[:space:]]*false'; then
     pass "Themes-only runtime record shows db_cloned: false"
 else
     fail "Themes-only runtime record wrong db_cloned" "$THEME_META"
 fi
 
-if echo "$THEME_META" | grep -q '"themes_cloned": true'; then
+if echo "$THEME_META" | grep -Eq '"themes_cloned"[[:space:]]*:[[:space:]]*true'; then
     pass "Themes-only runtime record shows themes_cloned: true"
 else
     fail "Themes-only runtime record wrong themes_cloned" "$THEME_META"
