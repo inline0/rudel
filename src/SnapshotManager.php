@@ -48,7 +48,7 @@ class SnapshotManager {
 	private string $owner_id_key;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param Environment $environment Environment to manage recovery points for.
 	 * @param array       $options Optional settings for naming and storage.
@@ -372,7 +372,7 @@ class SnapshotManager {
 	}
 
 	/**
-	 * Get the recovery point storage directory for this environment.
+	 * Recovery point storage directory for this environment.
 	 *
 	 * @return string Absolute path.
 	 */
@@ -381,7 +381,7 @@ class SnapshotManager {
 	}
 
 	/**
-	 * Get the path for a specific recovery point.
+	 * Filesystem path for a specific recovery point.
 	 *
 	 * @param string $name Recovery point name.
 	 * @return string Absolute path.

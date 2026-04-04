@@ -27,7 +27,7 @@ class AppOperationsService {
 	private EnvironmentManager $sandbox_manager;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param EnvironmentManager $app_manager App environment manager.
 	 * @param EnvironmentManager $sandbox_manager Sandbox environment manager.
@@ -333,7 +333,7 @@ class AppOperationsService {
 	}
 
 	/**
-	 * Return the lock file path used for app state changes.
+	 * Lock file path used for app state changes.
 	 *
 	 * @param Environment $app App environment.
 	 * @return string
@@ -438,7 +438,7 @@ class AppOperationsService {
 	}
 
 	/**
-	 * Return the newest backup for an app, if any.
+	 * Newest backup for an app, if any.
 	 *
 	 * @param Environment $app App environment.
 	 * @return array<string, mixed>|null

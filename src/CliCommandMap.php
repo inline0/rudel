@@ -26,7 +26,7 @@ use Rudel\CLI\TemplateCommand;
 class CliCommandMap {
 
 	/**
-	 * Return the full command catalog.
+	 * Declarative CLI command catalog for harnesses and tooling.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */

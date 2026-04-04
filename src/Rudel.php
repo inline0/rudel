@@ -32,7 +32,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the active environment ID without assuming bootstrap constants exist.
+	 * Active environment ID without assuming bootstrap constants exist.
 	 *
 	 * @return string|null
 	 */
@@ -93,7 +93,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current sandbox ID, or null if not in a sandbox.
+	 * Current sandbox ID, or null outside sandbox context.
 	 *
 	 * @return string|null
 	 */
@@ -102,7 +102,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current app ID, or null if not in an app.
+	 * Current app ID, or null outside app context.
 	 *
 	 * @return string|null
 	 */
@@ -111,7 +111,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current environment's filesystem path, or null if none is active.
+	 * Current environment filesystem path, or null when none is active.
 	 *
 	 * @return string|null
 	 */
@@ -120,7 +120,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current environment's database engine, or null if none is active.
+	 * Current environment database engine, or null when none is active.
 	 *
 	 * @return string|null One of 'mysql', 'sqlite', 'subsite', or null.
 	 */
@@ -133,7 +133,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current environment's table prefix, or null if none is active.
+	 * Current environment table prefix, or null when none is active.
 	 *
 	 * @return string|null
 	 */
@@ -142,7 +142,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the current environment's URL, or null if none is active.
+	 * Current environment URL, or null when none is active.
 	 *
 	 * @return string|null
 	 */
@@ -186,7 +186,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the path to the current sandbox's debug log.
+	 * Debug log path for the current sandbox.
 	 *
 	 * @return string|null Absolute path to debug.log, or null if not in a sandbox.
 	 */
@@ -196,7 +196,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the Rudel plugin version.
+	 * Installed Rudel plugin version.
 	 *
 	 * @return string|null
 	 */
@@ -205,7 +205,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the configured CLI command name.
+	 * Configured WP-CLI command name.
 	 *
 	 * @return string
 	 */
@@ -219,7 +219,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the configured URL path prefix.
+	 * Configured URL path prefix.
 	 *
 	 * @return string
 	 */
@@ -464,7 +464,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the sandboxes directory path.
+	 * Configured sandboxes directory path.
 	 *
 	 * @return string Absolute path.
 	 */
@@ -650,7 +650,7 @@ class Rudel {
 	}
 
 	/**
-	 * Get the apps directory path.
+	 * Configured apps directory path.
 	 *
 	 * @return string Absolute path.
 	 */
@@ -926,7 +926,7 @@ class Rudel {
 	}
 
 	/**
-	 * Return the documented Rudel hook catalog.
+	 * Documented Rudel hook catalog.
 	 *
 	 * @return array<string, array{type: string, args: string[]}>
 	 */

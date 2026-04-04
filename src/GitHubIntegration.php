@@ -36,7 +36,7 @@ class GitHubIntegration {
 	private string $token;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string      $repo  GitHub repository (owner/repo).
 	 * @param string|null $token GitHub token. Falls back to RUDEL_GITHUB_TOKEN constant.
@@ -53,7 +53,7 @@ class GitHubIntegration {
 	}
 
 	/**
-	 * Get the default branch of the repository.
+	 * Repository default branch.
 	 *
 	 * @return string Default branch name.
 	 *
@@ -281,7 +281,7 @@ class GitHubIntegration {
 	}
 
 	/**
-	 * Get the repository owner from the repo string.
+	 * Repository owner parsed from an owner/repo string.
 	 *
 	 * @return string Owner name.
 	 */

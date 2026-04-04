@@ -62,7 +62,7 @@ class AppManager {
 	private AppRepository $apps;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string|null $apps_dir Optional override for the apps directory.
 	 * @param string|null $sandboxes_dir Optional override for the sandboxes directory.
@@ -513,7 +513,7 @@ class AppManager {
 	}
 
 	/**
-	 * Get the apps directory.
+	 * Configured apps directory.
 	 *
 	 * @return string Absolute path.
 	 */
@@ -728,7 +728,7 @@ class AppManager {
 	}
 
 	/**
-	 * Get the default apps directory.
+	 * Default apps directory.
 	 *
 	 * @return string Absolute path.
 	 */
@@ -744,7 +744,7 @@ class AppManager {
 	}
 
 	/**
-	 * Get the default sandboxes directory.
+	 * Default sandboxes directory.
 	 *
 	 * @return string Absolute path.
 	 */

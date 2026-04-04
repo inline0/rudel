@@ -41,7 +41,7 @@ class EnvironmentRepository {
 	private EnvironmentWorktreeRepository $worktrees;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param DatabaseStore $store Runtime store.
 	 * @param string        $environments_dir Primary directory.
@@ -252,7 +252,7 @@ class EnvironmentRepository {
 	}
 
 	/**
-	 * Return the filesystem path for one slug within the managed directory.
+	 * Filesystem path for one slug within the managed directory.
 	 *
 	 * @param string $id Environment slug.
 	 * @return string
@@ -262,7 +262,7 @@ class EnvironmentRepository {
 	}
 
 	/**
-	 * Return the primary directory this repository owns.
+	 * Primary directory this repository owns.
 	 *
 	 * @return string
 	 */
@@ -271,7 +271,7 @@ class EnvironmentRepository {
 	}
 
 	/**
-	 * Return the underlying store.
+	 * Underlying runtime store.
 	 *
 	 * @return DatabaseStore
 	 */

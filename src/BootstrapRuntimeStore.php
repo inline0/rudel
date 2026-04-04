@@ -49,7 +49,7 @@ class BootstrapRuntimeStore {
 	private string $prefix = 'wp_';
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 */
 	public function __construct() {
 		$config_path = defined( 'RUDEL_WP_CONFIG_PATH' ) && is_string( RUDEL_WP_CONFIG_PATH ) ? RUDEL_WP_CONFIG_PATH : null;

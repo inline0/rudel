@@ -69,7 +69,7 @@ class EnvironmentManager {
 	private string $managed_type;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string|null        $environments_dir Optional override for the sandboxes directory.
 	 * @param string|null        $alternate_environments_dir Optional override for the related environments directory.
@@ -953,7 +953,7 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Get the configured sandboxes directory.
+	 * Configured sandboxes directory.
 	 *
 	 * @return string Absolute path.
 	 */
@@ -982,7 +982,7 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Get the host site URL without a trailing slash.
+	 * Host site URL without a trailing slash.
 	 *
 	 * @return string Host site URL.
 	 */
@@ -1259,7 +1259,7 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Get the plugin basename used in WordPress's active_plugins option.
+	 * Plugin basename used in WordPress's active_plugins option.
 	 *
 	 * @return string Plugin basename.
 	 */
@@ -1272,7 +1272,7 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Get the WordPress core path.
+	 * WordPress core path Rudel boots against.
 	 *
 	 * @return string Absolute path without trailing slash.
 	 */
@@ -1284,7 +1284,7 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Get the host WordPress wp-content directory path.
+	 * Host WordPress wp-content directory path.
 	 *
 	 * @return string Absolute path without trailing slash.
 	 */
@@ -1525,7 +1525,7 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Get the blank WordPress provisioner.
+	 * Blank WordPress provisioner used for new environments.
 	 *
 	 * @return BlankWordPressProvisioner
 	 */

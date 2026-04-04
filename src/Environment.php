@@ -13,7 +13,7 @@ namespace Rudel;
 class Environment {
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string      $id           Sandbox identifier.
 	 * @param string      $name         Human-readable name.
@@ -144,7 +144,7 @@ class Environment {
 	}
 
 	/**
-	 * Check if this sandbox uses the MySQL engine.
+	 * Whether this environment uses the MySQL engine.
 	 *
 	 * @return bool True if MySQL.
 	 */
@@ -153,7 +153,7 @@ class Environment {
 	}
 
 	/**
-	 * Check if this sandbox uses the SQLite engine.
+	 * Whether this environment uses the SQLite engine.
 	 *
 	 * @return bool True if SQLite.
 	 */
@@ -162,7 +162,7 @@ class Environment {
 	}
 
 	/**
-	 * Check if this sandbox uses the subsite engine.
+	 * Whether this environment uses the subsite engine.
 	 *
 	 * @return bool True if subsite.
 	 */
@@ -171,7 +171,7 @@ class Environment {
 	}
 
 	/**
-	 * Check if this is an app (permanent environment).
+	 * Whether this environment is an app.
 	 *
 	 * @return bool True if app.
 	 */
@@ -189,7 +189,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the path to the sandbox SQLite database file.
+	 * SQLite database path for this environment, when present.
 	 *
 	 * @return string|null Absolute path to the database file, or null for MySQL/subsite sandboxes.
 	 */
@@ -201,7 +201,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the sandbox table prefix.
+	 * WordPress table prefix for this environment.
 	 *
 	 * @return string Table prefix string.
 	 */
@@ -216,7 +216,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the path to the sandbox wp-content directory.
+	 * WP content path for this environment.
 	 *
 	 * @return string Absolute path to wp-content.
 	 */
@@ -243,7 +243,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the sandbox URL.
+	 * Public URL for this environment.
 	 *
 	 * @return string URL path or full URL if WP_HOME is defined.
 	 */
@@ -258,7 +258,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the git branch name for this environment.
+	 * Branch name Rudel uses for this environment's Git workflow.
 	 *
 	 * @return string Branch name in rudel/{id} format.
 	 */
@@ -267,7 +267,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the GitHub repository associated with this environment, if any.
+	 * GitHub repository associated with this environment, if any.
 	 *
 	 * @return string|null GitHub repo in owner/repo format, or null.
 	 */
@@ -276,7 +276,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the wp-content subdirectory associated with this environment's GitHub workflow, if any.
+	 * WP content subdirectory associated with this environment's GitHub workflow, if any.
 	 *
 	 * @return string|null Relative directory path, or null for all of wp-content.
 	 */
@@ -285,7 +285,7 @@ class Environment {
 	}
 
 	/**
-	 * Get the base branch this environment treats as its deployed mainline, if any.
+	 * Base branch this environment treats as its deployed mainline, if any.
 	 *
 	 * @return string|null Branch name, or null when the repository default branch should be used.
 	 */
@@ -294,7 +294,7 @@ class Environment {
 	}
 
 	/**
-	 * Return the timestamp cleanup policies should treat as last activity.
+	 * Timestamp cleanup policies should treat as last activity.
 	 *
 	 * @return string|null
 	 */

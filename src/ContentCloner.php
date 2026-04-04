@@ -172,7 +172,7 @@ class ContentCloner {
 	}
 
 	/**
-	 * Get the host WordPress wp-content directory path.
+	 * Host WordPress wp-content directory path.
 	 *
 	 * @return string Absolute path without trailing slash.
 	 */

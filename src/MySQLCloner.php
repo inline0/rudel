@@ -470,7 +470,7 @@ class MySQLCloner {
 	}
 
 	/**
-	 * Get the host WordPress URL.
+	 * Host WordPress URL used for URL rewriting.
 	 *
 	 * @return string Host URL without trailing slash.
 	 */

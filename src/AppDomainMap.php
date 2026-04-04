@@ -34,7 +34,7 @@ class AppDomainMap {
 	private AppRepository $apps;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string $apps_dir Apps directory.
 	 */
@@ -75,7 +75,7 @@ class AppDomainMap {
 	}
 
 	/**
-	 * Return the legacy compiled-map path for tooling that still references it.
+	 * Legacy compiled-map path for tooling that still references it.
 	 *
 	 * @return string
 	 */

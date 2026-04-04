@@ -24,7 +24,7 @@ abstract class AbstractEnvironmentCommand extends \WP_CLI_Command {
 	protected EnvironmentManager $manager;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param EnvironmentManager|null $manager Optional manager instance for dependency injection.
 	 */

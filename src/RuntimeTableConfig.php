@@ -31,7 +31,7 @@ class RuntimeTableConfig {
 	);
 
 	/**
-	 * Return the shared table-name prefix after the WordPress DB prefix.
+	 * Shared Rudel table-name prefix after the WordPress DB prefix.
 	 *
 	 * @return string
 	 */
@@ -67,7 +67,7 @@ class RuntimeTableConfig {
 	}
 
 	/**
-	 * Return the table naming signature for schema caching.
+	 * Table naming signature used for schema caching.
 	 *
 	 * @return string
 	 */

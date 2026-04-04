@@ -20,7 +20,7 @@ class TemplateManager {
 	private string $templates_dir;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string|null $templates_dir Optional override for the templates directory.
 	 */
@@ -140,7 +140,7 @@ class TemplateManager {
 	}
 
 	/**
-	 * Get the path for a specific template.
+	 * Filesystem path for a specific template.
 	 *
 	 * @param string $name Template name.
 	 * @return string Absolute path.
@@ -158,7 +158,7 @@ class TemplateManager {
 	}
 
 	/**
-	 * Get the templates directory.
+	 * Directory that stores reusable templates.
 	 *
 	 * @return string Absolute path.
 	 */

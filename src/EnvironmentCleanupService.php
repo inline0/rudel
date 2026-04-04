@@ -27,7 +27,7 @@ class EnvironmentCleanupService {
 	private \Closure $destroyer;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param EnvironmentRepository $repository Environment repository.
 	 * @param callable              $destroyer  Destroy callback accepting an environment ID.

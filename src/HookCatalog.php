@@ -13,7 +13,7 @@ namespace Rudel;
 class HookCatalog {
 
 	/**
-	 * Return the documented action hooks.
+	 * Documented action hooks.
 	 *
 	 * @return array<string, array{type: string, args: string[]}>
 	 */
@@ -315,7 +315,7 @@ class HookCatalog {
 	}
 
 	/**
-	 * Return the documented filter hooks.
+	 * Documented filter hooks.
 	 *
 	 * @return array<string, array{type: string, args: string[]}>
 	 */
@@ -365,7 +365,7 @@ class HookCatalog {
 	}
 
 	/**
-	 * Return the full hook catalog keyed by hook name.
+	 * Hook catalog keyed by hook name.
 	 *
 	 * @return array<string, array{type: string, args: string[]}>
 	 */

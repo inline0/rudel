@@ -45,7 +45,7 @@ class TemplateCommand extends \WP_CLI_Command {
 	private EnvironmentManager $sandbox_manager;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param TemplateManager|null    $template_manager Optional template manager for dependency injection.
 	 * @param EnvironmentManager|null $sandbox_manager  Optional sandbox manager for dependency injection.

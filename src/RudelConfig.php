@@ -104,7 +104,7 @@ class RudelConfig {
 	}
 
 	/**
-	 * Get the WordPress option key used for Rudel configuration.
+	 * WordPress option key that stores Rudel configuration.
 	 *
 	 * @return string
 	 */

@@ -27,7 +27,7 @@ class AppDeploymentLog {
 	private AppDeploymentRepository $repository;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param Environment $app App environment.
 	 */

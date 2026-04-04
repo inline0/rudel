@@ -27,7 +27,7 @@ class AppRepository {
 	private EnvironmentRepository $environments;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param DatabaseStore         $store Runtime store.
 	 * @param EnvironmentRepository $environments App environment repository.

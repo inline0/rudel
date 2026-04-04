@@ -28,7 +28,7 @@ class DatabaseCloner {
 	private string $plugin_dir;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string|null $plugin_dir Optional override for the plugin directory path.
 	 */
@@ -455,7 +455,7 @@ class DatabaseCloner {
 	}
 
 	/**
-	 * Get the host WordPress URL.
+	 * Host WordPress URL used for URL rewriting.
 	 *
 	 * @return string Host URL without trailing slash.
 	 */

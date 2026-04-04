@@ -161,7 +161,7 @@ class GitIntegration {
 	}
 
 	/**
-	 * Get the default branch of a repository.
+	 * Repository default branch.
 	 *
 	 * @param string $repo_path Path to the git repository.
 	 * @return string Default branch name (falls back to 'main').

@@ -20,7 +20,7 @@ class EnvironmentWorktreeRepository {
 	private DatabaseStore $store;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param DatabaseStore $store Runtime store.
 	 */

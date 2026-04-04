@@ -25,7 +25,7 @@ class WpdbStore implements DatabaseStore {
 	private string $prefix;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param \wpdb|null $wpdb Optional database object override.
 	 */

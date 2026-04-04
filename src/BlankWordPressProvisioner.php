@@ -320,7 +320,7 @@ class BlankWordPressProvisioner {
 	}
 
 	/**
-	 * Get the host site URL without a trailing slash.
+	 * Host site URL without a trailing slash.
 	 *
 	 * @return string Host site URL.
 	 */
@@ -629,7 +629,7 @@ class BlankWordPressProvisioner {
 	}
 
 	/**
-	 * Get the default WordPress user role definitions.
+	 * Default WordPress user role definitions for blank installs.
 	 *
 	 * @return array<string, array<string, mixed>> Role definitions keyed by role slug.
 	 */

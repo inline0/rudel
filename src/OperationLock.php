@@ -27,7 +27,7 @@ class OperationLock {
 	private $handle = null;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param string $directory Directory that stores the lock file.
 	 * @param string $name      Human-readable lock name.
@@ -91,7 +91,7 @@ class OperationLock {
 	}
 
 	/**
-	 * Return the lock file path for logging and dry-run output.
+	 * Lock file path used for logging and dry-run output.
 	 *
 	 * @return string
 	 */

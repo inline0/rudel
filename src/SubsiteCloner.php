@@ -62,7 +62,7 @@ class SubsiteCloner {
 	}
 
 	/**
-	 * Get the URL for a sub-site.
+	 * URL for a multisite sub-site.
 	 *
 	 * @param int $blog_id Blog ID.
 	 * @return string Sub-site URL.
@@ -132,7 +132,7 @@ class SubsiteCloner {
 	}
 
 	/**
-	 * Get the current site domain.
+	 * Current multisite network domain.
 	 *
 	 * @return string Domain name.
 	 */

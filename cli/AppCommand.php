@@ -25,7 +25,7 @@ class AppCommand extends \WP_CLI_Command {
 	private AppManager $manager;
 
 	/**
-	 * Constructor.
+	 * Initialize dependencies.
 	 *
 	 * @param AppManager|null $manager Optional manager for dependency injection.
 	 */
