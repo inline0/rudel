@@ -18,9 +18,12 @@ for test in "$SCRIPT_DIR"/test-*.sh; do
     name=$(basename "$test")
     echo -e "${BOLD}━━━ $name ━━━${NC}"
     if bash "$test"; then
+        echo -e "${GREEN}Suite passed:${NC} $name"
         echo ""
     else
+        status=$?
         EXIT_CODE=1
+        echo -e "${RED}Suite failed:${NC} $name (exit $status)"
         echo ""
     fi
 done

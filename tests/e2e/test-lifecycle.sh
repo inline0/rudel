@@ -19,6 +19,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
+err_report() {
+    local status=$?
+    local line="${1:-unknown}"
+    echo ""
+    echo "Lifecycle suite aborted at line ${line}: ${BASH_COMMAND}"
+    exit "$status"
+}
+trap 'err_report $LINENO' ERR
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'

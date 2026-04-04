@@ -115,6 +115,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
+err_report() {
+    local status=$?
+    local line="${1:-unknown}"
+    echo ""
+    echo "Multisite suite aborted at line ${line}: ${BASH_COMMAND}"
+    exit "$status"
+}
+trap 'err_report $LINENO' ERR
+
 echo -e "${BOLD}Rudel E2E: Multisite Clone${NC}"
 echo "==========================================="
 
