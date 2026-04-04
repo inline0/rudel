@@ -45,7 +45,7 @@ fail() {
 }
 
 parse_sandbox_id() {
-    echo "$1" | grep -oE 'Sandbox created: [^ ]+' | sed 's/Sandbox created: //'
+    echo "$1" | grep -oE 'Sandbox created: [^ ]+' | sed 's/Sandbox created: //' || true
 }
 
 strip_wpenv() {
@@ -240,9 +240,12 @@ fi
 echo ""
 echo -e "${BOLD}Clone-all from multisite host${NC}"
 
+set +e
 CLONE_OUTPUT=$(wp_cli rudel create --name=ms-full --clone-all --engine=sqlite)
+CLONE_STATUS=$?
+set -e
 CLONE_ID=$(parse_sandbox_id "$CLONE_OUTPUT")
-if [[ -n "$CLONE_ID" ]]; then
+if [[ $CLONE_STATUS -eq 0 && -n "$CLONE_ID" ]]; then
     SANDBOX_IDS+=("$CLONE_ID")
     pass "Created full multisite clone: $CLONE_ID"
 else
@@ -442,9 +445,12 @@ fi
 echo ""
 echo -e "${BOLD}Clone-db-only from multisite${NC}"
 
+set +e
 DB_OUTPUT=$(wp_cli rudel create --name=ms-dbonly --clone-db --engine=sqlite)
+DB_STATUS=$?
+set -e
 DB_ID=$(parse_sandbox_id "$DB_OUTPUT")
-if [[ -n "$DB_ID" ]]; then
+if [[ $DB_STATUS -eq 0 && -n "$DB_ID" ]]; then
     SANDBOX_IDS+=("$DB_ID")
     pass "Created db-only multisite clone: $DB_ID"
 else
@@ -483,9 +489,12 @@ fi
 echo ""
 echo -e "${BOLD}Blank sandbox on multisite host${NC}"
 
+set +e
 BLANK_OUTPUT=$(wp_cli rudel create --name=ms-blank --engine=sqlite)
+BLANK_STATUS=$?
+set -e
 BLANK_ID=$(parse_sandbox_id "$BLANK_OUTPUT")
-if [[ -n "$BLANK_ID" ]]; then
+if [[ $BLANK_STATUS -eq 0 && -n "$BLANK_ID" ]]; then
     SANDBOX_IDS+=("$BLANK_ID")
     pass "Created blank sandbox on multisite host: $BLANK_ID"
 else

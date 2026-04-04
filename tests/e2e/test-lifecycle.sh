@@ -64,15 +64,47 @@ assert_dir_exists() {
 
 # Run a PHP snippet that exercises EnvironmentManager
 run_php() {
-    php -r "
-        require_once '$RUDEL_DIR/vendor/autoload.php';
-        define('RUDEL_PLUGIN_DIR', '$RUDEL_DIR/');
-        define('RUDEL_ENVIRONMENTS_DIR', '$TEST_TMPDIR/sandboxes');
-        define('RUDEL_TEST_TMPDIR', '$TEST_TMPDIR');
-        define('RUDEL_PATH_PREFIX', '__rudel');
-        define('WP_HOME', 'http://localhost:8888');
-        $1
-    " 2>&1
+    local script_path="$TEST_TMPDIR/run-$(date +%s%N).php"
+    local runtime_state_path="$TEST_TMPDIR/runtime-state.php"
+    cat > "$script_path" <<PHP
+<?php
+require_once '$RUDEL_DIR/vendor/autoload.php';
+require_once '$RUDEL_DIR/tests/Stubs/MockWpdb.php';
+define('RUDEL_PLUGIN_DIR', '$RUDEL_DIR/');
+define('RUDEL_ENVIRONMENTS_DIR', '$TEST_TMPDIR/sandboxes');
+define('RUDEL_TEST_TMPDIR', '$TEST_TMPDIR');
+define('RUDEL_PATH_PREFIX', '__rudel');
+define('WP_HOME', 'http://localhost:8888');
+\$GLOBALS['wpdb'] = new MockWpdb();
+\$GLOBALS['wpdb']->prefix = 'wp_';
+\$GLOBALS['wpdb']->base_prefix = 'wp_';
+\Rudel\RudelSchema::ensure(new \Rudel\WpdbStore(\$GLOBALS['wpdb']));
+\$rudel_runtime_state = '$runtime_state_path';
+if (is_file(\$rudel_runtime_state)) {
+    \$tables = require \$rudel_runtime_state;
+    if (is_array(\$tables)) {
+        foreach (\$tables as \$table => \$rows) {
+            \$GLOBALS['wpdb']->addTable(\$table, 'CREATE TABLE ' . \$table . ' (id int)', is_array(\$rows) ? \$rows : []);
+        }
+    }
+}
+register_shutdown_function(
+    function () use (\$rudel_runtime_state) {
+        \$tables = [];
+        foreach (\$GLOBALS['wpdb']->getTableNames() as \$table) {
+            if (str_contains(\$table, 'rudel_')) {
+                \$tables[\$table] = \$GLOBALS['wpdb']->getTableRows(\$table);
+            }
+        }
+        file_put_contents(\$rudel_runtime_state, '<?php return ' . var_export(\$tables, true) . ';');
+    }
+);
+$1
+PHP
+    php "$script_path" 2>&1
+    local status=$?
+    rm -f "$script_path"
+    return $status
 }
 
 echo -e "${BOLD}Rudel E2E: Sandbox Lifecycle${NC}"
