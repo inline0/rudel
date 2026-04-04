@@ -46,6 +46,11 @@ class RudelConfig {
 	 */
 	private array $data;
 
+	/**
+	 * Load the current configuration snapshot from WordPress-native storage.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		$this->data = $this->load();
 	}
@@ -191,6 +196,8 @@ class RudelConfig {
 	 * Resolve the host WordPress options table.
 	 *
 	 * @return string
+	 *
+	 * @throws \RuntimeException When WordPress has not exposed the host options table.
 	 */
 	private function options_table(): string {
 		global $wpdb;
@@ -231,6 +238,7 @@ class RudelConfig {
 			return (string) maybe_serialize( $data );
 		}
 
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WordPress options store PHP-serialized arrays; this fallback only runs when core helpers are unavailable.
 		return serialize( $data );
 	}
 
@@ -245,7 +253,24 @@ class RudelConfig {
 			return maybe_unserialize( $raw );
 		}
 
-		$value = @unserialize( $raw, array( 'allowed_classes' => false ) );
+		$error = null;
+		set_error_handler(
+			static function ( int $severity, string $message ) use ( &$error ): bool {
+				$error = $message;
+				return true;
+			}
+		);
+
+		try {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- WordPress options store PHP-serialized arrays; allowed_classes=false prevents object hydration in this helper-free fallback.
+			$value = unserialize( $raw, array( 'allowed_classes' => false ) );
+		} finally {
+			restore_error_handler();
+		}
+
+		if ( null !== $error ) {
+			return $raw;
+		}
 
 		return false === $value && 'b:0;' !== $raw ? $raw : $value;
 	}
