@@ -254,6 +254,7 @@ class RudelConfig {
 		}
 
 		$error = null;
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_set_error_handler -- The fallback needs to trap unserialize warnings cleanly when WordPress helper functions are unavailable.
 		set_error_handler(
 			static function ( int $severity, string $message ) use ( &$error ): bool {
 				$error = $message;
