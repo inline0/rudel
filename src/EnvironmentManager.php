@@ -1693,9 +1693,7 @@ class EnvironmentManager {
 		}
 
 		// The scaffold only provides a bootable shell; clones should inherit content from their source environment instead.
-		$this->delete_directory( $target_path . '/wp-content' );
-		$content_cloner = new ContentCloner();
-		$content_cloner->copy_directory( $source->get_wp_content_path(), $target_path . '/wp-content' );
+		$content_clone = $this->clone_environment_content( $source, $target_id, $target_path );
 
 		if ( 'sqlite' === $engine ) {
 			$this->write_db_drop_in( $target_path );
@@ -1712,6 +1710,7 @@ class EnvironmentManager {
 					'cloned_at'          => gmdate( 'c' ),
 					'db_cloned'          => true,
 					'content_cloned'     => true,
+					'git_worktrees'      => $content_clone['git_worktrees'],
 					'github_repo'        => $source->get_github_repo(),
 					'github_dir'         => $source->get_github_dir(),
 					'github_base_branch' => $source->get_github_base_branch(),
@@ -1721,6 +1720,70 @@ class EnvironmentManager {
 			$source,
 			$target_id,
 			$target_type
+		);
+	}
+
+	/**
+	 * Clone wp-content from another environment while preserving git worktrees for code directories.
+	 *
+	 * @param Environment $source Source environment.
+	 * @param string      $target_id New environment identifier.
+	 * @param string      $target_path New environment path.
+	 * @return array{git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string}>}
+	 */
+	private function clone_environment_content( Environment $source, string $target_id, string $target_path ): array {
+		$source_content = $source->get_wp_content_path();
+		$target_content = $target_path . '/wp-content';
+		$content_cloner = new ContentCloner();
+		$git            = new GitIntegration();
+		$git_worktrees  = array();
+
+		$this->delete_directory( $target_content );
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Recreating wp-content for cloned environments.
+		mkdir( $target_content, 0755, true );
+
+		$iterator = new \FilesystemIterator( $source_content, \FilesystemIterator::SKIP_DOTS );
+
+		foreach ( $iterator as $entry ) {
+			$name            = $entry->getFilename();
+			$source_path     = $entry->getPathname();
+			$target_pathname = $target_content . '/' . $name;
+
+			if ( $entry->isDir() ) {
+				if ( in_array( $name, array( 'themes', 'plugins' ), true ) ) {
+					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating top-level content directory before git worktree clone.
+					mkdir( $target_pathname, 0755, true );
+
+					$results = $git->clone_with_worktrees( $source_path, $target_pathname, $target_id );
+					foreach ( $results['worktrees'] as $repo_name => $branch ) {
+						$git_worktrees[] = array(
+							'type'   => $name,
+							'name'   => $repo_name,
+							'branch' => $branch,
+							'repo'   => $source_path . '/' . $repo_name,
+						);
+					}
+
+					continue;
+				}
+
+				$content_cloner->copy_directory( $source_path, $target_pathname );
+				continue;
+			}
+
+			$target_dir = dirname( $target_pathname );
+			if ( ! is_dir( $target_dir ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating parent directory for copied environment file.
+				mkdir( $target_dir, 0755, true );
+			}
+
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying environment content file.
+			copy( $source_path, $target_pathname );
+		}
+
+		return array(
+			'git_worktrees' => $git_worktrees,
 		);
 	}
 

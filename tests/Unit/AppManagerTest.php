@@ -16,6 +16,42 @@ class AppManagerTest extends RudelTestCase
         }
     }
 
+    private function hasGit(): bool
+    {
+        exec('git --version 2>&1', $output, $code);
+        return 0 === $code;
+    }
+
+    private function createGitRepo(string $path, string $relativeFile = 'style.css', string $contents = '/* theme */'): void
+    {
+        mkdir($path, 0755, true);
+        exec('git -C ' . escapeshellarg($path) . ' init 2>&1');
+        exec('git -C ' . escapeshellarg($path) . ' config user.email "test@test.com" 2>&1');
+        exec('git -C ' . escapeshellarg($path) . ' config user.name "Test" 2>&1');
+
+        $filePath = $path . '/' . $relativeFile;
+        $fileDir = dirname($filePath);
+        if (! is_dir($fileDir)) {
+            mkdir($fileDir, 0755, true);
+        }
+
+        file_put_contents($filePath, $contents);
+        exec('git -C ' . escapeshellarg($path) . ' add -A 2>&1');
+        exec('git -C ' . escapeshellarg($path) . ' commit -m "init" 2>&1');
+        exec('git -C ' . escapeshellarg($path) . ' branch -M main 2>&1');
+    }
+
+    private function createGitWorktree(string $repoPath, string $targetPath, string $branch): void
+    {
+        exec(
+            'git -C ' . escapeshellarg($repoPath) . ' worktree add -b ' . escapeshellarg($branch) . ' ' . escapeshellarg($targetPath) . ' HEAD 2>&1',
+            $output,
+            $code
+        );
+
+        $this->assertSame(0, $code, implode("\n", $output));
+    }
+
     // create()
 
     #[RunInSeparateProcess]
@@ -277,6 +313,41 @@ class AppManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreateSandboxFromAppCreatesGitWorktreeMetadataForThemeRepos(): void
+    {
+        if (! $this->hasGit()) {
+            $this->markTestSkipped('git not available');
+        }
+
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Git App', ['git-app.com'], ['engine' => 'sqlite']);
+
+        $themeRepo = $this->tmpDir . '/theme-repo';
+        $this->createGitRepo($themeRepo, 'style.css', '/* app theme */');
+
+        $appThemePath = $app->get_wp_content_path() . '/themes/client-a';
+        $this->createGitWorktree($themeRepo, $appThemePath, 'app-client-a');
+
+        $sandbox = $manager->create_sandbox($app->id, 'Git Sandbox');
+        $sandboxThemePath = $sandbox->get_wp_content_path() . '/themes/client-a';
+
+        $this->assertFileExists($sandboxThemePath . '/.git');
+        $this->assertSame('/* app theme */', file_get_contents($sandboxThemePath . '/style.css'));
+        $this->assertNotEmpty($sandbox->clone_source['git_worktrees'] ?? []);
+        $this->assertSame('themes', $sandbox->clone_source['git_worktrees'][0]['type']);
+        $this->assertSame('client-a', $sandbox->clone_source['git_worktrees'][0]['name']);
+        $this->assertSame('rudel/' . $sandbox->id, $sandbox->clone_source['git_worktrees'][0]['branch']);
+
+        exec('git -C ' . escapeshellarg($sandboxThemePath) . ' branch --show-current 2>&1', $output, $code);
+        $this->assertSame(0, $code, implode("\n", $output));
+        $this->assertSame('rudel/' . $sandbox->id, trim($output[0] ?? ''));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testBackupAndRestoreAppRoundTripsState(): void
     {
         $this->defineConstants();
@@ -420,6 +491,43 @@ class AppManagerTest extends RudelTestCase
         $this->assertSame($sandbox->id, $updated->last_deployed_from_id);
         $this->assertSame('sandbox', $updated->last_deployed_from_type);
         $this->assertNotNull($updated->last_deployed_at);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testDeployPreservesAppGitWorktreeAndSyncsSandboxChanges(): void
+    {
+        if (! $this->hasGit()) {
+            $this->markTestSkipped('git not available');
+        }
+
+        $this->defineConstants();
+        define('WP_HOME', 'https://host.test');
+
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Deploy Git App', ['deploy-git-app.com'], ['engine' => 'sqlite']);
+
+        $themeRepo = $this->tmpDir . '/deploy-theme-repo';
+        $this->createGitRepo($themeRepo, 'style.css', '/* original theme */');
+
+        $appThemePath = $app->get_wp_content_path() . '/themes/client-a';
+        $this->createGitWorktree($themeRepo, $appThemePath, 'app-client-a');
+
+        $sandbox = $manager->create_sandbox($app->id, 'Deploy Git Sandbox');
+        $sandboxThemePath = $sandbox->get_wp_content_path() . '/themes/client-a';
+
+        file_put_contents($sandboxThemePath . '/style.css', '/* sandbox change */');
+        file_put_contents($sandboxThemePath . '/sandbox-only.txt', 'from sandbox');
+
+        $manager->deploy($app->id, $sandbox->id, 'before-deploy');
+
+        $this->assertFileExists($appThemePath . '/.git');
+        $this->assertSame('/* sandbox change */', file_get_contents($appThemePath . '/style.css'));
+        $this->assertSame('from sandbox', file_get_contents($appThemePath . '/sandbox-only.txt'));
+
+        exec('git -C ' . escapeshellarg($appThemePath) . ' branch --show-current 2>&1', $output, $code);
+        $this->assertSame(0, $code, implode("\n", $output));
+        $this->assertSame('app-client-a', trim($output[0] ?? ''));
     }
 
     #[RunInSeparateProcess]
