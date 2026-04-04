@@ -231,11 +231,11 @@ class BootstrapRuntimeStore {
 		if ( substr_count( $host, ':' ) > 1 ) {
 			if ( preg_match( '#^(?:\\[)?(?P<host>[0-9a-fA-F:]+)(?:\\]:(?P<port>[\\d]+))?#', $host, $match ) ) {
 				$host = $match['host'];
-				$port = isset( $match['port'] ) && '' !== $match['port'] ? (int) $match['port'] : 0;
+				$port = ! empty( $match['port'] ) ? (int) $match['port'] : 0;
 			}
 		} elseif ( preg_match( '#^(?P<host>[^:/]*)(?::(?P<port>[\\d]+))?#', $host, $match ) ) {
 			$host = $match['host'];
-			$port = isset( $match['port'] ) && '' !== $match['port'] ? (int) $match['port'] : 0;
+			$port = ! empty( $match['port'] ) ? (int) $match['port'] : 0;
 		}
 
 		return array(
