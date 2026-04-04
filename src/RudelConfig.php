@@ -167,7 +167,7 @@ class RudelConfig {
 		$store = new WpdbStore();
 		$raw   = $this->serialize_value( $data );
 		$found = $store->fetch_var(
-			'SELECT option_id FROM `' . $table . '` WHERE option_name = ? LIMIT 1',
+			'SELECT option_name FROM `' . $table . '` WHERE option_name = ? LIMIT 1',
 			array( self::OPTION_NAME )
 		);
 
