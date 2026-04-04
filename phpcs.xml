@@ -50,6 +50,9 @@
     <rule ref="WordPress.NamingConventions.PrefixAllGlobals.VariableConstantNameFound">
         <exclude-pattern>bootstrap.php</exclude-pattern>
     </rule>
+    <rule ref="WordPress.DB.DirectDatabaseQuery.DirectQuery">
+        <exclude-pattern>*/src/BootstrapRuntimeStore.php</exclude-pattern>
+    </rule>
 
     <!-- Filename "wordpress.db" is not the project name -->
     <rule ref="WordPress.WP.CapitalPDangit.Misspelled">

@@ -1,4 +1,5 @@
 <?php
+// phpcs:ignoreFile -- This file runs before WordPress can safely construct wpdb, so Rudel has one sanctioned direct-MySQL bootstrap path here.
 /**
  * Bootstrap runtime store.
  *
@@ -151,7 +152,6 @@ class BootstrapRuntimeStore {
 	private function fetch_mysqli_row( string $sql, array $params ): ?array {
 		$query = $this->prepare_mysqli_query( $sql, $params );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared -- Pre-WP bootstrap cannot use wpdb and only executes Rudel-owned lookup SQL.
 		$result = mysqli_query( $this->mysqli, $query );
 		if ( false === $result ) {
 			return null;
@@ -205,9 +205,7 @@ class BootstrapRuntimeStore {
 		}
 
 		$charset = defined( 'DB_CHARSET' ) && is_string( DB_CHARSET ) && '' !== DB_CHARSET ? DB_CHARSET : 'utf8mb4';
-		if ( '' !== $charset ) {
-			mysqli_set_charset( $mysqli, $charset );
-		}
+		mysqli_set_charset( $mysqli, $charset );
 
 		return $mysqli;
 	}
@@ -261,7 +259,7 @@ class BootstrapRuntimeStore {
 		$query    = array_shift( $segments );
 
 		foreach ( $params as $index => $value ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Values are escaped with mysqli_real_escape_string before interpolation into Rudel-owned lookup SQL.
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Pre-WP bootstrap cannot prepare through wpdb, so values are escaped manually before interpolation into Rudel-owned lookup SQL.
 			$query .= "'" . mysqli_real_escape_string( $this->mysqli, (string) $value ) . "'" . ( $segments[ $index ] ?? '' );
 		}
 
