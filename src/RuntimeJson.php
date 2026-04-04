@@ -27,7 +27,7 @@ final class RuntimeJson {
 			$json = wp_json_encode( $value, $flags, $depth );
 		} else {
 			// Lifecycle scripts exercise managers without booting WordPress, so runtime repositories cannot assume wp_json_encode() exists.
-			$json = json_encode( $value, $flags, $depth );
+			$json = json_encode( $value, $flags, $depth ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Pure-PHP lifecycle paths do not load WordPress helpers.
 		}
 
 		if ( false === $json ) {
