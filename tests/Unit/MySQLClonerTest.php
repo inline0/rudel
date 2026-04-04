@@ -338,6 +338,20 @@ class MySQLClonerTest extends RudelTestCase
         $this->assertSame('http://sandbox.local/path', $unserialized['url']);
     }
 
+    public function testRewriteUrlsForcesCanonicalSiteOptions(): void
+    {
+        $this->mockWpdb->addTable('wp_test_options', 'CREATE TABLE wp_test_options (option_id int)', [
+            ['option_id' => '1', 'option_name' => 'siteurl', 'option_value' => 'http://example.com'],
+            ['option_id' => '2', 'option_name' => 'home', 'option_value' => 'http://example.com'],
+        ]);
+
+        $this->cloner->rewrite_urls($this->mockWpdb, 'wp_test_', 'http://example.com', 'http://sandbox.local');
+
+        $rows = $this->mockWpdb->getTableRows('wp_test_options');
+        $this->assertSame('http://sandbox.local', $rows[0]['option_value']);
+        $this->assertSame('http://sandbox.local', $rows[1]['option_value']);
+    }
+
     // rewrite_table_prefix_in_data()
 
     public function testRewriteTablePrefixInUsermetaMetaKey(): void
