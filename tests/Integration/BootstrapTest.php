@@ -102,6 +102,8 @@ class BootstrapTest extends RudelTestCase
         $script .= '  "uploads" => defined("UPLOADS") ? UPLOADS : null,' . "\n";
         $script .= '  "table_prefix_caller_scope" => isset($table_prefix) ? $table_prefix : null,' . "\n";
         $script .= '  "cookie_sandbox" => $_COOKIE["rudel_sandbox"] ?? null,' . "\n";
+        $script .= '  "request_uri" => $_SERVER["REQUEST_URI"] ?? null,' . "\n";
+        $script .= '  "path_info" => $_SERVER["PATH_INFO"] ?? null,' . "\n";
         $script .= '  "wp_debug" => defined("WP_DEBUG") ? WP_DEBUG : null,' . "\n";
         $script .= '  "wp_debug_log" => defined("WP_DEBUG_LOG") ? WP_DEBUG_LOG : null,' . "\n";
         $script .= '  "wp_debug_display" => defined("WP_DEBUG_DISPLAY") ? WP_DEBUG_DISPLAY : null,' . "\n";
@@ -201,6 +203,21 @@ class BootstrapTest extends RudelTestCase
         ]);
 
         $this->assertSame('path-box', $result['sandbox_id']);
+    }
+
+    public function testPathPrefixResolutionNormalizesRequestPathForWordPress(): void
+    {
+        $this->createFakeSandboxInDir('path-normalize');
+
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/' . RUDEL_PATH_PREFIX . '/path-normalize/',
+            'PATH_INFO' => '/' . RUDEL_PATH_PREFIX . '/path-normalize/wp-admin/',
+            'HTTP_HOST' => 'example.com',
+        ]);
+
+        $this->assertSame('path-normalize', $result['sandbox_id']);
+        $this->assertSame('/', $result['request_uri']);
+        $this->assertSame('/wp-admin/', $result['path_info']);
     }
 
     // Subdomain resolution
