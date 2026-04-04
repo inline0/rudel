@@ -245,12 +245,15 @@ class MySQLCloner {
 
 		if ( $this->table_exists_mysql( $wpdb, "{$prefix}options" ) ) {
 			// The environment entrypoint must always land on the sandbox URL even if the generic search/replace misses these canonical options.
-			$wpdb->query(
-				$wpdb->prepare(
-					"UPDATE `{$prefix}options` SET `option_value` = %s WHERE `option_name` IN ('siteurl', 'home')",
-					$sandbox_url
-				)
-			);
+			foreach ( array( 'siteurl', 'home' ) as $option_name ) {
+				$wpdb->query(
+					$wpdb->prepare(
+						"UPDATE `{$prefix}options` SET `option_value` = %s WHERE `option_name` = %s",
+						$sandbox_url,
+						$option_name
+					)
+				);
+			}
 		}
 
 		// Multisite stores most site content in per-blog tables, so the same rewrite pass has to run for every discovered blog.
