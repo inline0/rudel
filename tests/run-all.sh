@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the full Rudel validation suite: coding standards, static analysis, PHPUnit, and E2E.
+# Run the full Rudel validation suite: coding standards, static analysis, PHPUnit, E2E, and docs.
 #
 set -uo pipefail
 
@@ -55,6 +55,16 @@ if bash tests/e2e/run-all.sh; then
 else
     EXIT_CODE=1
     echo -e "${RED}E2E failed${NC}"
+fi
+echo ""
+
+# 5. Docs build
+echo -e "${BOLD}━━━ Docs ━━━${NC}"
+if npm --prefix docs run build; then
+    echo -e "${GREEN}Docs passed${NC}"
+else
+    EXIT_CODE=1
+    echo -e "${RED}Docs failed${NC}"
 fi
 echo ""
 
