@@ -101,9 +101,9 @@ Sandboxes are accessible via a path prefix that works without any DNS or server 
 example.com/__rudel/my-sandbox-a1b2/
 ```
 
-When you visit a sandbox URL, Rudel automatically sets a browser cookie so that subsequent requests, including `/wp-admin/`, stay in the sandbox context. To switch back to the host, append `?adminExit` to any URL.
+When you visit a prefixed sandbox URL, Rudel automatically sets a browser cookie scoped to that preview path. That keeps direct entrypoints like `wp-login.php` and `wp-admin/` inside the same sandbox without polluting the host root or host admin. To switch back to the host, append `?adminExit` to any prefixed preview URL.
 
-Apps are accessed by their domain directly. No path prefix, no cookie needed.
+Apps are accessed by their domain directly. No path prefix or preview cookie is required for the canonical app URL. When you need a same-origin embedded preview, apps can also be opened through `example.com/__rudel/{app-id}/`.
 
 ## What's next
 

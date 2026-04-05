@@ -33,7 +33,7 @@ The per-sandbox `bootstrap.php` does the same thing but is loaded by `wp-cli.yml
 
 Each sandbox gets its own set of authentication salts, deterministically derived from the sandbox ID. This means a session cookie from the host is not valid in any sandbox, and a session from one sandbox is not valid in another. You always need to log in separately.
 
-When you visit a sandbox URL in the browser, Rudel automatically sets a `rudel_sandbox` cookie so that subsequent page loads (including `/wp-admin/`) stay in the sandbox context. To return to the host, append `?adminExit` to any URL.
+When you visit a prefixed sandbox or app preview URL in the browser, Rudel automatically sets a `rudel_sandbox` cookie scoped to that preview path. That lets direct entrypoints such as `wp-login.php` and `wp-admin/` stay inside the same preview flow without leaking preview state onto the host root or host admin. To return to the host, append `?adminExit` to any prefixed preview URL.
 
 ## Filesystem jail
 

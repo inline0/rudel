@@ -73,7 +73,7 @@ $url = Rudel::url(); // 'https://example.com/__rudel/my-sandbox-a1b2/'
 
 ### `Rudel::exit_url()`
 
-Returns the `?adminExit` URL Rudel uses for sandbox exit links. When visited from a sandbox request, it clears the sandbox cookie and redirects to the current host root.
+Returns the `?adminExit` URL Rudel uses for preview exit links. When visited from a prefixed preview request, it clears the scoped preview cookie and redirects to the current host root.
 
 ```php
 echo '<a href="' . Rudel::exit_url() . '">Exit sandbox</a>';
@@ -123,7 +123,7 @@ $ctx = Rudel::context();
 //   'exit_url'       => 'https://example.com/?adminExit',
 //   'email_disabled' => true,
 //   'log_path'       => '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2/wp-content/debug.log',
-//   'version'        => '0.3.1',
+//   'version'        => '0.3.5',
 //   'cli_command'    => 'rudel',
 //   'path_prefix'    => '__rudel',
 // ]

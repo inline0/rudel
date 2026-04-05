@@ -183,6 +183,8 @@ When a request comes in, the bootstrap checks the `HTTP_HOST` header against the
 
 This means apps work exactly like standalone WordPress sites from the browser's perspective. No path prefix in URLs, no special cookies. Just a normal domain pointing to a fully isolated WordPress environment.
 
+For operator tooling and same-origin embeds, an app can also be opened through `/{prefix}/{app-id}/`. That prefixed preview is not the canonical public URL for the app, but it behaves like a subpath site for front page, `wp-admin/`, `wp-login.php`, and static assets under the same prefix.
+
 ## Managing apps
 
 List all apps:
@@ -220,7 +222,7 @@ Apps and sandboxes share the same isolation layer but differ in intent:
 | | Sandboxes | Apps |
 |---|---|---|
 | **Lifecycle** | Temporary, disposable | Permanent |
-| **Routing** | Path prefix + cookie | Domain-based |
+| **Routing** | Path prefix + scoped preview cookie | Domain-based, with optional prefixed preview |
 | **Recovery** | Snapshots | Backups |
 | **Promote to host** | Yes | No |
 | **Deploy from sandbox** | N/A | Yes |

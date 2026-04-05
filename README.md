@@ -75,7 +75,7 @@ Any `wp` command run from within the sandbox directory is automatically scoped t
 
 ## How It Works
 
-On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects environment context from the incoming request via domain, path prefix, cookie, header, or subdomain and rewires WordPress constants to point to the isolated environment. Runtime state lives in the host WordPress database, not JSON files, so WordPress-native code can reference environments and apps by stable DB IDs. When no environment is active, WordPress boots normally with zero overhead.
+On activation, Rudel adds a single line to `wp-config.php` that loads a bootstrap file before WordPress boots. This bootstrap detects environment context from the incoming request via domain, explicit path prefix, header, subdomain, or a scoped preview cookie and rewires WordPress constants to point to the isolated environment. Runtime state lives in the host WordPress database, not JSON files, so WordPress-native code can reference environments and apps by stable DB IDs. When no environment is active, WordPress boots normally with zero overhead.
 
 By default, sandboxes use MySQL with an isolated table prefix. Pass `--engine=sqlite` for file-based SQLite isolation, or `--engine=subsite` on multisite installations to create sandboxes as native sub-sites. SQLite only applies to sandbox site databases; Rudel's own apps, environments, worktrees, deployments, and config always live in the host WordPress MySQL database.
 
@@ -92,7 +92,7 @@ Each sandbox is a self-contained directory:
 └── tmp/              # Sandbox temp directory
 ```
 
-Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/` and are reached by their mapped domains instead of a path prefix.
+Apps use the same isolation layer, but live under `wp-content/rudel-apps/{id}/`. Their canonical browser URL is the mapped domain, and they can also be opened through `/{prefix}/{app-id}/` when you need a same-origin preview surface for an operator UI or embedded tooling.
 
 Runtime records live in WordPress tables:
 
@@ -168,15 +168,24 @@ Sandboxes can be accessed via:
 | Path prefix | `example.com/__rudel/sandbox-123/` |
 | Subdomain | `sandbox-123.example.com` (requires wildcard DNS) |
 | Header | `X-Rudel-Sandbox: sandbox-123` |
-| Cookie | `rudel_sandbox=sandbox-123` |
+| Scoped preview cookie | Automatically set after visiting `example.com/__rudel/sandbox-123/` |
 
 The path prefix method works out of the box with no DNS configuration.
 
-Visiting a sandbox URL automatically sets a cookie, so `/wp-admin/` works in sandbox context. Append `?adminExit` to any URL to return to the host.
+Visiting a prefixed preview URL automatically sets a `rudel_sandbox` cookie scoped to `/{prefix}/{id}/`. That cookie helps direct entrypoints like `wp-login.php` and `wp-admin/` stay inside the same previewed environment, but it never activates the host root or host `/wp-admin/`. Append `?adminExit` to any prefixed preview URL to clear the scoped cookie and return to the host.
 
-Apps are accessed directly by their mapped domains with no path prefix or browser cookie.
+Apps are accessed directly by their mapped domains with no path prefix or preview cookie. When you need same-origin embedding or review flows, you can also open an app through `example.com/__rudel/{app-id}/`, which behaves like a subpath preview of that app.
+
+Prefixed preview URLs are intended to behave like a subdirectory site:
+
+- `/{prefix}/{id}/` serves the front page
+- `/{prefix}/{id}/wp-admin/` stays inside that environment's admin flow
+- `/{prefix}/{id}/wp-login.php` stays inside that environment's login flow
+- `/{prefix}/{id}/wp-content/...` and `/{prefix}/{id}/wp-admin/...` static assets stay inside the same prefixed environment
 
 Sandboxes are the place changes happen. Apps are the place those changes land. If you think in Git terms, sandboxes are closer to feature workspaces and apps are closer to deployed mainline state, but the analogy is conceptual because both also carry database and environment state.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the release history.
 
 ## Development
 
