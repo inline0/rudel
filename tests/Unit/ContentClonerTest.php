@@ -104,6 +104,25 @@ class ContentClonerTest extends RudelTestCase
         $this->assertDirectoryDoesNotExist($target . '/rudel-environments/_backups/20260329/wp-content');
     }
 
+    public function testCopyDirectorySkipsTransientEntriesAndBrokenSymlinks(): void
+    {
+        $source = $this->hostWpContent . '/transient-source';
+        mkdir($source . '/theme', 0755, true);
+        mkdir($source . '/.coverage/wp-subprocess', 0755, true);
+        file_put_contents($source . '/theme/style.css', 'theme css');
+        file_put_contents($source . '/.coverage/wp-subprocess/trace.php', '<?php');
+        symlink('/path/that/does/not/exist', $source . '/broken-link');
+        symlink('/path/that/does/not/exist', $source . '/node_modules');
+
+        $target = $this->tmpDir . '/transient-target';
+        $this->cloner->copy_directory($source, $target);
+
+        $this->assertFileExists($target . '/theme/style.css');
+        $this->assertDirectoryDoesNotExist($target . '/.coverage');
+        $this->assertFileDoesNotExist($target . '/broken-link');
+        $this->assertFileDoesNotExist($target . '/node_modules');
+    }
+
     // clone_content() -- selective cloning
 
     #[RunInSeparateProcess]

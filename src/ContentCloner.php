@@ -108,10 +108,25 @@ class ContentCloner {
 			mkdir( $target, 0755, true );
 		}
 
-		$iterator = new \FilesystemIterator( $source, \FilesystemIterator::SKIP_DOTS );
+		try {
+			$iterator = new \FilesystemIterator( $source, \FilesystemIterator::SKIP_DOTS );
+		} catch ( \UnexpectedValueException $exception ) {
+			if ( ! is_dir( $source ) ) {
+				return;
+			}
+
+			throw $exception;
+		}
 
 		foreach ( $iterator as $item ) {
+			if ( $this->should_skip_item( $item->getFilename() ) ) {
+				continue;
+			}
+
 			$source_path  = $item->getPathname();
+			if ( ! file_exists( $source_path ) && ! is_link( $source_path ) ) {
+				continue;
+			}
 			$source_real  = realpath( $source_path );
 			$compare_path = false !== $source_real ? $source_real : $source_path;
 
@@ -127,18 +142,76 @@ class ContentCloner {
 
 			$target_path = $target . '/' . $item->getFilename();
 
+			if ( $item->isLink() ) {
+				$this->copy_symlink_target( $source_path, $target_path, $excluded_path );
+				continue;
+			}
+
 			if ( $item->isDir() ) {
+				if ( ! is_dir( $source_path ) ) {
+					continue;
+				}
+
 				$this->copy_directory_recursive( $source_path, $target_path, $excluded_path );
 			} else {
+				if ( ! is_file( $source_path ) || ! is_readable( $source_path ) ) {
+					continue;
+				}
+
 				$target_dir = dirname( $target_path );
 				if ( ! is_dir( $target_dir ) ) {
 					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating parent directory for copied file.
 					mkdir( $target_dir, 0755, true );
 				}
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying file to sandbox.
-				copy( $source_path, $target_path );
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Source files can disappear mid-clone in active dev trees.
+				@copy( $source_path, $target_path );
 			}
 		}
+	}
+
+	/**
+	 * Copies a symlink target into the sandbox when it resolves cleanly.
+	 *
+	 * @param string      $source_path   Absolute symlink path.
+	 * @param string      $target_path   Absolute target path in the clone.
+	 * @param string|null $excluded_path Absolute path to skip while traversing.
+	 * @return void
+	 */
+	private function copy_symlink_target( string $source_path, string $target_path, ?string $excluded_path = null ): void {
+		$resolved = realpath( $source_path );
+		if ( false === $resolved ) {
+			return;
+		}
+
+		if ( is_dir( $resolved ) ) {
+			$this->copy_directory_recursive( $resolved, $target_path, $excluded_path );
+			return;
+		}
+
+		if ( ! is_file( $resolved ) || ! is_readable( $resolved ) ) {
+			return;
+		}
+
+		$target_dir = dirname( $target_path );
+		if ( ! is_dir( $target_dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating parent directory for copied symlink target.
+			mkdir( $target_dir, 0755, true );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying the resolved symlink target into the sandbox.
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Source files can disappear mid-clone in active dev trees.
+		@copy( $resolved, $target_path );
+	}
+
+	/**
+	 * Skips dev-only or transient items that should never become part of a cloned runtime.
+	 *
+	 * @param string $filename Current filesystem entry name.
+	 * @return bool
+	 */
+	private function should_skip_item( string $filename ): bool {
+		return in_array( $filename, array( '.git', '.coverage', 'node_modules' ), true );
 	}
 
 	/**
