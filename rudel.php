@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Rudel
  * Description: The WordPress isolation layer for sandboxes and multi-tenant apps.
- * Version: 0.3.8
+ * Version: 0.5.0
  * Author: Inline0
  * Author URI: https://inline0.com
  * License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RUDEL_VERSION', '0.3.8' );
+define( 'RUDEL_VERSION', '0.5.0' );
 define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -69,19 +69,12 @@ if ( ! defined( 'RUDEL_CLI_COMMAND' ) ) {
 	define( 'RUDEL_CLI_COMMAND', 'rudel' );
 }
 
-if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
-	define( 'RUDEL_PATH_PREFIX', '__rudel' );
-}
-
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND, Rudel\CLI\RudelCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' app', Rudel\CLI\AppCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' cleanup', Rudel\CLI\CleanupCommand::class );
-	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' export', Rudel\CLI\ExportCommand::class );
-	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' import', Rudel\CLI\ImportCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' logs', Rudel\CLI\LogsCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' pr', Rudel\CLI\PrCommand::class );
-	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' promote', Rudel\CLI\PromoteCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' push', Rudel\CLI\PushCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' restore', Rudel\CLI\RestoreCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' snapshot', Rudel\CLI\SnapshotCommand::class );
@@ -107,8 +100,8 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 			$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
 
 			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( 'RUDEL_ID' ) ) {
-				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in sandbox debug.log.
-				error_log( sprintf( 'Rudel: email blocked in sandbox %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in the environment debug.log.
+				error_log( sprintf( 'Rudel: email blocked in environment %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
 			}
 
 			return true;
@@ -120,11 +113,6 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 	add_action(
 		'init',
 		array( Rudel\Automation::class, 'ensure_scheduled' )
-	);
-	add_action(
-		'parse_request',
-		array( Rudel\PreviewRequestRouter::class, 'maybe_dispatch' ),
-		0
 	);
 	add_action(
 		Rudel\Automation::CRON_HOOK,

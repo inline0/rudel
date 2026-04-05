@@ -1,23 +1,22 @@
 ---
 title: Runtime State
-description: Rudel stores apps, environments, domains, worktrees, and deploy history in WordPress tables.
+description: Rudel stores runtime metadata in WordPress tables.
 ---
 
-# Runtime state
+# Runtime State
 
-Rudel is DB-backed only. JSON files are not part of the supported runtime model for apps, environments, domains, worktrees, deployment history, or configuration.
+Rudel runtime metadata is stored in WordPress tables.
 
-That means:
+That includes:
 
-- the bootstrap resolves apps and environments from WordPress tables
-- managers and public APIs read and write state through repositories and services
-- Divine or any other integrator can reference Rudel records by stable DB IDs
-- those Rudel tables always live in the host WordPress MySQL database
-- SQLite is only for sandbox site databases, never for Rudel's own metadata
+- environments
+- apps
+- app domains
+- worktrees
+- app deployments
+- Rudel configuration
 
-## Tables
-
-By default, Rudel creates a small set of runtime tables:
+## Default tables
 
 - `wp_rudel_environments`
 - `wp_rudel_apps`
@@ -25,37 +24,26 @@ By default, Rudel creates a small set of runtime tables:
 - `wp_rudel_worktrees`
 - `wp_rudel_app_deployments`
 
-Advanced embedded installs can change only the Rudel portion after the WordPress DB prefix:
+## Table naming overrides
 
-- `RUDEL_RUNTIME_TABLE_PREFIX` changes the shared base name, so `$wpdb->base_prefix = 'wp_'` and `RUDEL_RUNTIME_TABLE_PREFIX = 'themeworkspace_'` produce tables like `wp_themeworkspace_environments`
+Advanced embedded installs can override the Rudel portion of those table names with:
+
+- `RUDEL_RUNTIME_TABLE_PREFIX`
 - `RUDEL_RUNTIME_TABLE_ENVIRONMENTS`
 - `RUDEL_RUNTIME_TABLE_APPS`
 - `RUDEL_RUNTIME_TABLE_APP_DOMAINS`
 - `RUDEL_RUNTIME_TABLE_WORKTREES`
 - `RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS`
 
-Explicit per-table constants win over the shared `RUDEL_RUNTIME_TABLE_PREFIX`. Define any of these before Rudel installs or bootstraps persisted runtime tables. The WordPress DB prefix itself is never replaced.
-
-`wp_rudel_environments` is the main record for both apps and sandboxes. It stores identifiers, paths, engine, lifecycle state, policy metadata, lineage, timestamps, and optional GitHub linkage.
-
-`wp_rudel_apps` gives long-lived apps their own stable DB identity, separate from the environment row that represents the app's runtime directory.
-
-`wp_rudel_app_domains` stores normalized domain mappings and enforces uniqueness so two apps cannot claim the same domain.
-
-`wp_rudel_worktrees` stores extracted worktree metadata separately from the broader clone-source payload so worktree state can be queried and updated directly.
-
-`wp_rudel_app_deployments` stores deploy history, deploy labels/notes, source sandbox linkage, backup references, and tracked GitHub context for rollbacks and audit trails.
+Define them before Rudel installs or bootstraps the runtime tables.
 
 ## Service boundaries
 
-Rudel's live runtime reads and writes should go through repositories and services rather than reading files directly:
+Runtime reads and writes should go through Rudel repositories and services:
 
-- `EnvironmentRepository` owns environment persistence and lookup
-- `AppRepository` owns app identity and domain mappings
-- `EnvironmentWorktreeRepository` owns worktree rows
-- `AppDeploymentRepository` owns deployment history
-- managers and higher-level services compose those repositories for lifecycle operations
+- `EnvironmentRepository`
+- `AppRepository`
+- `EnvironmentWorktreeRepository`
+- `AppDeploymentRepository`
 
-The filesystem still matters for isolated `wp-content`, SQLite databases, backups, templates, snapshots, and exported archives. It does not define which apps or environments exist.
-
-Rudel configuration follows the same rule. Cleanup, automation, retention, and expiry settings are stored in the host WordPress database through the `wp_options` row named `rudel_config`.
+Environment directories are for generated files and copied content, not as the runtime source of truth.

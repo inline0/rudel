@@ -27,6 +27,19 @@ abstract class RudelTestCase extends TestCase
         $GLOBALS['rudel_test_filters'] = [];
         $GLOBALS['rudel_test_action_callbacks'] = [];
         $GLOBALS['rudel_test_filter_callbacks'] = [];
+        $GLOBALS['rudel_test_multisite'] = true;
+        $GLOBALS['rudel_test_subdomain_install'] = true;
+        $GLOBALS['rudel_test_next_blog_id'] = 2;
+        $GLOBALS['rudel_test_sites'] = [
+            1 => [
+                'blog_id' => 1,
+                'domain' => 'example.test',
+                'path' => '/',
+                'siteurl' => 'http://example.test/',
+                'home' => 'http://example.test/',
+                'title' => 'Host Site',
+            ],
+        ];
         $GLOBALS['wpdb'] = new \MockWpdb();
         $GLOBALS['wpdb']->prefix = 'wp_';
         $GLOBALS['wpdb']->base_prefix = 'wp_';
@@ -74,7 +87,7 @@ abstract class RudelTestCase extends TestCase
                 'created_at' => '2026-01-01T00:00:00+00:00',
                 'template' => 'blank',
                 'status' => 'active',
-                'engine' => 'mysql',
+                'engine' => 'subsite',
                 'type' => 'sandbox',
             ],
             $extraMeta
@@ -89,7 +102,7 @@ abstract class RudelTestCase extends TestCase
             status: (string) ($meta['status'] ?? 'active'),
             clone_source: isset($meta['clone_source']) && is_array($meta['clone_source']) ? $meta['clone_source'] : null,
             multisite: ! empty($meta['multisite']),
-            engine: (string) ($meta['engine'] ?? 'mysql'),
+            engine: (string) ($meta['engine'] ?? 'subsite'),
             blog_id: isset($meta['blog_id']) ? (int) $meta['blog_id'] : null,
             type: (string) ($meta['type'] ?? 'sandbox'),
             domains: isset($meta['domains']) && is_array($meta['domains']) ? array_values($meta['domains']) : null,
@@ -157,5 +170,23 @@ abstract class RudelTestCase extends TestCase
             mkdir($dir, 0755, true);
         }
         file_put_contents($path, str_repeat('x', $bytes));
+    }
+
+    protected function setTestMultisite(bool $enabled, bool $subdomainInstall = true): void
+    {
+        $GLOBALS['rudel_test_multisite'] = $enabled;
+        $GLOBALS['rudel_test_subdomain_install'] = $subdomainInstall;
+    }
+
+    protected function siteOptionValue(int $blogId, string $optionName)
+    {
+        $table = $GLOBALS['wpdb']->base_prefix . $blogId . '_options';
+        foreach ($GLOBALS['wpdb']->getTableRows($table) as $row) {
+            if (($row['option_name'] ?? null) === $optionName) {
+                return $row['option_value'] ?? null;
+            }
+        }
+
+        return null;
     }
 }

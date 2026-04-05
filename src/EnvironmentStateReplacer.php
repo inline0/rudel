@@ -19,26 +19,14 @@ class EnvironmentStateReplacer {
 	 * @param Environment $target Target environment.
 	 * @return array{source_id: string, target_id: string, tables_copied: int}
 	 *
-	 * @throws \InvalidArgumentException If engines do not match or either environment uses subsite mode.
+	 * @throws \InvalidArgumentException If the environments are not both subdomain-multisite sites.
 	 */
 	public function replace( Environment $source, Environment $target ): array {
-		if ( $source->is_subsite() || $target->is_subsite() ) {
-			throw new \InvalidArgumentException( 'Environment state replacement does not support subsite environments.' );
+		if ( ! $source->is_subsite() || ! $target->is_subsite() ) {
+			throw new \InvalidArgumentException( 'Environment state replacement requires subdomain-multisite environments.' );
 		}
 
-		if ( $source->engine !== $target->engine ) {
-			throw new \InvalidArgumentException(
-				sprintf( 'Cannot replace environment state across engines: source is %s, target is %s.', $source->engine, $target->engine )
-			);
-		}
-
-		$tables_copied = 0;
-		if ( $source->is_mysql() ) {
-			$tables_copied = $this->replace_mysql_environment_state( $source, $target );
-		} else {
-			$this->replace_sqlite_environment_state( $source, $target );
-		}
-
+		$tables_copied = $this->replace_mysql_environment_state( $source, $target );
 		$this->replace_environment_content( $source, $target );
 
 		return array(
@@ -59,7 +47,8 @@ class EnvironmentStateReplacer {
 		$mysql_cloner  = new MySQLCloner();
 		$source_prefix = $source->get_table_prefix();
 		$target_prefix = $target->get_table_prefix();
-		$tables        = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ) );
+		$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
+		$tables = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ) );
 		$mysql_cloner->rewrite_urls(
 			$GLOBALS['wpdb'],
 			$target_prefix,
@@ -74,67 +63,6 @@ class EnvironmentStateReplacer {
 		);
 
 		return $tables;
-	}
-
-	/**
-	 * Replace the SQLite database file after rewriting runtime-specific values.
-	 *
-	 * @param Environment $source Source environment.
-	 * @param Environment $target Target environment.
-	 * @return void
-	 *
-	 * @throws \RuntimeException If the SQLite replacement cannot stage or promote the rewritten database.
-	 */
-	private function replace_sqlite_environment_state( Environment $source, Environment $target ): void {
-		$source_db = $source->get_db_path();
-		$target_db = $target->get_db_path();
-
-		if ( ! $source_db || ! $target_db ) {
-			throw new \RuntimeException( 'SQLite environment replacement requires both source and target databases.' );
-		}
-
-		$tmp_db = $target->path . '/tmp/' . $target->id . '-replace.db';
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Replacing isolated SQLite database through a temporary file.
-		if ( ! copy( $source_db, $tmp_db ) ) {
-			throw new \RuntimeException( sprintf( 'Failed to copy SQLite database from source environment: %s', $source->id ) );
-		}
-
-		$source_prefix = $source->get_table_prefix();
-		$target_prefix = $target->get_table_prefix();
-		$source_url    = $this->environment_site_url( $source );
-		$target_url    = $this->environment_site_url( $target );
-
-		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO access is required for isolated file rewriting.
-		$pdo = new \PDO( 'sqlite:' . $tmp_db );
-		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-		// phpcs:enable
-
-		$cloner = new DatabaseCloner();
-		$cloner->rewrite_urls( $pdo, $source_prefix, $source_url, $target_url );
-
-		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite PDO access is required for isolated table renaming.
-		$tables = $pdo->query( "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$source_prefix}%'" )
-			->fetchAll( \PDO::FETCH_COLUMN );
-		// phpcs:enable
-
-		foreach ( $tables as $old_table ) {
-			$new_table = $target_prefix . substr( $old_table, strlen( $source_prefix ) );
-			$pdo->exec( "ALTER TABLE `{$old_table}` RENAME TO `{$new_table}`" );
-		}
-
-		$cloner->rewrite_table_prefix_in_data( $pdo, $target_prefix, $source_prefix, $target_prefix );
-		$pdo = null;
-
-		if ( file_exists( $target_db ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Replacing isolated SQLite database file.
-			unlink( $target_db );
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Promoting rewritten SQLite database into place.
-		rename( $tmp_db, $target_db );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Matching generated database permissions.
-		chmod( $target_db, 0664 );
 	}
 
 	/**
@@ -403,12 +331,7 @@ class EnvironmentStateReplacer {
 	 * @return string
 	 */
 	private function environment_site_url( Environment $environment ): string {
-		if ( $environment->is_app() && ! empty( $environment->domains ) ) {
-			return 'https://' . $environment->domains[0];
-		}
-
-		$host = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		return $host . '/' . RUDEL_PATH_PREFIX . '/' . $environment->id;
+		return rtrim( Environment::multisite_url_for( $environment->id, $environment->blog_id ), '/' );
 	}
 
 	/**

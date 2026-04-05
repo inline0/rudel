@@ -40,16 +40,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * default: blank
 	 * ---
 	 *
-	 * [--engine=<engine>]
-	 * : Database engine for the sandbox. Use 'subsite' on multisite installations to create a sub-site.
-	 * ---
-	 * default: mysql
-	 * options:
-	 *   - mysql
-	 *   - sqlite
-	 *   - subsite
-	 * ---
-	 *
 	 * [--clone-db]
 	 * : Clone the host database into the sandbox.
 	 *
@@ -188,7 +178,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 					'owner'     => $sandbox->owner ?? '',
 					'protected' => $this->format_protection( $sandbox->is_protected() ),
 					'expires'   => $sandbox->expires_at ?? '',
-					'engine'    => $sandbox->engine,
 					'status'    => $sandbox->status,
 					'template'  => $sandbox->template,
 					'created'   => $sandbox->created_at,
@@ -200,7 +189,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		);
 
 		$format = $assoc_args['format'] ?? 'table';
-		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'expires', 'engine', 'status', 'template', 'created', 'size' ) );
+		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'expires', 'status', 'template', 'created', 'size' ) );
 	}
 
 	/**
@@ -237,9 +226,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 
 		$data['size'] = $this->format_size( $sandbox->get_size() );
 		if ( $sandbox->is_subsite() ) {
-			$data['db_path'] = 'N/A (multisite sub-site)';
-		} else {
-			$data['db_path'] = $sandbox->get_db_path() ?? 'N/A (MySQL)';
+			$data['db_path'] = 'N/A (managed by multisite)';
 		}
 		$data['url']        = $sandbox->get_url();
 		$data['wp_content'] = $sandbox->is_subsite() ? 'shared (network)' : $sandbox->get_wp_content_path();
@@ -379,9 +366,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		$sandboxes      = $this->manager->list();
 		$apps           = ( new \Rudel\AppManager() )->list();
 		$config         = new RudelConfig();
-		$sqlite_path    = defined( 'RUDEL_PLUGIN_DIR' )
-			? RUDEL_PLUGIN_DIR . 'lib/sqlite-database-integration'
-			: dirname( __DIR__ ) . '/lib/sqlite-database-integration';
 		$automation_on  = $config->get( 'auto_cleanup_enabled' ) > 0
 			|| $config->get( 'auto_cleanup_merged' ) > 0
 			|| $config->get( 'auto_app_backups_enabled' ) > 0
@@ -464,20 +448,12 @@ class RudelCommand extends AbstractEnvironmentCommand {
 				'Value' => function_exists( 'is_multisite' ) && is_multisite() ? 'yes' : 'no',
 			),
 			array(
-				'Field' => 'SQLite integration',
-				'Value' => is_dir( $sqlite_path ) ? 'installed' : 'not installed',
-			),
-			array(
 				'Field' => 'PHP version',
 				'Value' => PHP_VERSION,
 			),
 			array(
-				'Field' => 'SQLite3 extension',
-				'Value' => extension_loaded( 'sqlite3' ) ? 'loaded' : 'not loaded',
-			),
-			array(
-				'Field' => 'PDO SQLite',
-				'Value' => extension_loaded( 'pdo_sqlite' ) ? 'loaded' : 'not loaded',
+				'Field' => 'Multisite mode',
+				'Value' => 'subdomain only',
 			),
 		);
 
@@ -512,7 +488,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		$clone_from = $assoc_args['clone-from'] ?? null;
 		$options    = array_merge(
 			array(
-				'engine'        => $assoc_args['engine'] ?? 'mysql',
 				'template'      => $assoc_args['template'] ?? 'blank',
 				'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
 				'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),

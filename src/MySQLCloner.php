@@ -103,17 +103,22 @@ class MySQLCloner {
 	/**
 	 * Drop all tables with the given prefix.
 	 *
-	 * @param string   $prefix           Table prefix to match. Must start with 'rudel_'.
+	 * @param string   $prefix           Table prefix to match.
 	 * @param string[] $exclude_prefixes Optional table prefixes to preserve.
 	 * @return int Number of tables dropped.
 	 *
-	 * @throws \RuntimeException If the prefix does not start with 'rudel_'.
+	 * @throws \RuntimeException If the prefix is not one Rudel is expected to manage.
 	 */
 	public function drop_tables( string $prefix, array $exclude_prefixes = array() ): int {
-		// Safety: never drop tables that don't start with 'rudel_' or 'rudel_backup_'.
-		if ( ! str_starts_with( $prefix, 'rudel_' ) ) {
+		$is_rudel_prefix   = str_starts_with( $prefix, 'rudel_' );
+		$is_multisite_blog = 1 === preg_match( '/^[A-Za-z0-9]+_\d+_$/', $prefix );
+
+		if ( ! $is_rudel_prefix && ! $is_multisite_blog ) {
 			throw new \RuntimeException(
-				sprintf( 'Refusing to drop tables with prefix "%s": only rudel_* prefixes are allowed.', $prefix )
+				sprintf(
+					'Refusing to drop tables with prefix "%s": only Rudel-managed prefixes are allowed.',
+					$prefix
+				)
 			);
 		}
 

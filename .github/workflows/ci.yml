@@ -43,7 +43,6 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sqlite3, pdo_sqlite
           tools: composer
       - run: composer install --no-interaction
       - run: composer test
@@ -71,7 +70,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sqlite3, pdo_sqlite, mysqli
+          extensions: mysqli
           tools: composer
       - uses: actions/setup-node@v5
         with:

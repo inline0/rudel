@@ -1,619 +1,198 @@
 ---
 title: API
-description: The Rudel\Rudel class provides a complete PHP API for environment management.
+description: The Rudel\\Rudel PHP API.
 ---
 
 # PHP API
 
-Everything in Rudel is accessible through the `Rudel\Rudel` static class. It's the single entry point for checking environment context, managing sandboxes and apps, and building UI around them.
+`Rudel\Rudel` is the public PHP surface for runtime context and lifecycle operations.
 
-Rudel's live runtime state is DB-backed only. Apps, environments, domain mappings, worktree metadata, deployment history, and Rudel configuration are stored in the host WordPress database and exposed through Rudel's repositories and service layer. SQLite is only used for sandbox site databases.
+## Runtime context
 
-Advanced embedded installs can also override the host runtime table names through `RUDEL_RUNTIME_TABLE_PREFIX` or explicit `RUDEL_RUNTIME_TABLE_*` constants. Define those before Rudel installs or bootstraps persisted runtime tables.
-
-```php
-use Rudel\Rudel;
-```
-
-## Context
-
-These methods are safe to call from anywhere, including host requests where no Rudel environment is active. They return `null` or `false` when nothing is active.
+These methods are safe to call from any request.
 
 ### `Rudel::is_sandbox()`
 
-Returns `true` if the current request is running inside a sandbox.
-
-```php
-if ( Rudel::is_sandbox() ) {
-    // We're in a sandbox
-}
-```
-
-### `Rudel::id()`
-
-Returns the current sandbox ID, or `null` if not in a sandbox.
-
-```php
-$id = Rudel::id(); // 'my-sandbox-a1b2' or null
-```
-
-### `Rudel::path()`
-
-Returns the absolute filesystem path to the current environment directory.
-
-```php
-$path = Rudel::path(); // '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2'
-```
-
-### `Rudel::engine()`
-
-Returns the database engine of the current environment: `'mysql'`, `'sqlite'`, `'subsite'`, or `null`.
-
-```php
-if ( Rudel::engine() === 'sqlite' ) {
-    // SQLite-specific logic
-}
-```
-
-### `Rudel::table_prefix()`
-
-Returns the current environment's table prefix, or `null`.
-
-```php
-$prefix = Rudel::table_prefix(); // 'rudel_abc123_'
-```
-
-### `Rudel::url()`
-
-Returns the current environment's access URL. For apps, this is the mapped domain root.
-
-```php
-$url = Rudel::url(); // 'https://example.com/__rudel/my-sandbox-a1b2/'
-```
-
-### `Rudel::exit_url()`
-
-Returns the `?adminExit` URL Rudel uses for preview exit links. When visited from a prefixed preview request, it clears the scoped preview cookie and redirects to the current host root.
-
-```php
-echo '<a href="' . Rudel::exit_url() . '">Exit sandbox</a>';
-```
-
-### `Rudel::is_email_disabled()`
-
-Returns `true` if outbound email is blocked in the current environment. Sandboxes block email by default; apps do not.
-
-### `Rudel::log_path()`
-
-Returns the absolute path to the current environment's `debug.log` file.
-
-```php
-$log = Rudel::log_path(); // '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2/wp-content/debug.log'
-```
-
-### `Rudel::version()`
-
-Returns the Rudel plugin version string.
-
-### `Rudel::cli_command()`
-
-Returns the configured WP-CLI command name (default: `'rudel'`).
-
-Define `RUDEL_CLI_COMMAND` before Rudel boots if you want the same command tree under a different root, such as `wp sandbox`.
-
-### `Rudel::path_prefix()`
-
-Returns the configured URL path prefix (default: `'__rudel'`).
-
-### `Rudel::context()`
-
-Returns all context information as an associative array. Useful for debugging or passing to templates.
-
-```php
-$ctx = Rudel::context();
-// [
-//   'is_sandbox'     => true,
-//   'is_app'         => false,
-//   'id'             => 'my-sandbox-a1b2',
-//   'app_id'         => null,
-//   'path'           => '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2',
-//   'engine'         => 'mysql',
-//   'table_prefix'   => 'rudel_abc123_',
-//   'url'            => 'https://example.com/__rudel/my-sandbox-a1b2/',
-//   'exit_url'       => 'https://example.com/?adminExit',
-//   'email_disabled' => true,
-//   'log_path'       => '/var/www/html/wp-content/rudel-environments/my-sandbox-a1b2/wp-content/debug.log',
-//   'version'        => '0.3.6',
-//   'cli_command'    => 'rudel',
-//   'path_prefix'    => '__rudel',
-// ]
-```
-
-## Sandbox management
-
-These methods require WordPress to be loaded and manage the full sandbox lifecycle.
-
-### `Rudel::all()`
-
-Returns an array of all sandbox instances.
-
-```php
-$sandboxes = Rudel::all();
-foreach ( $sandboxes as $sandbox ) {
-    echo $sandbox->id . ': ' . $sandbox->name . "\n";
-}
-```
-
-### `Rudel::get( $id )`
-
-Returns a single sandbox by ID, or `null` if not found.
-
-```php
-$sandbox = Rudel::get( 'my-sandbox-a1b2' );
-if ( $sandbox ) {
-    echo $sandbox->engine; // 'mysql'
-    echo $sandbox->name;   // 'My Sandbox'
-}
-```
-
-### `Rudel::create( $name, $options )`
-
-Creates a new sandbox. Returns the `Environment` instance.
-
-```php
-// Blank sandbox (MySQL engine by default)
-$sandbox = Rudel::create( 'My Sandbox' );
-
-// SQLite engine with cloned database
-$sandbox = Rudel::create( 'Portable', [
-    'engine'   => 'sqlite',
-    'clone_db' => true,
-] );
-
-// Clone everything from host
-$sandbox = Rudel::create( 'Full Clone', [
-    'clone_db'      => true,
-    'clone_themes'  => true,
-    'clone_plugins' => true,
-    'clone_uploads' => true,
-] );
-```
-
-Create and update APIs also accept metadata and lifecycle policy keys such as `owner`, `labels`, `purpose`, `protected`, `ttl_days`, and `expires_at`. The resulting `Environment` model also exposes lineage fields such as `source_environment_id`, `source_environment_type`, `last_deployed_from_id`, `last_deployed_from_type`, and `last_deployed_at`.
-
-### `Rudel::destroy( $id )`
-
-Destroys a sandbox. Returns `true` on success. For MySQL sandboxes, drops all `rudel_*` tables. For subsite sandboxes, deletes the sub-site.
-
-```php
-Rudel::destroy( 'my-sandbox-a1b2' );
-```
-
-### `Rudel::promote( $id, $backup_dir )`
-
-Promotes a sandbox to replace the host site. Creates a backup first.
-
-```php
-$result = Rudel::promote( 'my-sandbox-a1b2', '/tmp/backup' );
-echo $result['backup_path'];   // '/tmp/backup'
-echo $result['tables_copied']; // 12
-```
-
-### `Rudel::export( $id, $output_path )`
-
-Exports a sandbox as a zip archive.
-
-```php
-Rudel::export( 'my-sandbox-a1b2', '/tmp/sandbox.zip' );
-```
-
-### `Rudel::import( $zip_path, $name )`
-
-Imports a sandbox from a zip archive. Returns the new `Environment` instance.
-
-```php
-$sandbox = Rudel::import( '/tmp/sandbox.zip', 'Imported' );
-```
-
-### `Rudel::cleanup( $options )`
-
-Removes sandboxes matched by explicit expiry, age policy, or idle policy. Protected sandboxes are skipped. Returns arrays of removed, skipped, and errored IDs.
-
-```php
-$result = Rudel::cleanup( [ 'max_age_days' => 7 ] );
-echo count( $result['removed'] ) . ' sandboxes removed';
-
-// Dry run
-$result = Rudel::cleanup( [ 'dry_run' => true, 'max_age_days' => 7 ] );
-
-// Idle policy override
-$result = Rudel::cleanup( [ 'max_idle_days' => 3 ] );
-```
-
-### `Rudel::cleanup_merged( $options )`
-
-Removes sandboxes whose git branches have been merged into the default branch. Works with both local git worktrees and GitHub API.
-
-```php
-$result = Rudel::cleanup_merged();
-echo count( $result['removed'] ) . ' merged sandboxes removed';
-
-// Dry run
-$result = Rudel::cleanup_merged( [ 'dry_run' => true ] );
-```
-
-### `Rudel::environments_dir()`
-
-Returns the absolute path to the environments directory.
-
-```php
-$dir = Rudel::environments_dir(); // '/var/www/html/wp-content/rudel-environments'
-```
-
-### `Rudel::update( $id, $changes )`
-
-Updates sandbox metadata and policy.
-
-```php
-$sandbox = Rudel::update( 'my-sandbox-a1b2', [
-    'owner'     => 'dennis',
-    'labels'    => [ 'qa', 'client-a' ],
-    'protected' => true,
-    'ttl_days'  => 7,
-] );
-```
-
-## Snapshots
-
-### `Rudel::snapshot( $sandbox_id, $name )`
-
-Creates a named snapshot of a sandbox.
-
-```php
-Rudel::snapshot( 'my-sandbox-a1b2', 'before-update' );
-```
-
-### `Rudel::restore( $sandbox_id, $name )`
-
-Restores a sandbox from a named snapshot.
-
-```php
-Rudel::restore( 'my-sandbox-a1b2', 'before-update' );
-```
-
-### `Rudel::snapshots( $sandbox_id )`
-
-Lists all snapshots for a sandbox.
-
-```php
-$snapshots = Rudel::snapshots( 'my-sandbox-a1b2' );
-foreach ( $snapshots as $snap ) {
-    echo $snap['name'] . ' - ' . $snap['created_at'] . "\n";
-}
-```
-
-## GitHub
-
-### `Rudel::github( $repo, $token )`
-
-Returns a `GitHubIntegration` instance for low-level API access. The token falls back to the `RUDEL_GITHUB_TOKEN` constant if not provided.
-
-```php
-$gh = Rudel::github( 'owner/my-theme' );
-$gh->download( 'main', '/local/dir' );
-$gh->create_branch( 'feature/new-header' );
-$gh->is_branch_merged( 'feature/new-header' );
-```
-
-### `Rudel::push( $sandbox_id, $repo, $message, $subdir )`
-
-Pushes a sandbox's files to a GitHub branch. Creates the branch if needed. The repo is stored in metadata after the first push, so subsequent calls don't need it.
-
-```php
-// First push: specify repo
-Rudel::push( 'my-sandbox-a1b2', 'owner/my-theme', 'Add header template', 'themes/my-theme' );
-
-// Subsequent pushes: repo is remembered
-Rudel::push( 'my-sandbox-a1b2', '', 'Fix typo' );
-```
-
-### `Rudel::pr( $sandbox_id, $title, $repo, $body )`
-
-Creates a GitHub pull request from the sandbox's branch. The repo is read from metadata if omitted.
-
-```php
-$pr = Rudel::pr( 'my-sandbox-a1b2', 'New header template' );
-echo $pr['html_url']; // https://github.com/owner/my-theme/pull/4
-```
-
-## App management
+Returns `true` when the current request is a Rudel sandbox.
 
 ### `Rudel::is_app()`
 
-Returns `true` if the current request is running inside an app (permanent environment).
+Returns `true` when the current request is a Rudel app.
+
+### `Rudel::id()`
+
+Returns the current sandbox ID or `null`.
 
 ### `Rudel::app_id()`
 
-Returns the current app ID, or `null`.
+Returns the current app ID or `null`.
+
+### `Rudel::path()`
+
+Returns the current environment directory path or `null`.
+
+### `Rudel::engine()`
+
+Returns `subsite` for active Rudel environments or `null` outside Rudel.
+
+### `Rudel::table_prefix()`
+
+Returns the active environment table prefix or `null`.
+
+### `Rudel::url()`
+
+Returns the active environment's real site URL.
+
+### `Rudel::exit_url()`
+
+Returns the network host root URL.
+
+### `Rudel::is_email_disabled()`
+
+Returns whether outbound email is blocked for the active environment.
+
+### `Rudel::log_path()`
+
+Returns the active environment debug log path, if any.
+
+### `Rudel::version()`
+
+Returns the installed Rudel version.
+
+### `Rudel::cli_command()`
+
+Returns the configured WP-CLI root command.
+
+### `Rudel::context()`
+
+Returns the bundled runtime context:
+
+```php
+[
+    'is_sandbox'     => true,
+    'is_app'         => false,
+    'id'             => 'alpha-1234',
+    'app_id'         => null,
+    'path'           => '/var/www/html/wp-content/rudel-environments/alpha-1234',
+    'engine'         => 'subsite',
+    'table_prefix'   => 'wp_2_',
+    'url'            => 'http://alpha.localhost/',
+    'exit_url'       => 'http://localhost/',
+    'email_disabled' => true,
+    'log_path'       => '/var/www/html/wp-content/rudel-environments/alpha-1234/wp-content/debug.log',
+    'version'        => '...',
+    'cli_command'    => 'rudel',
+]
+```
+
+## Environment lifecycle
+
+### `Rudel::all()`
+
+List sandboxes.
+
+### `Rudel::get( string $id )`
+
+Load one sandbox.
+
+### `Rudel::create( string $name, array $options = [] )`
+
+Create a sandbox.
+
+### `Rudel::update( string $id, array $changes )`
+
+Update sandbox metadata.
+
+### `Rudel::destroy( string $id )`
+
+Destroy a sandbox.
+
+### `Rudel::cleanup( array $options = [] )`
+
+Run cleanup policy.
+
+### `Rudel::cleanup_merged( array $options = [] )`
+
+Remove sandboxes whose tracked branches have already merged.
+
+### `Rudel::snapshot( string $id, string $name )`
+
+Create a sandbox snapshot.
+
+### `Rudel::restore( string $id, string $snapshot )`
+
+Restore a sandbox snapshot.
+
+### `Rudel::templates()`
+
+List saved templates.
+
+### `Rudel::save_template( string $id, string $name, string $description = '' )`
+
+Save a sandbox as a template.
+
+### `Rudel::delete_template( string $name )`
+
+Delete a template.
+
+## App lifecycle
 
 ### `Rudel::apps()`
 
-Returns an array of all app instances.
+List apps.
 
-### `Rudel::app( $id )`
+### `Rudel::app( string $id )`
 
-Returns a single app by ID, or `null`.
+Load one app.
 
-### `Rudel::create_app( $name, $domains, $options )`
+### `Rudel::create_app( string $name, array $domains, array $options = [] )`
 
-Creates a new app with the given domains.
+Create an app.
 
-```php
-$app = Rudel::create_app(
-    'Client A',
-    [ 'client-a.com', 'www.client-a.com' ],
-    [
-        'tracked_github_repo'   => 'inline0/client-a-theme',
-        'tracked_github_branch' => 'main',
-        'tracked_github_dir'    => 'themes/client-a',
-    ]
-);
-echo $app->get_url(); // https://client-a.com/
-```
+### `Rudel::update_app( string $id, array $changes )`
 
-### `Rudel::update_app( $id, $changes )`
+Update app metadata.
 
-Updates app metadata and lifecycle policy.
+### `Rudel::destroy_app( string $id )`
 
-```php
-$app = Rudel::update_app( 'client-a-com-a1b2', [
-    'owner'               => 'dennis',
-    'labels'              => [ 'customer', 'production' ],
-    'tracked_github_repo' => 'inline0/client-a-theme',
-] );
-```
+Destroy an app.
 
-### `Rudel::destroy_app( $id )`
+### `Rudel::create_sandbox_from_app( string $app_id, string $name, array $options = [] )`
 
-Destroys an app and removes all domain mappings.
+Create a sandbox cloned from an app.
 
-### `Rudel::create_sandbox_from_app( $app_id, $name, $options )`
+### `Rudel::backup_app( string $app_id, string $name )`
 
-Creates a sandbox cloned from an app.
+Create an app backup.
 
-```php
-$sandbox = Rudel::create_sandbox_from_app( 'client-a-com-a1b2', 'Client A Feature Work' );
-echo $sandbox->id;
-```
+### `Rudel::app_backups( string $app_id )`
 
-App-derived sandboxes inherit tracked GitHub repository metadata so later `Rudel::push()` and `Rudel::pr()` calls can reuse the same repository, base branch, and subdirectory defaults.
+List app backups.
 
-### `Rudel::touch_current_environment()`
+### `Rudel::plan_app_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = [] )`
 
-Touches the current environment's `last_used_at` timestamp. Rudel already does this automatically at runtime, but the method is public if custom code wants to force an activity update.
+Build a dry-run deploy plan.
 
-### `Rudel::backup_app( $app_id, $name )`
+### `Rudel::deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = [] )`
 
-Creates a named backup of an app.
+Deploy a sandbox into an app.
 
-```php
-$backup = Rudel::backup_app( 'client-a-com-a1b2', 'before-redesign' );
-echo $backup['name'];
-```
+### `Rudel::app_deployments( string $app_id )`
 
-### `Rudel::app_backups( $app_id )`
+List deployment records.
 
-Lists all backups for an app.
+### `Rudel::rollback_app_deployment( string $app_id, string $deployment_id, array $options = [] )`
 
-### `Rudel::restore_app( $app_id, $name )`
+Rollback an app deployment.
 
-Restores an app from a named backup.
+### `Rudel::restore_app( string $app_id, string $backup_name )`
 
-### `Rudel::app_deployments( $app_id )`
+Restore an app from a named backup.
 
-Lists deployment records for an app.
+### `Rudel::add_app_domain( string $app_id, string $domain )`
 
-### `Rudel::plan_app_deploy( $app_id, $sandbox_id, $backup_name, $options )`
+Attach an additional domain to an app record.
 
-Builds a dry-run deploy plan without mutating the app.
+### `Rudel::remove_app_domain( string $app_id, string $domain )`
 
-```php
-$plan = Rudel::plan_app_deploy(
-    'client-a-com-a1b2',
-    'client-a-feature-b2c3',
-    'before-launch',
-    [ 'label' => 'Launch candidate' ]
-);
-
-echo $plan['lock_path'];
-echo $plan['tracked_github_repo'];
-```
-
-### `Rudel::deploy_sandbox_to_app( $app_id, $sandbox_id, $backup_name, $options )`
-
-Deploys a sandbox into an app. A backup is created first, and the resulting deployment is recorded for later auditing and rollback lookup.
-
-```php
-$result = Rudel::deploy_sandbox_to_app(
-    'client-a-com-a1b2',
-    'client-a-feature-b2c3',
-    'before-launch',
-    [
-        'label' => 'Launch candidate',
-        'notes' => 'Approved after QA sign-off',
-    ]
-);
-echo $result['backup']['name'];
-echo $result['deployment']['id'];
-```
-
-### `Rudel::rollback_app_deployment( $app_id, $deployment_id, $options )`
-
-Rolls an app back using the backup referenced by a deployment record.
-
-```php
-$rollback = Rudel::rollback_app_deployment(
-    'client-a-com-a1b2',
-    'deploy-20260330-123456'
-);
-
-echo $rollback['backup_name'];
-```
-
-### `Rudel::prune_app_history( $app_id, $options )`
-
-Prunes old app backups and deployment records.
-
-```php
-$result = Rudel::prune_app_history( 'client-a-com-a1b2', [
-    'keep_backups'     => 10,
-    'keep_deployments' => 25,
-] );
-```
-
-### `Rudel::apps_dir()`
-
-Returns the absolute path to the apps directory.
-
-```php
-$dir = Rudel::apps_dir(); // '/var/www/html/wp-content/rudel-apps'
-```
-
-### `Rudel::run_scheduled_cleanup()`
-
-Runs the same automation pipeline that Rudel schedules via WP-Cron. The name is kept for backward compatibility.
-
-```php
-$result = Rudel::run_scheduled_cleanup();
-echo count( $result['cleanup']['removed'] );
-```
-
-### `Rudel::run_automation()`
-
-Runs the full maintenance pipeline directly.
-
-```php
-$result = Rudel::run_automation();
-echo count( $result['app_backups']['created'] );
-```
-
-Automation can include cleanup, merged-branch cleanup, scheduled app backups, app-history retention, and expiry reporting depending on config.
-
-### `Rudel::hooks()`
-
-Returns the documented hook catalog as an associative array.
-
-```php
-$hooks = Rudel::hooks();
-echo $hooks['rudel_app_deploy_plan']['type']; // 'filter'
-```
-
-## Lifecycle Hooks
-
-Rudel now exposes first-party lifecycle hooks around environment, app, recovery, deploy, GitHub, and automation operations. These are standard WordPress actions and filters, and `Rudel::hooks()` / `HookCatalog::all()` expose the documented contract directly.
-
-## CLI bridge
-
-### `Rudel::cli_command_map()`
-
-Returns the serializable Rudel CLI catalog for harnesses that need to understand the shipped command surface without scraping WP-CLI classes.
-
-Each entry includes:
-- a stable operation ID
-- the relative CLI path
-- the WP-CLI handler class and method
-- the possible execution targets
-- the adapter that normalizes raw CLI args into an execution plan
-
-### `Rudel::resolve_cli_command( $path, $args, $assoc_args )`
-
-Turns a parsed CLI invocation into the execution plan the harness should run.
-
-```php
-$plan = Rudel::resolve_cli_command(
-    [ 'app', 'deploy' ],
-    [ 'client-a-com-a1b2' ],
-    [
-        'from'    => 'client-a-feature-b2c3',
-        'dry-run' => true,
-        'label'   => 'QA',
-    ]
-);
-
-echo $plan['callable'];   // Rudel\Rudel::plan_app_deploy
-print_r( $plan['arguments'] );
-```
-
-Execution plans are intentionally transport-aware:
-- most commands resolve to a public PHP callable and normalized arguments
-- commands that need a real shell primitive, such as `wp rudel logs --follow`, resolve to a shell transport plan instead of pretending they are pure PHP calls
-
-This is the standard Rudel uses for agent harnesses: stable operation ID, public API target, and adapter-owned normalization for CLI-only concerns like `--clone-all`, `--dry-run`, default naming, and confirmation requirements.
-
-Examples:
-
-- `rudel_before_environment_create`
-- `rudel_after_environment_create`
-- `rudel_environment_create_failed`
-- `rudel_before_app_create`
-- `rudel_after_app_create`
-- `rudel_before_app_create_sandbox`
-- `rudel_after_app_deploy`
-- `rudel_app_rollback_failed`
-- `rudel_before_environment_push`
-- `rudel_after_environment_pr`
-- `rudel_after_automation_app_retention`
-- `rudel_after_automation_expiring_environments`
-
-Example:
-
-```php
-add_action( 'rudel_after_app_deploy', function ( $result, $context ) {
-    error_log(
-        sprintf(
-            'Deployed sandbox %s into app %s as %s',
-            $result['sandbox_id'],
-            $result['app_id'],
-            $result['deployment']['id']
-        )
-    );
-}, 10, 2 );
-```
-
-See [Hooks](/docs/features/hooks) for the broader catalog.
-
-## Admin bar
-
-When an environment is active in the browser, Rudel adds an indicator to the WordPress admin bar. Sandboxes show a red indicator with the sandbox ID and an exit link. Apps show a blue indicator with the app ID. This requires no code from the developer.
-
-## Building custom UI
-
-Here's a quick example of a custom sandbox switcher widget:
-
-```php
-use Rudel\Rudel;
-
-function render_sandbox_switcher() {
-    if ( Rudel::is_sandbox() ) {
-        echo '<div class="sandbox-active">';
-        echo 'Active: ' . esc_html( Rudel::id() );
-        echo ' <a href="' . esc_url( Rudel::exit_url() ) . '">Exit</a>';
-        echo '</div>';
-        return;
-    }
-
-    $sandboxes = Rudel::all();
-    if ( empty( $sandboxes ) ) {
-        echo '<p>No sandboxes.</p>';
-        return;
-    }
-
-    echo '<ul>';
-    foreach ( $sandboxes as $sandbox ) {
-        echo '<li><a href="' . esc_url( $sandbox->get_url() ) . '">';
-        echo esc_html( $sandbox->name );
-        echo '</a> (' . esc_html( $sandbox->engine ) . ')</li>';
-    }
-    echo '</ul>';
-}
-```
+Remove a domain from an app record.

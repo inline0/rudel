@@ -222,13 +222,3 @@ if ( ! function_exists( 'maybe_unserialize' ) ) {
 		return false === $value && 'b:0;' !== $data ? $data : $value;
 	}
 }
-
-if ( ! class_exists( 'WP_SQLite_Translator' ) ) {
-	class WP_SQLite_Translator {
-		public function __construct( \PDO $pdo ) {}
-
-		public function query( string $sql ): mixed {
-			return null;
-		}
-	}
-}

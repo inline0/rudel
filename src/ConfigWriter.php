@@ -17,7 +17,7 @@ class ConfigWriter {
 	 *
 	 * @var string
 	 */
-	private const MARKER = '// Rudel sandbox bootstrap';
+	private const MARKER = '// Rudel environment bootstrap';
 
 	/**
 	 * Inject the bootstrap require line into wp-config.php.

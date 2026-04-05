@@ -1,6 +1,6 @@
 <?php
 /**
- * App manager: creates and manages permanent domain-routed WordPress environments.
+ * App manager: creates and manages multisite app environments.
  *
  * @package Rudel
  */
@@ -85,7 +85,7 @@ class AppManager {
 	 *
 	 * @param string $name Human-readable name.
 	 * @param array  $domains Array of domain names for this app.
-	 * @param array  $options Optional settings (engine, clone flags, clone source).
+	 * @param array  $options Optional settings (clone flags and clone source).
 	 * @return Environment The newly created app environment.
 	 *
 	 * @throws \InvalidArgumentException If domains are invalid, conflicting, or app options are invalid.
@@ -109,10 +109,6 @@ class AppManager {
 		foreach ( $domains as $domain ) {
 			$this->validate_domain( $domain );
 			$this->check_domain_conflict( $domain );
-		}
-
-		if ( 'subsite' === ( $options['engine'] ?? 'mysql' ) ) {
-			throw new \InvalidArgumentException( 'Apps cannot use the subsite engine.' );
 		}
 
 		$options['type']        = 'app';
@@ -235,7 +231,6 @@ class AppManager {
 
 		$options               = Hooks::filter( 'rudel_app_create_sandbox_options', $options, $app, $name, $this );
 		$options['clone_from'] = $app->id;
-		$options['engine']     = $options['engine'] ?? $app->engine;
 		$options['app_id']     = $app->app_record_id;
 		unset( $options['type'], $options['domains'], $options['skip_limits'] );
 
@@ -321,12 +316,12 @@ class AppManager {
 	 * @param array       $options Optional deployment metadata.
 	 * @return array<string, mixed>
 	 */
-	public function preview_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
+	public function plan_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
 		$app     = $this->require_app( $app_id );
 		$sandbox = $this->operations->require_sandbox( $sandbox_id );
 		$options = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
 
-		return $this->operations->preview_deploy( $app, $sandbox, $backup_name, $options );
+		return $this->operations->plan_deploy( $app, $sandbox, $backup_name, $options );
 	}
 
 	/**

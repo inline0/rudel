@@ -11,7 +11,7 @@ use Rudel\AppManager;
 use WP_CLI;
 
 /**
- * Manage Rudel apps (permanent domain-routed environments).
+ * Manage Rudel apps.
  */
 class AppCommand extends \WP_CLI_Command {
 
@@ -39,19 +39,10 @@ class AppCommand extends \WP_CLI_Command {
 	 * ## OPTIONS
 	 *
 	 * --domain=<domain>
-	 * : Primary domain for the app.
+	 * : Primary domain metadata for the app.
 	 *
 	 * [--name=<name>]
 	 * : Human-readable name. Derived from domain if omitted.
-	 *
-	 * [--engine=<engine>]
-	 * : Database engine.
-	 * ---
-	 * default: mysql
-	 * options:
-	 *   - mysql
-	 *   - sqlite
-	 * ---
 	 *
 	 * [--clone-db]
 	 * : Clone the host database.
@@ -112,7 +103,6 @@ class AppCommand extends \WP_CLI_Command {
 		$clone_all = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
 		$options   = array_merge(
 			array(
-				'engine'        => $assoc_args['engine'] ?? 'mysql',
 				'clone_from'    => $assoc_args['clone-from'] ?? null,
 				'clone_db'      => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-db', false ),
 				'clone_themes'  => $clone_all || \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-themes', false ),
@@ -135,7 +125,6 @@ class AppCommand extends \WP_CLI_Command {
 		WP_CLI::log( '' );
 		WP_CLI::log( "  Path:   {$app->path}" );
 		WP_CLI::log( "  Domain: {$domain}" );
-		WP_CLI::log( "  Engine: {$app->engine}" );
 		if ( $app->tracked_github_repo ) {
 			WP_CLI::log( '  GitHub: ' . $app->tracked_github_repo );
 		}
@@ -181,7 +170,6 @@ class AppCommand extends \WP_CLI_Command {
 					'owner'     => $app->owner ?? '',
 					'protected' => $this->format_protection( $app->is_protected() ),
 					'domains'   => implode( ', ', $app->domains ?? array() ),
-					'engine'    => $app->engine,
 					'status'    => $app->status,
 					'created'   => $app->created_at,
 				);
@@ -190,7 +178,7 @@ class AppCommand extends \WP_CLI_Command {
 		);
 
 		$format = $assoc_args['format'] ?? 'table';
-		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'domains', 'engine', 'status', 'created' ) );
+		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'domains', 'status', 'created' ) );
 	}
 
 	/**
@@ -376,14 +364,6 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--name=<name>]
 	 * : Sandbox name. Defaults to "<app name> Sandbox".
 	 *
-	 * [--engine=<engine>]
-	 * : Database engine. Must match the source app.
-	 * ---
-	 * options:
-	 *   - mysql
-	 *   - sqlite
-	 * ---
-	 *
 	 * [--owner=<owner>]
 	 * : Optional owner for the sandbox.
 	 *
@@ -419,9 +399,6 @@ class AppCommand extends \WP_CLI_Command {
 
 		$name    = $assoc_args['name'] ?? "{$app->name} Sandbox";
 		$options = $this->build_policy_changes( $assoc_args );
-		if ( isset( $assoc_args['engine'] ) ) {
-			$options['engine'] = $assoc_args['engine'];
-		}
 
 		try {
 			$sandbox = $this->manager->create_sandbox( $id, $name, $options );
@@ -433,7 +410,6 @@ class AppCommand extends \WP_CLI_Command {
 		WP_CLI::log( '' );
 		WP_CLI::log( "  App:     {$app->id}" );
 		WP_CLI::log( "  Path:    {$sandbox->path}" );
-		WP_CLI::log( "  Engine:  {$sandbox->engine}" );
 		WP_CLI::log( "  URL:     {$sandbox->get_url()}" );
 	}
 
@@ -655,7 +631,7 @@ class AppCommand extends \WP_CLI_Command {
 
 		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false ) ) {
 			try {
-				$plan = $this->manager->preview_deploy( $id, $sandbox_id, $backup_name, $options );
+				$plan = $this->manager->plan_deploy( $id, $sandbox_id, $backup_name, $options );
 			} catch ( \Throwable $e ) {
 				WP_CLI::error( $e->getMessage() );
 			}

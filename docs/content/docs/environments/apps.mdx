@@ -1,235 +1,86 @@
 ---
 title: Apps
-description: Permanent domain-routed WordPress environments for multi-tenant hosting.
+description: Long-lived Rudel sites with backups, deploys, and rollback.
 ---
 
 # Apps
 
-Apps are permanent, production-grade environments that serve traffic on their own domains. Unlike sandboxes, which are temporary and accessed via path prefixes, apps own their domain and run as fully independent WordPress sites.
+Apps are the stable side of the Rudel lifecycle.
 
-## Creating an app
+An app is:
 
-```bash
-wp rudel app create --domain=client-a.com
-```
+- a real multisite site
+- a Rudel environment record
+- an app record with domain metadata
+- a place to store backups and deployment history
 
-This creates an isolated environment, maps the domain to it, and sets up the database tables and `wp-content` directory. The name is derived from the domain automatically, or you can specify one:
-
-```bash
-wp rudel app create --domain=client-a.com --name="Client A Website"
-```
-
-To start with a copy of the host site's data:
+## Create an app
 
 ```bash
-wp rudel app create --domain=client-a.com --clone-all
+wp rudel app create --name=demo --domain=demo.example.test
 ```
 
-The same granular clone flags available to sandboxes also work here:
+## Create a sandbox from an app
 
 ```bash
-wp rudel app create --domain=client-a.com --clone-db --clone-themes
+wp rudel app create-sandbox demo-1234 --name="Demo Feature"
 ```
 
-If you want to create an app from an existing sandbox or app instead of cloning from the host, use `--clone-from`:
+That sandbox clones from the app and becomes the workspace for change work.
 
-```bash
-wp rudel app create --domain=client-b.com --clone-from=client-a-com-a1b2
-```
-
-If the app's deployed code lives in a GitHub-backed theme or plugin, track that at creation time:
-
-```bash
-wp rudel app create --domain=client-a.com --github=inline0/client-a-theme --branch=main --dir=themes/client-a
-```
-
-That metadata is not about turning the app into a Git branch. It just tells Rudel which repository, branch, and wp-content slice represent the app's stable deployed code, so app-derived sandboxes can reuse that context automatically.
-
-## Sandboxes from apps
-
-Apps are meant to be the long-lived runtime target. Sandboxes are where you make and test changes.
-
-Create a sandbox from an app:
-
-```bash
-wp rudel app create-sandbox client-a-com-a1b2 --name="Client A Feature Work"
-```
-
-That gives you a disposable sandbox with the app's database and `wp-content`, but rewritten to sandbox URLs and prefixes. If the app tracks a GitHub repo, branch, or subdirectory, the sandbox inherits that metadata too, so `wp rudel push` and `wp rudel pr` already know what they are working against.
-
-You can also attach sandbox lifecycle metadata at creation time:
-
-```bash
-wp rudel app create-sandbox client-a-com-a1b2 --name="Client A QA" --owner=dennis --labels=qa,client-a --ttl-days=7
-```
-
-## Backups and deploys
-
-Apps do not use sandbox snapshots. Instead, they use app backups and deploys.
+## Backups
 
 Create a backup:
 
 ```bash
-wp rudel app backup client-a-com-a1b2 --name=before-redesign
+wp rudel app backup demo-1234 --name=baseline
 ```
 
 List backups:
 
 ```bash
-wp rudel app backups client-a-com-a1b2
+wp rudel app backups demo-1234
 ```
 
 Restore a backup:
 
 ```bash
-wp rudel app restore client-a-com-a1b2 --backup=before-redesign --force
+wp rudel app restore demo-1234 --backup=baseline --force
 ```
 
-App restore can automatically create another backup first, so recovery stays symmetric even when the restore itself is destructive.
+## Deploy
 
-Deploy a sandbox into an app:
+Preview a deploy:
 
 ```bash
-wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --force
+wp rudel app deploy demo-1234 --from=demo-feature-1234 --backup=before-deploy --dry-run
 ```
 
-Preview the deploy first:
+Run a deploy:
 
 ```bash
-wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --dry-run
+wp rudel app deploy demo-1234 --from=demo-feature-1234 --backup=before-deploy --label="Launch candidate" --notes="Approved by QA" --force
 ```
 
-Deploy always creates or uses an app backup first, then replaces the app's database and `wp-content` with the sandbox state while rewriting URLs back to the app domain.
-
-Every deploy also writes a deployment record, so you can audit which sandbox shipped, which backup can roll it back, and any operator notes attached to the release:
+List recorded deployments:
 
 ```bash
-wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=before-launch --label="Launch candidate" --notes="Approved after QA sign-off" --force
-wp rudel app deployments client-a-com-a1b2
+wp rudel app deployments demo-1234
 ```
 
-## Deployment workflows
-
-### Git-backed theme or plugin workflow
-
-This is the most common app flow when the deployed code lives in a repository:
+Rollback a deployment:
 
 ```bash
-wp rudel app create --domain=client-a.com --github=inline0/client-a-theme --branch=main --dir=themes/client-a
-wp rudel app create-sandbox client-a-com-a1b2 --name="Client A Header Refresh" --owner=dennis --labels=feature,client-a
-wp rudel push client-a-header-refresh-a1b2
-wp rudel pr client-a-header-refresh-a1b2 --title="Refresh client header"
-wp rudel app deploy client-a-com-a1b2 --from=client-a-header-refresh-a1b2 --backup=before-header-refresh --label="Header refresh" --force
+wp rudel app rollback demo-1234 --deployment=deploy-1234 --force
 ```
 
-Conceptually:
+## Domains
 
-1. The app holds the deployed state.
-2. The sandbox is the feature workspace.
-3. GitHub review happens from the sandbox branch.
-4. Deploy copies the reviewed sandbox state back into the app and records the release.
+Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables.
 
-### QA sandbox from a live app
-
-Sometimes you want to branch a short-lived QA or debugging environment from a production-like app without changing the app itself:
+Add or remove additional domains:
 
 ```bash
-wp rudel app create-sandbox client-a-com-a1b2 --name="Client A QA" --owner=dennis --labels=qa,client-a --ttl-days=7
+wp rudel app domain-add demo-1234 --domain=www.demo.example.test
+wp rudel app domain-remove demo-1234 --domain=www.demo.example.test
 ```
-
-That keeps the app stable while the sandbox carries its own expiry and stewardship metadata.
-
-### Roll back a bad deploy
-
-Because deploys always point back to a backup, rollback is a first-class app operation:
-
-```bash
-wp rudel app deployments client-a-com-a1b2
-wp rudel app rollback client-a-com-a1b2 --deployment=deploy-20260330-123456 --force
-```
-
-If you already know the backup name and want to bypass deployment history, raw app restore is still available:
-
-```bash
-wp rudel app restore client-a-com-a1b2 --backup=before-launch --force
-```
-
-That is the intended lifecycle:
-
-1. App holds the stable runtime state.
-2. Sandbox branches off the app for change work.
-3. Sandbox is tested, reviewed, and optionally pushed/PR'd.
-4. Sandbox deploys back into the app.
-
-## Domain management
-
-Each app has at least one domain. You can add more:
-
-```bash
-wp rudel app domain-add client-a-com-a1b2 --domain=www.client-a.com
-```
-
-And remove them:
-
-```bash
-wp rudel app domain-remove client-a-com-a1b2 --domain=www.client-a.com
-```
-
-An app must always have at least one domain. Domains are stored in Rudel's runtime tables and resolved directly by the bootstrap on every request. Domains are normalized to lowercase and matched case-insensitively at runtime, so `Client-A.com` and `client-a.com` are treated as the same mapping.
-
-## How routing works
-
-When a request comes in, the bootstrap checks the `HTTP_HOST` header against the domain map before any sandbox detection runs. If the host matches an app's domain, the environment is activated and WordPress boots in that app's context. The app's `WP_SITEURL` and `WP_HOME` are set to the domain itself, not a path prefix.
-
-This means apps work exactly like standalone WordPress sites from the browser's perspective. No path prefix in URLs, no special cookies. Just a normal domain pointing to a fully isolated WordPress environment.
-
-For operator tooling and same-origin embeds, an app can also be opened through `/{prefix}/{app-id}/`. That prefixed preview is not the canonical public URL for the app, but it behaves like a subpath site for front page, `wp-admin/`, `wp-login.php`, and static assets under the same prefix.
-
-## Managing apps
-
-List all apps:
-
-```bash
-wp rudel app list
-```
-
-View details:
-
-```bash
-wp rudel app info client-a-com-a1b2
-```
-
-Update app metadata:
-
-```bash
-wp rudel app update client-a-com-a1b2 --owner=dennis --labels=customer,production --protected
-```
-
-Destroy an app (removes database tables, `wp-content`, and domain mappings):
-
-```bash
-wp rudel app destroy client-a-com-a1b2 --force
-```
-
-## Admin bar
-
-When you're logged into an app's wp-admin, a blue indicator with the app ID appears in the admin bar. Unlike sandboxes, there's no exit link since apps are permanent and don't have a "host" to return to.
-
-## Differences from sandboxes
-
-Apps and sandboxes share the same isolation layer but differ in intent:
-
-| | Sandboxes | Apps |
-|---|---|---|
-| **Lifecycle** | Temporary, disposable | Permanent |
-| **Routing** | Path prefix + scoped preview cookie | Domain-based, with optional prefixed preview |
-| **Recovery** | Snapshots | Backups |
-| **Promote to host** | Yes | No |
-| **Deploy from sandbox** | N/A | Yes |
-| **Git workflow** | Primary change workspace | Deploy target, not the primary Git surface |
-| **Email** | Blocked by default | Allowed by default |
-| **Use case** | Development, testing, AI agents | Multi-tenant hosting, client sites |
-
-Both use the same `rudel_` table prefix safety guard, the same `wp-content` isolation, and the same authentication salt isolation.
-
-If you think in Git terms, apps are closer to deployed mainline state and sandboxes are closer to feature workspaces or worktrees. The analogy is about workflow, not literal Git structure, because both also include database and environment state.

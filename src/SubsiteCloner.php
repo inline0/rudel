@@ -13,6 +13,50 @@ namespace Rudel;
 class SubsiteCloner {
 
 	/**
+	 * Whether the current runtime is a WordPress multisite network.
+	 *
+	 * @return bool
+	 */
+	protected function is_multisite_network(): bool {
+		return function_exists( 'is_multisite' ) && is_multisite();
+	}
+
+	/**
+	 * Whether the current multisite network uses subdomain sites.
+	 *
+	 * @return bool
+	 */
+	protected function is_subdomain_network(): bool {
+		return function_exists( 'is_subdomain_install' ) && is_subdomain_install();
+	}
+
+	/**
+	 * Build the native multisite site target for one Rudel environment.
+	 *
+	 * Rudel treats real multisite sites as the canonical browser runtime, so
+	 * subsite creation follows the network's own site model directly.
+	 *
+	 * @param string $environment_id Environment slug.
+	 * @return array{domain: string, path: string}
+	 *
+	 * @throws \RuntimeException When multisite is unavailable or the network is not subdomain-based.
+	 */
+	public function get_subsite_target( string $environment_id ): array {
+		if ( ! $this->is_multisite_network() ) {
+			throw new \RuntimeException( 'Subsite engine requires a WordPress multisite installation.' );
+		}
+
+		if ( ! $this->is_subdomain_network() ) {
+			throw new \RuntimeException( 'Rudel requires a subdomain multisite network for native site isolation.' );
+		}
+
+		return array(
+			'domain' => $environment_id . '.' . $this->get_current_domain(),
+			'path'   => '/',
+		);
+	}
+
+	/**
 	 * Create a new multisite sub-site.
 	 *
 	 * @param string $sandbox_id    Sandbox identifier (used for the sub-site slug).
@@ -23,19 +67,14 @@ class SubsiteCloner {
 	 * @throws \RuntimeException If the host is not multisite or creation fails.
 	 */
 	public function create_subsite( string $sandbox_id, string $title, int $admin_user_id = 1 ): int {
-		if ( ! function_exists( 'is_multisite' ) || ! is_multisite() ) {
-			throw new \RuntimeException( 'Subsite engine requires a WordPress multisite installation.' );
-		}
+		$target = $this->get_subsite_target( $sandbox_id );
 
 		if ( ! function_exists( 'wpmu_create_blog' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/ms.php';
 		}
 
-		$domain = $this->get_current_domain();
-		$path   = '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/';
-
 		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.create_blog -- Sandbox sub-site creation.
-		$blog_id = wpmu_create_blog( $domain, $path, $title, $admin_user_id );
+		$blog_id = wpmu_create_blog( $target['domain'], $target['path'], $title, $admin_user_id );
 
 		if ( is_wp_error( $blog_id ) ) {
 			throw new \RuntimeException(
@@ -137,10 +176,33 @@ class SubsiteCloner {
 	 * @return string Domain name.
 	 */
 	private function get_current_domain(): string {
+		if ( defined( 'WP_HOME' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime host derivation without relying on later WP URL helpers.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) && ! empty( $parts['host'] ) ) {
+				$host = preg_replace( '/:\d+$/', '', (string) $parts['host'] );
+				if ( is_string( $host ) && '' !== $host ) {
+					return $host;
+				}
+
+				return 'localhost';
+			}
+		}
+
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
-			return DOMAIN_CURRENT_SITE;
+			$host = preg_replace( '/:\d+$/', '', (string) DOMAIN_CURRENT_SITE );
+			if ( is_string( $host ) && '' !== $host ) {
+				return $host;
+			}
+
+			return 'localhost';
 		}
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Pre-validated in bootstrap context.
-		return $_SERVER['HTTP_HOST'] ?? 'localhost';
+		$host = preg_replace( '/:\d+$/', '', (string) ( $_SERVER['HTTP_HOST'] ?? 'localhost' ) );
+		if ( is_string( $host ) && '' !== $host ) {
+			return $host;
+		}
+
+		return 'localhost';
 	}
 }

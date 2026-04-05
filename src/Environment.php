@@ -23,7 +23,7 @@ class Environment {
 	 * @param string      $status       Current status (active, paused).
 	 * @param array|null  $clone_source Clone source metadata, or null if not cloned.
 	 * @param bool        $multisite    Whether this sandbox was cloned from a multisite host.
-	 * @param string      $engine       Database engine: 'mysql', 'sqlite', or 'subsite'.
+	 * @param string      $engine       Database engine. Rudel uses 'subsite'.
 	 * @param int|null    $blog_id      Multisite blog ID (subsite engine only).
 	 * @param string      $type                     Environment type: 'sandbox' or 'app'.
 	 * @param array|null  $domains                  Domain names mapped to this environment (app mode).
@@ -53,7 +53,7 @@ class Environment {
 		public readonly string $status = 'active',
 		public readonly ?array $clone_source = null,
 		public readonly bool $multisite = false,
-		public readonly string $engine = 'mysql',
+		public readonly string $engine = 'subsite',
 		public readonly ?int $blog_id = null,
 		public readonly string $type = 'sandbox',
 		public readonly ?array $domains = null,
@@ -120,7 +120,7 @@ class Environment {
 			status: (string) ( $record['status'] ?? 'active' ),
 			clone_source: $clone_source,
 			multisite: ! empty( $record['multisite'] ),
-			engine: (string) ( $record['engine'] ?? 'mysql' ),
+			engine: (string) ( $record['engine'] ?? 'subsite' ),
 			blog_id: isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
 			type: (string) ( $record['type'] ?? 'sandbox' ),
 			domains: ! empty( $domains ) ? array_values( $domains ) : null,
@@ -141,24 +141,6 @@ class Environment {
 			record_id: isset( $record['id'] ) ? (int) $record['id'] : null,
 			app_record_id: isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
 		);
-	}
-
-	/**
-	 * Whether this environment uses the MySQL engine.
-	 *
-	 * @return bool True if MySQL.
-	 */
-	public function is_mysql(): bool {
-		return 'mysql' === $this->engine;
-	}
-
-	/**
-	 * Whether this environment uses the SQLite engine.
-	 *
-	 * @return bool True if SQLite.
-	 */
-	public function is_sqlite(): bool {
-		return 'sqlite' === $this->engine;
 	}
 
 	/**
@@ -186,18 +168,6 @@ class Environment {
 	 */
 	public function is_protected(): bool {
 		return $this->is_protected;
-	}
-
-	/**
-	 * SQLite database path for this environment, when present.
-	 *
-	 * @return string|null Absolute path to the database file, or null for MySQL/subsite sandboxes.
-	 */
-	public function get_db_path(): ?string {
-		if ( ! $this->is_sqlite() ) {
-			return null;
-		}
-		return $this->path . '/wordpress.db';
 	}
 
 	/**
@@ -248,13 +218,64 @@ class Environment {
 	 * @return string URL path or full URL if WP_HOME is defined.
 	 */
 	public function get_url(): string {
+		if ( null !== $this->blog_id || $this->is_subsite() ) {
+			return self::multisite_url_for( $this->id, $this->blog_id );
+		}
+
 		if ( $this->is_app() && ! empty( $this->domains ) ) {
-			return 'https://' . $this->domains[0] . '/';
+			return rtrim( 'https://' . $this->domains[0], '/' ) . '/';
 		}
+
+		return self::multisite_url_for( $this->id, null );
+	}
+
+	/**
+	 * Build the canonical subdomain-multisite URL for one environment.
+	 *
+	 * @param string   $id Environment slug.
+	 * @param int|null $blog_id Optional blog ID when WordPress can resolve a persisted site URL.
+	 * @return string
+	 */
+	public static function multisite_url_for( string $id, ?int $blog_id = null ): string {
+		if ( null !== $blog_id && function_exists( 'get_blog_details' ) ) {
+			$details = get_blog_details( $blog_id );
+			if ( $details && ! empty( $details->siteurl ) ) {
+				return trailingslashit( (string) $details->siteurl );
+			}
+		}
+
+		$scheme = 'http';
+		$host   = 'localhost';
+		$port   = null;
+
 		if ( defined( 'WP_HOME' ) ) {
-			return rtrim( WP_HOME, '/' ) . '/' . RUDEL_PATH_PREFIX . '/' . $this->id . '/';
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation before full WP helpers are guaranteed.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) ) {
+				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
+				$host   = isset( $parts['host'] ) ? (string) $parts['host'] : $host;
+				$port   = isset( $parts['port'] ) ? (int) $parts['port'] : null;
+			}
 		}
-		return '/' . RUDEL_PATH_PREFIX . '/' . $this->id . '/';
+
+		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
+			$network_host = preg_replace( '/:\d+$/', '', (string) DOMAIN_CURRENT_SITE );
+			if ( is_string( $network_host ) && '' !== $network_host ) {
+				$host = $network_host;
+			}
+		}
+
+		$root = preg_replace( '/:\d+$/', '', $host );
+		if ( ! is_string( $root ) || '' === $root ) {
+			$root = 'localhost';
+		}
+
+		$url = $scheme . '://' . $id . '.' . $root;
+		if ( null !== $port ) {
+			$url .= ':' . $port;
+		}
+
+		return trailingslashit( $url );
 	}
 
 	/**

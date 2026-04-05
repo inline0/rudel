@@ -1,69 +1,48 @@
 ---
-title: How Isolation Works
-description: The mechanisms that keep sandboxes isolated from each other and the host.
+title: Isolation
+description: How Rudel uses multisite and generated environment files to isolate work.
 ---
 
-# How Isolation Works
+# Isolation
 
-Every sandbox is fully isolated from the host WordPress installation and from other sandboxes. This page explains the mechanisms that make this possible.
+Rudel isolation starts with WordPress multisite.
 
-## Database
+## Site data
 
-Each sandbox operates on its own set of database tables, completely separate from the host and from other sandboxes.
+Every Rudel environment is a real multisite site, so WordPress already provides:
 
-With the default MySQL engine, the sandbox gets a unique table prefix (e.g., `rudel_a1b2c3_`) derived from its ID. The `rudel_` prefix is used deliberately so sandbox tables can never be confused with the host's `wp_` tables. The host tables are untouched. With the SQLite engine, the sandbox gets its own standalone database file. With the subsite engine, isolation is handled by WordPress multisite's native per-site table structure.
+- per-site tables through `blog_id`
+- per-site options
+- per-site uploads
+- per-site admin and REST behavior
 
-As an additional safeguard, the table cleanup code refuses to drop any tables that don't start with `rudel_`. Even if a bug occurred in the prefix generation, it would be impossible for Rudel to accidentally delete host data.
+Rudel builds on that instead of emulating it.
 
-Regardless of engine, the sandbox never reads or writes the host's data.
+## Environment directories
 
-## Content directory
+Each environment also has a generated directory containing:
 
-Each sandbox has its own `wp-content` directory with isolated themes, plugins, uploads, and mu-plugins. WordPress core files (`wp-includes/`, `wp-admin/`) are shared from the host installation since they're read-only and identical across all sandboxes.
+- `bootstrap.php`
+- `wp-cli.yml`
+- isolated `wp-content`
+- `snapshots/` or `backups/`
+- worktree-managed code when present
 
-When you clone themes or plugins from the host, the files are physically copied into the sandbox's directory. Changes to a sandbox's themes or plugins do not affect the host or other sandboxes.
+That directory is where Rudel stores copied themes, plugins, templates, snapshots, backups, and other environment-owned files.
 
-## Bootstrap
+## Authentication and cache
 
-The global `bootstrap.php` runs before WordPress boots and handles sandbox detection. When a sandbox is identified (via path prefix, cookie, header, or subdomain), the bootstrap rewires WordPress's constants to point to the sandbox's content directory, sets a unique table prefix, and generates deterministic authentication salts.
-
-The per-sandbox `bootstrap.php` does the same thing but is loaded by `wp-cli.yml` when you run WP-CLI commands from within the sandbox directory. This is how `cd sandbox-dir && wp post list` automatically scopes to the right sandbox.
-
-## Authentication
-
-Each sandbox gets its own set of authentication salts, deterministically derived from the sandbox ID. This means a session cookie from the host is not valid in any sandbox, and a session from one sandbox is not valid in another. You always need to log in separately.
-
-When you visit a prefixed sandbox or app preview URL in the browser, Rudel automatically sets a `rudel_sandbox` cookie scoped to that preview path. That lets direct entrypoints such as `wp-login.php` and `wp-admin/` stay inside the same preview flow without leaking preview state onto the host root or host admin. To return to the host, append `?adminExit` to any prefixed preview URL.
-
-## Filesystem jail
-
-The bootstrap restricts PHP's `open_basedir` to a minimal allowlist: the sandbox directory itself, the shared WordPress core path, the Rudel plugin directory, and the system temp directory. Once set, any attempt to read or write files outside these paths fails silently. The host's `wp-config.php`, other sandboxes, and the host's database files are all inaccessible from within a sandbox.
-
-In CLI mode, the WP-CLI tool's own directory is added to the allowlist so that phar-based installations work correctly.
-
-## Object cache
-
-If the host uses a persistent object cache like Redis or Memcached, cached data could leak between sandboxes without proper key separation. Rudel sets `WP_CACHE_KEY_SALT` to a unique value per sandbox (`rudel_{sandbox-id}_`), ensuring that each sandbox's cache keys are namespaced and cannot collide with the host or other sandboxes.
+Rudel scopes authentication salts and cache behavior per environment so sessions and persistent cache data stay isolated between environments and the host.
 
 ## Email
 
-By default, sandboxes block all outbound email. A test notification or password reset triggered from a sandbox will not reach any real inbox. Instead, the blocked email is logged to the sandbox's `debug.log` with the recipient and subject line, so you can verify what would have been sent.
+Sandboxes block outbound email by default. Apps allow normal email delivery by default.
 
-To allow a sandbox to send real email, define `RUDEL_DISABLE_EMAIL` as `false` in `wp-config.php` before the bootstrap loads.
+## Users
 
-## WP-CLI scoping
+Rudel uses the multisite user model:
 
-Each sandbox includes a `wp-cli.yml` file that points to the host's WordPress core path and requires the sandbox's `bootstrap.php`. Any `wp` command executed from within the sandbox directory automatically uses that sandbox's database and content. No flags needed.
+- network users are shared
+- membership and capabilities are site-scoped
 
-## Security boundaries
-
-| Attack vector | Defense |
-|---|---|
-| Path traversal | `open_basedir` blocks access outside the allowlist |
-| Sandbox escape to host database | `rudel_` table prefix (MySQL) or file-based separation (SQLite); drop guard rejects non-`rudel_` prefixes |
-| Cross-sandbox access | Each sandbox's `open_basedir` only includes its own path |
-| Tampering with sandbox config | `bootstrap.php` and `wp-cli.yml` are set to read-only |
-| Session hijacking across sandboxes | Per-sandbox deterministic auth salts |
-| Cache data leaking | Per-sandbox `WP_CACHE_KEY_SALT` |
-| Accidental email from sandbox | Outbound email blocked and logged by default |
-| Prompt injection via sandbox files | Agent instructions in read-only `CLAUDE.md`; sandboxes are disposable |
+The runtime isolation boundary is the site, not a separate user table set.

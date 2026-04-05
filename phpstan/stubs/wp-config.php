@@ -7,7 +7,6 @@ const RUDEL_PLUGIN_FILE      = __DIR__ . '/../../rudel.php';
 const RUDEL_PLUGIN_DIR       = __DIR__ . '/../../';
 const RUDEL_VERSION          = '0.0.0';
 const RUDEL_CLI_COMMAND      = 'rudel';
-const RUDEL_PATH_PREFIX      = '__rudel';
 const RUDEL_ENVIRONMENTS_DIR = WP_CONTENT_DIR . '/rudel-environments';
 const RUDEL_APPS_DIR         = WP_CONTENT_DIR . '/rudel-apps';
 const RUDEL_GITHUB_TOKEN     = '';

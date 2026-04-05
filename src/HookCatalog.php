@@ -55,18 +55,6 @@ class HookCatalog {
 				'type' => 'action',
 				'args' => array( '$context', '$error' ),
 			),
-			'rudel_before_environment_promote'             => array(
-				'type' => 'action',
-				'args' => array( '$context' ),
-			),
-			'rudel_after_environment_promote'              => array(
-				'type' => 'action',
-				'args' => array( '$result', '$context' ),
-			),
-			'rudel_environment_promote_failed'             => array(
-				'type' => 'action',
-				'args' => array( '$context', '$error' ),
-			),
 			'rudel_before_environment_replace_state'       => array(
 				'type' => 'action',
 				'args' => array( '$context' ),
@@ -78,26 +66,6 @@ class HookCatalog {
 			'rudel_environment_replace_state_failed'       => array(
 				'type' => 'action',
 				'args' => array( '$context', '$error' ),
-			),
-			'rudel_before_environment_export'              => array(
-				'type' => 'action',
-				'args' => array( '$context' ),
-			),
-			'rudel_after_environment_export'               => array(
-				'type' => 'action',
-				'args' => array( '$context' ),
-			),
-			'rudel_environment_export_failed'              => array(
-				'type' => 'action',
-				'args' => array( '$context', '$error' ),
-			),
-			'rudel_before_environment_import'              => array(
-				'type' => 'action',
-				'args' => array( '$context' ),
-			),
-			'rudel_after_environment_import'               => array(
-				'type' => 'action',
-				'args' => array( '$environment', '$context' ),
 			),
 			'rudel_before_environment_cleanup'             => array(
 				'type' => 'action',

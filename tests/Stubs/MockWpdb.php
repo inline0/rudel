@@ -250,6 +250,15 @@ class MockWpdb
             return true;
         }
 
+        if (preg_match('/TRUNCATE TABLE `?(\w+)`?/i', $query, $m)) {
+            $table = $m[1];
+            if (isset($this->tables[$table])) {
+                $this->tables[$table]['rows'] = [];
+                $this->autoIncrement[$table] = 0;
+            }
+            return true;
+        }
+
         // INSERT INTO target SELECT * FROM source
         if (preg_match('/INSERT INTO `(\w+)` SELECT \* FROM `(\w+)`/i', $query, $m)) {
             $target = $m[1];
@@ -354,6 +363,10 @@ class MockWpdb
         }
 
         $this->assertNoUniqueConflict($table, $data);
+
+        if (str_ends_with($table, 'options') && ! array_key_exists('option_id', $data)) {
+            $data['option_id'] = ($this->autoIncrement[$table] ?? 0) + 1;
+        }
 
         if (! array_key_exists('id', $data)) {
             $nextId = ($this->autoIncrement[$table] ?? 0) + 1;

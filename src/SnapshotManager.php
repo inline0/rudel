@@ -102,31 +102,23 @@ class SnapshotManager {
 				throw new \RuntimeException( sprintf( 'Failed to create %s directory: %s', $this->kind, $point_path ) );
 			}
 
-			if ( $this->environment->is_mysql() || $this->environment->is_subsite() ) {
-				$mysql_cloner  = new MySQLCloner();
-				$source_prefix = $this->environment->get_table_prefix();
-				$snap_prefix   = $source_prefix . 'snap_' . substr( md5( $name ), 0, 6 ) . '_';
-				$mysql_cloner->copy_tables( $source_prefix, $snap_prefix, array( $source_prefix . 'snap_' ) );
+			$mysql_cloner  = new MySQLCloner();
+			$source_prefix = $this->environment->get_table_prefix();
+			$snap_prefix   = $source_prefix . 'snap_' . substr( md5( $name ), 0, 6 ) . '_';
+			$mysql_cloner->copy_tables( $source_prefix, $snap_prefix, array( $source_prefix . 'snap_' ) );
 
-				// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing recovery point DB metadata.
-				file_put_contents(
-					$point_path . '/db_snapshot.json',
-					json_encode(
-						array(
-							'engine'       => $this->environment->engine,
-							'table_prefix' => $snap_prefix,
-						),
-						JSON_PRETTY_PRINT
-					) . "\n"
-				);
-				// phpcs:enable
-			} else {
-				$source_db = $this->environment->get_db_path();
-				if ( $source_db && file_exists( $source_db ) ) {
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file for recovery point.
-					copy( $source_db, $point_path . '/wordpress.db' );
-				}
-			}
+			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing recovery point DB metadata.
+			file_put_contents(
+				$point_path . '/db_snapshot.json',
+				json_encode(
+					array(
+						'engine'       => $this->environment->engine,
+						'table_prefix' => $snap_prefix,
+					),
+					JSON_PRETTY_PRINT
+				) . "\n"
+			);
+			// phpcs:enable
 
 			$content_cloner = new ContentCloner();
 			$content_cloner->copy_directory( $this->environment->get_wp_content_path(), $point_path . '/wp-content' );
@@ -239,29 +231,15 @@ class SnapshotManager {
 				$this->create( $this->auto_recovery_point_name( 'pre-restore' ) );
 			}
 
-			if ( $this->environment->is_mysql() || $this->environment->is_subsite() ) {
-				$db_meta_file = $point_path . '/db_snapshot.json';
-				if ( file_exists( $db_meta_file ) ) {
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading recovery point metadata.
-					$db_meta = json_decode( file_get_contents( $db_meta_file ), true );
-					if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
-						$mysql_cloner  = new MySQLCloner();
-						$target_prefix = $this->environment->get_table_prefix();
-						$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
-						$mysql_cloner->copy_tables( $db_meta['table_prefix'], $target_prefix );
-					}
-				}
-			} else {
-				$snapshot_db = $point_path . '/wordpress.db';
-				$target_db   = $this->environment->get_db_path();
-
-				if ( $target_db && file_exists( $snapshot_db ) ) {
-					if ( file_exists( $target_db ) ) {
-						// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing current database before restore.
-						unlink( $target_db );
-					}
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Restoring database from recovery point.
-					copy( $snapshot_db, $target_db );
+			$db_meta_file = $point_path . '/db_snapshot.json';
+			if ( file_exists( $db_meta_file ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading recovery point metadata.
+				$db_meta = json_decode( file_get_contents( $db_meta_file ), true );
+				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
+					$mysql_cloner  = new MySQLCloner();
+					$target_prefix = $this->environment->get_table_prefix();
+					$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
+					$mysql_cloner->copy_tables( $db_meta['table_prefix'], $target_prefix );
 				}
 			}
 

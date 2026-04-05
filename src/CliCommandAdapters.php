@@ -162,40 +162,6 @@ class CliCommandAdapters {
 	}
 
 	/**
-	 * Resolve sandbox export.
-	 *
-	 * @param array<int, string>   $args Positional arguments.
-	 * @param array<string, mixed> $assoc_args Associative arguments.
-	 * @return array<string, mixed>
-	 */
-	public static function sandbox_export( array $args, array $assoc_args ): array {
-		return self::php_plan(
-			Rudel::class . '::export',
-			array(
-				self::required_positional( $args, 0, 'id' ),
-				self::required_assoc( $assoc_args, 'output' ),
-			)
-		);
-	}
-
-	/**
-	 * Resolve sandbox import.
-	 *
-	 * @param array<int, string>   $args Positional arguments.
-	 * @param array<string, mixed> $assoc_args Associative arguments.
-	 * @return array<string, mixed>
-	 */
-	public static function sandbox_import( array $args, array $assoc_args ): array {
-		return self::php_plan(
-			Rudel::class . '::import',
-			array(
-				self::required_positional( $args, 0, 'file' ),
-				self::required_assoc( $assoc_args, 'name' ),
-			)
-		);
-	}
-
-	/**
 	 * Resolve sandbox log commands.
 	 *
 	 * @param array<int, string>   $args Positional arguments.
@@ -253,31 +219,6 @@ class CliCommandAdapters {
 				self::optional_assoc( $assoc_args, 'title' ) ?? '',
 				self::optional_assoc( $assoc_args, 'github' ) ?? '',
 				self::optional_assoc( $assoc_args, 'body' ) ?? '',
-			)
-		);
-	}
-
-	/**
-	 * Resolve sandbox promotion.
-	 *
-	 * @param array<int, string>   $args Positional arguments.
-	 * @param array<string, mixed> $assoc_args Associative arguments.
-	 * @return array<string, mixed>
-	 */
-	public static function sandbox_promote( array $args, array $assoc_args ): array {
-		$id         = self::required_positional( $args, 0, 'id' );
-		$backup_dir = self::optional_assoc( $assoc_args, 'backup-dir' );
-		$force      = self::flag( $assoc_args, 'force' );
-
-		return self::php_plan(
-			Rudel::class . '::promote',
-			array(
-				$id,
-				$backup_dir ?? Rudel::environments_dir() . '/_backups/' . gmdate( 'Ymd_His' ),
-			),
-			array(
-				'needs_confirmation'   => ! $force,
-				'confirmation_message' => 'This will replace the host site with the sandbox state.',
 			)
 		);
 	}
@@ -510,9 +451,6 @@ class CliCommandAdapters {
 		}
 
 		$options = self::policy_changes( $assoc_args );
-		if ( array_key_exists( 'engine', $assoc_args ) ) {
-			$options['engine'] = $assoc_args['engine'];
-		}
 
 		return self::php_plan(
 			Rudel::class . '::create_sandbox_from_app',
@@ -949,7 +887,6 @@ class CliCommandAdapters {
 		$clone_from = self::optional_assoc( $assoc_args, 'clone-from' );
 		$options    = array_merge(
 			array(
-				'engine'        => self::optional_assoc( $assoc_args, 'engine' ) ?? 'mysql',
 				'template'      => self::optional_assoc( $assoc_args, 'template' ) ?? 'blank',
 				'clone_db'      => $clone_all || self::flag( $assoc_args, 'clone-db' ),
 				'clone_themes'  => $clone_all || self::flag( $assoc_args, 'clone-themes' ),
@@ -977,7 +914,6 @@ class CliCommandAdapters {
 
 		return array_merge(
 			array(
-				'engine'        => self::optional_assoc( $assoc_args, 'engine' ) ?? 'mysql',
 				'clone_from'    => self::optional_assoc( $assoc_args, 'clone-from' ),
 				'clone_db'      => $clone_all || self::flag( $assoc_args, 'clone-db' ),
 				'clone_themes'  => $clone_all || self::flag( $assoc_args, 'clone-themes' ),

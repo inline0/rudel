@@ -1,42 +1,56 @@
 ---
 title: Introduction
-description: Welcome to the Rudel documentation.
+description: Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
 ---
 
 # Introduction
 
-Rudel is a WordPress isolation layer. It creates fully isolated environments within a single WordPress installation, each with their own database, `wp-content` directory, and WP-CLI scope. Environments can be disposable sandboxes for development and testing, or permanent apps that serve real traffic on their own domains.
+Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
 
-## Why Rudel?
+That means:
 
-WordPress doesn't have a good answer for isolated environments. Testing changes on a live site is risky. Spinning up Docker or a local dev stack is heavy. Staging environments are expensive to maintain. And if you're running multiple client sites, you're managing multiple WordPress installations with separate databases, updates, and backups.
+- every environment has a real `blog_id`
+- every environment has a real site URL
+- `wp-admin`, login, REST, assets, and uploads behave like normal WordPress site requests
+- Rudel adds orchestration, metadata, snapshots, backups, templates, deploys, and worktree-aware code flows on top
 
-Rudel solves all of this with a single plugin. One WordPress install can serve any number of isolated environments. Sandboxes for development, apps for production. Each one invisible to the others, each one disposable or permanent as needed.
+## Two environment types
 
-For AI coding agents, Rudel provides the missing piece: a safe, scoped WordPress context where agents can make changes, run commands, and iterate without risk to real data. Every environment gets a `CLAUDE.md` with the context agents need.
+**Sandboxes** are short-lived sites for change work, QA, debugging, and agent-driven development.
 
-## Two modes
+**Apps** are long-lived sites that hold stable runtime state and support backups, deploys, and rollback.
 
-**Sandboxes** are disposable, temporary environments for development, testing, and AI agent workflows. They're accessed via a URL path prefix (`/__rudel/{id}/`) and can be created, snapshotted, promoted to host, and destroyed in seconds. They integrate with git and GitHub for branch-based workflows.
+Both use the same runtime model: WordPress multisite.
 
-**Apps** are permanent, production-grade environments routed by domain. Point `client-a.com` at your WordPress install, create an app for that domain, and it runs as a fully independent site. No multisite overhead, no shared plugin headaches.
+## Runtime shape
 
-Both modes share the same isolation layer: isolated database tables (with a `rudel_` prefix that can never collide with the host), isolated `wp-content`, per-environment authentication salts, and object cache namespacing. Sandboxes block outbound email by default; apps allow it by default.
+Rudel keeps two things in sync:
 
-## How it works
+1. WordPress multisite sites  
+Each Rudel environment is backed by a real multisite site.
 
-On activation, Rudel adds one line to `wp-config.php` that loads a bootstrap file before WordPress boots. For every incoming request, the bootstrap checks whether it targets an environment (via domain, explicit path prefix, header, subdomain, or a scoped preview cookie). If it does, it rewires WordPress's constants to point to that environment's isolated resources. If it doesn't, WordPress boots normally with zero overhead.
+2. Rudel runtime records  
+Rudel stores environment metadata, app identity, domain metadata, worktrees, and deployment history in WordPress tables.
 
-Each environment lives in its own directory with a `wp-cli.yml` that auto-scopes CLI commands and an isolated `wp-content` with its own themes, plugins, and uploads. Runtime state is stored in the host WordPress database, not JSON files, so apps and environments can be referenced by stable DB IDs. SQLite remains available for sandbox site databases, but never for Rudel's own metadata.
+Rudel does not emulate sites through synthetic browser paths. The browser contract is the real site URL.
 
-## Key features
+## What Rudel adds
 
-Rudel is designed around a few principles: environments should be instant to create, fully isolated, and managed entirely through WP-CLI and the PHP API.
-
-Beyond basic creation and destruction, sandboxes support point-in-time snapshots, reusable templates, zip-based export and import, promotion to replace the host site, per-environment error logging, and git/GitHub integration for branch-based workflows with merge-based cleanup. Apps support domain mapping, app backups, deploy history, rollback, and deploy planning from sandboxes.
-
-Everything is accessible through the `Rudel\Rudel` static class for programmatic use, and through the `wp rudel` CLI for command-line workflows.
+- environment creation and destruction
+- app creation from the same runtime model
+- app-derived sandboxes
+- snapshots for sandboxes
+- backups for apps
+- deploy and rollback flows
+- reusable templates
+- GitHub push and PR workflows
+- policy metadata such as owner, labels, protection, and expiry
 
 ## Requirements
 
-Rudel requires PHP 8.0 or later, WordPress 6.4 or later, and write access to `wp-config.php` for the initial bootstrap installation. If you plan to use the SQLite engine, you'll also need the PDO SQLite PHP extension, which is built into most PHP installations.
+Rudel requires:
+
+- PHP 8.0 or later
+- WordPress 6.4 or later
+- a subdomain multisite network
+- write access to `wp-config.php` during initial runtime installation

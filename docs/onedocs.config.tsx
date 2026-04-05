@@ -6,7 +6,7 @@ const iconClass = "h-5 w-5 text-fd-primary";
 
 export default defineConfig({
   title: "Rudel",
-  description: "The WordPress isolation layer for sandboxes and multi-tenant apps.",
+  description: "WordPress environment orchestration on top of subdomain multisite.",
   logo: {
     light: "/logo-light.svg",
     dark: "/logo-dark.svg",
@@ -26,19 +26,19 @@ export default defineConfig({
       {
         title: "Sandboxes",
         description:
-          "Disposable environments for development, testing, and AI agents. Create and destroy in seconds.",
+          "Disposable multisite sites for development, testing, and AI agents.",
         icon: <Box className={iconClass} />,
       },
       {
-        title: "Multi-Tenant Apps",
+        title: "Apps",
         description:
-          "Permanent domain-routed sites on one WordPress install. No multisite overhead.",
+          "Long-lived multisite sites with backups, deploys, and rollback history.",
         icon: <Globe className={iconClass} />,
       },
       {
-        title: "Three Engines",
+        title: "Multisite Runtime",
         description:
-          "MySQL for compatibility, SQLite for portability, multisite sub-site for network environments.",
+          "One runtime model: real subdomain multisite sites for every environment.",
         icon: <Database className={iconClass} />,
       },
       {
@@ -48,15 +48,15 @@ export default defineConfig({
         icon: <GitBranch className={iconClass} />,
       },
       {
-        title: "Snapshots",
+        title: "Snapshots & Backups",
         description:
-          "Point-in-time snapshots with instant restore. Rollback any environment in seconds.",
+          "Snapshots for sandboxes, backups for apps, and recovery built into the workflow.",
         icon: <Camera className={iconClass} />,
       },
       {
-        title: "Full Isolation",
+        title: "Real Site Isolation",
         description:
-          "Isolated databases, content, auth salts, object cache, and email per environment.",
+          "Per-site tables, native multisite uploads, isolated content, salts, cache, and email policy.",
         icon: <Shield className={iconClass} />,
       },
       {

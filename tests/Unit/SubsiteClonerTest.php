@@ -13,8 +13,12 @@ class SubsiteClonerTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testCreateSubsiteThrowsWhenNotMultisite(): void
     {
-        // is_multisite() is not defined or returns false in test context.
-        $cloner = new SubsiteCloner();
+        $cloner = new class () extends SubsiteCloner {
+            protected function is_multisite_network(): bool
+            {
+                return false;
+            }
+        };
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('multisite installation');
@@ -23,16 +27,67 @@ class SubsiteClonerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testDeleteSubsiteRequiresMsFunctions(): void
+    public function testGetSubsiteTargetThrowsWhenNetworkIsNotSubdomainBased(): void
     {
-        // wpmu_delete_blog is not available in test context.
-        // The method requires the ms.php file from ABSPATH.
-        $cloner = new SubsiteCloner();
+        $cloner = new class () extends SubsiteCloner {
+            protected function is_multisite_network(): bool
+            {
+                return true;
+            }
 
-        // Without ABSPATH defined, the require_once will fail.
-        $this->expectException(\Throwable::class);
-        $cloner->delete_subsite(999);
+            protected function is_subdomain_network(): bool
+            {
+                return false;
+            }
+        };
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('subdomain multisite network');
+        $cloner->get_subsite_target('alpha-site');
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testGetSubsiteTargetUsesNativeSubdomainSiteAddress(): void
+    {
+        if (! defined('DOMAIN_CURRENT_SITE')) {
+            define('DOMAIN_CURRENT_SITE', 'example.test');
+        }
+
+        $cloner = new class () extends SubsiteCloner {
+            protected function is_multisite_network(): bool
+            {
+                return true;
+            }
+
+            protected function is_subdomain_network(): bool
+            {
+                return true;
+            }
+        };
+
+        $target = $cloner->get_subsite_target('alpha-site');
+
+        $this->assertSame('alpha-site.example.test', $target['domain']);
+        $this->assertSame('/', $target['path']);
+    }
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testDeleteSubsiteRemovesTheSiteRecord(): void
+	{
+		$GLOBALS['rudel_test_sites'][999] = (object) [
+			'blog_id' => 999,
+			'domain' => 'alpha.example.test',
+			'path' => '/',
+			'siteurl' => 'http://alpha.example.test/',
+		];
+
+		$cloner = new SubsiteCloner();
+		$cloner->delete_subsite(999);
+
+		$this->assertArrayNotHasKey(999, $GLOBALS['rudel_test_sites']);
+	}
 
     public function testGetSubsiteUrlFallsBackToHttpHost(): void
     {

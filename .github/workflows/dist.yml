@@ -18,7 +18,6 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sqlite3, pdo_sqlite
           tools: composer
 
       - name: Install production dependencies
@@ -89,7 +88,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sqlite3, pdo_sqlite, mysqli
+          extensions: mysqli
           tools: wp-cli
 
       - name: Download zip artifact
@@ -138,7 +137,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sqlite3, pdo_sqlite, mysqli
+          extensions: mysqli
           tools: wp-cli
 
       - name: Install via Composer from Packagist
@@ -199,7 +198,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sqlite3, pdo_sqlite, mysqli
+          extensions: mysqli
           tools: composer, wp-cli
 
       - name: Create test project

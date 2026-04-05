@@ -9,11 +9,8 @@ namespace Rudel;
 
 use Rudel\CLI\AppCommand;
 use Rudel\CLI\CleanupCommand;
-use Rudel\CLI\ExportCommand;
-use Rudel\CLI\ImportCommand;
 use Rudel\CLI\LogsCommand;
 use Rudel\CLI\PrCommand;
-use Rudel\CLI\PromoteCommand;
 use Rudel\CLI\PushCommand;
 use Rudel\CLI\RestoreCommand;
 use Rudel\CLI\RudelCommand;
@@ -219,34 +216,6 @@ class CliCommandMap {
 				'Clean up sandboxes by policy or merge state.'
 			),
 			self::definition_item(
-				'sandbox.export',
-				array( 'export' ),
-				ExportCommand::class,
-				'__invoke',
-				array(
-					array(
-						'transport' => 'php',
-						'callable'  => Rudel::class . '::export',
-					),
-				),
-				CliCommandAdapters::class . '::sandbox_export',
-				'Export a sandbox archive.'
-			),
-			self::definition_item(
-				'sandbox.import',
-				array( 'import' ),
-				ImportCommand::class,
-				'__invoke',
-				array(
-					array(
-						'transport' => 'php',
-						'callable'  => Rudel::class . '::import',
-					),
-				),
-				CliCommandAdapters::class . '::sandbox_import',
-				'Import a sandbox archive.'
-			),
-			self::definition_item(
 				'sandbox.logs',
 				array( 'logs' ),
 				LogsCommand::class,
@@ -281,20 +250,6 @@ class CliCommandMap {
 				),
 				CliCommandAdapters::class . '::sandbox_pr',
 				'Open a pull request from a sandbox branch.'
-			),
-			self::definition_item(
-				'sandbox.promote',
-				array( 'promote' ),
-				PromoteCommand::class,
-				'__invoke',
-				array(
-					array(
-						'transport' => 'php',
-						'callable'  => Rudel::class . '::promote',
-					),
-				),
-				CliCommandAdapters::class . '::sandbox_promote',
-				'Replace the host with sandbox state.'
 			),
 			self::definition_item(
 				'sandbox.push',

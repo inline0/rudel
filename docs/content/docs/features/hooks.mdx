@@ -1,15 +1,22 @@
 ---
 title: Hooks
-description: The documented Rudel action and filter contract for extending environment workflows.
+description: The documented Rudel action and filter contract.
 ---
 
 # Hooks
 
-Rudel now treats its lifecycle hooks as a first-class extension contract. That means the important actions and filters are documented, grouped, and available programmatically instead of being an accidental side effect of implementation.
+Rudel publishes its documented lifecycle hooks through `Rudel::hooks()` and `Rudel\HookCatalog::all()`.
+
+## Main categories
+
+The catalog covers:
+
+- environment create, update, destroy, replace-state, cleanup, push, and PR
+- app create, update, destroy, create-sandbox, backup, restore, deploy, rollback, and domain changes
+- recovery-point create, restore, and delete
+- automation cleanup, app backups, retention, and expiry reporting
 
 ## Inspect the catalog
-
-From PHP:
 
 ```php
 use Rudel\Rudel;
@@ -17,23 +24,7 @@ use Rudel\Rudel;
 $hooks = Rudel::hooks();
 ```
 
-Or directly:
-
-```php
-$hooks = \Rudel\HookCatalog::all();
-```
-
 Each entry includes the hook type and argument shape.
-
-## Main categories
-
-The catalog covers:
-
-- environment create, update, destroy, promote, export, import, cleanup, push, and PR
-- app create, update, destroy, sandbox creation, backup, restore, deploy, rollback, and domain changes
-- recovery-point create, restore, and delete
-- automation cleanup, app backups, retention, and expiry reporting
-- failure hooks for the same lifecycle edges
 
 ## Example: change deploy metadata
 
@@ -51,31 +42,3 @@ add_filter(
     3
 );
 ```
-
-## Example: react to automation expiry output
-
-```php
-add_action(
-    'rudel_after_automation_expiring_environments',
-    function ( array $result ): void {
-        foreach ( $result['expiring'] as $environment ) {
-            error_log( 'Expiring soon: ' . $environment['id'] );
-        }
-    }
-);
-```
-
-## Example: observe deploy failures
-
-```php
-add_action(
-    'rudel_app_deploy_failed',
-    function ( array $context, \Throwable $error ): void {
-        error_log( 'Deploy failed for app ' . $context['app']->id . ': ' . $error->getMessage() );
-    },
-    10,
-    2
-);
-```
-
-The important point is consistency: success hooks, failure hooks, and filters now live in one documented place, and `Rudel::hooks()` exposes that contract to code that wants to inspect it.

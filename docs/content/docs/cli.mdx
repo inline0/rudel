@@ -1,93 +1,33 @@
 ---
 title: CLI
-description: Complete WP-CLI command reference for Rudel.
+description: Current WP-CLI command surface for Rudel.
 ---
 
 # CLI Reference
 
-All Rudel operations are available through WP-CLI under the `wp rudel` namespace by default.
+Rudel publishes its command surface under `wp rudel` by default.
 
-## Custom command name
+You can rename only the root command with `RUDEL_CLI_COMMAND` before Rudel boots.
 
-Define `RUDEL_CLI_COMMAND` before Rudel boots if you want to publish the same command tree under a different root, such as `wp sandbox`:
-
-```php
-define( 'RUDEL_CLI_COMMAND', 'sandbox' );
-```
-
-This changes all commands from `wp rudel ...` to `wp sandbox ...`. Useful for white-label distributions, embedded installs, or when `rudel` conflicts with another command.
-
-Only the WP-CLI command name is affected. Internal identifiers like the `rudel_sandbox` cookie and `X-Rudel-Sandbox` header remain unchanged. The URL path prefix can be configured separately via `RUDEL_PATH_PREFIX`.
-
-For agent harnesses and other virtual-bash integrations, treat this page as the human reference and the PHP bridge as the machine contract:
-
-- `Rudel::cli_command_map()` exposes the serializable command catalog
-- `Rudel::resolve_cli_command( $path, $args, $assoc_args )` turns parsed `wp rudel ...` input into a normalized execution plan that prefers direct PHP callables
-
-## Sandbox commands
+## Core commands
 
 ### `wp rudel create`
 
-Create a new sandbox.
+Create a sandbox.
 
 ```bash
-wp rudel create [--name=<name>] [--github=<repo>] [--engine=<engine>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
+wp rudel create [--name=<name>] [--github=<repo>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
 ```
 
-| Option | Description |
-|---|---|
-| `--name=<name>` | Human-readable name. Auto-generated from `--github` repo or random if omitted. |
-| `--github=<repo>` | GitHub repository (`owner/repo`). Creates a branch and downloads files. |
-| `--engine=<engine>` | Database engine: `mysql` (default), `sqlite`, or `subsite` (multisite only) |
-| `--template=<template>` | Template to use (default: `blank`) |
-| `--clone-db` | Clone the host database into the sandbox |
-| `--clone-themes` | Copy host themes into the sandbox |
-| `--clone-plugins` | Copy host plugins into the sandbox |
-| `--clone-uploads` | Copy host uploads into the sandbox |
-| `--clone-all` | Clone everything (database, themes, plugins, uploads) |
-| `--clone-from=<id>` | Clone from an existing sandbox or app |
-| `--owner=<owner>` | Optional owner for stewardship and policy |
-| `--labels=<labels>` | Comma-separated labels |
-| `--purpose=<purpose>` | Optional description of why the sandbox exists |
-| `--protected` | Exclude the sandbox from automated cleanup |
-| `--ttl-days=<days>` | Set an expiry relative to creation time |
-| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
-| `--type=<type>` | Content type for `--github` downloads: `theme` (default) or `plugin` |
-
-```bash
-# Blank sandbox (name auto-generated)
-wp rudel create
-
-# Named sandbox
-wp rudel create --name="my-sandbox"
-
-# GitHub worktree: creates branch, downloads repo
-wp rudel create --github=inline0/my-theme
-
-# GitHub plugin checkout
-wp rudel create --github=inline0/my-plugin --type=plugin
-
-# Full clone of host
-wp rudel create --clone-all
-
-# SQLite engine
-wp rudel create --engine=sqlite
-
-# Multisite sub-site (requires multisite host)
-wp rudel create --engine=subsite
-```
+Rudel uses the `subsite` engine. No other engine is supported.
 
 ### `wp rudel list`
 
-List all sandboxes.
+List sandboxes.
 
 ```bash
 wp rudel list [--format=<format>]
 ```
-
-| Option | Description |
-|---|---|
-| `--format=<format>` | Output format: `table` (default), `json`, `csv`, `yaml`, `count` |
 
 ### `wp rudel info`
 
@@ -97,212 +37,79 @@ Show sandbox details.
 wp rudel info <id> [--format=<format>]
 ```
 
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--format=<format>` | Output format: `table` (default), `json`, `yaml` |
-
-### `wp rudel destroy`
-
-Delete a sandbox permanently.
-
-```bash
-wp rudel destroy <id> [--force]
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--force` | Skip confirmation prompt |
-
 ### `wp rudel update`
 
-Update sandbox metadata and cleanup policy.
+Update sandbox metadata and policy.
 
 ```bash
 wp rudel update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry]
 ```
 
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--owner=<owner>` | Set or clear the owner |
-| `--labels=<labels>` | Comma-separated labels |
-| `--purpose=<purpose>` | Set or clear the purpose |
-| `--protected` | Exclude the sandbox from automated cleanup |
-| `--unprotected` | Remove cleanup protection |
-| `--ttl-days=<days>` | Set an expiry relative to now |
-| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
-| `--clear-expiry` | Remove any explicit expiry |
+### `wp rudel destroy`
+
+Destroy a sandbox.
+
+```bash
+wp rudel destroy <id> [--force]
+```
 
 ### `wp rudel status`
 
-Show Rudel status and configuration.
+Read Rudel runtime status.
 
 ```bash
 wp rudel status
 ```
 
-Status includes sandbox counts, app counts, and the active automation settings so you can see whether cleanup, scheduled app backups, retention, and expiry reporting are enabled.
-
-### `wp rudel promote`
-
-Replace the host site with a sandbox's state.
-
-```bash
-wp rudel promote <id> [--force] [--backup-dir=<path>]
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID to promote (required) |
-| `--force` | Skip confirmation prompt |
-| `--backup-dir=<path>` | Custom directory for the host backup |
-
-### `wp rudel logs`
-
-View a sandbox's error log.
-
-```bash
-wp rudel logs <id> [--lines=<lines>] [--follow] [--clear]
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--lines=<lines>` | Number of lines to show from the end (default: 50) |
-| `--follow` | Watch for new entries in real time (like `tail -f`) |
-| `--clear` | Clear the log file |
-
-### `wp rudel snapshot`
-
-Create a point-in-time snapshot of a sandbox.
-
-```bash
-wp rudel snapshot <id> --name=<name>
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--name=<name>` | Snapshot name (required) |
-
-### `wp rudel restore`
-
-Restore a sandbox from a snapshot.
-
-```bash
-wp rudel restore <id> --snapshot=<name> [--force]
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--snapshot=<name>` | Snapshot name to restore from (required) |
-| `--force` | Skip confirmation prompt |
-
-### `wp rudel export`
-
-Export a sandbox as a zip archive.
-
-```bash
-wp rudel export <id> --output=<path>
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--output=<path>` | Output path for the zip file (required) |
-
-### `wp rudel import`
-
-Import a sandbox from a zip archive.
-
-```bash
-wp rudel import <file> --name=<name>
-```
-
-| Option | Description |
-|---|---|
-| `<file>` | Path to the zip file (required) |
-| `--name=<name>` | Name for the imported sandbox (required) |
-
 ### `wp rudel cleanup`
 
-Clean up expired or merged sandboxes.
+Clean up sandboxes by policy or merged-branch state.
 
 ```bash
 wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--max-idle-days=<days>] [--merged]
 ```
 
-| Option | Description |
-|---|---|
-| `--dry-run` | Show what would be removed without deleting |
-| `--max-age-days=<days>` | Override the configured max age in days |
-| `--max-idle-days=<days>` | Override the configured max idle time in days |
-| `--merged` | Remove sandboxes whose git branches have been merged into main |
+### `wp rudel logs`
 
-## GitHub commands
-
-### `wp rudel push`
-
-Push sandbox file changes to a GitHub branch. No git binary required.
+Read, clear, or follow a sandbox debug log.
 
 ```bash
-wp rudel push <id> [--github=<repo>] [--message=<message>] [--dir=<dir>]
+wp rudel logs <id> [--lines=<lines>] [--follow] [--clear]
 ```
 
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--github=<repo>` | GitHub repository (`owner/repo`). Remembered after first use. |
-| `--message=<message>` | Commit message (default: "Update from Rudel sandbox") |
-| `--dir=<dir>` | Subdirectory within wp-content to push (e.g. `themes/my-theme`) |
+## Recovery points and templates
 
-Requires `RUDEL_GITHUB_TOKEN` to be defined in `wp-config.php`.
+### `wp rudel snapshot`
 
-### `wp rudel pr`
-
-Create a GitHub pull request from a sandbox branch.
+Create a sandbox snapshot.
 
 ```bash
-wp rudel pr <id> [--github=<repo>] [--title=<title>] [--body=<body>]
+wp rudel snapshot <id> --name=<name>
 ```
 
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID (required) |
-| `--github=<repo>` | GitHub repository. Uses stored repo from previous push if omitted. |
-| `--title=<title>` | PR title (defaults to sandbox name) |
-| `--body=<body>` | PR description |
+### `wp rudel restore`
 
-## Template commands
+Restore a sandbox snapshot.
+
+```bash
+wp rudel restore <id> --snapshot=<name> [--force]
+```
 
 ### `wp rudel template save`
 
-Save a sandbox as a reusable template.
+Save a sandbox as a template.
 
 ```bash
 wp rudel template save <id> --name=<name> [--description=<description>]
 ```
 
-| Option | Description |
-|---|---|
-| `<id>` | Sandbox ID to save (required) |
-| `--name=<name>` | Template name (required) |
-| `--description=<description>` | Optional description |
-
 ### `wp rudel template list`
 
-List all templates.
+List saved templates.
 
 ```bash
 wp rudel template list [--format=<format>]
 ```
-
-| Option | Description |
-|---|---|
-| `--format=<format>` | Output format: `table` (default), `json`, `csv`, `yaml`, `count` |
 
 ### `wp rudel template delete`
 
@@ -312,141 +119,35 @@ Delete a template.
 wp rudel template delete <name> [--force]
 ```
 
-| Option | Description |
-|---|---|
-| `<name>` | Template name (required) |
-| `--force` | Skip confirmation prompt |
+## GitHub workflow
+
+### `wp rudel push`
+
+Push sandbox changes to GitHub.
+
+```bash
+wp rudel push <id> [--github=<repo>] [--message=<message>] [--dir=<dir>]
+```
+
+### `wp rudel pr`
+
+Open a pull request from a sandbox branch.
+
+```bash
+wp rudel pr <id> [--github=<repo>] [--title=<title>] [--body=<body>]
+```
 
 ## App commands
 
 ### `wp rudel app create`
 
-Create a new app (permanent domain-routed environment).
+Create an app.
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--engine=<engine>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
-```
-
-| Option | Description |
-|---|---|
-| `--domain=<domain>` | Primary domain for the app (required) |
-| `--name=<name>` | Human-readable name (derived from domain if omitted) |
-| `--engine=<engine>` | Database engine: `mysql` (default) or `sqlite` |
-| `--clone-db` | Clone the host database into the app |
-| `--clone-themes` | Copy host themes into the app |
-| `--clone-plugins` | Copy host plugins into the app |
-| `--clone-uploads` | Copy host uploads into the app |
-| `--clone-all` | Clone host database and content |
-| `--clone-from=<id>` | Clone from an existing sandbox or app |
-| `--github=<repo>` | Track the GitHub repository that represents the app's deployed code |
-| `--branch=<branch>` | Stable mainline branch for app-derived sandbox branches and PRs |
-| `--dir=<dir>` | Optional wp-content subdirectory tied to the tracked repository |
-| `--owner=<owner>` | Optional owner for stewardship and policy |
-| `--labels=<labels>` | Comma-separated labels |
-| `--purpose=<purpose>` | Optional description of why the app exists |
-| `--protected` | Mark the app as protected metadata |
-| `--ttl-days=<days>` | Set an expiry relative to creation time |
-| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
-
-### `wp rudel app update`
-
-Update app metadata and lifecycle policy.
-
-```bash
-wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--clear-github]
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | App ID (required) |
-| `--owner=<owner>` | Set or clear the owner |
-| `--labels=<labels>` | Comma-separated labels |
-| `--purpose=<purpose>` | Set or clear the purpose |
-| `--protected` | Mark the app as protected metadata |
-| `--unprotected` | Remove protection metadata |
-| `--ttl-days=<days>` | Set an expiry relative to now |
-| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
-| `--clear-expiry` | Remove any explicit expiry |
-| `--github=<repo>` | Track the GitHub repository that represents the app's deployed code |
-| `--branch=<branch>` | Stable mainline branch for app-derived sandbox branches and PRs |
-| `--dir=<dir>` | Optional wp-content subdirectory tied to the tracked repository |
-| `--clear-github` | Remove tracked GitHub metadata |
-
-### `wp rudel app create-sandbox`
-
-Create a sandbox cloned from an app.
-
-```bash
-wp rudel app create-sandbox <id> [--name=<name>] [--engine=<engine>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
-```
-
-| Option | Description |
-|---|---|
-| `<id>` | App ID (required) |
-| `--name=<name>` | Sandbox name |
-| `--engine=<engine>` | Database engine. Must match the app |
-| `--owner=<owner>` | Optional owner for the sandbox |
-| `--labels=<labels>` | Comma-separated labels |
-| `--purpose=<purpose>` | Optional description |
-| `--protected` | Exclude the sandbox from automated cleanup |
-| `--ttl-days=<days>` | Set an expiry relative to creation time |
-| `--expires-at=<timestamp>` | Set an explicit expiry timestamp |
-
-### `wp rudel app backup`
-
-Create a named backup of an app.
-
-```bash
-wp rudel app backup <id> --name=<name>
-```
-
-### `wp rudel app backups`
-
-List backups for an app.
-
-```bash
-wp rudel app backups <id> [--format=<format>]
-```
-
-### `wp rudel app deployments`
-
-List deployment records for an app.
-
-```bash
-wp rudel app deployments <id> [--format=<format>]
-```
-
-### `wp rudel app restore`
-
-Restore an app from a backup.
-
-```bash
-wp rudel app restore <id> --backup=<name> [--force]
-```
-
-### `wp rudel app deploy`
-
-Deploy a sandbox into an app.
-
-```bash
-wp rudel app deploy <id> --from=<sandbox-id> [--backup=<name>] [--label=<label>] [--notes=<notes>] [--dry-run] [--force]
-```
-
-Deploy creates an app backup first, rewrites sandbox URLs back to the app domain, and stores a deployment record that can be listed with `wp rudel app deployments`.
-
-Use `--dry-run` to print the deploy plan, backup name, lock path, and inherited GitHub context without mutating the app.
-
-### `wp rudel app rollback`
-
-Roll an app back using the backup referenced by a deployment record.
-
-```bash
-wp rudel app rollback <id> --deployment=<deployment-id> [--force]
+wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
 ### `wp rudel app list`
-
-List all apps.
 
 ```bash
 wp rudel app list [--format=<format>]
@@ -454,23 +155,67 @@ wp rudel app list [--format=<format>]
 
 ### `wp rudel app info`
 
-Show app details.
-
 ```bash
 wp rudel app info <id> [--format=<format>]
 ```
 
-### `wp rudel app destroy`
+### `wp rudel app update`
 
-Destroy an app and remove all domain mappings.
+```bash
+wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--clear-github]
+```
+
+### `wp rudel app destroy`
 
 ```bash
 wp rudel app destroy <id> [--force]
 ```
 
-### `wp rudel app domain-add`
+### `wp rudel app create-sandbox`
 
-Add a domain to an existing app.
+Create a sandbox from an app.
+
+```bash
+wp rudel app create-sandbox <id> [--name=<name>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
+```
+
+### `wp rudel app backup`
+
+```bash
+wp rudel app backup <id> --name=<name>
+```
+
+### `wp rudel app backups`
+
+```bash
+wp rudel app backups <id> [--format=<format>]
+```
+
+### `wp rudel app deployments`
+
+```bash
+wp rudel app deployments <id> [--format=<format>]
+```
+
+### `wp rudel app restore`
+
+```bash
+wp rudel app restore <id> --backup=<name> [--force]
+```
+
+### `wp rudel app deploy`
+
+```bash
+wp rudel app deploy <id> --from=<sandbox-id> [--backup=<name>] [--label=<label>] [--notes=<notes>] [--dry-run] [--force]
+```
+
+### `wp rudel app rollback`
+
+```bash
+wp rudel app rollback <id> --deployment=<deployment-id> [--force]
+```
+
+### `wp rudel app domain-add`
 
 ```bash
 wp rudel app domain-add <id> --domain=<domain>
@@ -478,18 +223,6 @@ wp rudel app domain-add <id> --domain=<domain>
 
 ### `wp rudel app domain-remove`
 
-Remove a domain from an app.
-
 ```bash
 wp rudel app domain-remove <id> --domain=<domain>
 ```
-
-## Browser endpoints
-
-### Exit sandbox
-
-```
-?adminExit
-```
-
-Append `?adminExit` to any prefixed preview URL to clear the scoped `rudel_sandbox` cookie and redirect to the host homepage. Use this to switch back from a sandbox or app preview to the host site in the browser.

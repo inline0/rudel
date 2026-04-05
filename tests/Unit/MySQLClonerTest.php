@@ -131,7 +131,7 @@ class MySQLClonerTest extends RudelTestCase
         $this->setGlobalWpdb();
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('only rudel_* prefixes are allowed');
+        $this->expectExceptionMessage('only Rudel-managed prefixes are allowed');
         $this->cloner->drop_tables('custom_prefix_');
     }
 
@@ -194,9 +194,9 @@ class MySQLClonerTest extends RudelTestCase
         $result = $this->cloner->search_replace_value(
             'http://example.com/wp-content/uploads/image.jpg',
             'http://example.com',
-            'http://example.com/__rudel/test-1234'
+            'http://test-1234.example.com'
         );
-        $this->assertSame('http://example.com/__rudel/test-1234/wp-content/uploads/image.jpg', $result);
+        $this->assertSame('http://test-1234.example.com/wp-content/uploads/image.jpg', $result);
     }
 
     public function testSearchReplaceValueHandlesMultipleOccurrences(): void
@@ -418,7 +418,7 @@ class MySQLClonerTest extends RudelTestCase
             define('WP_HOME', 'http://example.com');
         }
 
-        $result = $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test-1234');
+        $result = $this->cloner->clone_database('rudel_sbx_', 'http://test-1234.example.com');
 
         $this->assertSame(3, $result['tables_cloned']);
         $this->assertGreaterThan(0, $result['rows_cloned']);
@@ -448,7 +448,7 @@ class MySQLClonerTest extends RudelTestCase
             define('WP_HOME', 'http://example.com');
         }
 
-        $result = $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test-1234');
+        $result = $this->cloner->clone_database('rudel_sbx_', 'http://test-1234.example.com');
 
         $this->assertTrue($result['is_multisite']);
     }
@@ -461,7 +461,7 @@ class MySQLClonerTest extends RudelTestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('No tables found');
-        $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test');
+        $this->cloner->clone_database('rudel_sbx_', 'http://test.example.com');
     }
 
     #[RunInSeparateProcess]
@@ -472,7 +472,7 @@ class MySQLClonerTest extends RudelTestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('$wpdb is not available');
-        $this->cloner->clone_database('rudel_sbx_', 'http://example.com/__rudel/test');
+        $this->cloner->clone_database('rudel_sbx_', 'http://test.example.com');
     }
 
     // Integration: clone then drop

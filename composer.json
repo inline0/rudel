@@ -1,6 +1,6 @@
 {
     "name": "rudel/rudel",
-    "description": "Sandboxed WordPress environments with isolated databases and content",
+    "description": "Subdomain multisite app and sandbox orchestration for WordPress",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "require": {

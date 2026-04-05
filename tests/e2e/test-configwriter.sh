@@ -97,7 +97,7 @@ run_writer '
     $w->install();
 ' > /dev/null
 
-if grep -q "// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php"; then
+if grep -q "// Rudel environment bootstrap" "$WP_DIR/wp-config.php"; then
     pass "install() injects marker line"
 else
     fail "install() didn't inject marker" "$(head -5 "$WP_DIR/wp-config.php")"
@@ -110,7 +110,7 @@ else
 fi
 
 # Require line should be injected immediately before wp-settings.php
-REQUIRE_LINE=$(grep -n "require_once.*// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1)
+REQUIRE_LINE=$(grep -n "require_once.*// Rudel environment bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1)
 SETTINGS_LINE=$(grep -n "wp-settings.php" "$WP_DIR/wp-config.php" | grep -v "Rudel" | head -1 | cut -d: -f1)
 if [[ -n "$REQUIRE_LINE" && -n "$SETTINGS_LINE" && "$REQUIRE_LINE" -eq $((SETTINGS_LINE - 1)) ]]; then
     pass "Bootstrap require is immediately before wp-settings.php (line $REQUIRE_LINE)"
@@ -119,7 +119,7 @@ else
 fi
 
 # No separate fixup line should remain once bootstrap itself runs at the wp-settings boundary.
-FIXUP_LINE=$(grep -n "table_prefix.*// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1 || true)
+FIXUP_LINE=$(grep -n "table_prefix.*// Rudel environment bootstrap" "$WP_DIR/wp-config.php" | head -1 | cut -d: -f1 || true)
 if [[ -z "$FIXUP_LINE" ]]; then
     pass "No standalone table prefix fixup line remains"
 else
@@ -178,7 +178,7 @@ else
     fail "Second install() modified the file" ""
 fi
 
-MARKER_COUNT=$(grep -c "// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php")
+MARKER_COUNT=$(grep -c "// Rudel environment bootstrap" "$WP_DIR/wp-config.php")
 if [[ "$MARKER_COUNT" -eq 1 ]]; then
     pass "Exactly one marker line after double install"
 else
@@ -196,7 +196,7 @@ run_writer '
     $w->uninstall();
 ' > /dev/null
 
-if ! grep -q "// Rudel sandbox bootstrap" "$WP_DIR/wp-config.php"; then
+if ! grep -q "// Rudel environment bootstrap" "$WP_DIR/wp-config.php"; then
     pass "uninstall() removes marker line"
 else
     fail "uninstall() didn't remove marker" ""

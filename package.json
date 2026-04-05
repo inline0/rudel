@@ -12,8 +12,6 @@
 		"test:security": "composer test:security",
 		"test:phpunit": "composer test",
 		"test:e2e": "bash tests/e2e/run-all.sh",
-		"test:e2e:wp-env": "bash tests/e2e/test-wp-env.sh",
-		"test:e2e:clone": "bash tests/e2e/test-clone.sh",
-		"test:e2e:multisite": "bash tests/e2e/test-multisite.sh"
+		"test:e2e:wp-env": "bash tests/e2e/test-wp-env.sh"
 	}
 }

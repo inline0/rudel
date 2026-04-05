@@ -93,7 +93,7 @@ class Rudel {
 	}
 
 	/**
-	 * Current sandbox ID, or null outside sandbox context.
+	 * Current sandbox environment ID, or null outside sandbox requests.
 	 *
 	 * @return string|null
 	 */
@@ -122,14 +122,14 @@ class Rudel {
 	/**
 	 * Current environment database engine, or null when none is active.
 	 *
-	 * @return string|null One of 'mysql', 'sqlite', 'subsite', or null.
+	 * @return string|null One of 'subsite' or null.
 	 */
 	public static function engine(): ?string {
 		if ( ! self::is_environment() ) {
 			return null;
 		}
 
-		return self::string_constant( 'RUDEL_ENGINE' ) ?? 'mysql';
+		return self::string_constant( 'RUDEL_ENGINE' ) ?? 'subsite';
 	}
 
 	/**
@@ -151,29 +151,57 @@ class Rudel {
 			return null;
 		}
 
-		if ( self::is_app() ) {
-			return defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) . '/' : null;
+		$environment_url = self::string_constant( 'RUDEL_ENVIRONMENT_URL' );
+		if ( null !== $environment_url && '' !== $environment_url ) {
+			return rtrim( $environment_url, '/' ) . '/';
 		}
 
-		$prefix = defined( 'RUDEL_PATH_PREFIX' ) ? RUDEL_PATH_PREFIX : '__rudel';
-
-		if ( defined( 'WP_HOME' ) ) {
-			return rtrim( WP_HOME, '/' ) . '/' . $prefix . '/' . self::environment_id() . '/';
+		$environment_id = self::environment_id();
+		if ( null === $environment_id ) {
+			return null;
 		}
 
-		return '/' . $prefix . '/' . self::environment_id() . '/';
+		return Environment::multisite_url_for( $environment_id );
 	}
 
 	/**
 	 * Get a URL that exits the current sandbox and returns to the host.
 	 *
-	 * @return string URL with ?adminExit parameter.
+	 * @return string URL for the network host.
 	 */
 	public static function exit_url(): string {
-		if ( defined( 'WP_HOME' ) ) {
-			return rtrim( WP_HOME, '/' ) . '/?adminExit';
+		$host_url = self::string_constant( 'RUDEL_HOST_URL' );
+		if ( null !== $host_url && '' !== $host_url ) {
+			return rtrim( $host_url, '/' ) . '/';
 		}
-		return '/?adminExit';
+
+		$scheme = 'http';
+		$host   = 'localhost';
+		$port   = null;
+
+		if ( defined( 'WP_HOME' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation without full WP helpers.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) ) {
+				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
+				$host   = isset( $parts['host'] ) ? (string) $parts['host'] : $host;
+				$port   = isset( $parts['port'] ) ? (int) $parts['port'] : null;
+			}
+		}
+
+		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
+			$network_host = preg_replace( '/:\d+$/', '', (string) DOMAIN_CURRENT_SITE );
+			if ( is_string( $network_host ) && '' !== $network_host ) {
+				$host = $network_host;
+			}
+		}
+
+		$url = $scheme . '://' . $host;
+		if ( null !== $port ) {
+			$url .= ':' . $port;
+		}
+
+		return rtrim( $url, '/' ) . '/';
 	}
 
 	/**
@@ -219,15 +247,6 @@ class Rudel {
 	}
 
 	/**
-	 * Configured URL path prefix.
-	 *
-	 * @return string
-	 */
-	public static function path_prefix(): string {
-		return defined( 'RUDEL_PATH_PREFIX' ) ? RUDEL_PATH_PREFIX : '__rudel';
-	}
-
-	/**
 	 * Bundle the active environment context for templates or diagnostics.
 	 *
 	 * @return array<string, mixed>
@@ -247,7 +266,6 @@ class Rudel {
 			'log_path'       => self::log_path(),
 			'version'        => self::version(),
 			'cli_command'    => self::cli_command(),
-			'path_prefix'    => self::path_prefix(),
 		);
 	}
 
@@ -402,45 +420,6 @@ class Rudel {
 	 */
 	public static function update( string $id, array $changes ): Environment {
 		return self::manager()->update( $id, $changes );
-	}
-
-	/**
-	 * Promote a sandbox to replace the host site.
-	 *
-	 * @param string $id         Sandbox identifier.
-	 * @param string $backup_dir Directory to store the host backup.
-	 * @return array{backup_path: string, backup_prefix: string, tables_copied: int} Promotion results.
-	 *
-	 * @throws \RuntimeException If the sandbox is not found or promotion fails.
-	 */
-	public static function promote( string $id, string $backup_dir ): array {
-		return self::manager()->promote( $id, $backup_dir );
-	}
-
-	/**
-	 * Export a sandbox as a zip archive.
-	 *
-	 * @param string $id          Sandbox identifier.
-	 * @param string $output_path Absolute path for the output zip file.
-	 * @return void
-	 *
-	 * @throws \RuntimeException If the sandbox is not found or export fails.
-	 */
-	public static function export( string $id, string $output_path ): void {
-		self::manager()->export( $id, $output_path );
-	}
-
-	/**
-	 * Import a sandbox from a zip archive.
-	 *
-	 * @param string $zip_path Absolute path to the zip file.
-	 * @param string $name     Human-readable name for the imported sandbox.
-	 * @return Environment The imported sandbox.
-	 *
-	 * @throws \RuntimeException If the zip is invalid or import fails.
-	 */
-	public static function import( string $zip_path, string $name ): Environment {
-		return self::manager()->import( $zip_path, $name );
 	}
 
 	/**
@@ -599,7 +578,7 @@ class Rudel {
 	 * @return array<string, mixed>
 	 */
 	public static function plan_app_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
-		return self::app_manager()->preview_deploy( $app_id, $sandbox_id, $backup_name, $options );
+		return self::app_manager()->plan_deploy( $app_id, $sandbox_id, $backup_name, $options );
 	}
 
 	/**
@@ -666,9 +645,6 @@ class Rudel {
 	public static function status(): array {
 		$writer        = new ConfigWriter();
 		$config        = new RudelConfig();
-		$sqlite_path   = defined( 'RUDEL_PLUGIN_DIR' )
-			? RUDEL_PLUGIN_DIR . 'lib/sqlite-database-integration'
-			: dirname( __DIR__ ) . '/lib/sqlite-database-integration';
 		$automation_on = $config->get( 'auto_cleanup_enabled' ) > 0
 			|| $config->get( 'auto_cleanup_merged' ) > 0
 			|| $config->get( 'auto_app_backups_enabled' ) > 0
@@ -705,10 +681,7 @@ class Rudel {
 			'expiring_environment_notice_days'    => $config->get( 'expiring_environment_notice_days' ),
 			'automation_scheduled'                => $automation_on,
 			'multisite'                           => function_exists( 'is_multisite' ) && is_multisite(),
-			'sqlite_integration'                  => is_dir( $sqlite_path ),
 			'php_version'                         => PHP_VERSION,
-			'sqlite3_loaded'                      => extension_loaded( 'sqlite3' ),
-			'pdo_sqlite_loaded'                   => extension_loaded( 'pdo_sqlite' ),
 		);
 	}
 

@@ -1,116 +1,80 @@
 ---
 title: Getting Started
-description: Install Rudel and create your first environment.
+description: Install Rudel on a subdomain multisite network and create your first environments.
 ---
 
 # Getting Started
 
-## Installation
+## Prerequisites
 
-### Via Composer (Recommended)
+Rudel runs on a WordPress multisite network configured for subdomains.
+
+Before installing Rudel, make sure:
+
+- WordPress multisite is enabled
+- the network uses subdomains, not subdirectories
+- you can write to `wp-config.php`
+
+## Install Rudel
+
+### Via Composer
 
 ```bash
 composer require rudel/rudel
+wp plugin activate rudel
 ```
 
-Composer installations receive updates through Composer.
-
-### Manual Installation
-
-<a
-  href="https://github.com/inline0/rudel/releases"
-  target="_blank"
-  rel="noopener noreferrer"
-  className="flex items-center gap-2 no-underline rounded-lg border border-fd-border bg-fd-secondary/50 px-4 py-3 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-secondary w-fit"
->
-  Download latest release from GitHub
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-</a>
-
-Upload the zip to your WordPress plugins directory and activate the plugin, or install via WP-CLI:
+### Via zip
 
 ```bash
 wp plugin install rudel.zip --activate
 ```
 
-## Setup
-
-On activation, Rudel adds a single line to your `wp-config.php`:
-
-```php
-require_once __DIR__ . '/wp-content/plugins/rudel/bootstrap.php';
-```
-
-This bootstrap file runs before `wp-settings.php` and handles all environment detection and isolation. When no environment is active, it does nothing and WordPress boots normally with zero overhead.
-
-Verify everything is in place:
+## Verify the runtime install
 
 ```bash
 wp rudel status
 ```
 
-## Configuration
-
-Rudel works out of the box with sensible defaults. If you need to customize the CLI command name, the URL path prefix, or the host runtime table names, define these constants in `wp-config.php` before Rudel boots:
-
-| Constant | Default | Description |
-|---|---|---|
-| `RUDEL_CLI_COMMAND` | `rudel` | WP-CLI command name. Set to e.g. `sandbox` for white-label use. |
-| `RUDEL_PATH_PREFIX` | `__rudel` | URL path prefix for sandbox access. |
-| `RUDEL_RUNTIME_TABLE_PREFIX` | `rudel_` | Shared runtime-table prefix after the WordPress DB prefix for advanced embedded installs. |
-| `RUDEL_GITHUB_TOKEN` | (none) | GitHub personal access token for push/PR integration. |
-
-`RUDEL_RUNTIME_TABLE_PREFIX` changes only the Rudel portion after the WordPress DB prefix. For example, `$wpdb->base_prefix = 'wp_'` and `RUDEL_RUNTIME_TABLE_PREFIX = 'themeworkspace_'` produce tables like `wp_themeworkspace_environments`. Explicit per-table overrides still win. See [Runtime State](/docs/features/runtime-state) for the per-table constants and precedence rules.
+That confirms the bootstrap line is installed and Rudel can manage the network runtime.
 
 ## Create a sandbox
 
 ```bash
-wp rudel create --name="my-sandbox"
+wp rudel create --name=alpha
 ```
 
-This creates a disposable environment with its own database and `wp-content`. To work with it via WP-CLI, `cd` into its directory:
+Find the generated site URL:
 
 ```bash
-cd /path/to/wp-content/rudel-environments/my-sandbox-a1b2
-wp post list
+wp site list --fields=blog_id,url
 ```
 
-Or clone your entire host site:
+Run commands against it:
 
 ```bash
-wp rudel create --clone-all
+wp --url=http://alpha.localhost option get siteurl
 ```
 
-See [Creating Environments](/docs/environments/creating) for all options including database engines and GitHub integration.
+Or work from the generated environment directory:
+
+```bash
+cd /path/to/wp-content/rudel-environments/alpha-1234
+wp option get siteurl
+```
 
 ## Create an app
 
 ```bash
-wp rudel app create --domain=client-a.com
+wp rudel app create --name=demo --domain=demo.example.test
 ```
 
-This creates a permanent environment routed by domain. Point your DNS at the server, and `client-a.com` serves a fully independent WordPress site from the same installation.
+Apps are also real multisite sites. The `--domain` value is stored in Rudel's app metadata, while the runtime site itself is created as a real multisite site and listed through `wp site list`.
 
-See [Apps](/docs/environments/apps) for domain management and configuration.
+## Next steps
 
-## Accessing environments in the browser
-
-Sandboxes are accessible via a path prefix that works without any DNS or server configuration:
-
-```
-example.com/__rudel/my-sandbox-a1b2/
-```
-
-When you visit a prefixed sandbox URL, Rudel automatically sets a browser cookie scoped to that preview path. That keeps direct entrypoints like `wp-login.php` and `wp-admin/` inside the same sandbox without polluting the host root or host admin. To switch back to the host, append `?adminExit` to any prefixed preview URL.
-
-Apps are accessed by their domain directly. No path prefix or preview cookie is required for the canonical app URL. When you need a same-origin embedded preview, apps can also be opened through `example.com/__rudel/{app-id}/`.
-
-## What's next
-
-Once you're comfortable creating and using environments, explore the more advanced features:
-
-- [Snapshots](/docs/features/snapshots) for point-in-time rollbacks
-- [Templates](/docs/features/templates) for reusable starting points
-- [Git integration](/docs/features/git) for branch-based workflows and GitHub sync
-- [Promote to host](/docs/features/promote) to replace the host site with a sandbox's state
-- [PHP API](/docs/api) for building custom UI and automation
+- [Creating Environments](/docs/environments/creating)
+- [Apps](/docs/environments/apps)
+- [Snapshots](/docs/features/snapshots)
+- [Runtime State](/docs/features/runtime-state)
+- [CLI](/docs/cli)

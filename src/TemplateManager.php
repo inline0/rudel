@@ -60,23 +60,14 @@ class TemplateManager {
 			throw new \RuntimeException( sprintf( 'Failed to create template directory: %s', $template_path ) );
 		}
 
-		$source_db = $sandbox->get_db_path();
-		if ( $source_db && file_exists( $source_db ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying SQLite database file for template.
-			copy( $source_db, $template_path . '/wordpress.db' );
-		}
-
 		$content_cloner = new ContentCloner();
 		$content_cloner->copy_directory( $sandbox->get_wp_content_path(), $template_path . '/wp-content' );
-
-		$site_url   = defined( 'WP_HOME' ) ? rtrim( WP_HOME, '/' ) : 'http://localhost';
-		$source_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox->id;
 
 		$meta = array(
 			'name'              => $name,
 			'created_at'        => gmdate( 'c' ),
 			'source_sandbox_id' => $sandbox->id,
-			'source_url'        => $source_url,
+			'source_url'        => $sandbox->get_url(),
 			'description'       => $description,
 		);
 

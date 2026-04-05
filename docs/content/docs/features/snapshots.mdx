@@ -1,36 +1,43 @@
 ---
 title: Snapshots
-description: Create point-in-time snapshots and restore sandboxes instantly.
+description: Recovery points for sandboxes and backups for apps.
 ---
 
-# Snapshots
+# Snapshots and Backups
 
-Snapshots capture the complete state of a sandbox at a point in time. They're useful before risky changes, for A/B testing different states, or as checkpoints for AI coding agents.
+Rudel uses two recovery-point models:
 
-## Creating a snapshot
+- sandboxes use **snapshots**
+- apps use **backups**
 
-```bash
-wp rudel snapshot my-sandbox-a1b2 --name=before-update
-```
+## Sandbox snapshots
 
-This copies the sandbox's database and `wp-content` into a named snapshot stored within the sandbox directory. For MySQL and subsite sandboxes, the database tables are duplicated. For SQLite sandboxes, the database file is copied. In both cases, the operation is fast.
-
-## Restoring from a snapshot
+Create a snapshot:
 
 ```bash
-wp rudel restore my-sandbox-a1b2 --snapshot=before-update
+wp rudel snapshot alpha-1234 --name=before-update
 ```
 
-This replaces the sandbox's current state with the snapshot. The current database and `wp-content` are overwritten. You'll be prompted for confirmation unless you pass `--force`.
+Restore it:
 
-Restoring is destructive to the current state. If you want to preserve it, create another snapshot first.
+```bash
+wp rudel restore alpha-1234 --snapshot=before-update --force
+```
 
-## Typical workflows
+Snapshots capture the sandbox site state and its environment-owned content so you can roll back risky work quickly.
 
-**Before risky changes.** Snapshot before running a migration, updating a plugin, or making a large refactor. If something breaks, restore in seconds.
+## App backups
 
-**A/B testing.** Create snapshots at different states and switch between them to compare behavior.
+Create a backup:
 
-**Agent checkpoints.** AI coding agents can snapshot before attempting changes, giving them a reliable rollback point.
+```bash
+wp rudel app backup demo-1234 --name=baseline
+```
 
-**Demo resets.** Snapshot a clean state and restore after each demo to start fresh every time.
+Restore it:
+
+```bash
+wp rudel app restore demo-1234 --backup=baseline --force
+```
+
+App deploys also integrate with backups so recovery is built into the deploy workflow.

@@ -29,7 +29,7 @@ class ConfigWriterTest extends RudelTestCase
         $writer->install();
 
         $contents = file_get_contents($configPath);
-        $this->assertStringContainsString('// Rudel sandbox bootstrap', $contents);
+        $this->assertStringContainsString('// Rudel environment bootstrap', $contents);
         $this->assertStringContainsString("require_once", $contents);
     }
 
@@ -53,8 +53,8 @@ class ConfigWriterTest extends RudelTestCase
 
         // Same number of marker occurrences after double install
         $this->assertSame(
-            substr_count($after_first, '// Rudel sandbox bootstrap'),
-            substr_count($after_second, '// Rudel sandbox bootstrap')
+            substr_count($after_first, '// Rudel environment bootstrap'),
+            substr_count($after_second, '// Rudel environment bootstrap')
         );
     }
 
@@ -112,7 +112,7 @@ class ConfigWriterTest extends RudelTestCase
         $writer->install();
 
         $lines  = file($configPath);
-        $marker = '// Rudel sandbox bootstrap';
+        $marker = '// Rudel environment bootstrap';
 
         // Should have exactly one marker line immediately before wp-settings.php.
         $markerLines = array_filter($lines, fn($l) => str_contains($l, $marker));
@@ -142,7 +142,7 @@ class ConfigWriterTest extends RudelTestCase
         $writer->install();
 
         $lines  = file($configPath);
-        $marker = '// Rudel sandbox bootstrap';
+        $marker = '// Rudel environment bootstrap';
 
         // Without wp-settings.php the bootstrap falls back to a top-of-file injection.
         $markerLines = array_filter($lines, fn($l) => str_contains($l, $marker));
@@ -170,7 +170,7 @@ class ConfigWriterTest extends RudelTestCase
         $this->assertFalse($writer->is_installed());
 
         $contents = file_get_contents($configPath);
-        $this->assertStringNotContainsString('// Rudel sandbox bootstrap', $contents);
+        $this->assertStringNotContainsString('// Rudel environment bootstrap', $contents);
     }
 
     #[RunInSeparateProcess]
@@ -336,7 +336,7 @@ class ConfigWriterTest extends RudelTestCase
             $writer->uninstall();
 
             $contents = file_get_contents($configPath);
-            $this->assertStringContainsString('// Rudel sandbox bootstrap', $contents);
+            $this->assertStringContainsString('// Rudel environment bootstrap', $contents);
         } finally {
             chmod($configPath, 0644);
         }
@@ -378,6 +378,6 @@ class ConfigWriterTest extends RudelTestCase
         // Original content should be preserved (minus any whitespace changes from the regex)
         $finalContent = file_get_contents($configPath);
         $this->assertStringContainsString("define('DB_NAME', 'wordpress');", $finalContent);
-        $this->assertStringNotContainsString('// Rudel sandbox bootstrap', $finalContent);
+        $this->assertStringNotContainsString('// Rudel environment bootstrap', $finalContent);
     }
 }

@@ -83,7 +83,7 @@ class AppOperationsService {
 	 * @param array       $options Optional deployment metadata.
 	 * @return array<string, mixed>
 	 */
-	public function preview_deploy( Environment $app, Environment $sandbox, ?string $backup_name = null, array $options = array() ): array {
+	public function plan_deploy( Environment $app, Environment $sandbox, ?string $backup_name = null, array $options = array() ): array {
 		$this->validate_deploy_pair( $app, $sandbox );
 
 		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
@@ -103,7 +103,7 @@ class AppOperationsService {
 			'notes'                 => $this->normalize_optional_string( $options['notes'] ?? null ),
 			'checks'                => array(
 				'engines_match'       => $sandbox->engine === $app->engine,
-				'subsite_unsupported' => $sandbox->is_subsite(),
+				'subsite_unsupported' => false,
 			),
 			'dry_run'               => ! empty( $options['dry_run'] ),
 		);
@@ -151,7 +151,7 @@ class AppOperationsService {
 	 * @throws \Throwable If deployment fails after hooks begin or validation rejects the pair.
 	 */
 	public function deploy( Environment $app, Environment $sandbox, ?string $backup_name = null, array $options = array() ): array {
-		$plan = $this->preview_deploy( $app, $sandbox, $backup_name, $options );
+		$plan = $this->plan_deploy( $app, $sandbox, $backup_name, $options );
 
 		if ( ! empty( $options['dry_run'] ) ) {
 			return $plan;
@@ -386,10 +386,6 @@ class AppOperationsService {
 	 * @throws \InvalidArgumentException If the sandbox cannot safely deploy into the app.
 	 */
 	private function validate_deploy_pair( Environment $app, Environment $sandbox ): void {
-		if ( $sandbox->is_subsite() ) {
-			throw new \InvalidArgumentException( 'Apps cannot be deployed from subsite-engine sandboxes.' );
-		}
-
 		if ( $sandbox->engine !== $app->engine ) {
 			throw new \InvalidArgumentException(
 				sprintf( 'Cannot deploy across engines: sandbox is %s, app is %s.', $sandbox->engine, $app->engine )
