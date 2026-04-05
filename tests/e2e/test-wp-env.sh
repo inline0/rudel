@@ -13,6 +13,7 @@ PASSED=0
 FAILED=0
 TOTAL=0
 SANDBOX_IDS=()
+APP_IDS=()
 
 # Skip gracefully if Docker is unavailable
 if ! command -v docker &> /dev/null || ! docker info &> /dev/null 2>&1; then
@@ -87,6 +88,11 @@ copy_theme() {
 }
 
 cleanup() {
+    if [[ ${#APP_IDS[@]} -gt 0 ]]; then
+        for aid in "${APP_IDS[@]}"; do
+            wp_cli rudel app destroy "$aid" --force > /dev/null 2>&1 || true
+        done
+    fi
     if [[ ${#SANDBOX_IDS[@]} -gt 0 ]]; then
         for sid in "${SANDBOX_IDS[@]}"; do
             wp_cli rudel destroy "$sid" --force > /dev/null 2>&1 || true
@@ -517,6 +523,65 @@ else
 fi
 
 rm -f "$COOKIE_JAR" "$LOGIN_BODY_FILE" "$ADMIN_BODY_FILE"
+
+# App previews should behave the same way, without leaking PHP warnings into the iframe.
+echo ""
+echo -e "${BOLD}App preview routing${NC}"
+
+APP_ID=$(wp_cli eval "\$app = \\Rudel\\Rudel::create_app('Preview App', array('preview-app.local'), array('clone_from' => '${ALPHA_ID}')); echo \$app->id;" | tail -1)
+if [[ -n "$APP_ID" ]]; then
+    APP_IDS+=("$APP_ID")
+    pass "Created app preview target: $APP_ID"
+else
+    fail "Failed to create app preview target" ""
+fi
+
+APP_COOKIE_JAR="$RUDEL_DIR/.app-cookie-test"
+rm -f "$APP_COOKIE_JAR"
+curl -s -o /dev/null -c "$APP_COOKIE_JAR" "http://localhost:8888/__rudel/${APP_ID}/"
+
+APP_CORE_ASSET_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8888/__rudel/${APP_ID}/wp-includes/js/twemoji.js?ver=6.9.4")
+if [[ "$APP_CORE_ASSET_CODE" == "200" ]]; then
+    pass "App preview core asset responds"
+else
+    fail "App preview core asset failed" "HTTP $APP_CORE_ASSET_CODE"
+fi
+
+APP_ADMIN_BODY_FILE="$RUDEL_DIR/.app-preview-admin"
+APP_ADMIN_EFFECTIVE_URL=$(curl -s -L -b "$APP_COOKIE_JAR" -o "$APP_ADMIN_BODY_FILE" -w "%{url_effective}" "http://localhost:8888/__rudel/${APP_ID}/wp-admin/")
+APP_ADMIN_BODY=$(cat "$APP_ADMIN_BODY_FILE")
+if [[ "$APP_ADMIN_EFFECTIVE_URL" == "http://localhost:8888/__rudel/${APP_ID}/wp-admin/"* ]] || [[ "$APP_ADMIN_EFFECTIVE_URL" == "http://localhost:8888/__rudel/${APP_ID}/wp-login.php"* ]]; then
+    pass "App preview /wp-admin/ stays inside preview admin flow"
+else
+    fail "App preview /wp-admin/ escaped preview admin flow" "Final URL: $APP_ADMIN_EFFECTIVE_URL"
+fi
+
+if echo "$APP_ADMIN_BODY" | grep -q 'Undefined variable \$wp_db_version'; then
+    fail "App preview admin leaked bootstrap warnings" "$(head -20 "$APP_ADMIN_BODY_FILE")"
+elif echo "$APP_ADMIN_BODY" | grep -qi 'name="log"'; then
+    pass "App preview admin reached the login screen"
+elif echo "$APP_ADMIN_BODY" | grep -qi 'Database Update Required'; then
+    pass "App preview admin reached the upgrade screen"
+else
+    fail "App preview admin did not reach a recognisable admin screen" "$(head -20 "$APP_ADMIN_BODY_FILE")"
+fi
+
+APP_LOGIN_BODY_FILE="$RUDEL_DIR/.app-preview-login"
+APP_LOGIN_EFFECTIVE_URL=$(curl -s -L -b "$APP_COOKIE_JAR" -o "$APP_LOGIN_BODY_FILE" -w "%{url_effective}" "http://localhost:8888/__rudel/${APP_ID}/wp-login.php")
+APP_LOGIN_BODY=$(cat "$APP_LOGIN_BODY_FILE")
+if [[ "$APP_LOGIN_EFFECTIVE_URL" == "http://localhost:8888/__rudel/${APP_ID}/wp-login.php"* ]]; then
+    pass "App preview wp-login.php stays inside preview"
+else
+    fail "App preview wp-login.php escaped preview" "Final URL: $APP_LOGIN_EFFECTIVE_URL"
+fi
+
+if echo "$APP_LOGIN_BODY" | grep -qi 'name="log"'; then
+    pass "App preview login page rendered"
+else
+    fail "App preview login page did not render" "$(head -20 "$APP_LOGIN_BODY_FILE")"
+fi
+
+rm -f "$APP_COOKIE_JAR" "$APP_ADMIN_BODY_FILE" "$APP_LOGIN_BODY_FILE"
 
 # Host unaffected
 echo ""

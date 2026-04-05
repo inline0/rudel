@@ -41,6 +41,26 @@ function rudel_runtime_environment_url() {
 	return null;
 }
 
+/**
+ * Resolve the current preview request to a PHP entrypoint or static file.
+ *
+ * @return array{type: string, path: string, request_path: string}|null
+ */
+function rudel_runtime_preview_target() {
+	if (
+		! defined( 'RUDEL_IS_PREVIEW' ) ||
+		! RUDEL_IS_PREVIEW ||
+		! class_exists( '\Rudel\PreviewRequestRouter' ) ||
+		! isset( $_SERVER['REQUEST_URI'] ) ||
+		! is_string( $_SERVER['REQUEST_URI'] ) ||
+		'' === $_SERVER['REQUEST_URI']
+	) {
+		return null;
+	}
+
+	return \Rudel\PreviewRequestRouter::resolve( $_SERVER['REQUEST_URI'], ABSPATH, WP_CONTENT_DIR );
+}
+
 if ( null !== rudel_runtime_environment_url() ) {
 	// Host-level WP_HOME/WP_SITEURL constants override database reads, so sandboxes/apps need a runtime pre_option override.
 	add_filter(
@@ -57,9 +77,26 @@ if ( null !== rudel_runtime_environment_url() ) {
 		}
 	);
 
-	if ( class_exists( '\Rudel\PreviewRequestRouter' ) ) {
-		add_action( 'parse_request', array( \Rudel\PreviewRequestRouter::class, 'maybe_dispatch' ), 0 );
-	}
+}
+
+$rudel_preview_target = rudel_runtime_preview_target();
+if ( is_array( $rudel_preview_target ) && 'static' === $rudel_preview_target['type'] ) {
+	\Rudel\PreviewRequestRouter::stream_static_file( $rudel_preview_target['path'] );
+	exit;
+}
+
+if ( is_array( $rudel_preview_target ) && 'php' === $rudel_preview_target['type'] ) {
+	add_action(
+		'sanitize_comment_cookies',
+		function () use ( $rudel_preview_target ) {
+			global $wp_db_version, $wp_version, $required_php_version, $required_mysql_version, $wpdb, $table_prefix, $blog_id, $current_site, $current_blog, $wp_query, $wp_the_query, $wp, $pagenow;
+
+			\Rudel\PreviewRequestRouter::prepare_php_request( $rudel_preview_target['request_path'], $rudel_preview_target['path'] );
+			require $rudel_preview_target['path'];
+			exit;
+		},
+		0
+	);
 }
 
 add_filter(

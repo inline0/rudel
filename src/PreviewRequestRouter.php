@@ -88,10 +88,8 @@ class PreviewRequestRouter {
 			return;
 		}
 
-		if ( 'php' === $resolved['type'] ) {
-			self::prepare_php_request( $resolved['request_path'], $resolved['path'] );
-			require $resolved['path'];
-			exit;
+		if ( 'static' !== $resolved['type'] ) {
+			return;
 		}
 
 		self::stream_static_file( $resolved['path'] );
@@ -220,7 +218,7 @@ class PreviewRequestRouter {
 	 * @param string $file_path    PHP file to execute.
 	 * @return void
 	 */
-	private static function prepare_php_request( string $request_path, string $file_path ): void {
+	public static function prepare_php_request( string $request_path, string $file_path ): void {
 		$script_name                = '/' . ltrim( $request_path, '/' );
 		$_SERVER['SCRIPT_NAME']     = $script_name;
 		$_SERVER['PHP_SELF']        = $script_name;
@@ -234,7 +232,7 @@ class PreviewRequestRouter {
 	 * @param string $file_path Absolute file path.
 	 * @return void
 	 */
-	private static function stream_static_file( string $file_path ): void {
+	public static function stream_static_file( string $file_path ): void {
 		$extension = strtolower( pathinfo( $file_path, PATHINFO_EXTENSION ) );
 		$mime_type = self::MIME_TYPES[ $extension ] ?? 'application/octet-stream';
 

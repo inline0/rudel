@@ -73,7 +73,6 @@ class BootstrapTest extends RudelTestCase
         if (! array_key_exists('RUDEL_WP_CONFIG_PATH', $extraDefines)) {
             $script .= "define('RUDEL_WP_CONFIG_PATH', " . var_export($this->runtimeConfigPath, true) . ");\n";
         }
-
         foreach ($extraDefines as $name => $value) {
             $script .= "define('{$name}', " . var_export($value, true) . ");\n";
         }

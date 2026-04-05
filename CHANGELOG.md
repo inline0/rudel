@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.6 - 2026-04-05
+
+- Fixed prefixed preview `wp-admin/` and `wp-login.php` so direct PHP entrypoints now execute through the same previewed environment without leaking host state or crashing in app previews.
+- Kept prefixed static core assets working under the same preview path, so login/admin HTML and its dependent `wp-includes/` and `wp-admin/` assets resolve together end to end.
+- Added live `wp-env` coverage for app-preview admin/login flows, alongside the existing sandbox preview coverage.
+
 ## v0.3.5 - 2026-04-05
 
 - Fixed prefixed app preview routing so `__rudel/{app}/`, `wp-admin/`, `wp-login.php`, and prefixed static assets behave like one subpath site.
@@ -18,4 +24,3 @@
 ## v0.3.2 - 2026-04-05
 
 - Added prefixed preview mode for Rudel apps so permanent apps can also be opened through `__rudel/{app}/` when same-origin operator tooling needs an embedded preview surface.
-
