@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.7 - 2026-04-05
+
+- Stopped the generated runtime MU plugin from class-loading `PreviewRequestRouter` during preview boot, which avoids collisions when the same Rudel package also exists inside a copied app or parent theme.
+- Moved runtime preview dispatch onto helper functions shipped with Rudel itself, so prefixed `wp-admin/`, `wp-login.php`, and static assets can route early without depending on a class that may later be autoloaded again inside the app.
+- Added unit coverage for the runtime helper file and tightened generated-runtime assertions so future preview releases keep the class-free boot path.
+
 ## v0.3.6 - 2026-04-05
 
 - Fixed prefixed preview `wp-admin/` and `wp-login.php` so direct PHP entrypoints now execute through the same previewed environment without leaking host state or crashing in app previews.

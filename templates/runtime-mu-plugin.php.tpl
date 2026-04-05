@@ -17,7 +17,7 @@ if ( defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
 if ( defined( 'RUDEL_BOOTSTRAP_PLUGIN_DIR' ) && is_string( RUDEL_BOOTSTRAP_PLUGIN_DIR ) && '' !== RUDEL_BOOTSTRAP_PLUGIN_DIR ) {
-	$rudel_preview_router = rtrim( RUDEL_BOOTSTRAP_PLUGIN_DIR, '/\\' ) . '/src/PreviewRequestRouter.php';
+	$rudel_preview_router = rtrim( RUDEL_BOOTSTRAP_PLUGIN_DIR, '/\\' ) . '/runtime-preview-router.php';
 	if ( file_exists( $rudel_preview_router ) ) {
 		require_once $rudel_preview_router;
 	}
@@ -50,7 +50,7 @@ function rudel_runtime_preview_target() {
 	if (
 		! defined( 'RUDEL_IS_PREVIEW' ) ||
 		! RUDEL_IS_PREVIEW ||
-		! class_exists( '\Rudel\PreviewRequestRouter' ) ||
+		! function_exists( 'rudel_runtime_preview_resolve' ) ||
 		! isset( $_SERVER['REQUEST_URI'] ) ||
 		! is_string( $_SERVER['REQUEST_URI'] ) ||
 		'' === $_SERVER['REQUEST_URI']
@@ -58,7 +58,7 @@ function rudel_runtime_preview_target() {
 		return null;
 	}
 
-	return \Rudel\PreviewRequestRouter::resolve( $_SERVER['REQUEST_URI'], ABSPATH, WP_CONTENT_DIR );
+	return rudel_runtime_preview_resolve( $_SERVER['REQUEST_URI'], ABSPATH, WP_CONTENT_DIR );
 }
 
 if ( null !== rudel_runtime_environment_url() ) {
@@ -81,7 +81,7 @@ if ( null !== rudel_runtime_environment_url() ) {
 
 $rudel_preview_target = rudel_runtime_preview_target();
 if ( is_array( $rudel_preview_target ) && 'static' === $rudel_preview_target['type'] ) {
-	\Rudel\PreviewRequestRouter::stream_static_file( $rudel_preview_target['path'] );
+	rudel_runtime_preview_stream_static_file( $rudel_preview_target['path'] );
 	exit;
 }
 
@@ -91,7 +91,7 @@ if ( is_array( $rudel_preview_target ) && 'php' === $rudel_preview_target['type'
 		function () use ( $rudel_preview_target ) {
 			global $wp_db_version, $wp_version, $required_php_version, $required_mysql_version, $wpdb, $table_prefix, $blog_id, $current_site, $current_blog, $wp_query, $wp_the_query, $wp, $pagenow;
 
-			\Rudel\PreviewRequestRouter::prepare_php_request( $rudel_preview_target['request_path'], $rudel_preview_target['path'] );
+			rudel_runtime_preview_prepare_php_request( $rudel_preview_target['request_path'], $rudel_preview_target['path'] );
 			require $rudel_preview_target['path'];
 			exit;
 		},

@@ -40,5 +40,7 @@ PHP);
         $this->assertSame('http://localhost:8888/__rudel/runtime-box', apply_filters('pre_option_home', false));
         $this->assertSame('http://localhost:8888/__rudel/runtime-box', apply_filters('pre_option_siteurl', false));
         $this->assertArrayNotHasKey('parse_request', $GLOBALS['rudel_test_action_callbacks'] ?? []);
+        $this->assertTrue(function_exists('rudel_runtime_preview_resolve'));
+        $this->assertTrue(function_exists('rudel_runtime_preview_prepare_php_request'));
     }
 }
