@@ -29,6 +29,7 @@ if ( defined( 'RUDEL_ID' ) ) {
 
 $rudel_bootstrap_prefix        = null;
 $rudel_bootstrap_is_app        = false;
+$rudel_bootstrap_is_preview    = false;
 $rudel_bootstrap_requested_url = null;
 
 if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
@@ -38,7 +39,7 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 require_once __DIR__ . '/src/RuntimeTableConfig.php';
 require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
-( function () use ( &$rudel_bootstrap_prefix, &$rudel_bootstrap_is_app, &$rudel_bootstrap_requested_url ) {
+( function () use ( &$rudel_bootstrap_prefix, &$rudel_bootstrap_is_app, &$rudel_bootstrap_is_preview, &$rudel_bootstrap_requested_url ) {
 	$plugin_dir       = __DIR__;
 	$environments_dir = null;
 
@@ -140,7 +141,17 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		return false;
 	};
 
-	$try_resolve_domain = function ( string $host ) use ( $runtime_store, $validate_record, $normalize_host, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id ): bool {
+	$try_resolve_preview = function ( string $id ) use ( $try_resolve, &$rudel_bootstrap_is_preview ): bool {
+		if ( ! $try_resolve( $id ) ) {
+			return false;
+		}
+
+		$rudel_bootstrap_is_preview = true;
+
+		return true;
+	};
+
+	$try_resolve_domain = function ( string $host ) use ( $runtime_store, $validate_record, $normalize_host, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$rudel_bootstrap_is_preview, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id ): bool {
 		$domain = $normalize_host( $host );
 		if ( '' === $domain ) {
 			return false;
@@ -159,6 +170,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$sandbox_id             = $result['id'];
 		$sandbox_path           = $result['path'];
 		$rudel_bootstrap_is_app = true;
+		$rudel_bootstrap_is_preview = false;
 		$environment_engine     = $result['engine'];
 		$environment_blog       = $result['blog_id'];
 		$environment_multi      = $result['multisite'];
@@ -204,14 +216,14 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	if ( ! $sandbox_id ) {
 		$header_id = $_SERVER['HTTP_X_RUDEL_SANDBOX'] ?? null;
 		if ( $header_id ) {
-			$try_resolve( $header_id );
+			$try_resolve_preview( $header_id );
 		}
 	}
 
 	if ( ! $sandbox_id ) {
 		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
 		if ( $cookie_id ) {
-			$try_resolve( $cookie_id );
+			$try_resolve_preview( $cookie_id );
 		}
 	}
 
@@ -219,7 +231,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$rudel_bootstrap_requested_url = $extract_cli_url();
 		if ( is_string( $rudel_bootstrap_requested_url ) && '' !== $rudel_bootstrap_requested_url ) {
 			if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $rudel_bootstrap_requested_url, $m ) ) {
-				$try_resolve( $m[1] );
+				$try_resolve_preview( $m[1] );
 			}
 
 			if ( ! $sandbox_id ) {
@@ -252,7 +264,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	if ( ! $sandbox_id ) {
 		$uri = $_SERVER['REQUEST_URI'] ?? '';
 		if ( preg_match( '#^/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $uri, $m ) ) {
-			$try_resolve( $m[1] );
+			$try_resolve_preview( $m[1] );
 		}
 	}
 
@@ -270,38 +282,36 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		return;
 	}
 
-	// Path-routed sandboxes still arrive through the host routing prefix, so WordPress has to see the in-environment path rather than the outer routed URL.
-	if ( ! $rudel_bootstrap_is_app ) {
-		$strip_routed_prefix = function ( string $value ) use ( $sandbox_id ): string {
-			$routed_prefix = '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
+	// Preview requests arrive through the host routing prefix, so WordPress has to see the in-environment path rather than the outer routed URL.
+	$strip_routed_prefix = function ( string $value ) use ( $sandbox_id ): string {
+		$routed_prefix = '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
 
-			if ( 0 !== strpos( $value, $routed_prefix ) ) {
-				return $value;
-			}
-
-			$stripped = substr( $value, strlen( $routed_prefix ) );
-			if ( '' === $stripped ) {
-				return '/';
-			}
-
-			if ( '/' === $stripped[0] || '?' === $stripped[0] ) {
-				return $stripped;
-			}
-
-			return '/' . ltrim( $stripped, '/' );
-		};
-
-		if ( isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] ) ) {
-			$_SERVER['REQUEST_URI'] = $strip_routed_prefix( $_SERVER['REQUEST_URI'] );
+		if ( 0 !== strpos( $value, $routed_prefix ) ) {
+			return $value;
 		}
 
-		if ( isset( $_SERVER['PATH_INFO'] ) && is_string( $_SERVER['PATH_INFO'] ) ) {
-			$_SERVER['PATH_INFO'] = $strip_routed_prefix( $_SERVER['PATH_INFO'] );
+		$stripped = substr( $value, strlen( $routed_prefix ) );
+		if ( '' === $stripped ) {
+			return '/';
 		}
+
+		if ( '/' === $stripped[0] || '?' === $stripped[0] ) {
+			return $stripped;
+		}
+
+		return '/' . ltrim( $stripped, '/' );
+	};
+
+	if ( isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] ) ) {
+		$_SERVER['REQUEST_URI'] = $strip_routed_prefix( $_SERVER['REQUEST_URI'] );
 	}
 
-	// Admin and direct PHP requests may bypass index.php, so persist context in a cookie for the rest of WordPress.
-	if ( 'cli' !== php_sapi_name() && ! $rudel_bootstrap_is_app ) {
+	if ( isset( $_SERVER['PATH_INFO'] ) && is_string( $_SERVER['PATH_INFO'] ) ) {
+		$_SERVER['PATH_INFO'] = $strip_routed_prefix( $_SERVER['PATH_INFO'] );
+	}
+
+	// Admin and direct PHP requests may bypass index.php, so preview contexts persist their environment in a cookie.
+	if ( 'cli' !== php_sapi_name() && ( ! $rudel_bootstrap_is_app || $rudel_bootstrap_is_preview ) ) {
 		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
 		if ( $cookie_id !== $sandbox_id ) {
 			setcookie( 'rudel_sandbox', $sandbox_id, 0, '/' );
@@ -370,7 +380,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	}
 	$site_url = rtrim( $protocol . '://' . $host, '/' );
 
-	if ( $rudel_bootstrap_is_app ) {
+	if ( $rudel_bootstrap_is_app && ! $rudel_bootstrap_is_preview ) {
 		$environment_url = $site_url;
 	} else {
 		$environment_url = $site_url . '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
@@ -422,7 +432,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$def( 'MULTISITE', true );
 		$def( 'SUBDOMAIN_INSTALL', false );
 		$def( 'DOMAIN_CURRENT_SITE', $normalize_host( $host ) );
-		$def( 'PATH_CURRENT_SITE', $rudel_bootstrap_is_app ? '/' : '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
+		$def( 'PATH_CURRENT_SITE', ( $rudel_bootstrap_is_app && ! $rudel_bootstrap_is_preview ) ? '/' : '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id . '/' );
 		$def( 'SITE_ID_CURRENT_SITE', 1 );
 		$def( 'BLOG_ID_CURRENT_SITE', null !== $environment_blog ? $environment_blog : 1 );
 	} else {

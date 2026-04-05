@@ -884,6 +884,46 @@ class BootstrapTest extends RudelTestCase
         $this->assertTrue($result['is_app']);
     }
 
+    public function testAppPathPrefixPreviewResolvesToAppAndUsesPrefixedUrls(): void
+    {
+        $this->createFakeAppInDir('preview-app', ['preview.example.com']);
+
+        $result = $this->runBootstrap([
+            'REQUEST_URI' => '/' . RUDEL_PATH_PREFIX . '/preview-app/wp-admin/',
+            'HTTP_HOST' => 'example.com',
+        ]);
+
+        $this->assertSame('preview-app', $result['sandbox_id']);
+        $this->assertTrue($result['is_app']);
+        $this->assertSame('/wp-admin/', $result['request_uri']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/preview-app', $result['wp_siteurl']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/preview-app', $result['wp_home']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/preview-app', $result['rudel_environment_url']);
+        $this->assertFalse($result['disable_email']);
+    }
+
+    public function testAppPreviewCookieKeepsAppContextForAdminRequests(): void
+    {
+        $this->createFakeAppInDir('cookie-preview-app', ['preview.example.com']);
+
+        $result = $this->runBootstrap(
+            serverVars: [
+                'REQUEST_URI' => '/wp-admin/',
+                'HTTP_HOST' => 'example.com',
+            ],
+            cookieVars: ['rudel_sandbox' => 'cookie-preview-app'],
+        );
+
+        $this->assertSame('cookie-preview-app', $result['sandbox_id']);
+        $this->assertTrue($result['is_app']);
+        $this->assertSame('/wp-admin/', $result['request_uri']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/cookie-preview-app', $result['wp_siteurl']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/cookie-preview-app', $result['wp_home']);
+        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/cookie-preview-app', $result['rudel_environment_url']);
+        $this->assertSame('cookie-preview-app', $result['cookie_sandbox']);
+        $this->assertFalse($result['disable_email']);
+    }
+
     public function testNoSandboxDoesNotDisableEmail(): void
     {
         $result = $this->runBootstrap([
