@@ -5,25 +5,30 @@ description: Current WP-CLI command surface for Rudel.
 
 # CLI Reference
 
-Rudel publishes its command surface under `wp rudel` by default.
+Rudel publishes its command surface under `wp rudel` by default. The easiest way to understand it is to follow the same split Rudel uses everywhere else: sandboxes live at the top level, and long-lived app operations live under `app`.
 
-You can rename only the root command with `RUDEL_CLI_COMMAND` before Rudel boots.
+That gives you a command tree that feels predictable:
+
+- `wp rudel ...` for sandbox lifecycle
+- `wp rudel app ...` for app lifecycle
+
+You can rename only the root command with `RUDEL_CLI_COMMAND` before Rudel boots. That changes the operator-facing WP-CLI namespace, but not the runtime model.
 
 ## Core commands
 
 ### `wp rudel create`
 
-Create a sandbox.
+Create a sandbox. This is the command you use when you want a new disposable multisite site for change work.
 
 ```bash
 wp rudel create [--name=<name>] [--github=<repo>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
 ```
 
-Rudel uses the `subsite` engine. No other engine is supported.
+Rudel creates sandboxes as multisite sites. There is no engine choice anymore, only different ways to seed the initial content and metadata.
 
 ### `wp rudel list`
 
-List sandboxes.
+List sandboxes. This is the operator view of the Rudel environment registry rather than WordPress's raw `wp site list` output.
 
 ```bash
 wp rudel list [--format=<format>]
@@ -31,7 +36,7 @@ wp rudel list [--format=<format>]
 
 ### `wp rudel info`
 
-Show sandbox details.
+Show sandbox details, including lifecycle metadata and Rudel-specific context that does not belong in core multisite tables.
 
 ```bash
 wp rudel info <id> [--format=<format>]
@@ -39,7 +44,7 @@ wp rudel info <id> [--format=<format>]
 
 ### `wp rudel update`
 
-Update sandbox metadata and policy.
+Update sandbox metadata and policy. This is where you change ownership, labels, expiry, and protection after creation.
 
 ```bash
 wp rudel update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry]
@@ -47,7 +52,7 @@ wp rudel update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>]
 
 ### `wp rudel destroy`
 
-Destroy a sandbox.
+Destroy a sandbox permanently. Rudel removes the environment record, the generated directory, and the multisite site that backs it.
 
 ```bash
 wp rudel destroy <id> [--force]
@@ -55,7 +60,7 @@ wp rudel destroy <id> [--force]
 
 ### `wp rudel status`
 
-Read Rudel runtime status.
+Read Rudel runtime status. This is the first command to run when you need to verify installation, bootstrap health, or base directory setup.
 
 ```bash
 wp rudel status
@@ -63,7 +68,7 @@ wp rudel status
 
 ### `wp rudel cleanup`
 
-Clean up sandboxes by policy or merged-branch state.
+Clean up sandboxes by policy or merged-branch state. This is the operational counterpart to Rudel's disposable sandbox model.
 
 ```bash
 wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--max-idle-days=<days>] [--merged]
@@ -71,13 +76,15 @@ wp rudel cleanup [--dry-run] [--max-age-days=<days>] [--max-idle-days=<days>] [-
 
 ### `wp rudel logs`
 
-Read, clear, or follow a sandbox debug log.
+Read, clear, or follow a sandbox debug log. Sandboxes are expected to be noisy during change work, so Rudel makes log access a first-class command.
 
 ```bash
 wp rudel logs <id> [--lines=<lines>] [--follow] [--clear]
 ```
 
 ## Recovery points and templates
+
+Rudel uses different recovery models for disposable and durable environments. Sandboxes get snapshots. Apps get backups and deployment history.
 
 ### `wp rudel snapshot`
 
@@ -121,6 +128,8 @@ wp rudel template delete <name> [--force]
 
 ## GitHub workflow
 
+GitHub commands are optional, but they become important once a sandbox is carrying real code changes in worktree-managed themes or plugins.
+
 ### `wp rudel push`
 
 Push sandbox changes to GitHub.
@@ -138,6 +147,8 @@ wp rudel pr <id> [--github=<repo>] [--title=<title>] [--body=<body>]
 ```
 
 ## App commands
+
+Everything under `wp rudel app ...` is about the long-lived side of the system. Apps are still multisite sites, but they accumulate operational metadata that sandboxes usually do not keep for long.
 
 ### `wp rudel app create`
 
@@ -226,3 +237,11 @@ wp rudel app domain-add <id> --domain=<domain>
 ```bash
 wp rudel app domain-remove <id> --domain=<domain>
 ```
+
+If you are learning the command surface from scratch, the simplest mental model is this:
+
+- create, inspect, and dispose of change environments at `wp rudel ...`
+- create, back up, deploy, and restore long-lived sites at `wp rudel app ...`
+- use snapshots for sandboxes and backups for apps
+
+That model stays consistent across the entire CLI.

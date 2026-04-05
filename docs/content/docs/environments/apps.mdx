@@ -7,7 +7,9 @@ description: Long-lived Rudel sites with backups, deploys, and rollback.
 
 Apps are the stable side of the Rudel lifecycle.
 
-An app is:
+If sandboxes are where change happens, apps are where approved state lands. An app is still a real multisite site, but Rudel treats it differently because it needs stronger continuity over time. An app keeps its identity, its domain metadata, its backups, and its deployment history while sandboxes come and go around it.
+
+An app combines four things:
 
 - a real multisite site
 - a Rudel environment record
@@ -20,15 +22,19 @@ An app is:
 wp rudel app create --name=demo --domain=demo.example.test
 ```
 
+The created site is immediately visible through normal multisite tooling such as `wp site list`, while Rudel keeps the extra app metadata in its own runtime tables.
+
 ## Create a sandbox from an app
 
 ```bash
 wp rudel app create-sandbox demo-1234 --name="Demo Feature"
 ```
 
-That sandbox clones from the app and becomes the workspace for change work.
+That sandbox clones from the app and becomes the workspace for change work. This is one of Rudel's core loops: the app stays stable, while sandboxes branch off from it for development, QA, or experimentation.
 
 ## Backups
+
+Because apps are long-lived, their recovery model is different from sandbox snapshots. App backups are meant to preserve a stable site state that you may need to restore days or weeks later.
 
 Create a backup:
 
@@ -49,6 +55,8 @@ wp rudel app restore demo-1234 --backup=baseline --force
 ```
 
 ## Deploy
+
+Deploys are what connect sandboxes back to apps. Rudel records them explicitly so the app history stays understandable instead of turning into an opaque sequence of file copies.
 
 Preview a deploy:
 
@@ -74,9 +82,11 @@ Rollback a deployment:
 wp rudel app rollback demo-1234 --deployment=deploy-1234 --force
 ```
 
+That rollback flow matters because it keeps the operator story clean. You do not have to remember which backup name was created for which deploy; Rudel already records that relationship.
+
 ## Domains
 
-Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables.
+Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables. Additional domains are also metadata, not a second routing system. WordPress still serves the app as a normal site; Rudel simply keeps track of the domain relationships that matter to operators and higher-level tooling.
 
 Add or remove additional domains:
 

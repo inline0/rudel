@@ -21,17 +21,11 @@
 
 ## What is Rudel?
 
-Rudel is a WordPress plugin that manages disposable sandboxes and long-lived apps as real subdomain multisite sites.
+Rudel is a WordPress plugin for running disposable sandboxes and long-lived apps on top of a subdomain multisite network.
 
-Every Rudel environment gets:
+The important part is not just that it uses multisite. The important part is that Rudel keeps WordPress in charge of the things WordPress already knows how to do well: site identity, routing, `wp-admin`, login, REST, assets, uploads, and normal browser behavior. Every Rudel environment is a real site with a real `blog_id` and a real URL. Rudel then adds the orchestration layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
 
-- a real `blog_id`
-- native multisite tables and uploads
-- a generated environment directory with scoped `wp-cli.yml`
-- isolated `wp-content` for copied themes, plugins, worktrees, snapshots, and backups
-- runtime metadata stored in WordPress tables
-
-Rudel does not emulate sites through synthetic browser paths. The runtime source of truth is WordPress multisite.
+That gives you an environment system that feels native in the browser but is still deliberate enough for QA, agent workflows, demos, staged change work, and long-lived app operations.
 
 ## Requirements
 
@@ -42,25 +36,27 @@ Rudel does not emulate sites through synthetic browser paths. The runtime source
 
 ## Quick Start
 
+Start with a working subdomain multisite network, then install and activate Rudel:
+
 ```bash
 composer require rudel/rudel
 wp plugin activate rudel
 wp rudel status
 ```
 
-Create a sandbox:
+Create a sandbox for change work:
 
 ```bash
 wp rudel create --name=alpha
 ```
 
-Create an app:
+Create an app for long-lived runtime state:
 
 ```bash
 wp rudel app create --name=demo --domain=demo.example.test
 ```
 
-List the real multisite URLs Rudel created:
+Rudel creates real multisite sites, so the fastest way to confirm the browser URLs is still a core command:
 
 ```bash
 wp site list --fields=blog_id,url
@@ -81,24 +77,26 @@ wp option get siteurl
 
 ## Current Model
 
-Rudel builds on a subdomain multisite network.
+Rudel has two lifecycle shapes, but one runtime model.
 
-- sandboxes are short-lived multisite sites for change work
-- apps are long-lived multisite sites for stable runtime state
-- app backups and deploy records are first-class
-- snapshots belong to sandboxes
-- templates capture reusable environment content
-- worktrees and GitHub metadata stay attached to Rudel records
+**Sandboxes** are the disposable side. They are where you try a migration, hand work to an agent, reproduce a bug, review a change, or test a risky update without touching the app that matters.
 
-The browser/runtime contract is simple:
+**Apps** are the durable side. They are the sites you keep around, back up, deploy into, restore from, and attach domain metadata to over time.
 
-- each environment has a real site URL
-- `wp-admin`, `wp-login.php`, REST, assets, and uploads work through that site
-- routing is native multisite subdomain routing
+Both are still multisite sites. Rudel does not create a second, fake browser world for one type and a real site for the other. If Rudel gives you an environment URL, that URL is the thing you visit.
+
+What Rudel adds around that runtime is the workflow layer:
+
+- app-derived sandboxes
+- reusable templates
+- point-in-time sandbox snapshots
+- app backups, deploys, and rollback
+- worktree-aware code flows for git-tracked themes and plugins
+- policy metadata such as owner, labels, protection, and expiry
 
 ## Runtime State
 
-Rudel stores runtime metadata in WordPress tables:
+Rudel stores operational metadata in WordPress tables:
 
 - `wp_rudel_environments`
 - `wp_rudel_apps`
@@ -106,11 +104,13 @@ Rudel stores runtime metadata in WordPress tables:
 - `wp_rudel_worktrees`
 - `wp_rudel_app_deployments`
 
-Those tables are the source of truth for environments, apps, domains, worktrees, deployment history, and lifecycle metadata.
+Those tables are the source of truth for environments, app identity, domains, worktrees, deployment history, and lifecycle policy.
 
-Environment directories hold generated bootstrap files, scoped `wp-cli.yml`, isolated `wp-content`, snapshots, backups, and worktree-managed code.
+Generated environment directories still matter, but they serve a different purpose. They hold the practical files Rudel needs to operate an environment cleanly: scoped `wp-cli.yml`, copied themes and plugins, worktree-managed code, snapshots, backups, and other environment-owned content.
 
 ## WP-CLI Surface
+
+The CLI follows the same mental model as the product.
 
 Sandbox lifecycle:
 
@@ -146,6 +146,8 @@ App lifecycle:
 - `wp rudel app rollback`
 - `wp rudel app domain-add`
 - `wp rudel app domain-remove`
+
+The naming is intentionally boring: sandboxes sit at `wp rudel ...`, while long-lived app operations sit at `wp rudel app ...`. Once that split clicks, the rest of the command surface is easy to navigate.
 
 ## Development
 

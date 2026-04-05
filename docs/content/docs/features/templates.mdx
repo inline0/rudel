@@ -5,7 +5,9 @@ description: Save sandboxes as reusable starting points.
 
 # Templates
 
-Templates let you freeze a sandbox's state and reuse it as a starting point for new sandboxes. Instead of configuring the same theme, plugins, and content every time, set it up once and save it as a template.
+Templates let you freeze a sandbox's state and reuse it as a starting point for new sandboxes. Instead of configuring the same theme, plugins, and content every time, you set it up once, save it, and let Rudel recreate that starting point on demand.
+
+They work especially well in a multisite-based system because the runtime site creation stays native while the content layer becomes repeatable.
 
 ## Saving a template
 
@@ -13,7 +15,7 @@ Templates let you freeze a sandbox's state and reuse it as a starting point for 
 wp rudel template save my-sandbox-a1b2 --name=starter
 ```
 
-This copies the sandbox's database and `wp-content` into a named template. You can optionally add a description:
+This copies the sandbox's site data and environment-owned content into a named template. You can optionally add a description:
 
 ```bash
 wp rudel template save my-sandbox-a1b2 --name=starter --description="WordPress with WooCommerce and Storefront theme"
@@ -25,7 +27,7 @@ wp rudel template save my-sandbox-a1b2 --name=starter --description="WordPress w
 wp rudel create --name="new-project" --template=starter
 ```
 
-The new sandbox starts with the template's database and content. All URLs and table prefixes are rewritten for the new sandbox automatically.
+The new sandbox starts with the template's site data and copied content. Rudel rewrites the runtime identifiers for the new environment automatically so you can treat the result as a fresh site rather than a half-cloned artifact.
 
 ## Managing templates
 
@@ -47,6 +49,6 @@ wp rudel template delete starter --force
 
 **Team onboarding.** Share a template so every developer starts from the same baseline.
 
-**Testing baselines.** Template a known-good state and create sandboxes from it for repeatable, consistent testing.
+**Testing baselines.** Save a known-good state and create sandboxes from it for repeatable, consistent testing.
 
 **Client demos.** Pre-configure templates for different client scenarios and spin up fresh sandboxes on demand.

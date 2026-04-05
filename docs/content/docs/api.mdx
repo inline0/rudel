@@ -7,9 +7,17 @@ description: The Rudel\\Rudel PHP API.
 
 `Rudel\Rudel` is the public PHP surface for runtime context and lifecycle operations.
 
+The public API is intentionally narrower than the internal codebase. Rudel has repositories, managers, and services under the hood, but consumers should not need to learn those details just to answer the common questions:
+
+- what Rudel environment is active on this request?
+- how do I create, update, or destroy an environment?
+- how do I manage app backups, deploys, and rollback from PHP?
+
+If you are embedding Rudel into another product or building an operator interface, start with `Rudel\Rudel` before reaching for lower-level services.
+
 ## Runtime context
 
-These methods are safe to call from any request.
+These methods are safe to call from any request. They tell you whether the current request belongs to a Rudel environment and, if so, what that environment looks like.
 
 ### `Rudel::is_sandbox()`
 
@@ -65,7 +73,7 @@ Returns the configured WP-CLI root command.
 
 ### `Rudel::context()`
 
-Returns the bundled runtime context:
+Returns the bundled runtime context in one array:
 
 ```php
 [
@@ -85,7 +93,11 @@ Returns the bundled runtime context:
 ]
 ```
 
+In practice, `Rudel::context()` is the easiest thing to hand to templates, custom admin screens, or API responses when you want one consistent runtime payload instead of a dozen point lookups.
+
 ## Environment lifecycle
+
+The environment lifecycle API is the programmatic counterpart to the `wp rudel ...` CLI commands.
 
 ### `Rudel::all()`
 
@@ -136,6 +148,8 @@ Save a sandbox as a template.
 Delete a template.
 
 ## App lifecycle
+
+Apps are the long-lived side of Rudel, so the app API adds backups, deploy planning, deployment history, rollback, and domain metadata on top of the normal environment lifecycle.
 
 ### `Rudel::apps()`
 
@@ -196,3 +210,16 @@ Attach an additional domain to an app record.
 ### `Rudel::remove_app_domain( string $app_id, string $domain )`
 
 Remove a domain from an app record.
+
+## A typical application flow
+
+The methods read more naturally as a lifecycle than as a flat list. A common flow looks like this:
+
+1. create or load an app
+2. create a sandbox from that app
+3. snapshot the sandbox if the change work is risky
+4. plan the deploy
+5. deploy the sandbox into the app
+6. inspect deployment history or roll back if needed
+
+That is the same workflow the CLI exposes. The PHP API exists so higher-level tooling can drive it directly without shelling out to WP-CLI.

@@ -7,9 +7,11 @@ description: The documented Rudel action and filter contract.
 
 Rudel publishes its documented lifecycle hooks through `Rudel::hooks()` and `Rudel\HookCatalog::all()`.
 
+The point of the hook catalog is not just to list names. It is to make Rudel predictable as an extension surface. When you are building operator tooling, policy enforcement, or downstream automation, you should not need to reverse-engineer which actions fire and what arguments they receive.
+
 ## Main categories
 
-The catalog covers:
+The catalog covers the main lifecycle edges in the system:
 
 - environment create, update, destroy, replace-state, cleanup, push, and PR
 - app create, update, destroy, create-sandbox, backup, restore, deploy, rollback, and domain changes
@@ -24,7 +26,7 @@ use Rudel\Rudel;
 $hooks = Rudel::hooks();
 ```
 
-Each entry includes the hook type and argument shape.
+Each entry includes the hook type and argument shape. That makes the catalog useful both as documentation and as a runtime inspection tool when you need to confirm exactly what an extension point receives.
 
 ## Example: change deploy metadata
 
@@ -42,3 +44,5 @@ add_filter(
     3
 );
 ```
+
+That pattern is typical of Rudel hooks. The hook receives real domain objects and plain arrays, which keeps the extension surface readable without forcing custom wrappers for every lifecycle event.

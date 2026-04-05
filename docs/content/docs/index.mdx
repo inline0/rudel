@@ -7,50 +7,54 @@ description: Rudel manages WordPress sandboxes and apps as real subdomain multis
 
 Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
 
-That means:
+That sentence is the foundation of the entire product. Rudel does not try to fake sites through synthetic URLs, browser cookies, or custom routing tricks. It starts from the thing WordPress already understands: a site with a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel then adds the orchestration that multisite does not provide by itself.
 
-- every environment has a real `blog_id`
-- every environment has a real site URL
-- `wp-admin`, login, REST, assets, and uploads behave like normal WordPress site requests
-- Rudel adds orchestration, metadata, snapshots, backups, templates, deploys, and worktree-aware code flows on top
+Once you see Rudel as "multisite runtime plus orchestration layer", the rest of the model becomes much easier to reason about.
 
 ## Two environment types
 
-**Sandboxes** are short-lived sites for change work, QA, debugging, and agent-driven development.
+Rudel has two lifecycle shapes that share the same runtime model.
 
-**Apps** are long-lived sites that hold stable runtime state and support backups, deploys, and rollback.
+**Sandboxes** are short-lived sites for change work, QA, debugging, demos, and agent-driven development. They are where you clone an app, try a change, snapshot state, review a result, and then either destroy the site or fold the work back into a stable app.
 
-Both use the same runtime model: WordPress multisite.
+**Apps** are long-lived sites that hold stable runtime state. They are the sites you keep around, attach domain metadata to, back up, deploy into, and restore from over time.
+
+Both are still normal multisite sites. The difference is not in how the browser reaches them. The difference is in how Rudel manages their lifecycle.
 
 ## Runtime shape
 
-Rudel keeps two things in sync:
+Rudel keeps two layers in sync.
 
-1. WordPress multisite sites  
-Each Rudel environment is backed by a real multisite site.
+**WordPress multisite sites** are the runtime truth. Every Rudel environment is backed by a real multisite site with native tables, uploads, admin behavior, and browser routing.
 
-2. Rudel runtime records  
-Rudel stores environment metadata, app identity, domain metadata, worktrees, and deployment history in WordPress tables.
+**Rudel runtime records** are the operational truth. Rudel stores environment metadata, app identity, domain metadata, worktrees, deployment history, and lifecycle policy in WordPress tables so it can reason about environments explicitly rather than inferring state from directories and URLs.
 
-Rudel does not emulate sites through synthetic browser paths. The browser contract is the real site URL.
+That split matters. When you need to know where a site lives in the browser, ask WordPress. When you need to know who owns it, what app it came from, or which backup belongs to which deployment, ask Rudel.
 
 ## What Rudel adds
+
+The runtime is native multisite. The value Rudel adds is everything around the lifecycle:
 
 - environment creation and destruction
 - app creation from the same runtime model
 - app-derived sandboxes
 - snapshots for sandboxes
-- backups for apps
-- deploy and rollback flows
+- backups, deploys, and rollback for apps
 - reusable templates
 - GitHub push and PR workflows
 - policy metadata such as owner, labels, protection, and expiry
 
+That is why Rudel feels different from plain multisite. It does not merely host sites. It gives those sites an operator model.
+
 ## Requirements
 
-Rudel requires:
+Rudel requires a subdomain multisite network. That is a hard requirement because the runtime contract depends on WordPress owning the site routing.
+
+In practice that means:
 
 - PHP 8.0 or later
 - WordPress 6.4 or later
 - a subdomain multisite network
 - write access to `wp-config.php` during initial runtime installation
+
+If that foundation is already in place, [Getting Started](/docs/getting-started) takes you through the installation and the first sandbox/app creation flow.

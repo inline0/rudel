@@ -5,6 +5,8 @@ description: Inspect, update, clean up, and destroy Rudel environments.
 
 # Managing Environments
 
+Once Rudel is installed, most day-to-day operations are simple operator tasks: inspect what exists, update metadata, check runtime health, clean up what is stale, and destroy environments deliberately when they are no longer needed.
+
 ## List sandboxes
 
 ```bash
@@ -12,11 +14,15 @@ wp rudel list
 wp rudel list --format=json
 ```
 
+`wp rudel list` is the best high-level view when you care about Rudel metadata such as ownership, protection, or source lineage. If you only care about raw site URLs, `wp site list` is still useful alongside it.
+
 ## Inspect a sandbox
 
 ```bash
 wp rudel info alpha-1234
 ```
+
+Use `info` when a name alone is no longer enough and you need to see the full environment record.
 
 ## Update metadata
 
@@ -30,21 +36,27 @@ Apps use the matching app command:
 wp rudel app update demo-1234 --owner=dennis --labels=production,client-a --protected
 ```
 
+These updates are not cosmetic. Ownership, labels, purpose, and protection are what make cleanup, automation, and operator reporting practical later.
+
 ## Read runtime status
 
 ```bash
 wp rudel status
 ```
 
-That shows bootstrap installation, runtime directories, and current counts.
+That shows bootstrap installation, runtime directories, and current counts. It is the first command to run when you need to confirm that Rudel itself is healthy before investigating a specific environment.
 
 ## Cleanup
+
+Sandboxes are meant to be disposable, so cleanup is part of the normal operating model rather than an emergency command.
 
 ```bash
 wp rudel cleanup --dry-run
 wp rudel cleanup --max-age-days=14
 wp rudel cleanup --merged
 ```
+
+Use `--dry-run` first whenever you are applying policy broadly. It keeps cleanup predictable and makes it easier to tune expiry or merge-based rules before you remove anything.
 
 ## Destroy environments
 
@@ -60,4 +72,4 @@ Destroy an app:
 wp rudel app destroy demo-1234 --force
 ```
 
-Destroying an environment removes its Rudel records, generated directory, and multisite site.
+Destroying an environment removes its Rudel records, generated directory, and multisite site. That is why the distinction between sandboxes and apps matters: sandboxes should be easy to remove, while apps usually deserve a backup or deploy-aware recovery point before anything destructive happens.

@@ -7,6 +7,8 @@ description: Stewardship, expiry, and lineage metadata for sandboxes and apps.
 
 Rudel environments carry more than just IDs and paths. Sandboxes and apps can both store metadata that explains who owns them, why they exist, when they should expire, and how they relate to other environments.
 
+This is the layer that turns Rudel from a pile of disposable sites into an operable system. Once more than one person is creating environments, names alone stop being enough.
+
 ## Core fields
 
 The most useful fields are:
@@ -29,7 +31,7 @@ Tracked GitHub context also lives in metadata on apps:
 - `tracked_github_branch`
 - `tracked_github_dir`
 
-That GitHub metadata is workflow context, not identity. It tells Rudel what code represents the app's deployed mainline so app-derived sandboxes and deploy records can inherit it.
+That GitHub metadata is workflow context, not identity. It tells Rudel what code represents the app's deployed mainline so app-derived sandboxes and deploy records can inherit it without extra operator input every time.
 
 ## Setting metadata at creation time
 

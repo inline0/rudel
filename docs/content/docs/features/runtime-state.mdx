@@ -7,7 +7,9 @@ description: Rudel stores runtime metadata in WordPress tables.
 
 Rudel runtime metadata is stored in WordPress tables.
 
-That includes:
+That sounds mundane, but it is one of the most important architectural decisions in the project. Rudel does not treat environment directories as the authoritative source of metadata. The database is where Rudel tracks what environments exist, which ones are apps, which domains belong to which app, which worktrees are attached, and which deployments have happened.
+
+That runtime state includes:
 
 - environments
 - apps
@@ -24,9 +26,11 @@ That includes:
 - `wp_rudel_worktrees`
 - `wp_rudel_app_deployments`
 
+Together those tables let Rudel answer the questions that WordPress multisite cannot answer by itself, such as who owns an environment, which app a sandbox came from, or which backup belongs to a specific deployment record.
+
 ## Table naming overrides
 
-Advanced embedded installs can override the Rudel portion of those table names with:
+Most installs should leave the default table names alone. Advanced embedded setups can override the Rudel portion of those names with:
 
 - `RUDEL_RUNTIME_TABLE_PREFIX`
 - `RUDEL_RUNTIME_TABLE_ENVIRONMENTS`
@@ -35,7 +39,7 @@ Advanced embedded installs can override the Rudel portion of those table names w
 - `RUDEL_RUNTIME_TABLE_WORKTREES`
 - `RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS`
 
-Define them before Rudel installs or bootstraps the runtime tables.
+Define them before Rudel installs or bootstraps the runtime tables. After tables already exist, changing the names is a migration concern rather than a configuration tweak.
 
 ## Service boundaries
 
@@ -46,4 +50,4 @@ Runtime reads and writes should go through Rudel repositories and services:
 - `EnvironmentWorktreeRepository`
 - `AppDeploymentRepository`
 
-Environment directories are for generated files and copied content, not as the runtime source of truth.
+That boundary is deliberate. Environment directories are for generated files and copied content, not as the source of truth for runtime metadata. If a higher-level product wants to inspect or manipulate Rudel state, it should talk to the runtime tables through Rudel's public API or internal repositories rather than reading files and guessing.

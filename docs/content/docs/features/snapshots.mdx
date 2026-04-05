@@ -5,10 +5,12 @@ description: Recovery points for sandboxes and backups for apps.
 
 # Snapshots and Backups
 
-Rudel uses two recovery-point models:
+Rudel uses two recovery-point models because sandboxes and apps have different jobs.
 
 - sandboxes use **snapshots**
 - apps use **backups**
+
+That split is intentional. A sandbox is disposable and usually tied to active change work, so its recovery model should be fast and local to that workspace. An app is long-lived and operationally important, so its recovery model should fit deploys, restore drills, and longer-lived rollback needs.
 
 ## Sandbox snapshots
 
@@ -24,7 +26,7 @@ Restore it:
 wp rudel restore alpha-1234 --snapshot=before-update --force
 ```
 
-Snapshots capture the sandbox site state and its environment-owned content so you can roll back risky work quickly.
+Snapshots capture the sandbox site state and its environment-owned content so you can roll back risky work quickly without promoting that recovery model into the long-lived app lifecycle.
 
 ## App backups
 
@@ -40,4 +42,4 @@ Restore it:
 wp rudel app restore demo-1234 --backup=baseline --force
 ```
 
-App deploys also integrate with backups so recovery is built into the deploy workflow.
+App deploys also integrate with backups so recovery is built into the deploy workflow rather than added as an afterthought.

@@ -5,13 +5,13 @@ description: Per-sandbox debug logs with a dedicated CLI viewer.
 
 # Error Logging
 
-Every sandbox has debug logging enabled by default. Since sandboxes are development environments, there's no reason to keep errors hidden.
+Every sandbox has debug logging enabled by default. Since sandboxes are change environments, there is very little value in hiding errors and a lot of value in capturing them cleanly.
 
 ## How it works
 
 When a sandbox is active, Rudel sets `WP_DEBUG` and `WP_DEBUG_LOG` to `true` and `WP_DEBUG_DISPLAY` to `false`. WordPress writes PHP errors, warnings, and notices to `debug.log` inside the sandbox's own `wp-content` directory. Errors never appear in the browser output, and each sandbox's log is completely separate from the host and from other sandboxes.
 
-The log file is created automatically the first time WordPress encounters an error. You don't need to configure anything.
+The log file is created automatically the first time WordPress encounters an error. There is no separate logging bootstrap to maintain.
 
 ## Viewing logs
 
@@ -43,9 +43,9 @@ This empties the log file without deleting it. Useful when you want a clean slat
 
 ## Log location
 
-The log file lives at `{sandbox}/wp-content/debug.log`. If you prefer to work with it directly, you can `cat`, `grep`, or open it in any editor. The `wp rudel logs` command is just a convenience wrapper.
+The log file lives at `{sandbox}/wp-content/debug.log`. If you prefer to work with it directly, you can `cat`, `grep`, or open it in any editor. The `wp rudel logs` command exists because log access is part of the normal sandbox workflow, not a rare escape hatch.
 
-Since sandboxes set `WP_DEBUG_DISPLAY` to `false`, errors won't break the frontend output even when debug mode is on. This makes it safe to leave logging enabled permanently, which is the intended behavior for disposable environments.
+Since sandboxes set `WP_DEBUG_DISPLAY` to `false`, errors do not spill into the frontend even when debug mode is on. That makes it safe to leave logging enabled permanently, which is the intended behavior for disposable environments.
 
 ## Blocked emails
 

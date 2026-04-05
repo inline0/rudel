@@ -5,7 +5,7 @@ description: Automatic and manual cleanup of stale sandboxes.
 
 # Cleanup
 
-Sandboxes are disposable by design. Rudel provides cleanup mechanisms to prevent disk usage from growing unbounded.
+Sandboxes are disposable by design. Cleanup is what keeps that promise operationally true instead of aspirational. Without it, a team ends up treating every sandbox like a long-lived pet site, which defeats the point of having a disposable environment system in the first place.
 
 Cleanup is one part of the broader [automation](/docs/features/automation) layer. That page covers scheduled app backups, retention, and expiry reporting as well.
 
@@ -51,7 +51,7 @@ Cleanup behavior is controlled by Rudel's configuration record in the host WordP
 
 The `max_age_days`, `max_idle_days`, and explicit per-sandbox `expires_at` metadata are enforced when you run `wp rudel cleanup`. Protected sandboxes are always skipped. The `max_sandboxes` and `max_disk_mb` limits are enforced at creation time, preventing new sandboxes from being created when the limit is reached.
 
-If no age, idle, or explicit expiry policy is active, cleanup returns immediately with no removals.
+If no age, idle, or explicit expiry policy is active, cleanup returns immediately with no removals. Rudel does not invent deletion rules on your behalf.
 
 ## Per-sandbox policy
 
@@ -72,11 +72,11 @@ The most useful policy fields are:
 - `expires_at`
 - `last_used_at`
 
-Rudel updates `last_used_at` automatically when an environment is used, snapped, restored, backed up, or deployed.
+Rudel updates `last_used_at` automatically when an environment is used, snapped, restored, backed up, or deployed. That keeps idle cleanup tied to actual activity instead of guesswork.
 
 ## Scheduled cleanup
 
-Standard cleanup runs automatically on an hourly WP-Cron schedule when `auto_cleanup_enabled` is on. This makes policy-driven cleanup practical for disposable sandboxes: set TTLs or idle thresholds and let Rudel sweep them without a manual command.
+Standard cleanup runs automatically on an hourly WP-Cron schedule when `auto_cleanup_enabled` is on. That makes policy-driven cleanup practical for disposable sandboxes: set TTLs or idle thresholds and let Rudel sweep them without relying on operator memory.
 
 ## Merge-based cleanup
 
@@ -94,4 +94,4 @@ Preview first with `--dry-run`:
 wp rudel cleanup --merged --dry-run
 ```
 
-This is the cleanest way to manage sandbox lifecycles when working with git: create a sandbox, do the work, merge the PR, and the sandbox disappears on the next cleanup run.
+This is the cleanest way to manage sandbox lifecycles when working with git: create a sandbox, do the work, merge the PR, and let cleanup remove the environment once the branch has clearly served its purpose.

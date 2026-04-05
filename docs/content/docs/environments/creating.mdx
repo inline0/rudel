@@ -5,13 +5,19 @@ description: Create sandboxes and apps on a subdomain multisite network.
 
 # Creating Environments
 
-Rudel creates real multisite sites.
+Rudel creates real multisite sites. That is the most important thing to keep in mind while reading the creation commands, because it explains both what Rudel does for you and what it deliberately leaves to WordPress.
+
+When you create an environment, Rudel is creating a real site, recording that site in its runtime tables, and preparing the environment directory that will hold copied content, worktrees, snapshots, or backups.
 
 ## Create a sandbox
+
+Sandboxes are the disposable side of the system. Use them when you want a change workspace that is safe to destroy later.
 
 ```bash
 wp rudel create --name=alpha
 ```
+
+That gives you a new multisite site plus a Rudel environment record. From there, the creation flags mainly control how much starting state you want to bring in.
 
 Common variations:
 
@@ -32,13 +38,17 @@ wp rudel create --name=starter --template=theme-starter
 wp rudel create --github=inline0/example-theme
 ```
 
+Those options compose in the way you would expect. Templates and GitHub seeding help you start from a known shape, while clone flags decide how much host or source-environment state should be copied in.
+
 ## Create an app
+
+Apps use the same runtime model, but they are meant to be the stable side of the lifecycle: the places you deploy into, back up, and keep attached to domain metadata.
 
 ```bash
 wp rudel app create --name=demo --domain=demo.example.test
 ```
 
-Apps are also backed by real multisite sites. Rudel stores their domain metadata, deploy history, worktrees, and other lifecycle metadata in runtime tables.
+Apps are also backed by real multisite sites. Rudel stores their domain metadata, deploy history, worktrees, and other lifecycle context in runtime tables, but the site itself is still a normal multisite site that core can see and manage.
 
 ## Find the created site URLs
 
@@ -46,11 +56,13 @@ Apps are also backed by real multisite sites. Rudel stores their domain metadata
 wp site list --fields=blog_id,url
 ```
 
-That is the browser/runtime truth for Rudel environments.
+That output is the browser truth for Rudel environments. If you need the site URL, ask WordPress. If you need the extra lifecycle metadata around that site, ask Rudel.
+
+The environment directory is the corresponding filesystem truth. That is where Rudel keeps the scoped `wp-cli.yml`, copied code, worktrees, snapshots, backups, and other environment-owned files.
 
 ## Policy metadata
 
-Sandboxes and apps both support:
+Sandboxes and apps both support the same stewardship metadata:
 
 - `--owner`
 - `--labels`
@@ -59,4 +71,4 @@ Sandboxes and apps both support:
 - `--ttl-days`
 - `--expires-at`
 
-Those values are stored in Rudel runtime records and used by cleanup, automation, and operator tooling.
+Those values are stored in Rudel runtime records and used by cleanup, automation, reporting, and operator tooling. They are worth setting early, because once a team has more than a handful of environments, names alone stop being enough.

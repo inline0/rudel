@@ -5,7 +5,7 @@ description: Branch-based workflows with automatic worktrees for git-tracked the
 
 # Git Integration
 
-When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of copying files into the sandbox, it creates a git worktree on a dedicated branch. This means changes made in the sandbox are regular git commits that can be merged back via a pull request.
+When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of treating every sandbox as a dead-end file copy, it can create a git worktree on a dedicated branch. That means the code changes made in the sandbox are still ordinary git changes that can be committed, reviewed, merged, and cleaned up normally.
 
 ## How it works
 
@@ -29,7 +29,7 @@ git commit -m "Add new template"
 git push origin rudel/feature-x-a1b2
 ```
 
-AI coding agents working in the sandbox can commit their changes directly. The sandbox's `CLAUDE.md` includes the branch name so agents have the context they need.
+AI coding agents working in the sandbox can commit their changes directly. The sandbox's `CLAUDE.md` includes the branch name so the code workspace and the environment lifecycle stay aligned.
 
 ## Merging and cleanup
 
@@ -49,9 +49,9 @@ wp rudel cleanup --merged --dry-run
 
 ## What gets git-tracked
 
-Only themes and plugins are eligible for git worktrees. The decision is per-directory: if `wp-content/themes/my-theme/.git` exists, that theme gets a worktree. If `wp-content/themes/other-theme/.git` doesn't exist, that theme is file-copied. Uploads are always file-copied.
+Only themes and plugins are eligible for git worktrees. The decision is per-directory: if `wp-content/themes/my-theme/.git` exists, that theme gets a worktree. If `wp-content/themes/other-theme/.git` does not exist, that theme is file-copied. Uploads are always file-copied.
 
-The database side of the sandbox (posts, options, settings) is not part of git. That's the disposable part. The code changes in themes and plugins are the part that should be preserved, and git handles that naturally.
+The site data side of the sandbox is not part of git. That is the disposable part. The code changes in themes and plugins are the part that should be preserved, and git already handles that naturally.
 
 ## GitHub integration (no git binary needed)
 

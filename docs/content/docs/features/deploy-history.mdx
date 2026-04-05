@@ -7,6 +7,8 @@ description: Planning, recording, and rolling back app deploys from sandboxes.
 
 Apps are long-lived deploy targets. Sandboxes are where you prepare change. The deploy history layer is what connects those two sides safely.
 
+That history matters because deployment is not just a file copy. It is an operational decision that should leave behind a trail: what moved, when it moved, what backup was created, and what source environment supplied the new state.
+
 ## Dry-run first
 
 Before replacing an app, generate a deploy plan:
@@ -22,6 +24,8 @@ That shows:
 - the tracked GitHub context that will be attached to the deployment
 - the lock file path Rudel uses to prevent overlapping destructive operations
 
+Dry-run is not a nice-to-have here. It is the moment where operators can confirm that the right sandbox is about to affect the right app before anything destructive happens.
+
 ## Real deploy
 
 ```bash
@@ -34,6 +38,8 @@ Every deploy:
 2. copies sandbox DB and `wp-content` into the app
 3. rewrites runtime identifiers back to the app domain
 4. records a deployment ledger entry
+
+That ledger entry is what turns deploys into an understandable history instead of a series of undocumented replacements.
 
 ## Inspect history
 
@@ -60,6 +66,8 @@ wp rudel app rollback client-a-com-a1b2 --deployment=deploy-20260330-123456 --fo
 ```
 
 Rollback restores the backup referenced by that deployment record. You can still restore directly from a named backup if you want, but rollback is cleaner when operators are reasoning from deploy history rather than filesystem names.
+
+In practice, that is what makes the feature valuable: you can reason from "the deploy that introduced this issue" instead of from "the backup name somebody probably typed before a release."
 
 ## API
 

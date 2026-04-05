@@ -7,16 +7,18 @@ description: How Rudel uses multisite and generated environment files to isolate
 
 Rudel isolation starts with WordPress multisite.
 
+That point is worth repeating because it is easy to assume Rudel must be doing something exotic. It is not. The foundation is the same site isolation model WordPress already ships: per-site tables, per-site uploads, per-site admin state, and site-scoped capabilities. Rudel then adds an environment directory and runtime metadata layer on top of that.
+
 ## Site data
 
-Every Rudel environment is a real multisite site, so WordPress already provides:
+Every Rudel environment is a real multisite site, so WordPress already gives Rudel an isolation boundary for:
 
 - per-site tables through `blog_id`
 - per-site options
 - per-site uploads
 - per-site admin and REST behavior
 
-Rudel builds on that instead of emulating it.
+Rudel builds on that instead of emulating it. That is why environment URLs, `wp-admin`, media uploads, and normal browser navigation behave like ordinary site requests.
 
 ## Environment directories
 
@@ -28,15 +30,15 @@ Each environment also has a generated directory containing:
 - `snapshots/` or `backups/`
 - worktree-managed code when present
 
-That directory is where Rudel stores copied themes, plugins, templates, snapshots, backups, and other environment-owned files.
+This directory is the filesystem side of isolation. It is where Rudel stores copied themes, plugins, templates, snapshots, backups, and other environment-owned files that do not belong in the runtime tables themselves.
 
 ## Authentication and cache
 
-Rudel scopes authentication salts and cache behavior per environment so sessions and persistent cache data stay isolated between environments and the host.
+Rudel also scopes authentication salts and cache behavior per environment so sessions and persistent cache data stay isolated between environments and the host. The site boundary comes from multisite; Rudel makes sure the supporting runtime state follows that boundary cleanly.
 
 ## Email
 
-Sandboxes block outbound email by default. Apps allow normal email delivery by default.
+Sandboxes block outbound email by default because they are meant for change work and disposable testing. Apps allow normal email delivery by default because they are meant to behave like stable runtime targets.
 
 ## Users
 
@@ -45,4 +47,4 @@ Rudel uses the multisite user model:
 - network users are shared
 - membership and capabilities are site-scoped
 
-The runtime isolation boundary is the site, not a separate user table set.
+That means Rudel's isolation boundary is the site, not a second user table set. The practical consequence is usually what teams need anyway: access is scoped per site, while user identity remains network-wide.
