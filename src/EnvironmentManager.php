@@ -126,6 +126,7 @@ class EnvironmentManager {
 		$engine        = $options['engine'] ?? 'mysql';
 		$blog_id       = null;
 		$git_worktrees = array();
+		$site_options  = $this->normalize_site_options( $options['site_options'] ?? array() );
 		$created_at    = gmdate( 'c' );
 		$config        = new RudelConfig();
 
@@ -341,6 +342,8 @@ class EnvironmentManager {
 				$this->write_sandbox_bootstrap( $id, $path, true, $engine );
 			}
 
+			$this->apply_site_options( $id, $path, $engine, $blog_id, $site_options );
+
 			$this->write_runtime_mu_plugin( $path );
 
 			if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
@@ -445,6 +448,9 @@ class EnvironmentManager {
 			throw new \RuntimeException( sprintf( 'Environment not found: %s', $id ) );
 		}
 
+		$site_options = $this->normalize_site_options( $changes['site_options'] ?? array() );
+		unset( $changes['site_options'] );
+
 		$changes = EnvironmentPolicy::normalize_changes( $changes, $environment->type );
 		$context = array(
 			'environment' => $environment,
@@ -453,6 +459,13 @@ class EnvironmentManager {
 		Hooks::action( 'rudel_before_environment_update', $context );
 
 		try {
+			$this->apply_site_options(
+				$environment->id,
+				$environment->path,
+				$environment->engine,
+				$environment->blog_id,
+				$site_options
+			);
 			$updated = $this->repository->update_fields( $id, $changes, $environment->type );
 			Hooks::action( 'rudel_after_environment_update', $updated, $context );
 			return $updated;
@@ -1531,6 +1544,154 @@ class EnvironmentManager {
 	 */
 	private function blank_wordpress(): BlankWordPressProvisioner {
 		return new BlankWordPressProvisioner();
+	}
+
+	/**
+	 * Normalize requested site options before they are written into one environment database.
+	 *
+	 * @param mixed $site_options Raw site option map.
+	 * @return array<string, string|null>
+	 *
+	 * @throws \InvalidArgumentException If the payload is not a flat scalar map.
+	 */
+	private function normalize_site_options( $site_options ): array {
+		if ( null === $site_options || array() === $site_options ) {
+			return array();
+		}
+
+		if ( ! is_array( $site_options ) ) {
+			throw new \InvalidArgumentException( 'site_options must be an associative array.' );
+		}
+
+		$normalized = array();
+		foreach ( $site_options as $name => $value ) {
+			if ( ! is_string( $name ) || ! preg_match( '/^[A-Za-z0-9_:-]+$/', $name ) ) {
+				throw new \InvalidArgumentException( 'site_options keys must be valid option names.' );
+			}
+
+			if ( null !== $value && ! is_scalar( $value ) ) {
+				throw new \InvalidArgumentException( sprintf( 'site_options[%s] must be scalar or null.', $name ) );
+			}
+
+			$normalized[ $name ] = null === $value ? null : (string) $value;
+		}
+
+		return $normalized;
+	}
+
+	/**
+	 * Apply requested site options into one environment database.
+	 *
+	 * @param string                   $id Environment identifier.
+	 * @param string                   $path Absolute environment path.
+	 * @param string                   $engine Database engine.
+	 * @param int|string|null          $blog_id Optional multisite blog identifier.
+	 * @param array<string, string|null> $site_options Site option overrides.
+	 * @return void
+	 */
+	private function apply_site_options( string $id, string $path, string $engine, $blog_id, array $site_options ): void {
+		if ( array() === $site_options ) {
+			return;
+		}
+
+		if ( 'sqlite' === $engine ) {
+			$this->apply_sqlite_site_options( $path . '/wordpress.db', Environment::table_prefix_for_id( $id ), $site_options );
+			return;
+		}
+
+		$this->apply_mysql_site_options( $engine, $id, $blog_id, $site_options );
+	}
+
+	/**
+	 * Apply site options inside a SQLite-backed environment.
+	 *
+	 * @param string                     $db_path SQLite database path.
+	 * @param string                     $table_prefix Environment table prefix.
+	 * @param array<string, string|null> $site_options Site option overrides.
+	 * @return void
+	 */
+	private function apply_sqlite_site_options( string $db_path, string $table_prefix, array $site_options ): void {
+		$pdo = new \PDO( 'sqlite:' . $db_path );
+		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+
+		$select = $pdo->prepare( "SELECT option_id FROM {$table_prefix}options WHERE option_name = ?" );
+		$insert = $pdo->prepare( "INSERT INTO {$table_prefix}options (option_name, option_value, autoload) VALUES (?, ?, 'yes')" );
+		$update = $pdo->prepare( "UPDATE {$table_prefix}options SET option_value = ? WHERE option_name = ?" );
+		$delete = $pdo->prepare( "DELETE FROM {$table_prefix}options WHERE option_name = ?" );
+
+		foreach ( $site_options as $option_name => $option_value ) {
+			$select->execute( array( $option_name ) );
+			$exists = false !== $select->fetchColumn();
+
+			if ( null === $option_value ) {
+				if ( $exists ) {
+					$delete->execute( array( $option_name ) );
+				}
+				continue;
+			}
+
+			if ( $exists ) {
+				$update->execute( array( $option_value, $option_name ) );
+			} else {
+				$insert->execute( array( $option_name, $option_value ) );
+			}
+		}
+	}
+
+	/**
+	 * Apply site options inside a MySQL- or subsite-backed environment.
+	 *
+	 * @param string                     $engine Database engine.
+	 * @param string                     $id Environment identifier.
+	 * @param int|string|null            $blog_id Optional multisite blog identifier.
+	 * @param array<string, string|null> $site_options Site option overrides.
+	 * @return void
+	 */
+	private function apply_mysql_site_options( string $engine, string $id, $blog_id, array $site_options ): void {
+		global $wpdb;
+
+		if ( ! isset( $wpdb ) || ! $wpdb ) {
+			throw new \RuntimeException( 'Applying MySQL-backed site options requires a running WordPress database connection.' );
+		}
+
+		$table_prefix = 'subsite' === $engine
+			? $wpdb->base_prefix . (int) $blog_id . '_'
+			: Environment::table_prefix_for_id( $id );
+
+		$table = $table_prefix . 'options';
+
+		foreach ( $site_options as $option_name => $option_value ) {
+			$exists = (bool) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT option_id FROM `{$table}` WHERE option_name = %s LIMIT 1",
+					$option_name
+				)
+			);
+
+			if ( null === $option_value ) {
+				if ( $exists ) {
+					$wpdb->delete( $table, array( 'option_name' => $option_name ) );
+				}
+				continue;
+			}
+
+			if ( $exists ) {
+				$wpdb->update(
+					$table,
+					array( 'option_value' => $option_value ),
+					array( 'option_name' => $option_name )
+				);
+			} else {
+				$wpdb->insert(
+					$table,
+					array(
+						'option_name'  => $option_name,
+						'option_value' => $option_value,
+						'autoload'     => 'yes',
+					)
+				);
+			}
+		}
 	}
 
 	/**

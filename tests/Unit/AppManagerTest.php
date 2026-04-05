@@ -80,6 +80,33 @@ class AppManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreateAppAppliesRequestedSiteOptions(): void
+    {
+        $this->defineConstants();
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Themed App', ['themed-app.com'], [
+            'engine' => 'sqlite',
+            'site_options' => [
+                'template' => 'divine',
+                'stylesheet' => 'divine-dev-child',
+                'current_theme' => 'Divine Dev Child',
+            ],
+        ]);
+
+        $pdo = new \PDO('sqlite:' . $app->get_db_path());
+        $prefix = $app->get_table_prefix();
+
+        $template = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='template'")->fetchColumn();
+        $stylesheet = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='stylesheet'")->fetchColumn();
+        $currentTheme = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='current_theme'")->fetchColumn();
+
+        $this->assertSame('divine', $template);
+        $this->assertSame('divine-dev-child', $stylesheet);
+        $this->assertSame('Divine Dev Child', $currentTheme);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateAppPersistsDomainsInRuntimeStore(): void
     {
         $this->defineConstants();
@@ -425,6 +452,34 @@ class AppManagerTest extends RudelTestCase
         $this->assertSame(['priority', 'qa'], $updated->labels);
         $this->assertTrue($updated->is_protected());
         $this->assertSame('inline0/client-a-theme', $updated->tracked_github_repo);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateAppAppliesRequestedSiteOptions(): void
+    {
+        $this->defineConstants();
+        $manager = new AppManager($this->tmpDir . '/apps', $this->tmpDir . '/sandboxes');
+        $app = $manager->create('Update Theme App', ['update-theme-app.com'], ['engine' => 'sqlite']);
+
+        $manager->update($app->id, [
+            'site_options' => [
+                'template' => 'divine',
+                'stylesheet' => 'divine-dev-child',
+                'current_theme' => 'Divine Dev Child',
+            ],
+        ]);
+
+        $pdo = new \PDO('sqlite:' . $app->get_db_path());
+        $prefix = $app->get_table_prefix();
+
+        $template = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='template'")->fetchColumn();
+        $stylesheet = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='stylesheet'")->fetchColumn();
+        $currentTheme = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='current_theme'")->fetchColumn();
+
+        $this->assertSame('divine', $template);
+        $this->assertSame('divine-dev-child', $stylesheet);
+        $this->assertSame('Divine Dev Child', $currentTheme);
     }
 
     #[RunInSeparateProcess]

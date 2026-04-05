@@ -318,6 +318,33 @@ class EnvironmentManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreateAppliesRequestedSiteOptionsToSqliteEnvironment(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Site Options Test', [
+            'engine' => 'sqlite',
+            'site_options' => [
+                'template' => 'divine',
+                'stylesheet' => 'divine-dev-child',
+                'current_theme' => 'Divine Dev Child',
+            ],
+        ]);
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $template = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='template'")->fetchColumn();
+        $stylesheet = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='stylesheet'")->fetchColumn();
+        $currentTheme = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='current_theme'")->fetchColumn();
+
+        $this->assertSame('divine', $template);
+        $this->assertSame('divine-dev-child', $stylesheet);
+        $this->assertSame('Divine Dev Child', $currentTheme);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateDatabaseHasHelloWorldPost(): void
     {
         $this->defineConstants();
@@ -1073,6 +1100,34 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->assertSame(['priority', 'review'], $updated->labels);
         $this->assertTrue($updated->is_protected());
         $this->assertSame('2026-03-31T12:00:00+00:00', $updated->expires_at);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdateAppliesRequestedSiteOptionsToSqliteEnvironment(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Update Site Options', ['engine' => 'sqlite', 'skip_limits' => true]);
+
+        $manager->update($sandbox->id, [
+            'site_options' => [
+                'template' => 'divine',
+                'stylesheet' => 'divine-dev-child',
+                'current_theme' => 'Divine Dev Child',
+            ],
+        ]);
+
+        $pdo = new \PDO('sqlite:' . $sandbox->get_db_path());
+        $prefix = 'rudel_' . substr(md5($sandbox->id), 0, 6) . '_';
+
+        $template = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='template'")->fetchColumn();
+        $stylesheet = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='stylesheet'")->fetchColumn();
+        $currentTheme = $pdo->query("SELECT option_value FROM {$prefix}options WHERE option_name='current_theme'")->fetchColumn();
+
+        $this->assertSame('divine', $template);
+        $this->assertSame('divine-dev-child', $stylesheet);
+        $this->assertSame('Divine Dev Child', $currentTheme);
     }
 
     #[RunInSeparateProcess]
