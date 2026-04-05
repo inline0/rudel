@@ -1449,7 +1449,7 @@ class EnvironmentManager {
 				. "define('DB_ENGINE', 'sqlite');\n";
 		}
 
-		$content = strtr(
+		$content        = strtr(
 			$template,
 			array(
 				'{{sandbox_id}}'      => $id,
@@ -1459,10 +1459,15 @@ class EnvironmentManager {
 				'{{sqlite_block}}'    => $sqlite_block,
 			)
 		);
+		$bootstrap_path = $path . '/bootstrap.php';
+		if ( file_exists( $bootstrap_path ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Allow refreshing the generated bootstrap before locking it again.
+			chmod( $bootstrap_path, 0644 );
+		}
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing sandbox bootstrap.
-		file_put_contents( $path . '/bootstrap.php', $content );
+		file_put_contents( $bootstrap_path, $content );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.
-		chmod( $path . '/bootstrap.php', 0444 );
+		chmod( $bootstrap_path, 0444 );
 	}
 
 	/**

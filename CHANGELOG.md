@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.8 - 2026-04-05
+
+- Fixed repeated preview/runtime repairs on multisite-backed app creation by making Rudel refresh an existing generated `bootstrap.php` before locking it back to read-only.
+- Closed the remaining gap where app previews could serve the front page but leave prefixed `wp-admin/`, login, or core/admin assets half-broken after a repair pass.
+- Added a regression that rewrites an existing read-only bootstrap so future preview/runtime work keeps the generated file refresh-safe.
+
 ## v0.3.7 - 2026-04-05
 
 - Stopped the generated runtime MU plugin from class-loading `PreviewRequestRouter` during preview boot, which avoids collisions when the same Rudel package also exists inside a copied app or parent theme.

@@ -211,6 +211,30 @@ class EnvironmentManagerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testWriteSandboxBootstrapCanRefreshExistingReadOnlyBootstrap(): void
+    {
+        $this->defineConstants();
+        $manager = new EnvironmentManager($this->tmpDir);
+        $sandbox = $manager->create('Bootstrap Refresh Test', ['engine' => 'sqlite']);
+
+        $bootstrapPath = $sandbox->path . '/bootstrap.php';
+        $original = file_get_contents($bootstrapPath);
+        $this->assertNotFalse($original);
+        $this->assertSame('0444', substr(sprintf('%o', fileperms($bootstrapPath)), -4));
+
+        $method = new \ReflectionMethod(EnvironmentManager::class, 'write_sandbox_bootstrap');
+        $method->setAccessible(true);
+        $method->invoke($manager, $sandbox->id, $sandbox->path, true, 'sqlite');
+
+        $refreshed = file_get_contents($bootstrapPath);
+        $this->assertNotFalse($refreshed);
+        $this->assertNotSame($original, $refreshed);
+        $this->assertStringContainsString("define('MULTISITE', true);", $refreshed);
+        $this->assertSame('0444', substr(sprintf('%o', fileperms($bootstrapPath)), -4));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateSetsDatabasePermissions(): void
     {
         $this->defineConstants();
