@@ -1582,10 +1582,10 @@ class EnvironmentManager {
 	/**
 	 * Apply requested site options into one environment database.
 	 *
-	 * @param string                   $id Environment identifier.
-	 * @param string                   $path Absolute environment path.
-	 * @param string                   $engine Database engine.
-	 * @param int|string|null          $blog_id Optional multisite blog identifier.
+	 * @param string                     $id Environment identifier.
+	 * @param string                     $path Absolute environment path.
+	 * @param string                     $engine Database engine.
+	 * @param int|string|null            $blog_id Optional multisite blog identifier.
 	 * @param array<string, string|null> $site_options Site option overrides.
 	 * @return void
 	 */
@@ -1608,11 +1608,14 @@ class EnvironmentManager {
 	 * @param string                     $db_path SQLite database path.
 	 * @param string                     $table_prefix Environment table prefix.
 	 * @param array<string, string|null> $site_options Site option overrides.
+	 * @throws \PDOException When SQLite option writes fail.
 	 * @return void
 	 */
 	private function apply_sqlite_site_options( string $db_path, string $table_prefix, array $site_options ): void {
+		// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO -- SQLite-backed environments require direct PDO access before WordPress boots inside the sandbox.
 		$pdo = new \PDO( 'sqlite:' . $db_path );
 		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+		// phpcs:enable WordPress.DB.RestrictedClasses.mysql__PDO
 
 		$select = $pdo->prepare( "SELECT option_id FROM {$table_prefix}options WHERE option_name = ?" );
 		$insert = $pdo->prepare( "INSERT INTO {$table_prefix}options (option_name, option_value, autoload) VALUES (?, ?, 'yes')" );
@@ -1645,6 +1648,7 @@ class EnvironmentManager {
 	 * @param string                     $id Environment identifier.
 	 * @param int|string|null            $blog_id Optional multisite blog identifier.
 	 * @param array<string, string|null> $site_options Site option overrides.
+	 * @throws \RuntimeException When the host WordPress database connection is unavailable.
 	 * @return void
 	 */
 	private function apply_mysql_site_options( string $engine, string $id, $blog_id, array $site_options ): void {
@@ -1660,6 +1664,7 @@ class EnvironmentManager {
 
 		$table = $table_prefix . 'options';
 
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Preview environments need direct writes against isolated options tables with runtime-resolved table names.
 		foreach ( $site_options as $option_name => $option_value ) {
 			$exists = (bool) $wpdb->get_var(
 				$wpdb->prepare(
@@ -1692,6 +1697,7 @@ class EnvironmentManager {
 				);
 			}
 		}
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**

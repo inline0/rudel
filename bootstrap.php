@@ -17,8 +17,10 @@
 // phpcs:disable WordPress.WP.GlobalVariablesOverride.Prohibited -- Intentional: setting $table_prefix for sandbox isolation.
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound
 
+$rudel_bootstrap_sapi = defined( 'RUDEL_BOOTSTRAP_SAPI' ) ? (string) RUDEL_BOOTSTRAP_SAPI : php_sapi_name();
+
 // This file can live under a web-accessible plugin path, so refuse direct hits.
-if ( 'cli' !== php_sapi_name() && isset( $_SERVER['SCRIPT_FILENAME'] ) && realpath( $_SERVER['SCRIPT_FILENAME'] ) === realpath( __FILE__ ) ) {
+if ( 'cli' !== $rudel_bootstrap_sapi && isset( $_SERVER['SCRIPT_FILENAME'] ) && realpath( $_SERVER['SCRIPT_FILENAME'] ) === realpath( __FILE__ ) ) {
 	exit;
 }
 
@@ -38,8 +40,9 @@ if ( ! defined( 'RUDEL_PATH_PREFIX' ) ) {
 
 require_once __DIR__ . '/src/RuntimeTableConfig.php';
 require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
+require_once __DIR__ . '/src/PreviewRequest.php';
 
-( function () use ( &$rudel_bootstrap_prefix, &$rudel_bootstrap_is_app, &$rudel_bootstrap_is_preview, &$rudel_bootstrap_requested_url ) {
+( function () use ( &$rudel_bootstrap_prefix, &$rudel_bootstrap_is_app, &$rudel_bootstrap_is_preview, &$rudel_bootstrap_requested_url, $rudel_bootstrap_sapi ) {
 	$plugin_dir       = __DIR__;
 	$environments_dir = null;
 
@@ -167,15 +170,15 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			return false;
 		}
 
-		$sandbox_id             = $result['id'];
-		$sandbox_path           = $result['path'];
-		$rudel_bootstrap_is_app = true;
-		$rudel_bootstrap_is_preview = false;
-		$environment_engine     = $result['engine'];
-		$environment_blog       = $result['blog_id'];
-		$environment_multi      = $result['multisite'];
-		$environment_row_id     = $result['record_id'];
-		$app_row_id             = $result['app_id'];
+			$sandbox_id                 = $result['id'];
+			$sandbox_path               = $result['path'];
+			$rudel_bootstrap_is_app     = true;
+			$rudel_bootstrap_is_preview = false;
+			$environment_engine         = $result['engine'];
+			$environment_blog           = $result['blog_id'];
+			$environment_multi          = $result['multisite'];
+			$environment_row_id         = $result['record_id'];
+			$app_row_id                 = $result['app_id'];
 
 		return true;
 	};
@@ -220,18 +223,12 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		}
 	}
 
-	if ( ! $sandbox_id ) {
-		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
-		if ( $cookie_id ) {
-			$try_resolve_preview( $cookie_id );
-		}
-	}
-
-	if ( ! $sandbox_id && 'cli' === php_sapi_name() ) {
+	if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi ) {
 		$rudel_bootstrap_requested_url = $extract_cli_url();
 		if ( is_string( $rudel_bootstrap_requested_url ) && '' !== $rudel_bootstrap_requested_url ) {
-			if ( preg_match( '#/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $rudel_bootstrap_requested_url, $m ) ) {
-				$try_resolve_preview( $m[1] );
+			$cli_preview_id = \Rudel\PreviewRequest::extract_environment_id( $rudel_bootstrap_requested_url, RUDEL_PATH_PREFIX );
+			if ( is_string( $cli_preview_id ) ) {
+				$try_resolve_preview( $cli_preview_id );
 			}
 
 			if ( ! $sandbox_id ) {
@@ -247,24 +244,18 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		}
 	}
 
-	// Admin traffic can bypass the routed front controller, so exiting has to clear the cookie here too.
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stateless exit action, no side effects beyond clearing a cookie.
-	if ( 'cli' !== php_sapi_name() && isset( $_GET['adminExit'] ) ) {
-		setcookie( 'rudel_sandbox', '', time() - 3600, '/' );
-		unset( $_COOKIE['rudel_sandbox'] );
-		$protocol = 'http';
-		if ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
-			$protocol = 'https';
+	if ( ! $sandbox_id ) {
+		$uri        = $_SERVER['REQUEST_URI'] ?? '';
+		$preview_id = is_string( $uri ) ? \Rudel\PreviewRequest::extract_environment_id( $uri, RUDEL_PATH_PREFIX ) : null;
+		if ( is_string( $preview_id ) ) {
+			$try_resolve_preview( $preview_id );
 		}
-		$redirect = $protocol . '://' . ( $_SERVER['HTTP_HOST'] ?? 'localhost' ) . '/';
-		header( 'Location: ' . $redirect, true, 302 );
-		exit;
 	}
 
-	if ( ! $sandbox_id ) {
-		$uri = $_SERVER['REQUEST_URI'] ?? '';
-		if ( preg_match( '#^/' . preg_quote( RUDEL_PATH_PREFIX, '#' ) . '/([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})/?#', $uri, $m ) ) {
-			$try_resolve_preview( $m[1] );
+	if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi ) {
+		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
+		if ( $cookie_id ) {
+			$try_resolve_preview( $cookie_id );
 		}
 	}
 
@@ -278,28 +269,35 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		}
 	}
 
+	$preview_base_path = null;
+	if ( $sandbox_id && ( ! $rudel_bootstrap_is_app || $rudel_bootstrap_is_preview ) ) {
+		$preview_base_path = \Rudel\PreviewRequest::base_path( $sandbox_id, RUDEL_PATH_PREFIX );
+	}
+
+	// Admin exit must happen after preview-path resolution so the scoped cookie can be cleared correctly.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Stateless exit action, no side effects beyond clearing a cookie.
+	if ( 'cli' !== $rudel_bootstrap_sapi && isset( $_GET['adminExit'] ) ) {
+		setcookie( 'rudel_sandbox', '', time() - 3600, '/' );
+		if ( is_string( $preview_base_path ) ) {
+			setcookie( 'rudel_sandbox', '', time() - 3600, $preview_base_path );
+		}
+		unset( $_COOKIE['rudel_sandbox'] );
+		$protocol = 'http';
+		if ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
+			$protocol = 'https';
+		}
+		$redirect = $protocol . '://' . ( $_SERVER['HTTP_HOST'] ?? 'localhost' ) . '/';
+		header( 'Location: ' . $redirect, true, 302 );
+		exit;
+	}
+
 	if ( ! $sandbox_id || ! $sandbox_path ) {
 		return;
 	}
 
 	// Preview requests arrive through the host routing prefix, so WordPress has to see the in-environment path rather than the outer routed URL.
-	$strip_routed_prefix = function ( string $value ) use ( $sandbox_id ): string {
-		$routed_prefix = '/' . RUDEL_PATH_PREFIX . '/' . $sandbox_id;
-
-		if ( 0 !== strpos( $value, $routed_prefix ) ) {
-			return $value;
-		}
-
-		$stripped = substr( $value, strlen( $routed_prefix ) );
-		if ( '' === $stripped ) {
-			return '/';
-		}
-
-		if ( '/' === $stripped[0] || '?' === $stripped[0] ) {
-			return $stripped;
-		}
-
-		return '/' . ltrim( $stripped, '/' );
+	$strip_routed_prefix = static function ( string $value ) use ( $sandbox_id ): string {
+		return \Rudel\PreviewRequest::strip_prefix( $value, $sandbox_id, RUDEL_PATH_PREFIX );
 	};
 
 	if ( isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] ) ) {
@@ -311,10 +309,11 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	}
 
 	// Admin and direct PHP requests may bypass index.php, so preview contexts persist their environment in a cookie.
-	if ( 'cli' !== php_sapi_name() && ( ! $rudel_bootstrap_is_app || $rudel_bootstrap_is_preview ) ) {
+	if ( 'cli' !== $rudel_bootstrap_sapi && is_string( $preview_base_path ) ) {
+		setcookie( 'rudel_sandbox', '', time() - 3600, '/' );
 		$cookie_id = $_COOKIE['rudel_sandbox'] ?? null;
 		if ( $cookie_id !== $sandbox_id ) {
-			setcookie( 'rudel_sandbox', $sandbox_id, 0, '/' );
+			setcookie( 'rudel_sandbox', $sandbox_id, 0, $preview_base_path );
 			$_COOKIE['rudel_sandbox'] = $sandbox_id;
 		}
 	}
@@ -337,7 +336,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	);
 
 	// WP-CLI may run from outside WordPress, so the jail has to allow the invoking binary too.
-	if ( 'cli' === php_sapi_name() && ! empty( $_SERVER['SCRIPT_FILENAME'] ) ) {
+	if ( 'cli' === $rudel_bootstrap_sapi && ! empty( $_SERVER['SCRIPT_FILENAME'] ) ) {
 		$cli_dir = dirname( (string) realpath( $_SERVER['SCRIPT_FILENAME'] ) );
 		if ( '' !== $cli_dir && '.' !== $cli_dir ) {
 			$paths[] = $cli_dir;
@@ -443,6 +442,11 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	$def( 'RUDEL_ID', $sandbox_id );
 	$def( 'RUDEL_PATH', $sandbox_path );
 	$def( 'RUDEL_IS_APP', $rudel_bootstrap_is_app );
+	$def( 'RUDEL_IS_PREVIEW', $rudel_bootstrap_is_preview );
+	$def( 'RUDEL_BOOTSTRAP_PLUGIN_DIR', $plugin_dir );
+	if ( is_string( $preview_base_path ) ) {
+		$def( 'RUDEL_PREVIEW_BASE_PATH', $preview_base_path );
+	}
 	$def( 'RUDEL_ENV_TYPE', $rudel_bootstrap_is_app ? 'app' : 'sandbox' );
 	$def( 'RUDEL_ENGINE', $_rudel_engine );
 	$def( 'RUDEL_ENV_RECORD_ID', $environment_row_id );
@@ -459,3 +463,4 @@ if ( null !== $rudel_bootstrap_prefix ) {
 unset( $rudel_bootstrap_prefix );
 unset( $rudel_bootstrap_is_app );
 unset( $rudel_bootstrap_requested_url );
+unset( $rudel_bootstrap_sapi );

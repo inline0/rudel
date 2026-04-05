@@ -145,6 +145,8 @@ class EnvironmentManagerTest extends RudelTestCase
         $this->assertStringContainsString('pre_wp_mail', $runtimeMuPlugin);
         $this->assertStringContainsString('RUDEL_RUNTIME_HOOKS_LOADED', $runtimeMuPlugin);
         $this->assertStringContainsString('admin_bar_menu', $runtimeMuPlugin);
+        $this->assertStringContainsString('PreviewRequestRouter', $runtimeMuPlugin);
+        $this->assertStringContainsString('parse_request', $runtimeMuPlugin);
     }
 
     #[RunInSeparateProcess]

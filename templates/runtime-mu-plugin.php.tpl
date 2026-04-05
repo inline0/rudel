@@ -16,6 +16,14 @@ if ( defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 
 define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
+if ( defined( 'RUDEL_BOOTSTRAP_PLUGIN_DIR' ) && is_string( RUDEL_BOOTSTRAP_PLUGIN_DIR ) && '' !== RUDEL_BOOTSTRAP_PLUGIN_DIR ) {
+	$rudel_preview_router = rtrim( RUDEL_BOOTSTRAP_PLUGIN_DIR, '/\\' ) . '/src/PreviewRequestRouter.php';
+	if ( file_exists( $rudel_preview_router ) ) {
+		require_once $rudel_preview_router;
+	}
+	unset( $rudel_preview_router );
+}
+
 /**
  * Return the resolved environment URL even when the host defines WP_HOME/WP_SITEURL.
  *
@@ -48,6 +56,10 @@ if ( null !== rudel_runtime_environment_url() ) {
 			return rudel_runtime_environment_url();
 		}
 	);
+
+	if ( class_exists( '\Rudel\PreviewRequestRouter' ) ) {
+		add_action( 'parse_request', array( \Rudel\PreviewRequestRouter::class, 'maybe_dispatch' ), 0 );
+	}
 }
 
 add_filter(

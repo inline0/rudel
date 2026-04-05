@@ -100,6 +100,7 @@ class ContentCloner {
 	 * @param string      $source        Absolute source directory path.
 	 * @param string      $target        Absolute target directory path.
 	 * @param string|null $excluded_path Absolute path to skip while traversing.
+	 * @throws \UnexpectedValueException When traversing an existing source directory fails.
 	 * @return void
 	 */
 	private function copy_directory_recursive( string $source, string $target, ?string $excluded_path = null ): void {
@@ -123,7 +124,7 @@ class ContentCloner {
 				continue;
 			}
 
-			$source_path  = $item->getPathname();
+			$source_path = $item->getPathname();
 			if ( ! file_exists( $source_path ) && ! is_link( $source_path ) ) {
 				continue;
 			}

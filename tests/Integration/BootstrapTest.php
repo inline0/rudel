@@ -85,6 +85,8 @@ class BootstrapTest extends RudelTestCase
         $script .= 'echo json_encode([' . "\n";
         $script .= '  "sandbox_id" => defined("RUDEL_ID") ? RUDEL_ID : null,' . "\n";
         $script .= '  "is_app" => defined("RUDEL_IS_APP") ? RUDEL_IS_APP : null,' . "\n";
+        $script .= '  "is_preview" => defined("RUDEL_IS_PREVIEW") ? RUDEL_IS_PREVIEW : null,' . "\n";
+        $script .= '  "preview_base_path" => defined("RUDEL_PREVIEW_BASE_PATH") ? RUDEL_PREVIEW_BASE_PATH : null,' . "\n";
         $script .= '  "sandbox_path" => defined("RUDEL_PATH") ? RUDEL_PATH : null,' . "\n";
         $script .= '  "db_dir" => defined("DB_DIR") ? DB_DIR : null,' . "\n";
         $script .= '  "db_file" => defined("DB_FILE") ? DB_FILE : null,' . "\n";
@@ -341,7 +343,7 @@ class BootstrapTest extends RudelTestCase
         $this->assertSame('header-wins', $result['sandbox_id']);
     }
 
-    public function testCookieTakesPriorityOverPathPrefix(): void
+    public function testPathPrefixTakesPriorityOverCookie(): void
     {
         $this->createFakeSandboxInDir('cookie-wins');
         $this->createFakeSandboxInDir('path-loses');
@@ -354,7 +356,7 @@ class BootstrapTest extends RudelTestCase
             cookieVars: ['rudel_sandbox' => 'cookie-wins'],
         );
 
-        $this->assertSame('cookie-wins', $result['sandbox_id']);
+        $this->assertSame('path-loses', $result['sandbox_id']);
     }
 
     // Security -- invalid IDs
@@ -712,7 +714,7 @@ class BootstrapTest extends RudelTestCase
 
     // Auto-cookie (CLI mode: cookie is not set via setcookie but $_COOKIE is updated)
 
-    public function testCookieDetectionStillWorks(): void
+    public function testCookieDetectionStillWorksInCli(): void
     {
         $this->createFakeSandboxInDir('cookie-auto');
 
@@ -735,6 +737,8 @@ class BootstrapTest extends RudelTestCase
         ]);
 
         $this->assertSame('path-auto', $result['sandbox_id']);
+        $this->assertTrue($result['is_preview']);
+        $this->assertSame('/' . RUDEL_PATH_PREFIX . '/path-auto/', $result['preview_base_path']);
     }
 
     public function testAdminExitParamDoesNotActivateSandbox(): void
@@ -895,6 +899,8 @@ class BootstrapTest extends RudelTestCase
 
         $this->assertSame('preview-app', $result['sandbox_id']);
         $this->assertTrue($result['is_app']);
+        $this->assertTrue($result['is_preview']);
+        $this->assertSame('/' . RUDEL_PATH_PREFIX . '/preview-app/', $result['preview_base_path']);
         $this->assertSame('/wp-admin/', $result['request_uri']);
         $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/preview-app', $result['wp_siteurl']);
         $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/preview-app', $result['wp_home']);
@@ -902,7 +908,7 @@ class BootstrapTest extends RudelTestCase
         $this->assertFalse($result['disable_email']);
     }
 
-    public function testAppPreviewCookieKeepsAppContextForAdminRequests(): void
+    public function testAppPreviewCookieDoesNotActivateHostAdminRequestsInWebMode(): void
     {
         $this->createFakeAppInDir('cookie-preview-app', ['preview.example.com']);
 
@@ -912,16 +918,19 @@ class BootstrapTest extends RudelTestCase
                 'HTTP_HOST' => 'example.com',
             ],
             cookieVars: ['rudel_sandbox' => 'cookie-preview-app'],
+            extraDefines: ['RUDEL_BOOTSTRAP_SAPI' => 'apache2handler'],
         );
 
-        $this->assertSame('cookie-preview-app', $result['sandbox_id']);
-        $this->assertTrue($result['is_app']);
+        $this->assertNull($result['sandbox_id']);
+        $this->assertNull($result['is_app']);
+        $this->assertNull($result['is_preview']);
+        $this->assertNull($result['preview_base_path']);
         $this->assertSame('/wp-admin/', $result['request_uri']);
-        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/cookie-preview-app', $result['wp_siteurl']);
-        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/cookie-preview-app', $result['wp_home']);
-        $this->assertSame('http://example.com/' . RUDEL_PATH_PREFIX . '/cookie-preview-app', $result['rudel_environment_url']);
+        $this->assertNull($result['wp_siteurl']);
+        $this->assertNull($result['wp_home']);
+        $this->assertNull($result['rudel_environment_url']);
         $this->assertSame('cookie-preview-app', $result['cookie_sandbox']);
-        $this->assertFalse($result['disable_email']);
+        $this->assertNull($result['disable_email']);
     }
 
     public function testNoSandboxDoesNotDisableEmail(): void

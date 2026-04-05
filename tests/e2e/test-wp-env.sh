@@ -414,61 +414,109 @@ else
     fail "Beta HTML missing theme reference" ""
 fi
 
-# Auto-cookie for wp-admin access
+# Prefixed preview routing
 echo ""
-echo -e "${BOLD}Auto-cookie for wp-admin${NC}"
+echo -e "${BOLD}Prefixed preview routing${NC}"
 
-# Visiting a sandbox URL should set the rudel_sandbox cookie.
+# Visiting a preview URL should set a scoped rudel_sandbox cookie.
 COOKIE_JAR="$RUDEL_DIR/.cookie-test"
 rm -f "$COOKIE_JAR"
 curl -s -o /dev/null -c "$COOKIE_JAR" "http://localhost:8888/__rudel/${ALPHA_ID}/"
 if grep -q "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null; then
     COOKIE_VALUE=$(grep "rudel_sandbox" "$COOKIE_JAR" | awk '{print $NF}')
+    COOKIE_PATH=$(grep "rudel_sandbox" "$COOKIE_JAR" | awk '{print $3}')
     if [[ "$COOKIE_VALUE" == "$ALPHA_ID" ]]; then
         pass "Auto-cookie set with correct sandbox ID"
     else
         fail "Auto-cookie has wrong value" "Expected: $ALPHA_ID, Got: $COOKIE_VALUE"
     fi
+    if [[ "$COOKIE_PATH" == "/__rudel/${ALPHA_ID}/" ]]; then
+        pass "Auto-cookie is scoped to the preview path"
+    else
+        fail "Auto-cookie path is wrong" "Expected: /__rudel/${ALPHA_ID}/, Got: $COOKIE_PATH"
+    fi
 else
     fail "Auto-cookie not set after visiting sandbox URL" ""
 fi
 
-# With the cookie, /wp-admin/ should load in sandbox context.
-ADMIN_CODE=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" "http://localhost:8888/wp-admin/")
-if [[ "$ADMIN_CODE" =~ ^(200|301|302)$ ]]; then
-    pass "wp-admin responds with sandbox cookie (HTTP $ADMIN_CODE)"
+# The host /wp-admin/ should stay on the host even after preview was visited.
+HOST_ADMIN_AFTER_PREVIEW=$(curl -s -L -b "$COOKIE_JAR" "http://localhost:8888/wp-admin/" | sed -n '1,80p')
+if ! echo "$HOST_ADMIN_AFTER_PREVIEW" | grep -qi "Alpha Site"; then
+    pass "Host /wp-admin/ stays outside the preview context"
 else
-    fail "wp-admin failed with sandbox cookie" "HTTP $ADMIN_CODE"
+    fail "Host /wp-admin/ leaked into preview context" ""
 fi
 
-# The ?adminExit param should clear the cookie.
-curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/?adminExit"
+# The preview front page should expose wp-content assets through the prefixed path.
+ALPHA_STYLE_URL=$(echo "$ALPHA_BODY" | grep -oE "http://localhost:8888/__rudel/${ALPHA_ID}/wp-content/[^\"'[:space:]]+" | sed 's/[),;]*$//' | head -1 || true)
+if [[ -n "$ALPHA_STYLE_URL" ]]; then
+    STYLE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$ALPHA_STYLE_URL")
+    if [[ "$STYLE_CODE" == "200" ]]; then
+        pass "Prefixed wp-content asset responds"
+    else
+        fail "Prefixed wp-content asset failed" "HTTP $STYLE_CODE: $ALPHA_STYLE_URL"
+    fi
+else
+    fail "Could not find a prefixed wp-content asset in preview HTML" ""
+fi
+
+# Prefixed /wp-admin/ should stay inside the preview admin flow.
+ADMIN_BODY_FILE="$RUDEL_DIR/.preview-admin"
+ADMIN_EFFECTIVE_URL=$(curl -s -L -b "$COOKIE_JAR" -o "$ADMIN_BODY_FILE" -w "%{url_effective}" "http://localhost:8888/__rudel/${ALPHA_ID}/wp-admin/")
+ADMIN_BODY=$(cat "$ADMIN_BODY_FILE")
+if [[ "$ADMIN_EFFECTIVE_URL" == "http://localhost:8888/__rudel/${ALPHA_ID}/wp-admin/"* ]] || [[ "$ADMIN_EFFECTIVE_URL" == "http://localhost:8888/__rudel/${ALPHA_ID}/wp-login.php"* ]]; then
+    pass "Prefixed /wp-admin/ stays inside preview admin flow"
+else
+    fail "Prefixed /wp-admin/ escaped the preview admin flow" "Final URL: $ADMIN_EFFECTIVE_URL"
+fi
+
+if echo "$ADMIN_BODY" | grep -qi 'name="log"'; then
+    pass "Prefixed admin reached the login screen"
+elif echo "$ADMIN_BODY" | grep -qi 'Database Update Required'; then
+    pass "Prefixed admin reached the upgrade screen"
+else
+    fail "Prefixed admin did not reach a recognisable admin screen" "$(head -20 "$ADMIN_BODY_FILE")"
+fi
+
+# Direct prefixed wp-login.php should work too, because it is a real PHP entrypoint under preview mode.
+LOGIN_BODY_FILE="$RUDEL_DIR/.preview-login"
+LOGIN_EFFECTIVE_URL=$(curl -s -L -b "$COOKIE_JAR" -o "$LOGIN_BODY_FILE" -w "%{url_effective}" "http://localhost:8888/__rudel/${ALPHA_ID}/wp-login.php")
+LOGIN_BODY=$(cat "$LOGIN_BODY_FILE")
+if [[ "$LOGIN_EFFECTIVE_URL" == "http://localhost:8888/__rudel/${ALPHA_ID}/wp-login.php"* ]]; then
+    pass "Prefixed wp-login.php stays inside preview"
+else
+    fail "Prefixed wp-login.php escaped preview" "Final URL: $LOGIN_EFFECTIVE_URL"
+fi
+
+if echo "$LOGIN_BODY" | grep -qi 'name="log"'; then
+    pass "Prefixed login page rendered"
+else
+    fail "Prefixed login page did not render" "$(head -20 "$LOGIN_BODY_FILE")"
+fi
+
+# The login page should also expose prefixed wp-admin assets.
+LOGIN_ASSET_URL=$(grep -oE "http://localhost:8888/__rudel/${ALPHA_ID}/wp-admin/[^\"'[:space:]]+" "$LOGIN_BODY_FILE" | sed 's/[),;]*$//' | head -1 || true)
+if [[ -n "$LOGIN_ASSET_URL" ]]; then
+    LOGIN_ASSET_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$LOGIN_ASSET_URL")
+    if [[ "$LOGIN_ASSET_CODE" == "200" ]]; then
+        pass "Prefixed wp-admin asset responds"
+    else
+        fail "Prefixed wp-admin asset failed" "HTTP $LOGIN_ASSET_CODE: $LOGIN_ASSET_URL"
+    fi
+else
+    fail "Could not find a prefixed wp-admin asset in login HTML" ""
+fi
+
+# Leaving the preview should clear the scoped cookie and redirect back to the host.
+curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/__rudel/${ALPHA_ID}/?adminExit"
 COOKIE_AFTER_EXIT=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}' || true)
 if [[ -z "$COOKIE_AFTER_EXIT" || "$COOKIE_AFTER_EXIT" == '""' || "$COOKIE_AFTER_EXIT" == "0" ]]; then
-    pass "?adminExit cleared sandbox cookie"
+    pass "Prefixed ?adminExit cleared the preview cookie"
 else
-    fail "?adminExit did not clear cookie" "Got: $COOKIE_AFTER_EXIT"
+    fail "Prefixed ?adminExit did not clear the preview cookie" "Got: $COOKIE_AFTER_EXIT"
 fi
 
-# After exit, /wp-admin/ should load the host (not sandbox).
-ADMIN_HOST=$(curl -s -L "http://localhost:8888/wp-admin/" | sed -n '1,50p')
-if ! echo "$ADMIN_HOST" | grep -qi "Alpha Site"; then
-    pass "wp-admin shows host after exit (not sandbox)"
-else
-    fail "wp-admin still shows sandbox after exit" ""
-fi
-
-# ?adminExit should work from any URL.
-curl -s -o /dev/null -c "$COOKIE_JAR" "http://localhost:8888/__rudel/${ALPHA_ID}/"
-curl -s -o /dev/null -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L "http://localhost:8888/wp-admin/?adminExit"
-COOKIE_FROM_ADMIN=$(grep "rudel_sandbox" "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}' || true)
-if [[ -z "$COOKIE_FROM_ADMIN" || "$COOKIE_FROM_ADMIN" == '""' || "$COOKIE_FROM_ADMIN" == "0" ]]; then
-    pass "?adminExit works from /wp-admin/ URL too"
-else
-    fail "?adminExit from /wp-admin/ did not clear cookie" "Got: $COOKIE_FROM_ADMIN"
-fi
-
-rm -f "$COOKIE_JAR"
+rm -f "$COOKIE_JAR" "$LOGIN_BODY_FILE" "$ADMIN_BODY_FILE"
 
 # Host unaffected
 echo ""

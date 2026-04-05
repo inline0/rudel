@@ -30,6 +30,8 @@ PHP);
         define('ABSPATH', $this->tmpDir . '/');
         define('RUDEL_ID', 'runtime-box');
         define('RUDEL_ENVIRONMENT_URL', 'http://localhost:8888/__rudel/runtime-box');
+        define('RUDEL_IS_PREVIEW', true);
+        define('RUDEL_BOOTSTRAP_PLUGIN_DIR', dirname(__DIR__, 2));
         define('WP_HOME', 'http://localhost:8888');
         define('WP_SITEURL', 'http://localhost:8888');
 
@@ -37,5 +39,6 @@ PHP);
 
         $this->assertSame('http://localhost:8888/__rudel/runtime-box', apply_filters('pre_option_home', false));
         $this->assertSame('http://localhost:8888/__rudel/runtime-box', apply_filters('pre_option_siteurl', false));
+        $this->assertArrayHasKey('parse_request', $GLOBALS['rudel_test_action_callbacks']);
     }
 }
