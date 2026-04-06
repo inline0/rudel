@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.0 - 2026-04-06
+
+- Hardened the isolation model so every app and sandbox uses its own local `wp-content` as the canonical file and code tree.
+- Moved git-backed theme and plugin worktrees fully inside each environment's local `wp-content` instead of relying on shared host paths.
+- Updated deploy and cleanup flows to preserve environment-local worktrees, keep `.git` metadata intact, and clean merged branches through worktree-aware git control paths.
+- Expanded unit, integration, security, and GitHub E2E coverage around the new environment-local runtime contract.
+- Rewrote the docs to describe Rudel as multisite-native site isolation plus environment-local content isolation, with `wp_users` remaining the only intentional shared runtime surface.
+
 ## v0.5.9 - 2026-04-06
 
 - Published the verified fix for non-default-port host-site resolution so the clean release includes the bootstrap host-normalization correction and the stabilized `wp-env` HTTP contract coverage.
