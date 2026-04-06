@@ -77,3 +77,47 @@
 - Kept apps and sandboxes as first-class Rudel records backed by real multisite sites, snapshots, backups, templates, worktrees, and deployment history.
 - Reworked the live `wp-env` suite to prove the current contract end to end: native multisite URLs, snapshot restore, app backups, app-derived sandboxes, and app deployment/restore flows.
 - Updated the CLI, docs, runtime bootstrap, and generated environment files to describe the current multisite-only architecture.
+
+## v0.3.8 - 2026-04-05
+
+- Fixed repair-path bootstrap refreshes so existing generated `bootstrap.php` files can be regenerated cleanly during runtime reinstall and repair flows.
+
+## v0.3.7 - 2026-04-05
+
+- Hardened runtime boot to avoid preview-router class collisions during repeated installs and repeated bootstrap loads.
+
+## v0.3.6 - 2026-04-05
+
+- Fixed prefixed preview handling for `wp-admin` and `wp-login.php` so previewed apps could reach admin and login entrypoints reliably.
+
+## v0.3.5 - 2026-04-05
+
+- Reworked preview routing so host and app preview contexts stay separated during runtime request parsing.
+
+## v0.3.4 - 2026-04-05
+
+- Fixed app provisioning so the correct site URL options are applied while new app environments are created.
+
+## v0.3.3 - 2026-04-05
+
+- Hardened content cloning for live development trees with extra non-runtime artifacts inside theme and plugin directories.
+
+## v0.3.2 - 2026-04-05
+
+- Added prefixed preview mode for app requests in the runtime bootstrap and expanded the integration coverage around that contract.
+
+## v0.3.1 - 2026-04-04
+
+- Preserved git worktrees when creating sandboxes from git-backed apps and when deploying sandbox changes back into apps.
+
+## v0.3.0 - 2026-04-04
+
+- Moved Rudel runtime state fully into WordPress database storage and hardened the bootstrap path that resolves environments before normal WordPress boot.
+
+## v0.2.0 - 2026-03-29
+
+- Expanded Rudel beyond sandboxes with app mode, GitHub-backed workflows, stronger runtime isolation, and the first broader public API and docs pass.
+
+## v0.1.0 - 2026-04-05
+
+- First public release with the initial WordPress isolation model, sandbox lifecycle CLI, cloning/snapshots/templates, and the first docs/distribution setup.
