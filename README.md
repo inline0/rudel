@@ -123,6 +123,12 @@ its own runtime metadata in JSON files or any parallel runtime database.
 Current Rudel is multisite-only and uses the host WordPress database as the
 only runtime store for its registry.
 
+Outside WordPress, Rudel can still use that same registry through a standalone
+DB connection. The DB-backed core can list apps and environments, inspect
+deployments and worktrees, and read or update metadata without a live WordPress
+request. WordPress multisite lifecycle work such as creating or destroying
+sites still stays inside WordPress.
+
 Generated environment directories hold the full environment-local file tree:
 scoped `wp-cli.yml`, bootstrap files, the cloned `wp-content`, logs,
 snapshots, backups, and other environment artifacts. Rudel records metadata
@@ -186,6 +192,41 @@ bash tests/e2e/run-all.sh
 npm --prefix docs run build
 bash tests/run-all.sh
 ```
+
+## Standalone Core Access
+
+If you need Rudel's registry outside WordPress, initialize it with a direct DB
+connection:
+
+```php
+use Rudel\Connection;
+use Rudel\Rudel;
+
+$conn = new Connection(
+    host: '127.0.0.1:3306',
+    dbname: 'wordpress',
+    user: 'root',
+    password: 'secret',
+    prefix: 'wp_',
+);
+
+Rudel::init(
+    $conn,
+    [
+        'environments_dir' => '/var/www/html/wp-content/rudel-environments',
+        'apps_dir' => '/var/www/html/wp-content/rudel-apps',
+    ]
+);
+
+Rudel::ensure_schema();
+
+$apps = Rudel::apps();
+$sandboxes = Rudel::all();
+```
+
+That standalone path is for the DB-backed core. It does not replace the
+WordPress adapter layer. Operations that create, destroy, or rewire multisite
+sites still require a live WordPress multisite runtime.
 
 ## Documentation
 

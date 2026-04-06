@@ -23,6 +23,34 @@ namespace Rudel;
 class Rudel {
 
 	/**
+	 * Standalone runtime store configured through Rudel::init().
+	 *
+	 * @var DatabaseStore|null
+	 */
+	private static ?DatabaseStore $store = null;
+
+	/**
+	 * Optional standalone filesystem context.
+	 *
+	 * @var array{environments_dir?: string, apps_dir?: string}
+	 */
+	private static array $context = array();
+
+	/**
+	 * Cached sandbox manager.
+	 *
+	 * @var EnvironmentManager|null
+	 */
+	private static ?EnvironmentManager $manager_instance = null;
+
+	/**
+	 * Cached app manager.
+	 *
+	 * @var AppManager|null
+	 */
+	private static ?AppManager $app_manager_instance = null;
+
+	/**
 	 * Whether any isolated Rudel environment is active.
 	 *
 	 * @return bool
@@ -298,16 +326,60 @@ class Rudel {
 	}
 
 	/**
+	 * Initialize Rudel core access outside WordPress.
+	 *
+	 * Standalone callers provide a direct DB connection plus optional filesystem
+	 * context for environment/app directories. Multisite lifecycle operations
+	 * remain WordPress-only.
+	 *
+	 * @param Connection                                          $connection Standalone DB connection.
+	 * @param array{environments_dir?: string, apps_dir?: string} $context Optional filesystem context.
+	 * @return void
+	 */
+	public static function init( Connection $connection, array $context = array() ): void {
+		self::$store                = RudelDatabase::for_connection( $connection );
+		self::$context              = self::normalize_context( $context );
+		self::$manager_instance     = null;
+		self::$app_manager_instance = null;
+	}
+
+	/**
+	 * Ensure Rudel runtime tables exist for the active store.
+	 *
+	 * @return void
+	 */
+	public static function ensure_schema(): void {
+		RudelSchema::ensure( self::store() );
+	}
+
+	/**
+	 * Reset static facade state.
+	 *
+	 * @return void
+	 */
+	public static function reset(): void {
+		self::$store                = null;
+		self::$context              = array();
+		self::$manager_instance     = null;
+		self::$app_manager_instance = null;
+		RudelDatabase::reset();
+	}
+
+	/**
 	 * Reuse one environment manager per request.
 	 *
 	 * @return EnvironmentManager
 	 */
 	private static function manager(): EnvironmentManager {
-		static $manager = null;
-		if ( null === $manager ) {
-			$manager = new EnvironmentManager();
+		if ( null === self::$manager_instance ) {
+			self::$manager_instance = new EnvironmentManager(
+				self::context_path( 'environments_dir' ),
+				self::context_path( 'apps_dir' ),
+				'sandbox',
+				self::$store
+			);
 		}
-		return $manager;
+		return self::$manager_instance;
 	}
 
 	/**
@@ -316,11 +388,14 @@ class Rudel {
 	 * @return AppManager
 	 */
 	private static function app_manager(): AppManager {
-		static $app_manager = null;
-		if ( null === $app_manager ) {
-			$app_manager = new AppManager();
+		if ( null === self::$app_manager_instance ) {
+			self::$app_manager_instance = new AppManager(
+				self::context_path( 'apps_dir' ),
+				self::context_path( 'environments_dir' ),
+				self::$store
+			);
 		}
-		return $app_manager;
+		return self::$app_manager_instance;
 	}
 
 	/**
@@ -352,6 +427,7 @@ class Rudel {
 	 * @throws \RuntimeException If creation fails.
 	 */
 	public static function create( string $name, array $options = array() ): Environment {
+		self::require_wordpress_runtime( 'Rudel::create()' );
 		return self::manager()->create( $name, $options );
 	}
 
@@ -368,6 +444,7 @@ class Rudel {
 	 * @throws \RuntimeException If sandbox creation fails before the GitHub bootstrap step can run.
 	 */
 	public static function create_from_github( string $repo, array $options = array() ): array {
+		self::require_wordpress_runtime( 'Rudel::create_from_github()' );
 		$name         = isset( $options['name'] ) ? (string) $options['name'] : basename( $repo );
 		$content_type = isset( $options['type'] ) ? (string) $options['type'] : 'theme';
 		unset( $options['name'], $options['type'] );
@@ -436,6 +513,7 @@ class Rudel {
 	 * @return bool True on success.
 	 */
 	public static function destroy( string $id ): bool {
+		self::require_wordpress_runtime( 'Rudel::destroy()' );
 		return self::manager()->destroy( $id );
 	}
 
@@ -457,6 +535,7 @@ class Rudel {
 	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
 	 */
 	public static function cleanup( array $options = array() ): array {
+		self::require_wordpress_runtime( 'Rudel::cleanup()' );
 		return self::manager()->cleanup( $options );
 	}
 
@@ -467,6 +546,7 @@ class Rudel {
 	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
 	 */
 	public static function cleanup_merged( array $options = array() ): array {
+		self::require_wordpress_runtime( 'Rudel::cleanup_merged()' );
 		return self::manager()->cleanup_merged( $options );
 	}
 
@@ -507,6 +587,7 @@ class Rudel {
 	 * @return Environment The newly created app.
 	 */
 	public static function create_app( string $name, array $domains, array $options = array() ): Environment {
+		self::require_wordpress_runtime( 'Rudel::create_app()' );
 		return self::app_manager()->create( $name, $domains, $options );
 	}
 
@@ -530,6 +611,7 @@ class Rudel {
 	 * @return Environment
 	 */
 	public static function create_sandbox_from_app( string $app_id, string $name, array $options = array() ): Environment {
+		self::require_wordpress_runtime( 'Rudel::create_sandbox_from_app()' );
 		return self::app_manager()->create_sandbox( $app_id, $name, $options );
 	}
 
@@ -540,6 +622,7 @@ class Rudel {
 	 * @return bool True on success.
 	 */
 	public static function destroy_app( string $id ): bool {
+		self::require_wordpress_runtime( 'Rudel::destroy_app()' );
 		return self::app_manager()->destroy( $id );
 	}
 
@@ -551,6 +634,7 @@ class Rudel {
 	 * @return void
 	 */
 	public static function add_app_domain( string $app_id, string $domain ): void {
+		self::require_wordpress_runtime( 'Rudel::add_app_domain()' );
 		self::app_manager()->add_domain( $app_id, $domain );
 	}
 
@@ -562,6 +646,7 @@ class Rudel {
 	 * @return void
 	 */
 	public static function remove_app_domain( string $app_id, string $domain ): void {
+		self::require_wordpress_runtime( 'Rudel::remove_app_domain()' );
 		self::app_manager()->remove_domain( $app_id, $domain );
 	}
 
@@ -1090,5 +1175,78 @@ class Rudel {
 	 */
 	public static function resolve_cli_command( $path, array $args = array(), array $assoc_args = array() ): array {
 		return CliCommandMap::resolve( $path, $args, $assoc_args );
+	}
+
+	/**
+	 * Active runtime store, either standalone or WordPress-backed.
+	 *
+	 * @return DatabaseStore
+	 */
+	private static function store(): DatabaseStore {
+		if ( null !== self::$store ) {
+			return self::$store;
+		}
+
+		return RudelDatabase::for_paths();
+	}
+
+	/**
+	 * Normalize standalone context paths.
+	 *
+	 * @param array<string, mixed> $context Raw context.
+	 * @return array{environments_dir?: string, apps_dir?: string}
+	 */
+	private static function normalize_context( array $context ): array {
+		$normalized = array();
+
+		foreach ( array( 'environments_dir', 'apps_dir' ) as $key ) {
+			if ( isset( $context[ $key ] ) && is_string( $context[ $key ] ) && '' !== trim( $context[ $key ] ) ) {
+				$normalized[ $key ] = rtrim( trim( $context[ $key ] ), '/' );
+			}
+		}
+
+		return $normalized;
+	}
+
+	/**
+	 * Optional standalone context path.
+	 *
+	 * @param string $key Context key.
+	 * @return string|null
+	 */
+	private static function context_path( string $key ): ?string {
+		return self::$context[ $key ] ?? null;
+	}
+
+	/**
+	 * Whether the WordPress multisite runtime is available.
+	 *
+	 * @return bool
+	 */
+	private static function has_wordpress_runtime(): bool {
+		return function_exists( 'is_multisite' )
+			&& function_exists( 'wpmu_create_blog' )
+			&& defined( 'ABSPATH' );
+	}
+
+	/**
+	 * Fail early for lifecycle operations that still require WordPress.
+	 *
+	 * @param string $operation Operation label.
+	 * @return void
+	 *
+	 * @throws \RuntimeException When the requested operation needs a live WordPress multisite runtime.
+	 */
+	private static function require_wordpress_runtime( string $operation ): void {
+		if ( self::has_wordpress_runtime() ) {
+			return;
+		}
+
+		throw new \RuntimeException(
+			sprintf(
+				'%s requires a live WordPress multisite runtime. Use Rudel::init() for DB-backed registry access outside WordPress, but keep site lifecycle operations inside WordPress.',
+				$operation
+			)
+		);
 	}
 }

@@ -7,6 +7,7 @@ use Rudel\AppRepository;
 use Rudel\DatabaseStore;
 use Rudel\Environment;
 use Rudel\EnvironmentRepository;
+use Rudel\Rudel;
 use Rudel\RudelDatabase;
 use Rudel\RudelSchema;
 use Rudel\WpdbStore;
@@ -20,10 +21,11 @@ abstract class RudelTestCase extends TestCase
 {
     protected string $tmpDir;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $GLOBALS['rudel_test_actions'] = [];
+	    protected function setUp(): void
+	    {
+	        parent::setUp();
+	        Rudel::reset();
+	        $GLOBALS['rudel_test_actions'] = [];
         $GLOBALS['rudel_test_filters'] = [];
         $GLOBALS['rudel_test_action_callbacks'] = [];
         $GLOBALS['rudel_test_filter_callbacks'] = [];
@@ -64,13 +66,14 @@ abstract class RudelTestCase extends TestCase
         RudelSchema::ensure($this->runtimeStore());
     }
 
-    protected function tearDown(): void
-    {
-        if (is_dir($this->tmpDir)) {
-            exec('rm -rf ' . escapeshellarg($this->tmpDir));
-        }
-        parent::tearDown();
-    }
+	    protected function tearDown(): void
+	    {
+	        if (is_dir($this->tmpDir)) {
+	            exec('rm -rf ' . escapeshellarg($this->tmpDir));
+	        }
+	        Rudel::reset();
+	        parent::tearDown();
+	    }
 
     /**
      * Create a fake environment directory and persist its runtime record in the test DB.

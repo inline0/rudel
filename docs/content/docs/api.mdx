@@ -15,6 +15,62 @@ The public API is intentionally narrower than the internal codebase. Rudel has r
 
 If you are embedding Rudel into another product or building an operator interface, start with `Rudel\Rudel` before reaching for lower-level services.
 
+## Standalone core access
+
+Rudel's DB-backed registry can also be initialized outside WordPress.
+
+That standalone path is for the core metadata layer:
+
+- listing apps and environments
+- reading domains, worktrees, deployments, and policy metadata
+- updating DB-backed metadata
+
+It is not a replacement for WordPress multisite itself. Site lifecycle
+operations such as creating, destroying, or rewiring multisite subsites still
+require a live WordPress runtime.
+
+### `Rudel::init( Connection $conn, array $context = [] )`
+
+Initialize Rudel with a standalone DB connection.
+
+The optional `$context` array currently supports:
+
+- `environments_dir`
+- `apps_dir`
+
+Those paths let operator-facing APIs keep reporting the same filesystem context
+outside WordPress that they would use inside WordPress.
+
+```php
+use Rudel\Connection;
+use Rudel\Rudel;
+
+$conn = new Connection(
+    host: '127.0.0.1:3306',
+    dbname: 'wordpress',
+    user: 'root',
+    password: 'secret',
+    prefix: 'wp_',
+);
+
+Rudel::init(
+    $conn,
+    [
+        'environments_dir' => '/var/www/html/wp-content/rudel-environments',
+        'apps_dir' => '/var/www/html/wp-content/rudel-apps',
+    ]
+);
+```
+
+### `Rudel::ensure_schema()`
+
+Ensure the Rudel runtime tables exist for the active store.
+
+That is the standalone equivalent of letting the WordPress plugin bootstrap
+create the tables during normal install/runtime setup.
+
+For the full model and boundaries, see [Standalone Use](/docs/features/standalone-use).
+
 ## Runtime context
 
 These methods are safe to call from any request. They tell you whether the current request belongs to a Rudel environment and, if so, what that environment looks like.
@@ -123,6 +179,8 @@ Load one sandbox.
 
 Create a sandbox.
 
+This still requires a live WordPress multisite runtime.
+
 ### `Rudel::update( string $id, array $changes )`
 
 Update sandbox metadata.
@@ -130,6 +188,8 @@ Update sandbox metadata.
 ### `Rudel::destroy( string $id )`
 
 Destroy a sandbox.
+
+This still requires a live WordPress multisite runtime.
 
 ### `Rudel::cleanup( array $options = [] )`
 
@@ -175,6 +235,8 @@ Load one app.
 
 Create an app.
 
+This still requires a live WordPress multisite runtime.
+
 ### `Rudel::update_app( string $id, array $changes )`
 
 Update app metadata.
@@ -183,9 +245,13 @@ Update app metadata.
 
 Destroy an app.
 
+This still requires a live WordPress multisite runtime.
+
 ### `Rudel::create_sandbox_from_app( string $app_id, string $name, array $options = [] )`
 
 Create a sandbox cloned from an app.
+
+This still requires a live WordPress multisite runtime.
 
 ### `Rudel::backup_app( string $app_id, string $name )`
 
@@ -218,6 +284,8 @@ Restore an app from a named backup.
 ### `Rudel::add_app_domain( string $app_id, string $domain )`
 
 Attach an additional domain to an app record.
+
+This still requires a live WordPress multisite runtime because the underlying multisite subsite domain must stay in sync.
 
 ### `Rudel::remove_app_domain( string $app_id, string $domain )`
 

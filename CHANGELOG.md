@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.1 - 2026-04-06
+
+- Added a standalone DB-backed core access path with `Rudel::init()`, `Rudel::ensure_schema()`, and neutral `Connection` / `PdoStore` support for external products that need Rudel registry access outside WordPress.
+- Kept multisite lifecycle work explicitly inside WordPress while making the DB-backed registry, runtime config, and directory context readable from standalone PHP processes.
+- Added focused unit coverage for the new standalone initialization path and documented the outside-WordPress boundary in the README and docs.
+
 ## v0.6.0 - 2026-04-06
 
 - Hardened the isolation model so every app and sandbox uses its own local `wp-content` as the canonical file and code tree.

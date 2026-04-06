@@ -137,7 +137,7 @@ class RudelConfig {
 	 */
 	private function load_via_wpdb(): array {
 		$table = $this->options_table();
-		$store = new WpdbStore();
+		$store = $this->options_store();
 		$raw   = $store->fetch_var(
 			'SELECT option_value FROM `' . $table . '` WHERE option_name = ? LIMIT 1',
 			array( self::OPTION_NAME )
@@ -164,7 +164,7 @@ class RudelConfig {
 	 */
 	private function save_via_wpdb( array $data ): void {
 		$table = $this->options_table();
-		$store = new WpdbStore();
+		$store = $this->options_store();
 		$raw   = $this->serialize_value( $data );
 		$found = $store->fetch_var(
 			'SELECT option_name FROM `' . $table . '` WHERE option_name = ? LIMIT 1',
@@ -202,11 +202,30 @@ class RudelConfig {
 	private function options_table(): string {
 		global $wpdb;
 
+		$store = RudelDatabase::current_store();
+		if ( null !== $store ) {
+			return $store->prefix() . 'options';
+		}
+
 		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) || ! isset( $wpdb->base_prefix ) || ! is_string( $wpdb->base_prefix ) ) {
 			throw new \RuntimeException( 'WordPress options table is not available.' );
 		}
 
 		return $wpdb->base_prefix . 'options';
+	}
+
+	/**
+	 * Runtime store for direct option-table access outside WordPress helpers.
+	 *
+	 * @return DatabaseStore
+	 */
+	private function options_store(): DatabaseStore {
+		$store = RudelDatabase::current_store();
+		if ( null !== $store ) {
+			return $store;
+		}
+
+		return new WpdbStore();
 	}
 
 	/**

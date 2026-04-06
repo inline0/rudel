@@ -1,0 +1,76 @@
+---
+title: Standalone Use
+description: Use Rudel's DB-backed core outside WordPress.
+---
+
+# Standalone Use
+
+Rudel can expose its DB-backed core outside WordPress.
+
+That means an external product can talk to the same Rudel registry and metadata
+tables without needing to boot a live WordPress request first.
+
+## What works outside WordPress
+
+With a direct DB connection, Rudel can:
+
+- list apps and sandboxes
+- load one app or sandbox by ID
+- inspect app domains, worktrees, deployments, and lifecycle metadata
+- read and update DB-backed policy/config state
+- keep reporting the known apps and environments directories when you pass them in as context
+
+## What stays inside WordPress
+
+Rudel still uses WordPress multisite as the real site/runtime substrate.
+
+That means these operations still require a live WordPress multisite runtime:
+
+- creating apps or sandboxes
+- destroying apps or sandboxes
+- creating app-derived sandboxes
+- adding or removing app domains when the underlying subsite domain must be updated
+- any request/bootstrap behavior that depends on WordPress loading the active site
+
+## Initialization
+
+```php
+use Rudel\Connection;
+use Rudel\Rudel;
+
+$conn = new Connection(
+    host: '127.0.0.1:3306',
+    dbname: 'wordpress',
+    user: 'root',
+    password: 'secret',
+    prefix: 'wp_',
+);
+
+Rudel::init(
+    $conn,
+    [
+        'environments_dir' => '/var/www/html/wp-content/rudel-environments',
+        'apps_dir' => '/var/www/html/wp-content/rudel-apps',
+    ]
+);
+
+Rudel::ensure_schema();
+```
+
+After that, the normal DB-backed read/query APIs are available:
+
+```php
+$apps = Rudel::apps();
+$sandboxes = Rudel::all();
+$status = Rudel::status();
+```
+
+## Mental Model
+
+The simplest way to think about this split is:
+
+- Rudel core = registry, metadata, worktrees, deployments, policy
+- WordPress adapter = multisite site lifecycle, routing, and live request bootstrap
+
+That keeps one source of truth for Rudel state while still respecting that real
+site creation and runtime behavior belong to WordPress.

@@ -64,13 +64,14 @@ class AppManager {
 	/**
 	 * Initialize dependencies.
 	 *
-	 * @param string|null $apps_dir Optional override for the apps directory.
-	 * @param string|null $sandboxes_dir Optional override for the sandboxes directory.
+	 * @param string|null        $apps_dir Optional override for the apps directory.
+	 * @param string|null        $sandboxes_dir Optional override for the sandboxes directory.
+	 * @param DatabaseStore|null $store Optional runtime store override.
 	 */
-	public function __construct( ?string $apps_dir = null, ?string $sandboxes_dir = null ) {
+	public function __construct( ?string $apps_dir = null, ?string $sandboxes_dir = null, ?DatabaseStore $store = null ) {
 		$this->apps_dir        = $apps_dir ?? $this->get_default_apps_dir();
 		$this->sandboxes_dir   = $sandboxes_dir ?? $this->get_default_sandboxes_dir();
-		$this->store           = RudelDatabase::for_paths( $this->apps_dir, $this->sandboxes_dir );
+		$this->store           = $store ?? RudelDatabase::for_paths( $this->apps_dir, $this->sandboxes_dir );
 		$this->manager         = new EnvironmentManager( $this->apps_dir, $this->sandboxes_dir, 'app', $this->store );
 		$this->sandbox_manager = new EnvironmentManager( $this->sandboxes_dir, $this->apps_dir, 'sandbox', $this->store );
 		$this->apps            = new AppRepository(
