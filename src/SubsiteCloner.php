@@ -108,12 +108,28 @@ class SubsiteCloner {
 	 */
 	public function get_subsite_url( int $blog_id ): string {
 		$details = get_blog_details( $blog_id );
-		if ( $details && ! empty( $details->siteurl ) ) {
-			return rtrim( $details->siteurl, '/' ) . '/';
+		if ( $details ) {
+			$site_domain = isset( $details->domain ) ? (string) $details->domain : '';
+			$site_path   = isset( $details->path ) ? (string) $details->path : '/';
+
+			if ( '' !== $site_domain ) {
+				if ( '' === $site_path ) {
+					$site_path = '/';
+				}
+
+				if ( ! str_starts_with( $site_path, '/' ) ) {
+					$site_path = '/' . $site_path;
+				}
+
+				return $this->network_scheme() . '://' . $site_domain . $this->network_port_suffix() . rtrim( $site_path, '/' ) . '/';
+			}
+
+			if ( ! empty( $details->siteurl ) ) {
+				return rtrim( $details->siteurl, '/' ) . '/';
+			}
 		}
 
-		$domain = $this->get_current_domain();
-		return 'http://' . $domain . '/';
+		return $this->network_scheme() . '://' . $this->get_current_domain() . $this->network_port_suffix() . '/';
 	}
 
 	/**
@@ -204,5 +220,43 @@ class SubsiteCloner {
 		}
 
 		return 'localhost';
+	}
+
+	/**
+	 * Network request scheme.
+	 *
+	 * @return string
+	 */
+	private function network_scheme(): string {
+		$scheme = 'http';
+
+		if ( defined( 'WP_HOME' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime host derivation without relying on later WP URL helpers.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) ) {
+				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
+			}
+		}
+
+		return $scheme;
+	}
+
+	/**
+	 * Network port suffix including the leading colon when present.
+	 *
+	 * @return string
+	 */
+	private function network_port_suffix(): string {
+		$port = null;
+
+		if ( defined( 'WP_HOME' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime host derivation without relying on later WP URL helpers.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
+				$port = (int) $parts['port'];
+			}
+		}
+
+		return null === $port ? '' : ':' . $port;
 	}
 }

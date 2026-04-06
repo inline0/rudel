@@ -7,7 +7,7 @@ description: Long-lived Rudel sites with backups, deploys, and rollback.
 
 Apps are the stable side of the Rudel lifecycle.
 
-If sandboxes are where change happens, apps are where approved state lands. An app is still a real multisite site, but Rudel treats it differently because it needs stronger continuity over time. An app keeps its identity, its domain metadata, its backups, and its deployment history while sandboxes come and go around it.
+If sandboxes are where change happens, apps are where approved state lands. An app is a real multisite site that Rudel manages for continuity over time. An app keeps its identity, its domain metadata, its backups, and its deployment history while sandboxes come and go around it.
 
 An app combines four things:
 
@@ -98,11 +98,11 @@ Rollback a deployment:
 wp rudel app rollback demo-1234 --deployment=deploy-1234 --force
 ```
 
-That rollback flow matters because it keeps the operator story clean. You do not have to remember which backup name was created for which deploy; Rudel already records that relationship.
+That rollback flow keeps the operator story clean. You do not have to remember which backup name was created for which deploy; Rudel records that relationship directly.
 
 ## Domains
 
-Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables. Additional domains are also metadata, not a second routing system. WordPress still serves the app as a normal site; Rudel simply keeps track of the domain relationships that matter to operators and higher-level tooling.
+Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables. Additional domains are also metadata, not a second routing system. WordPress serves the app as a normal site, and Rudel keeps track of the domain relationships that matter to operators and higher-level tooling.
 
 Add or remove additional domains:
 

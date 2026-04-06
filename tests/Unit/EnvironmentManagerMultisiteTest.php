@@ -94,4 +94,87 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
             $updated->get_runtime_content_path('themes/example-theme')
         );
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCloneFromSubsiteReplacesFreshSiteTablesWithSourceState(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $this->createFakeSandbox('alpha-site', 'Alpha Site', [
+            'blog_id' => 2,
+            'multisite' => true,
+        ]);
+
+        $GLOBALS['rudel_test_sites'][2] = [
+            'blog_id' => 2,
+            'domain' => 'alpha-site.example.test',
+            'path' => '/',
+            'siteurl' => 'http://alpha-site.example.test/',
+            'home' => 'http://alpha-site.example.test/',
+            'title' => 'Alpha Site',
+        ];
+        $GLOBALS['rudel_test_next_blog_id'] = 3;
+
+        $GLOBALS['wpdb']->addTable('wp_2_posts', 'CREATE TABLE `wp_2_posts` ( `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `post_title` text, PRIMARY KEY (`ID`) )', [
+            ['ID' => 1, 'post_title' => 'Source Post'],
+        ]);
+        $GLOBALS['wpdb']->addTable('wp_2_options', 'CREATE TABLE `wp_2_options` ( `option_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `option_name` varchar(191) NOT NULL, `option_value` longtext NOT NULL, `autoload` varchar(20) NOT NULL DEFAULT \'yes\', PRIMARY KEY (`option_id`) )', [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://alpha-site.example.test/', 'autoload' => 'yes'],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://alpha-site.example.test/', 'autoload' => 'yes'],
+            ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'Alpha Site', 'autoload' => 'yes'],
+        ]);
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/sandboxes',
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $cloned = $manager->create('Beta Site', [
+            'clone_from' => 'alpha-site',
+        ]);
+
+        $this->assertNotNull($cloned->blog_id);
+        $this->assertSame('Source Post', $GLOBALS['wpdb']->getTableRows('wp_' . $cloned->blog_id . '_posts')[0]['post_title'] ?? null);
+        $this->assertSame(
+            rtrim('http://' . $cloned->id . '.example.test/', '/'),
+            $this->siteOptionValue((int) $cloned->blog_id, 'siteurl')
+        );
+        $this->assertSame(
+            rtrim('http://' . $cloned->id . '.example.test/', '/'),
+            $this->siteOptionValue((int) $cloned->blog_id, 'home')
+        );
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateUsesCanonicalSubdomainUrlWhenNetworkRunsOnALocalPort(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://localhost:9888');
+        define('DOMAIN_CURRENT_SITE', 'localhost:9888');
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/sandboxes',
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $environment = $manager->create('Gamma Site');
+
+        $this->assertSame('http://' . $environment->id . '.localhost:9888/', $environment->get_url());
+    }
 }

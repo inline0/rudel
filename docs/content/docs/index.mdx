@@ -7,9 +7,9 @@ description: Rudel manages WordPress sandboxes and apps as real subdomain multis
 
 Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
 
-That sentence is the foundation of the entire product. Every Rudel environment has a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel uses that browser/runtime contract everywhere, then layers creation, cloning, templates, backups, deploy history, worktrees, and lifecycle policy on top of it.
+Every Rudel environment has a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel uses that runtime contract everywhere, then layers creation, cloning, templates, backups, deploy history, worktrees, and lifecycle policy on top of it.
 
-Once you see Rudel as "multisite runtime plus operator workflow", the rest of the model becomes much easier to reason about.
+The product model is simple: multisite owns the runtime, and Rudel owns the environment lifecycle around that runtime.
 
 ## Two environment types
 
@@ -19,7 +19,7 @@ Rudel has two lifecycle shapes that share the same runtime model.
 
 **Apps** are long-lived sites that hold stable runtime state. They are the sites you keep around, attach domain metadata to, back up, deploy into, and restore from over time.
 
-Both are still normal multisite sites. The difference is not in how the browser reaches them. The difference is in how Rudel manages their lifecycle.
+Both are normal multisite sites. The difference is not in how the browser reaches them. The difference is in how Rudel manages their lifecycle.
 
 ## Runtime shape
 
@@ -29,7 +29,7 @@ Rudel keeps two layers in sync.
 
 **Rudel runtime records** are the operational truth. Rudel stores environment metadata, app identity, domain metadata, worktrees, deployment history, and lifecycle policy in WordPress tables so it can reason about environments explicitly rather than inferring state from directories and URLs.
 
-That split matters. When you need to know where a site lives in the browser, ask WordPress. When you need to know who owns it, what app it came from, or which backup belongs to which deployment, ask Rudel.
+Use WordPress for browser/runtime truth and Rudel for lifecycle truth. WordPress answers where a site lives and how it boots. Rudel answers who owns it, what app it came from, which worktree belongs to it, and which backup belongs to which deployment.
 
 ## What Rudel adds
 
@@ -44,7 +44,7 @@ The runtime is native multisite. The value Rudel adds is everything around the l
 - GitHub push and PR workflows
 - policy metadata such as owner, labels, protection, and expiry
 
-That is why Rudel feels different from plain multisite. It gives those sites an operator model.
+Rudel gives those sites an operator model.
 
 ## Requirements
 
@@ -57,4 +57,4 @@ In practice that means:
 - a subdomain multisite network
 - write access to `wp-config.php` during initial runtime installation
 
-If that foundation is already in place, [Getting Started](/docs/getting-started) takes you through the installation and the first sandbox/app creation flow.
+If that foundation is in place, [Getting Started](/docs/getting-started) walks through installation and the first sandbox/app creation flow.

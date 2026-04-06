@@ -142,9 +142,15 @@ class MySQLCloner {
 	 * @param string   $source_prefix    Source table prefix.
 	 * @param string   $target_prefix    Target table prefix.
 	 * @param string[] $exclude_prefixes Optional source table prefixes to exclude.
+	 * @param bool     $replace_existing Whether existing target tables should be dropped before copying.
 	 * @return int Number of tables copied.
 	 */
-	public function copy_tables( string $source_prefix, string $target_prefix, array $exclude_prefixes = array() ): int {
+	public function copy_tables(
+		string $source_prefix,
+		string $target_prefix,
+		array $exclude_prefixes = array(),
+		bool $replace_existing = false
+	): int {
 		global $wpdb;
 
 		$tables = $this->discover_tables( $wpdb, $source_prefix, $exclude_prefixes );
@@ -152,6 +158,10 @@ class MySQLCloner {
 
 		foreach ( $tables as $table ) {
 			$target_table = $target_prefix . substr( $table, strlen( $source_prefix ) );
+			if ( $replace_existing && $this->table_exists_mysql( $wpdb, $target_table ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names from validated SHOW TABLES results.
+				$wpdb->query( "DROP TABLE IF EXISTS `{$target_table}`" );
+			}
 			$this->clone_table( $wpdb, $table, $target_table );
 			++$count;
 		}

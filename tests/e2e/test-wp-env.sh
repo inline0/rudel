@@ -67,6 +67,28 @@ wp_cli() {
 	) | strip_wpenv
 }
 
+start_wp_env() {
+	local attempts=0
+	local max_attempts=3
+
+	while (( attempts < max_attempts )); do
+		attempts=$((attempts + 1))
+
+		if npx wp-env start >/dev/null; then
+			return 0
+		fi
+
+		if (( attempts < max_attempts )); then
+			echo "wp-env start failed on attempt ${attempts}; retrying..." >&2
+			npx wp-env destroy >/dev/null 2>&1 || true
+			sleep 2
+		fi
+	done
+
+	echo "wp-env start failed after ${max_attempts} attempts." >&2
+	return 1
+}
+
 site_cli() {
 	local url="$1"
 	shift
@@ -102,7 +124,7 @@ prepare_network() {
 	(
 		cd "$RUDEL_DIR"
 		npx wp-env destroy >/dev/null 2>&1 || true
-		npx wp-env start >/dev/null
+		start_wp_env
 	)
 
 	(

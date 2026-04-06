@@ -952,7 +952,7 @@ class EnvironmentManager {
 		$target_url    = $this->get_target_environment_url( $target_id, $target_blog_id );
 
 		$mysql_cloner = new MySQLCloner();
-		$tables       = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ) );
+		$tables       = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ), true );
 		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
 		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
 

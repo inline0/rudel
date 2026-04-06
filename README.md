@@ -21,11 +21,11 @@
 
 ## What is Rudel?
 
-Rudel is a WordPress plugin for running disposable sandboxes and long-lived apps on top of a subdomain multisite network.
+Rudel is a WordPress plugin for running disposable sandboxes and long-lived apps on a subdomain multisite network.
 
 Every Rudel environment is a real multisite site with a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel builds the operator layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
 
-That gives you an environment system that feels native in the browser but is still deliberate enough for QA, agent workflows, demos, staged change work, and long-lived app operations.
+That gives you an environment system that feels native in the browser and deliberate enough for QA, agent workflows, demos, staged change work, and long-lived app operations.
 
 ## Requirements
 
@@ -56,7 +56,7 @@ Create an app for long-lived runtime state:
 wp rudel app create --name=demo --domain=demo.example.test
 ```
 
-Rudel creates real multisite sites, so the fastest way to confirm the browser URLs is still a core command:
+Rudel creates real multisite sites, so use a core command to confirm the browser URLs:
 
 ```bash
 wp site list --fields=blog_id,url
@@ -83,7 +83,7 @@ Rudel has two lifecycle shapes, but one runtime model.
 
 **Apps** are the durable side. They are the sites you keep around, back up, deploy into, restore from, and attach domain metadata to over time.
 
-Both are still multisite sites. If Rudel gives you an environment URL, that URL is the thing you visit.
+Both are multisite sites. If Rudel gives you an environment URL, that URL is the site you visit.
 
 What Rudel adds around that runtime is the workflow layer:
 
@@ -106,7 +106,7 @@ Rudel stores operational metadata in WordPress tables:
 
 Those tables are the source of truth for environments, app identity, domains, worktrees, deployment history, and lifecycle policy.
 
-Generated environment directories still matter, but they serve an operator purpose. They hold the practical files Rudel needs around an environment: scoped `wp-cli.yml`, bootstrap files, logs, snapshots, backups, and other environment-owned artifacts. Rudel records code and worktree relationships in runtime tables instead of asking operators to infer them from filesystem layout.
+Generated environment directories have a specific operator purpose. They hold the practical files Rudel needs around an environment: scoped `wp-cli.yml`, bootstrap files, logs, snapshots, backups, and other environment-owned artifacts. Rudel records code and worktree relationships in runtime tables rather than asking operators to infer them from filesystem layout.
 
 ## WP-CLI Surface
 

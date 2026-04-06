@@ -89,12 +89,32 @@ class SubsiteClonerTest extends RudelTestCase
 		$this->assertArrayNotHasKey(999, $GLOBALS['rudel_test_sites']);
 	}
 
-    public function testGetSubsiteUrlFallsBackToHttpHost(): void
-    {
-        // Mock get_blog_details by not having WordPress loaded.
-        // The method calls get_blog_details which doesn't exist in tests.
-        // Just verify the class can be instantiated.
-        $cloner = new SubsiteCloner();
-        $this->assertInstanceOf(SubsiteCloner::class, $cloner);
-    }
+	public function testGetSubsiteUrlFallsBackToHttpHost(): void
+	{
+		// Mock get_blog_details by not having WordPress loaded.
+		// The method calls get_blog_details which doesn't exist in tests.
+		// Just verify the class can be instantiated.
+		$cloner = new SubsiteCloner();
+		$this->assertInstanceOf(SubsiteCloner::class, $cloner);
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testGetSubsiteUrlUsesSiteDomainAndNetworkPort(): void
+	{
+		if (! defined('WP_HOME')) {
+			define('WP_HOME', 'http://localhost:9888');
+		}
+
+		$GLOBALS['rudel_test_sites'][5] = [
+			'blog_id' => 5,
+			'domain' => 'alpha-site.localhost',
+			'path' => '/',
+			'siteurl' => 'http://localhost:9888/',
+		];
+
+		$cloner = new SubsiteCloner();
+
+		$this->assertSame('http://alpha-site.localhost:9888/', $cloner->get_subsite_url(5));
+	}
 }

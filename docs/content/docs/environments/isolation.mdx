@@ -7,18 +7,18 @@ description: How Rudel uses multisite boundaries and environment-owned files to 
 
 Rudel isolation starts with the multisite site boundary.
 
-Each environment is a real site, so the first layer of isolation is already part of the runtime: site tables, site options, uploads, admin state, and site-scoped capabilities. Rudel then adds the operational pieces around that site so teams can create, clone, snapshot, back up, deploy, and destroy environments without losing track of what belongs where.
+Each environment is a real site. Site tables, site options, uploads, admin state, and site-scoped capabilities form the base isolation boundary. Rudel adds the operational pieces around that site so teams can create, clone, snapshot, back up, deploy, and destroy environments without losing track of what belongs where.
 
 ## Site data
 
-Every Rudel environment is a real multisite site, so WordPress already gives Rudel an isolation boundary for:
+Every Rudel environment is a real multisite site, which gives Rudel an isolation boundary for:
 
 - per-site tables through `blog_id`
 - per-site options
 - per-site uploads
 - per-site admin and REST behavior
 
-Rudel builds on that directly. That is why environment URLs, `wp-admin`, media uploads, and normal browser navigation behave like ordinary site requests.
+Environment URLs, `wp-admin`, media uploads, and normal browser navigation therefore behave like ordinary site requests.
 
 ## Environment directories
 

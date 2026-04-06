@@ -5,9 +5,9 @@ description: Create sandboxes and apps on a subdomain multisite network.
 
 # Creating Environments
 
-Rudel creates real multisite sites. That is the most important thing to keep in mind while reading the creation commands, because it explains the whole runtime shape.
+Rudel creates real multisite sites. That explains the whole runtime shape.
 
-When you create an environment, Rudel is creating a real site, recording that site in its runtime tables, and preparing the environment directory that will hold scoped tooling, workspace files, snapshots, or backups.
+When you create an environment, Rudel creates a real site, records that site in its runtime tables, and prepares the environment directory that holds scoped tooling, workspace files, snapshots, or backups.
 
 ## Create a sandbox
 
@@ -48,7 +48,7 @@ Apps use the same runtime model, but they are meant to be the stable side of the
 wp rudel app create --name=demo --domain=demo.example.test
 ```
 
-Apps are also backed by real multisite sites. Rudel stores their domain metadata, deploy history, worktrees, and other lifecycle context in runtime tables, but the site itself is still a normal multisite site that core can see and manage.
+Apps are also backed by real multisite sites. Rudel stores their domain metadata, deploy history, worktrees, and other lifecycle context in runtime tables, while the site itself remains a normal multisite site that core can see and manage.
 
 If an app has a single long-lived code source, you can capture that at creation time:
 

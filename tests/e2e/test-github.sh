@@ -24,6 +24,14 @@ SANDBOX_IDS=()
 APP_IDS=()
 REPOS=()
 NETWORK_WP_CONTENT_DIR=""
+RUDEL_VERSION_VALUE="$(
+	php -r '
+		$contents = (string) file_get_contents($argv[1]);
+		if (preg_match("/define\\(\\s*\\x27RUDEL_VERSION\\x27,\\s*\\x27([^\\x27]+)\\x27\\s*\\)/", $contents, $matches)) {
+			echo $matches[1];
+		}
+	' "${RUDEL_DIR}/rudel.php"
+)"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -113,13 +121,35 @@ wp_shell() {
 	) | strip_wpenv
 }
 
+start_wp_env() {
+	local attempts=0
+	local max_attempts=3
+
+	while (( attempts < max_attempts )); do
+		attempts=$((attempts + 1))
+
+		if npx wp-env start >/dev/null; then
+			return 0
+		fi
+
+		if (( attempts < max_attempts )); then
+			echo "wp-env start failed on attempt ${attempts}; retrying..." >&2
+			printf 'y\n' | npx wp-env destroy >/dev/null 2>&1 || true
+			sleep 2
+		fi
+	done
+
+	echo "wp-env start failed after ${max_attempts} attempts." >&2
+	return 1
+}
+
 run_php() {
 	local code="$1"
 
 	php -r "
 		require '${RUDEL_DIR}/vendor/autoload.php';
 		define( 'RUDEL_GITHUB_TOKEN', '${GITHUB_TOKEN}' );
-		define( 'RUDEL_VERSION', '0.5.1' );
+		define( 'RUDEL_VERSION', '${RUDEL_VERSION_VALUE}' );
 		${code}
 	" 2>&1
 }
@@ -192,7 +222,7 @@ prepare_network() {
 	(
 		cd "$RUDEL_DIR"
 		printf 'y\n' | npx wp-env destroy >/dev/null 2>&1 || true
-		npx wp-env start >/dev/null
+		start_wp_env
 	)
 
 	(

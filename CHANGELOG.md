@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.2 - 2026-04-06
+
+- Fixed multisite subsite cloning so Rudel replaces the fresh site tables WordPress initializes before copying source site state into the new environment.
+- Fixed canonical environment URL generation so subdomain sites use the multisite site record plus the network port instead of inheriting stale `siteurl` values during creation and cloning.
+- Added focused unit coverage for replacing initialized subsite tables, canonical local-port URL generation, and subsite URL derivation.
+- Hardened the `wp-env` E2E harness with retry logic so transient upstream fetch timeouts do not fail the Rudel suite.
+- Tightened the multisite docs language so the current runtime model is described directly and consistently across the README and docs pages.
+
 ## v0.5.1 - 2026-04-06
 
 - Fixed GitHub-backed sandbox metadata updates so clone-source repository state and tracked worktrees persist correctly in runtime tables.

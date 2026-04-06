@@ -270,22 +270,87 @@ class Environment {
 	public static function multisite_url_for( string $id, ?int $blog_id = null ): string {
 		if ( null !== $blog_id && function_exists( 'get_blog_details' ) ) {
 			$details = get_blog_details( $blog_id );
-			if ( $details && ! empty( $details->siteurl ) ) {
-				return trailingslashit( (string) $details->siteurl );
+			if ( $details ) {
+				$site_domain = isset( $details->domain ) ? (string) $details->domain : '';
+				$site_path   = isset( $details->path ) ? (string) $details->path : '/';
+
+				if ( '' !== $site_domain ) {
+					if ( '' === $site_path ) {
+						$site_path = '/';
+					}
+
+					if ( ! str_starts_with( $site_path, '/' ) ) {
+						$site_path = '/' . $site_path;
+					}
+
+					return trailingslashit( self::network_scheme() . '://' . $site_domain . self::network_port_suffix() . $site_path );
+				}
+
+				if ( ! empty( $details->siteurl ) ) {
+					return trailingslashit( (string) $details->siteurl );
+				}
 			}
 		}
 
+		$root = preg_replace( '/:\d+$/', '', self::network_host() );
+		if ( ! is_string( $root ) || '' === $root ) {
+			$root = 'localhost';
+		}
+
+		return trailingslashit( self::network_scheme() . '://' . $id . '.' . $root . self::network_port_suffix() );
+	}
+
+	/**
+	 * Network request scheme.
+	 *
+	 * @return string
+	 */
+	private static function network_scheme(): string {
 		$scheme = 'http';
-		$host   = 'localhost';
-		$port   = null;
 
 		if ( defined( 'WP_HOME' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation before full WP helpers are guaranteed.
 			$parts = parse_url( (string) WP_HOME );
 			if ( is_array( $parts ) ) {
 				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
-				$host   = isset( $parts['host'] ) ? (string) $parts['host'] : $host;
-				$port   = isset( $parts['port'] ) ? (int) $parts['port'] : null;
+			}
+		}
+
+		return $scheme;
+	}
+
+	/**
+	 * Network port suffix including the leading colon when present.
+	 *
+	 * @return string
+	 */
+	private static function network_port_suffix(): string {
+		$port = null;
+
+		if ( defined( 'WP_HOME' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation before full WP helpers are guaranteed.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
+				$port = (int) $parts['port'];
+			}
+		}
+
+		return null === $port ? '' : ':' . $port;
+	}
+
+	/**
+	 * Host name of the current multisite network without any port.
+	 *
+	 * @return string
+	 */
+	private static function network_host(): string {
+		$host = 'localhost';
+
+		if ( defined( 'WP_HOME' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation before full WP helpers are guaranteed.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) && isset( $parts['host'] ) ) {
+				$host = (string) $parts['host'];
 			}
 		}
 
@@ -296,17 +361,7 @@ class Environment {
 			}
 		}
 
-		$root = preg_replace( '/:\d+$/', '', $host );
-		if ( ! is_string( $root ) || '' === $root ) {
-			$root = 'localhost';
-		}
-
-		$url = $scheme . '://' . $id . '.' . $root;
-		if ( null !== $port ) {
-			$url .= ':' . $port;
-		}
-
-		return trailingslashit( $url );
+		return $host;
 	}
 
 	/**

@@ -187,6 +187,25 @@ class MySQLClonerTest extends RudelTestCase
         );
     }
 
+    public function testCopyTablesCanReplaceExistingTargets(): void
+    {
+        $this->setGlobalWpdb();
+        $this->mockWpdb->addTable('wp_src_posts', 'CREATE TABLE wp_src_posts (ID int)', [
+            ['ID' => '1', 'post_title' => 'Source'],
+        ]);
+        $this->mockWpdb->addTable('wp_dst_posts', 'CREATE TABLE wp_dst_posts (ID int)', [
+            ['ID' => '99', 'post_title' => 'Stale'],
+        ]);
+
+        $count = $this->cloner->copy_tables('wp_src_', 'wp_dst_', [], true);
+
+        $this->assertSame(1, $count);
+        $this->assertSame(
+            [['ID' => '1', 'post_title' => 'Source']],
+            $this->mockWpdb->getTableRows('wp_dst_posts')
+        );
+    }
+
     // search_replace_value()
 
     public function testSearchReplaceValueReplacesPlainUrl(): void
