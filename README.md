@@ -88,6 +88,11 @@ Rudel has two lifecycle shapes, but one runtime model.
 Both are multisite sites. If Rudel gives you an environment URL, that URL is
 the site you visit.
 
+Apps add one extra rule on top of that: when an app has a primary mapped
+domain, Rudel treats that domain as the app's canonical URL in its API,
+deploy rewrites, and generated local tooling. The underlying multisite subsite
+still exists as the deterministic runtime substrate.
+
 What Rudel adds on top of that runtime is the operational surface:
 
 - app-derived sandboxes
@@ -108,6 +113,11 @@ Rudel stores operational metadata in WordPress tables:
 - `wp_rudel_app_deployments`
 
 Those tables are the source of truth for environments, app identity, domains, worktrees, deployment history, and lifecycle policy.
+
+Those tables always live in the host WordPress database. Rudel does not store
+its own runtime metadata in JSON files or any parallel runtime database.
+Current Rudel is multisite-only and uses the host WordPress database as the
+only runtime store for its registry.
 
 Generated environment directories hold the files Rudel owns around an
 environment: scoped `wp-cli.yml`, bootstrap files, logs, snapshots, backups,

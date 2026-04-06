@@ -84,6 +84,10 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 	define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
+	if ( ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) && ! defined( 'RUDEL_TABLE_PREFIX' ) && isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->prefix ) && is_string( $GLOBALS['wpdb']->prefix ) && '' !== $GLOBALS['wpdb']->prefix ) {
+		define( 'RUDEL_TABLE_PREFIX', $GLOBALS['wpdb']->prefix );
+	}
+
 	// Register this unconditionally so late-defined environment constants can still suppress mail before it leaves PHP.
 	add_filter(
 		'pre_wp_mail',

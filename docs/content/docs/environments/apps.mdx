@@ -24,6 +24,8 @@ wp rudel app create --name=demo --domain=demo.example.test
 
 The created site is immediately visible through normal multisite tooling such as `wp site list`, while Rudel keeps the extra app metadata in its own runtime tables.
 
+The supplied primary domain also becomes the app's canonical Rudel URL. That is the URL Rudel reports through `app info`, the PHP API, deploy history, and rewrite flows. The underlying multisite subsite still exists as the deterministic runtime route that powers the app.
+
 ## Create a sandbox from an app
 
 ```bash
@@ -31,6 +33,8 @@ wp rudel app create-sandbox demo-1234 --name="Demo Feature"
 ```
 
 That sandbox clones from the app and becomes the workspace for change work. This is one of Rudel's core loops: the app stays stable, while sandboxes branch off from it for development, QA, or experimentation.
+
+When the source app has a primary domain, Rudel rewrites cloned site state from that app domain into the sandbox's own runtime URL. Deploying back into the app reverses that rewrite and restores the app's primary domain.
 
 If the app tracks a GitHub repository, branch, and directory, the derived sandbox inherits that metadata automatically. In practice that means the sandbox already knows which repo it should push to and which base branch its pull requests should target.
 
@@ -102,7 +106,7 @@ That rollback flow keeps the operator story clean. You do not have to remember w
 
 ## Domains
 
-Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables. Additional domains are also metadata, not a second routing system. WordPress serves the app as a normal site, and Rudel keeps track of the domain relationships that matter to operators and higher-level tooling.
+Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables. That primary domain is the app's canonical Rudel URL. Additional domains remain explicit mappings in Rudel's app tables, while the backing multisite site keeps its own host-only network identity underneath.
 
 Add or remove additional domains:
 
@@ -110,3 +114,5 @@ Add or remove additional domains:
 wp rudel app domain-add demo-1234 --domain=www.demo.example.test
 wp rudel app domain-remove demo-1234 --domain=www.demo.example.test
 ```
+
+If you remove the current primary domain, Rudel promotes the next mapped domain and updates the app's canonical URL accordingly.

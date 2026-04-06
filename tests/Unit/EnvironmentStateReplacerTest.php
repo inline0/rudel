@@ -67,7 +67,8 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             multisite: true,
             engine: 'subsite',
             blog_id: 3,
-            type: 'app'
+            type: 'app',
+            domains: ['demo.example.test']
         );
 
         $result = (new EnvironmentStateReplacer())->replace($source, $target);
@@ -78,7 +79,8 @@ class EnvironmentStateReplacerTest extends RudelTestCase
         $targetRows = $wpdb->getTableRows('wp_3_options');
         $this->assertCount(3, $targetRows);
         $this->assertSame('Feature Deploy', $targetRows[0]['option_value']);
-        $this->assertSame('http://demo.localhost', $targetRows[1]['option_value']);
+        $this->assertSame('http://demo.example.test', $targetRows[1]['option_value']);
+        $this->assertSame('http://demo.example.test', $targetRows[2]['option_value']);
         $this->assertSame('source state', file_get_contents($targetPath . '/wp-content/state.txt'));
     }
 }

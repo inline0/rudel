@@ -138,7 +138,24 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function table_prefix(): ?string {
-		return self::string_constant( 'RUDEL_TABLE_PREFIX' );
+		$prefix = self::string_constant( 'RUDEL_TABLE_PREFIX' );
+		if ( null !== $prefix && '' !== $prefix ) {
+			return $prefix;
+		}
+
+		if ( ! self::is_environment() ) {
+			return null;
+		}
+
+		if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->prefix ) && is_string( $GLOBALS['wpdb']->prefix ) && '' !== $GLOBALS['wpdb']->prefix ) {
+			return $GLOBALS['wpdb']->prefix;
+		}
+
+		if ( isset( $GLOBALS['table_prefix'] ) && is_string( $GLOBALS['table_prefix'] ) && '' !== $GLOBALS['table_prefix'] ) {
+			return $GLOBALS['table_prefix'];
+		}
+
+		return null;
 	}
 
 	/**
@@ -159,6 +176,17 @@ class Rudel {
 		$environment_id = self::environment_id();
 		if ( null === $environment_id ) {
 			return null;
+		}
+
+		try {
+			$environment = self::is_app()
+				? self::app_manager()->get( $environment_id )
+				: self::manager()->get( $environment_id );
+			if ( $environment ) {
+				return $environment->get_url();
+			}
+		} catch ( \Throwable $e ) {
+			unset( $e );
 		}
 
 		return Environment::multisite_url_for( $environment_id );

@@ -160,6 +160,8 @@ wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-them
 
 Use `--github`, `--branch`, and `--dir` when the app should carry one tracked code source. That tracked source becomes the default GitHub context for app-derived sandboxes and deployment history.
 
+The `--domain` value is also the app's canonical Rudel URL. `wp rudel app info` and app deploy history report that primary domain even though the backing multisite site still exists underneath.
+
 ### `wp rudel app list`
 
 ```bash
@@ -195,6 +197,8 @@ wp rudel app create-sandbox <id> [--name=<name>] [--owner=<owner>] [--labels=<la
 ```
 
 If the source app tracks a GitHub repository, branch, and directory, the derived sandbox inherits that metadata automatically.
+
+If the source app has a primary domain, Rudel also rewrites cloned site state from that app domain into the sandbox URL so local change work stays isolated.
 
 ### `wp rudel app backup`
 
@@ -243,6 +247,8 @@ wp rudel app domain-add <id> --domain=<domain>
 ```bash
 wp rudel app domain-remove <id> --domain=<domain>
 ```
+
+Removing the current primary domain promotes the next mapped domain and updates the app's canonical URL.
 
 If you are learning the command surface from scratch, the simplest mental model is this:
 

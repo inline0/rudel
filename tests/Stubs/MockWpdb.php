@@ -15,6 +15,7 @@ class MockWpdb
     public string $prefix = 'wp_';
     public string $base_prefix = 'wp_';
     public int $insert_id = 0;
+    public string $last_error = '';
 
     /**
      * Registered tables: table_name => ['ddl' => string, 'rows' => array[]]
@@ -357,12 +358,18 @@ class MockWpdb
      */
     public function insert(string $table, array $data): bool
     {
+        $this->last_error = '';
+
         if (! isset($this->tables[$table])) {
             $this->tables[$table] = ['ddl' => '', 'rows' => []];
             $this->autoIncrement[$table] = 0;
         }
 
-        $this->assertNoUniqueConflict($table, $data);
+        $conflict = $this->uniqueConflictMessage($table, $data);
+        if (null !== $conflict) {
+            $this->last_error = $conflict;
+            return false;
+        }
 
         if (str_ends_with($table, 'options') && ! array_key_exists('option_id', $data)) {
             $data['option_id'] = ($this->autoIncrement[$table] ?? 0) + 1;
@@ -424,7 +431,7 @@ class MockWpdb
     /**
      * Mirror the unique indexes that the real Rudel runtime tables enforce.
      */
-    private function assertNoUniqueConflict(string $table, array $data): void
+    private function uniqueConflictMessage(string $table, array $data): ?string
     {
         $rows = $this->tables[$table]['rows'] ?? [];
 
@@ -434,7 +441,7 @@ class MockWpdb
                     (($row['slug'] ?? null) === ($data['slug'] ?? null)) ||
                     (($row['path'] ?? null) === ($data['path'] ?? null))
                 ) {
-                    throw new \PDOException('Duplicate environment row');
+                    return 'Duplicate environment row';
                 }
             }
 
@@ -443,13 +450,13 @@ class MockWpdb
                     (($row['environment_id'] ?? null) === ($data['environment_id'] ?? null)) ||
                     (($row['slug'] ?? null) === ($data['slug'] ?? null))
                 ) {
-                    throw new \PDOException('Duplicate app row');
+                    return 'Duplicate app row';
                 }
             }
 
             if (str_ends_with($table, '_app_domains')) {
                 if (($row['domain'] ?? null) === ($data['domain'] ?? null)) {
-                    throw new \PDOException('Duplicate app domain');
+                    return 'Duplicate app domain';
                 }
             }
 
@@ -459,16 +466,18 @@ class MockWpdb
                     (($row['content_type'] ?? null) === ($data['content_type'] ?? null)) &&
                     (($row['name'] ?? null) === ($data['name'] ?? null))
                 ) {
-                    throw new \PDOException('Duplicate worktree row');
+                    return 'Duplicate worktree row';
                 }
             }
 
             if (str_ends_with($table, '_app_deployments')) {
                 if (($row['deployment_key'] ?? null) === ($data['deployment_key'] ?? null)) {
-                    throw new \PDOException('Duplicate deployment row');
+                    return 'Duplicate deployment row';
                 }
             }
         }
+
+        return null;
     }
 
     /**

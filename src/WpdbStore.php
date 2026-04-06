@@ -126,10 +126,14 @@ class WpdbStore implements DatabaseStore {
 	 *
 	 * @param string               $table Table name.
 	 * @param array<string, mixed> $data Column values.
+	 * @throws \RuntimeException When wpdb reports a write failure.
 	 */
 	public function insert( string $table, array $data ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Routed through wpdb::insert.
-		$this->wpdb->insert( $table, $data );
+		$result = $this->wpdb->insert( $table, $data );
+		if ( false === $result ) {
+			throw new \RuntimeException( $this->last_error_message( sprintf( 'Failed to insert Rudel runtime row into %s.', $table ) ) );
+		}
 		return (int) $this->wpdb->insert_id;
 	}
 
@@ -139,11 +143,15 @@ class WpdbStore implements DatabaseStore {
 	 * @param string               $table Table name.
 	 * @param array<string, mixed> $data Column values.
 	 * @param array<string, mixed> $where Row selector.
+	 * @throws \RuntimeException When wpdb reports a write failure.
 	 */
 	public function update( string $table, array $data, array $where ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Routed through wpdb::update.
 		$result = $this->wpdb->update( $table, $data, $where );
-		return false === $result ? 0 : (int) $result;
+		if ( false === $result ) {
+			throw new \RuntimeException( $this->last_error_message( sprintf( 'Failed to update Rudel runtime rows in %s.', $table ) ) );
+		}
+		return (int) $result;
 	}
 
 	/**
@@ -151,11 +159,15 @@ class WpdbStore implements DatabaseStore {
 	 *
 	 * @param string               $table Table name.
 	 * @param array<string, mixed> $where Row selector.
+	 * @throws \RuntimeException When wpdb reports a write failure.
 	 */
 	public function delete( string $table, array $where ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Routed through wpdb::delete.
 		$result = $this->wpdb->delete( $table, $where );
-		return false === $result ? 0 : (int) $result;
+		if ( false === $result ) {
+			throw new \RuntimeException( $this->last_error_message( sprintf( 'Failed to delete Rudel runtime rows from %s.', $table ) ) );
+		}
+		return (int) $result;
 	}
 
 	/**
@@ -227,6 +239,20 @@ class WpdbStore implements DatabaseStore {
 		}
 
 		return $prepared;
+	}
+
+	/**
+	 * Build the best available wpdb failure message.
+	 *
+	 * @param string $fallback Fallback error message.
+	 * @return string
+	 */
+	private function last_error_message( string $fallback ): string {
+		if ( isset( $this->wpdb->last_error ) && is_string( $this->wpdb->last_error ) && '' !== trim( $this->wpdb->last_error ) ) {
+			return trim( $this->wpdb->last_error );
+		}
+
+		return $fallback;
 	}
 
 	/**

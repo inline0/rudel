@@ -145,6 +145,34 @@ if ( ! function_exists( 'wpmu_delete_blog' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_update_site' ) ) {
+	function wp_update_site( int $blog_id, array $data ) {
+		if ( ! isset( $GLOBALS['rudel_test_sites'][ $blog_id ] ) || ! is_array( $GLOBALS['rudel_test_sites'][ $blog_id ] ) ) {
+			return false;
+		}
+
+		if ( isset( $data['domain'] ) && is_string( $data['domain'] ) && '' !== $data['domain'] ) {
+			$GLOBALS['rudel_test_sites'][ $blog_id ]['domain'] = $data['domain'];
+
+			$siteurl = $GLOBALS['rudel_test_sites'][ $blog_id ]['siteurl'] ?? null;
+			$home    = $GLOBALS['rudel_test_sites'][ $blog_id ]['home'] ?? null;
+
+			if ( is_string( $siteurl ) ) {
+				$GLOBALS['rudel_test_sites'][ $blog_id ]['siteurl'] = preg_replace( '#://[^/]+#', '://' . $data['domain'], $siteurl );
+			}
+			if ( is_string( $home ) ) {
+				$GLOBALS['rudel_test_sites'][ $blog_id ]['home'] = preg_replace( '#://[^/]+#', '://' . $data['domain'], $home );
+			}
+		}
+
+		if ( isset( $data['path'] ) && is_string( $data['path'] ) && '' !== $data['path'] ) {
+			$GLOBALS['rudel_test_sites'][ $blog_id ]['path'] = $data['path'];
+		}
+
+		return true;
+	}
+}
+
 if ( ! function_exists( 'do_action' ) ) {
 	function do_action( string $hook, ...$args ): void {
 		$GLOBALS['rudel_test_actions'][] = array(

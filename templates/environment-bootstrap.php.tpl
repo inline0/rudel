@@ -1,8 +1,7 @@
 <?php
 /**
  * Per-environment bootstrap -- loaded by wp-cli when working inside one Rudel site.
- * Rudel uses subdomain multisite sites as the canonical runtime surface.
- * This bootstrap mirrors the real site URL directly.
+ * This bootstrap mirrors the canonical environment URL Rudel generated for this site.
  */
 
 $sandbox_id = '{{sandbox_id}}';
@@ -35,7 +34,7 @@ if (! defined('SITE_ID_CURRENT_SITE')) { define('SITE_ID_CURRENT_SITE', 1); }
 if (! defined('BLOG_ID_CURRENT_SITE')) { define('BLOG_ID_CURRENT_SITE', 1); }
 
 $_rudel_network_url = $_rudel_scheme . '://' . $_rudel_root_host . $_rudel_port;
-$_rudel_environment_url = $_rudel_scheme . '://' . $sandbox_id . '.' . $_rudel_root_host . $_rudel_port;
+$_rudel_environment_url = '{{environment_url}}';
 
 if (! defined('RUDEL_HOST_URL')) {
     define('RUDEL_HOST_URL', $_rudel_network_url);
@@ -81,3 +80,4 @@ define('NONCE_SALT', hash('sha256', $sandbox_id . 'NONCE_SALT'));
 define('RUDEL_ID', $sandbox_id);
 define('RUDEL_PATH', $sandbox_path);
 define('RUDEL_ENGINE', 'subsite');
+define('RUDEL_TABLE_PREFIX', '{{table_prefix}}');

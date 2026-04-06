@@ -331,7 +331,7 @@ class EnvironmentStateReplacer {
 	 * @return string
 	 */
 	private function environment_site_url( Environment $environment ): string {
-		return rtrim( Environment::multisite_url_for( $environment->id, $environment->blog_id ), '/' );
+		return rtrim( $environment->get_url(), '/' );
 	}
 
 	/**

@@ -115,11 +115,41 @@ start_wp_env() {
 
 site_cli() {
 	local url="$1"
+	local cli_url=""
 	shift
+
+	cli_url="$(
+		php -r '
+			$parts = parse_url($argv[1]);
+			if (! is_array($parts) || empty($parts["host"])) {
+				fwrite(STDERR, "Could not parse WP-CLI site URL.\n");
+				exit(1);
+			}
+
+			$scheme = (string) ($parts["scheme"] ?? "http");
+			$host = (string) $parts["host"];
+			$path = (string) ($parts["path"] ?? "/");
+			$port = isset($parts["port"]) ? (int) $parts["port"] : null;
+
+			$url = $scheme . "://" . $host;
+			if (null !== $port && in_array($port, [80, 443], true)) {
+				$url .= ":" . $port;
+			}
+
+			if ("" === $path) {
+				$path = "/";
+			}
+			if (! str_starts_with($path, "/")) {
+				$path = "/" . $path;
+			}
+
+			echo rtrim($url, "/") . rtrim($path, "/") . "/";
+		' "$url"
+	)"
 
 	(
 		cd "$RUDEL_DIR"
-		npx wp-env run cli -- wp --url="$url" "$@" 2>&1
+		npx wp-env run cli -- wp --url="$cli_url" "$@" 2>&1
 	) | strip_wpenv
 }
 
@@ -132,9 +162,56 @@ parse_created_id() {
 
 site_url_for_slug() {
 	local slug="$1"
+	local site_row=""
 
-	wp_cli site list --fields=url --format=csv \
-		| awk -F, -v slug="$slug" 'NR > 1 && $1 ~ ("^http://" slug "\\.") { print $1; exit }'
+	site_row="$(wp_cli site list --fields=domain,path --format=csv \
+		| awk -F, -v slug="$slug" 'NR > 1 && $1 ~ ("^" slug "\\.") { print $1 "," $2; exit }')"
+
+	if [[ -z "$site_row" || -z "${NETWORK_URL:-}" ]]; then
+		return 0
+	fi
+
+	php -r '
+		[$domain, $path] = array_pad(explode(",", $argv[1], 2), 2, "/");
+		$network = parse_url($argv[2]);
+		if (! is_array($network) || empty($network["scheme"]) || empty($network["host"])) {
+			exit(1);
+		}
+
+		$path = "" === trim($path) ? "/" : trim($path);
+		if (! str_starts_with($path, "/")) {
+			$path = "/" . $path;
+		}
+
+		$url = (string) $network["scheme"] . "://" . (string) $domain;
+		if (isset($network["port"])) {
+			$url .= ":" . (int) $network["port"];
+		}
+
+		echo rtrim($url, "/") . rtrim($path, "/") . "/";
+	' "$site_row" "$NETWORK_URL"
+}
+
+site_url_for_domain() {
+	local domain="$1"
+
+	if [[ -z "${NETWORK_URL:-}" ]]; then
+		return 0
+	fi
+
+	php -r '
+		$network = parse_url($argv[2]);
+		if (! is_array($network) || empty($network["scheme"]) || empty($network["host"])) {
+			exit(1);
+		}
+
+		$url = (string) $network["scheme"] . "://" . (string) $argv[1];
+		if (isset($network["port"])) {
+			$url .= ":" . (int) $network["port"];
+		}
+
+		echo rtrim($url, "/") . "/";
+	' "$domain" "$NETWORK_URL"
 }
 
 site_blog_id_for_slug() {
@@ -142,6 +219,13 @@ site_blog_id_for_slug() {
 
 	wp_cli site list --fields=blog_id,url --format=csv \
 		| awk -F, -v slug="$slug" 'NR > 1 && $2 ~ ("^http://" slug "\\.") { print $1; exit }'
+}
+
+site_blog_id_for_domain() {
+	local domain="$1"
+
+	wp_cli site list --fields=blog_id,url --format=csv \
+		| awk -F, -v domain="$domain" 'NR > 1 && $2 ~ ("^http://" domain "/?$") { print $1; exit }'
 }
 
 resolve_http_target() {
@@ -175,6 +259,12 @@ http_status() {
 	curl -sS --resolve "${host}:${port}:127.0.0.1" -D "$headers_file" -o "$body_file" -w '%{http_code}' "$url"
 }
 
+redirect_location() {
+	local headers_file="$1"
+
+	awk 'BEGIN{IGNORECASE=1} /^Location:/ {sub(/\r$/, "", $0); print substr($0, 11)}' "$headers_file" | tail -n 1
+}
+
 assert_site_http_contract() {
 	local label="$1"
 	local site_url="$2"
@@ -186,7 +276,25 @@ assert_site_http_contract() {
 	body_file="$(mktemp)"
 	headers_file="$(mktemp)"
 
+	status="$(http_status "${site_url%/}/" "$body_file" "$headers_file")"
+	location="$(redirect_location "$headers_file")"
+	if [[ "$status" == "200" ]]; then
+		pass "${label} root resolves over HTTP"
+	elif [[ ( "$status" == "301" || "$status" == "302" ) && "$location" == "${site_url%/}/" ]]; then
+		pass "${label} root redirects to its canonical URL"
+	else
+		fail "${label} root did not resolve over HTTP" "$(cat "$body_file")"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
+	if [[ "$location" == *"/wp-signup.php"* ]]; then
+		fail "${label} root redirected into signup unexpectedly" "$location"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
+
 	status="$(http_status "${site_url%/}/wp-login.php" "$body_file" "$headers_file")"
+	location="$(redirect_location "$headers_file")"
 	if [[ "$status" == "200" ]]; then
 		pass "${label} login resolves over HTTP"
 	else
@@ -194,8 +302,14 @@ assert_site_http_contract() {
 		rm -f "$body_file" "$headers_file"
 		exit 1
 	fi
+	if [[ "$location" == *"/wp-signup.php"* ]]; then
+		fail "${label} login redirected into signup unexpectedly" "$location"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
 
 	status="$(http_status "${site_url%/}/wp-admin/" "$body_file" "$headers_file")"
+	location="$(redirect_location "$headers_file")"
 	if [[ "$status" != "200" && "$status" != "302" ]]; then
 		fail "${label} admin did not resolve over HTTP" "$(cat "$body_file")"
 		rm -f "$body_file" "$headers_file"
@@ -203,7 +317,6 @@ assert_site_http_contract() {
 	fi
 
 	if [[ "$status" == "302" ]]; then
-		location="$(awk 'BEGIN{IGNORECASE=1} /^Location:/ {sub(/\r$/, "", $0); print substr($0, 11)}' "$headers_file" | tail -n 1)"
 		if [[ "$location" == *"/wp-login.php"* ]]; then
 			pass "${label} admin redirects into its login screen"
 		else
@@ -213,6 +326,21 @@ assert_site_http_contract() {
 		fi
 	else
 		pass "${label} admin resolves over HTTP"
+	fi
+
+	status="$(http_status "${site_url%/}/wp-includes/css/buttons.min.css" "$body_file" "$headers_file")"
+	location="$(redirect_location "$headers_file")"
+	if [[ "$status" == "200" ]]; then
+		pass "${label} core asset resolves over HTTP"
+	else
+		fail "${label} core asset did not resolve over HTTP" "$(cat "$body_file")"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
+	if [[ "$location" == *"/wp-signup.php"* ]]; then
+		fail "${label} core asset redirected into signup unexpectedly" "$location"
+		rm -f "$body_file" "$headers_file"
+		exit 1
 	fi
 
 	rm -f "$body_file" "$headers_file"
@@ -252,10 +380,11 @@ prepare_network() {
 	wp_cli config set WP_ALLOW_MULTISITE true --raw >/dev/null
 	wp_cli config set MULTISITE true --raw >/dev/null
 	wp_cli config set SUBDOMAIN_INSTALL true --raw >/dev/null
-	wp_cli config set DOMAIN_CURRENT_SITE "'localhost:8888'" --raw >/dev/null
+	wp_cli config set DOMAIN_CURRENT_SITE "'localhost'" --raw >/dev/null
 	wp_cli config set PATH_CURRENT_SITE "'/'" --raw >/dev/null
 	wp_cli config set SITE_ID_CURRENT_SITE 1 --raw >/dev/null
 	wp_cli config set BLOG_ID_CURRENT_SITE 1 --raw >/dev/null
+	wp_cli db query "UPDATE wp_site SET domain = 'localhost'; UPDATE wp_blogs SET domain = REPLACE(domain, ':8888', '');" >/dev/null
 	wp_cli plugin activate rudel >/dev/null
 }
 
@@ -298,6 +427,8 @@ if [[ "$NETWORK_URL" == "http://localhost:8888" ]]; then
 else
 	fail "Unexpected host site URL" "$NETWORK_URL"
 fi
+
+assert_site_http_contract "Host site" "http://localhost:8888"
 
 STATUS_OUTPUT=$(wp_cli rudel status)
 if echo "$STATUS_OUTPUT" | grep -qi "installed" && echo "$STATUS_OUTPUT" | grep -qi "yes"; then
@@ -372,7 +503,8 @@ fi
 echo ""
 echo -e "${BOLD}App lifecycle${NC}"
 
-APP_OUTPUT=$(wp_cli rudel app create --name=Demo --domain=demo.example.test --github=inline0/demo-theme --branch=main --dir=themes/demo-theme)
+APP_DOMAIN="demo.example.test"
+APP_OUTPUT=$(wp_cli rudel app create --name=Demo --domain="$APP_DOMAIN" --github=inline0/demo-theme --branch=main --dir=themes/demo-theme)
 APP_ID=$(parse_created_id "App created" "$APP_OUTPUT")
 if [[ -n "$APP_ID" ]]; then
 	APP_IDS+=("$APP_ID")
@@ -382,8 +514,8 @@ else
 	exit 1
 fi
 
-APP_URL=$(site_url_for_slug "$APP_ID")
-APP_BLOG_ID=$(site_blog_id_for_slug "$APP_ID")
+APP_URL=$(site_url_for_domain "$APP_DOMAIN")
+APP_BLOG_ID=$(site_blog_id_for_domain "$APP_DOMAIN")
 if [[ -n "$APP_URL" && -n "$APP_BLOG_ID" ]]; then
 	pass "App created a multisite site (${APP_URL}, blog ${APP_BLOG_ID})"
 else
@@ -399,6 +531,12 @@ if echo "$APP_INFO_JSON" | grep -q "demo.example.test"; then
 	pass "App metadata retains its configured domain"
 else
 	fail "App info missing configured domain" "$APP_INFO_JSON"
+fi
+
+if printf '%s' "$APP_INFO_JSON" | grep -Fq '"url":"http:\/\/demo.example.test\/"'; then
+	pass "App info reports the canonical app domain"
+else
+	fail "App info did not report the canonical app domain" "$APP_INFO_JSON"
 fi
 
 if printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_repo":"inline0\/demo-theme"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_branch":"main"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_dir":"themes\/demo-theme"'; then

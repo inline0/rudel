@@ -86,6 +86,44 @@ class SubsiteCloner {
 	}
 
 	/**
+	 * Update the canonical host stored for one multisite site.
+	 *
+	 * @param int    $blog_id Blog ID.
+	 * @param string $domain Host-only domain to persist.
+	 * @param string $path Site path.
+	 * @return void
+	 *
+	 * @throws \RuntimeException When the site domain cannot be updated.
+	 */
+	public function update_subsite_domain( int $blog_id, string $domain, string $path = '/' ): void {
+		$domain = strtolower( trim( preg_replace( '/:\d+$/', '', $domain ) ) );
+		$path   = '' === $path ? '/' : $path;
+		if ( ! str_starts_with( $path, '/' ) ) {
+			$path = '/' . $path;
+		}
+
+		if ( function_exists( 'wp_update_site' ) ) {
+			$result = wp_update_site(
+				$blog_id,
+				array(
+					'domain' => $domain,
+					'path'   => $path,
+				)
+			);
+
+			if ( is_wp_error( $result ) ) {
+				throw new \RuntimeException(
+					sprintf( 'Failed to update multisite site domain: %s', $result->get_error_message() )
+				);
+			}
+
+			return;
+		}
+
+		throw new \RuntimeException( 'Updating multisite site domains requires wp_update_site().' );
+	}
+
+	/**
 	 * Delete a multisite sub-site and drop its tables.
 	 *
 	 * @param int $blog_id Blog ID to delete.
@@ -230,14 +268,14 @@ class SubsiteCloner {
 	/**
 	 * Current multisite network domain as stored in multisite site records.
 	 *
-	 * In local networks that run on a custom port, WordPress stores the port
-	 * in the multisite domain column and expects lookups against that value.
+	 * Multisite site rows store host-only domains. The network port belongs in
+	 * rendered URLs, not in wp_site.domain or wp_blogs.domain.
 	 *
 	 * @return string Domain string suitable for wp_blogs.domain.
 	 */
 	private function get_current_network_domain(): string {
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
-			$domain = trim( (string) DOMAIN_CURRENT_SITE );
+			$domain = preg_replace( '/:\d+$/', '', trim( (string) DOMAIN_CURRENT_SITE ) );
 			if ( '' !== $domain ) {
 				return $domain;
 			}
@@ -247,12 +285,7 @@ class SubsiteCloner {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime host derivation without relying on later WP URL helpers.
 			$parts = parse_url( (string) WP_HOME );
 			if ( is_array( $parts ) && ! empty( $parts['host'] ) ) {
-				$domain = (string) $parts['host'];
-				if ( isset( $parts['port'] ) ) {
-					$domain .= ':' . (int) $parts['port'];
-				}
-
-				return $domain;
+				return (string) $parts['host'];
 			}
 		}
 

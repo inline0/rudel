@@ -84,7 +84,7 @@ class AppRepositoryTest extends RudelTestCase
         $this->assertNull($this->apps()->get($app->id));
     }
 
-    public function testCreateRejectsDuplicateDomainsAtStoreLevel(): void
+    public function testCreateRejectsDuplicateDomainsBeforeMutatingRows(): void
     {
         $firstPath = $this->tmpDir . '/apps/client-c';
         $secondPath = $this->tmpDir . '/apps/client-d';
@@ -112,7 +112,8 @@ class AppRepositoryTest extends RudelTestCase
 
         $this->apps()->create($first, ['shared.example.com']);
 
-        $this->expectException(\PDOException::class);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('shared.example.com');
         $this->apps()->create($second, ['shared.example.com']);
     }
 }

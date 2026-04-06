@@ -47,8 +47,11 @@ class AppRepository {
 	 * @throws \RuntimeException When the insert fails or the app cannot be reloaded.
 	 */
 	public function create( Environment $environment, array $domains ): Environment {
-		$now        = gmdate( 'c' );
-		$app_id     = $this->store->insert(
+		$normalized = $this->normalize_domains( $domains );
+		$this->assert_domains_available( $normalized );
+
+		$now    = gmdate( 'c' );
+		$app_id = $this->store->insert(
 			$this->table(),
 			array(
 				'environment_id' => $environment->record_id,
@@ -57,7 +60,6 @@ class AppRepository {
 				'updated_at'     => $now,
 			)
 		);
-		$normalized = $this->normalize_domains( $domains );
 		$this->replace_domains( $app_id, $normalized );
 		$this->environments->update_fields( $environment->id, array( 'app_id' => $app_id ), 'app' );
 
@@ -137,13 +139,15 @@ class AppRepository {
 	 * @return void
 	 */
 	public function replace_domains( int $app_id, array $domains ): void {
+		$normalized = $this->normalize_domains( $domains );
+		$this->assert_domains_available( $normalized, $app_id );
+
 		$this->store->execute(
 			'DELETE FROM ' . $this->domains_table() . ' WHERE app_id = ?',
 			array( $app_id )
 		);
 
-		$now        = gmdate( 'c' );
-		$normalized = $this->normalize_domains( $domains );
+		$now = gmdate( 'c' );
 
 		foreach ( $normalized as $index => $domain ) {
 			$this->store->insert(
@@ -228,6 +232,25 @@ class AppRepository {
 		}
 
 		return array_values( array_unique( $normalized ) );
+	}
+
+	/**
+	 * Reject domains already mapped to another app before mutating rows.
+	 *
+	 * @param array<int, string> $domains Normalized domains.
+	 * @param int|null           $exclude_app_id Existing app ID allowed to retain its own domains.
+	 * @return void
+	 * @throws \InvalidArgumentException When a domain already belongs to another app.
+	 */
+	private function assert_domains_available( array $domains, ?int $exclude_app_id = null ): void {
+		foreach ( $domains as $domain ) {
+			$app = $this->get_by_domain( $domain );
+			if ( ! $app || ( null !== $exclude_app_id && $app->app_record_id === $exclude_app_id ) ) {
+				continue;
+			}
+
+			throw new \InvalidArgumentException( sprintf( 'Domain "%s" is already mapped to app "%s".', $domain, $app->id ) );
+		}
 	}
 
 	/**

@@ -249,15 +249,25 @@ class Environment {
 	 * @return string URL path or full URL if WP_HOME is defined.
 	 */
 	public function get_url(): string {
+		if ( $this->is_app() && ! empty( $this->domains ) ) {
+			return self::domain_url( $this->domains[0] );
+		}
+
 		if ( null !== $this->blog_id || $this->is_subsite() ) {
 			return self::multisite_url_for( $this->id, $this->blog_id );
 		}
 
-		if ( $this->is_app() && ! empty( $this->domains ) ) {
-			return rtrim( 'https://' . $this->domains[0], '/' ) . '/';
-		}
-
 		return self::multisite_url_for( $this->id, null );
+	}
+
+	/**
+	 * Canonical app URL for one mapped domain.
+	 *
+	 * @param string $domain App domain.
+	 * @return string
+	 */
+	public static function domain_url( string $domain ): string {
+		return trailingslashit( self::network_scheme() . '://' . trim( $domain ) );
 	}
 
 	/**

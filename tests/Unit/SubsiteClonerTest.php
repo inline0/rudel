@@ -74,7 +74,7 @@ class SubsiteClonerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testGetSubsiteTargetKeepsTheNetworkPortWhenPresent(): void
+    public function testGetSubsiteTargetStoresHostOnlyDomainsWhenNetworkRunsOnAPort(): void
     {
         if (! defined('DOMAIN_CURRENT_SITE')) {
             define('DOMAIN_CURRENT_SITE', 'localhost:9888');
@@ -94,7 +94,7 @@ class SubsiteClonerTest extends RudelTestCase
 
         $target = $cloner->get_subsite_target('alpha-site');
 
-        $this->assertSame('alpha-site.localhost:9888', $target['domain']);
+        $this->assertSame('alpha-site.localhost', $target['domain']);
         $this->assertSame('/', $target['path']);
     }
 

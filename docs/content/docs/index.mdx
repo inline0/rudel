@@ -27,6 +27,8 @@ Rudel has two lifecycle shapes that share the same runtime model.
 
 Both are normal multisite sites. The difference is not in how the browser reaches them. The difference is in how Rudel manages their lifecycle.
 
+For apps, Rudel adds one more layer on top: a primary mapped app domain becomes the canonical app URL Rudel reports through its API, CLI, and deploy history. The underlying multisite subsite still exists as the runtime substrate.
+
 ## Runtime shape
 
 Rudel keeps two layers in sync.

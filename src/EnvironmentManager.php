@@ -180,10 +180,6 @@ class EnvironmentManager {
 			mkdir( $path . '/tmp', 0755 );
 			// phpcs:enable
 
-			$this->write_environment_bootstrap( $id, $path );
-			$this->write_wp_cli_yml( $path, $id );
-			$this->write_claude_md( $id, $name, $path );
-
 			$clone_source     = null;
 			$clone_lineage    = array();
 			$is_multisite     = true;
@@ -193,7 +189,27 @@ class EnvironmentManager {
 				&& $this->template_exists( $template );
 			$subsite_cloner   = new SubsiteCloner();
 			$blog_id          = $subsite_cloner->create_subsite( $id, $name );
-			$target_url       = $this->get_target_environment_url( $id, $blog_id );
+			$target_url       = $this->get_target_environment_url( $id, $blog_id, $target_type, $target_domains );
+
+			if ( 'app' === $target_type && is_array( $target_domains ) && ! empty( $target_domains ) ) {
+				$primary_domain = reset( $target_domains );
+				if ( is_string( $primary_domain ) && '' !== trim( $primary_domain ) ) {
+					$subsite_cloner->update_subsite_domain( $blog_id, $primary_domain );
+				}
+
+				// Apps keep a canonical primary domain in persisted site options even though the underlying multisite subsite remains the routing substrate.
+				$site_options = array_merge(
+					array(
+						'siteurl' => $target_url,
+						'home'    => $target_url,
+					),
+					$site_options
+				);
+			}
+
+			$this->write_environment_bootstrap( $id, $path, $target_url, $this->get_target_table_prefix( $blog_id ) );
+			$this->write_wp_cli_yml( $path, $target_url );
+			$this->write_claude_md( $id, $name, $path );
 
 			if ( $clone_from ) {
 				$source = $this->resolve_clone_source_environment( $clone_from );
@@ -587,20 +603,31 @@ class EnvironmentManager {
 	 * @return string
 	 */
 	private function get_environment_site_url( Environment $environment ): string {
-		return rtrim( Environment::multisite_url_for( $environment->id, $environment->blog_id ), '/' );
+		return rtrim( $environment->get_url(), '/' );
 	}
 
 	/**
 	 * Build the target runtime URL for a not-yet-saved environment.
 	 *
-	 * @param string $id Environment ID.
-	 * @param int    $blog_id Target multisite blog ID.
+	 * @param string                  $id Environment ID.
+	 * @param int                     $blog_id Target multisite blog ID.
+	 * @param string                  $type Environment type.
+	 * @param array<int, string>|null $domains Canonical domains when creating an app.
 	 * @return string
 	 */
 	private function get_target_environment_url(
 		string $id,
-		int $blog_id
+		int $blog_id,
+		string $type = 'sandbox',
+		?array $domains = null
 	): string {
+		if ( 'app' === $type && is_array( $domains ) && ! empty( $domains ) ) {
+			$primary = reset( $domains );
+			if ( is_string( $primary ) && '' !== trim( $primary ) ) {
+				return rtrim( Environment::domain_url( $primary ), '/' );
+			}
+		}
+
 		return rtrim( Environment::multisite_url_for( $id, $blog_id ), '/' );
 	}
 
@@ -700,19 +727,23 @@ class EnvironmentManager {
 	/**
 	 * Write the per-environment bootstrap.php.
 	 *
-	 * @param string $id   Environment identifier.
+	 * @param string $id Environment identifier.
 	 * @param string $path Absolute path to the environment directory.
+	 * @param string $environment_url Canonical environment URL for this generated bootstrap.
+	 * @param string $table_prefix Active multisite table prefix.
 	 * @return void
 	 */
-	private function write_environment_bootstrap( string $id, string $path ): void {
+	private function write_environment_bootstrap( string $id, string $path, string $environment_url, string $table_prefix ): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$template = file_get_contents( $this->plugin_dir . 'templates/environment-bootstrap.php.tpl' );
 
 		$content        = strtr(
 			$template,
 			array(
-				'{{sandbox_id}}'   => $id,
-				'{{sandbox_path}}' => $path,
+				'{{sandbox_id}}'      => $id,
+				'{{sandbox_path}}'    => $path,
+				'{{environment_url}}' => $environment_url,
+				'{{table_prefix}}'    => $table_prefix,
 			)
 		);
 		$bootstrap_path = $path . '/bootstrap.php';
@@ -730,11 +761,11 @@ class EnvironmentManager {
 	 * Write the per-environment wp-cli.yml.
 	 *
 	 * @param string $path Absolute path to the environment directory.
-	 * @param string $id   Environment identifier.
+	 * @param string $environment_url Canonical environment URL.
 	 * @return void
 	 */
-	private function write_wp_cli_yml( string $path, string $id = '' ): void {
-		$url     = Environment::multisite_url_for( $id );
+	private function write_wp_cli_yml( string $path, string $environment_url ): void {
+		$url     = trailingslashit( $environment_url );
 		$content = 'path: ' . $this->get_wp_core_path() . "\n"
 			. 'url: ' . $url . "\n";
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing environment wp-cli.yml.
@@ -765,6 +796,22 @@ class EnvironmentManager {
 		file_put_contents( $path . '/CLAUDE.md', $content );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.
 		chmod( $path . '/CLAUDE.md', 0444 );
+	}
+
+	/**
+	 * Multisite table prefix for one newly-created environment.
+	 *
+	 * @param int $blog_id Blog ID.
+	 * @return string
+	 */
+	private function get_target_table_prefix( int $blog_id ): string {
+		global $wpdb;
+
+		if ( isset( $wpdb ) && is_object( $wpdb ) && isset( $wpdb->base_prefix ) && is_string( $wpdb->base_prefix ) && '' !== $wpdb->base_prefix ) {
+			return $wpdb->base_prefix . $blog_id . '_';
+		}
+
+		return 'wp_' . $blog_id . '_';
 	}
 
 	/**

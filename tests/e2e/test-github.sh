@@ -24,6 +24,7 @@ SANDBOX_IDS=()
 APP_IDS=()
 REPOS=()
 NETWORK_WP_CONTENT_DIR=""
+NETWORK_URL=""
 RUDEL_VERSION_VALUE="$(
 	php -r '
 		$contents = (string) file_get_contents($argv[1]);
@@ -229,9 +230,56 @@ environment_path() {
 
 site_url_for_slug() {
 	local slug="$1"
+	local site_row=""
 
-	wp_cli site list --fields=url --format=csv \
-		| awk -F, -v slug="$slug" 'NR > 1 && $1 ~ ("^http://" slug "\\.") { print $1; exit }'
+	site_row="$(wp_cli site list --fields=domain,path --format=csv \
+		| awk -F, -v slug="$slug" 'NR > 1 && $1 ~ ("^" slug "\\.") { print $1 "," $2; exit }')"
+
+	if [[ -z "$site_row" || -z "$NETWORK_URL" ]]; then
+		return 0
+	fi
+
+	php -r '
+		[$domain, $path] = array_pad(explode(",", $argv[1], 2), 2, "/");
+		$network = parse_url($argv[2]);
+		if (! is_array($network) || empty($network["scheme"]) || empty($network["host"])) {
+			exit(1);
+		}
+
+		$path = "" === trim($path) ? "/" : trim($path);
+		if (! str_starts_with($path, "/")) {
+			$path = "/" . $path;
+		}
+
+		$url = (string) $network["scheme"] . "://" . (string) $domain;
+		if (isset($network["port"])) {
+			$url .= ":" . (int) $network["port"];
+		}
+
+		echo rtrim($url, "/") . rtrim($path, "/") . "/";
+	' "$site_row" "$NETWORK_URL"
+}
+
+site_url_for_domain() {
+	local domain="$1"
+
+	if [[ -z "$NETWORK_URL" ]]; then
+		return 0
+	fi
+
+	php -r '
+		$network = parse_url($argv[2]);
+		if (! is_array($network) || empty($network["scheme"]) || empty($network["host"])) {
+			exit(1);
+		}
+
+		$url = (string) $network["scheme"] . "://" . (string) $argv[1];
+		if (isset($network["port"])) {
+			$url .= ":" . (int) $network["port"];
+		}
+
+		echo rtrim($url, "/") . "/";
+	' "$domain" "$NETWORK_URL"
 }
 
 resolve_http_target() {
@@ -357,13 +405,15 @@ prepare_network() {
 	wp_cli config set WP_ALLOW_MULTISITE true --raw >/dev/null
 	wp_cli config set MULTISITE true --raw >/dev/null
 	wp_cli config set SUBDOMAIN_INSTALL true --raw >/dev/null
-	wp_cli config set DOMAIN_CURRENT_SITE "'localhost:8888'" --raw >/dev/null
+	wp_cli config set DOMAIN_CURRENT_SITE "'localhost'" --raw >/dev/null
 	wp_cli config set PATH_CURRENT_SITE "'/'" --raw >/dev/null
 	wp_cli config set SITE_ID_CURRENT_SITE 1 --raw >/dev/null
 	wp_cli config set BLOG_ID_CURRENT_SITE 1 --raw >/dev/null
+	wp_cli db query "UPDATE wp_site SET domain = 'localhost'; UPDATE wp_blogs SET domain = REPLACE(domain, ':8888', '');" >/dev/null
 	wp_cli config set RUDEL_GITHUB_TOKEN "$GITHUB_TOKEN" >/dev/null
 	wp_cli plugin activate rudel >/dev/null
 	NETWORK_WP_CONTENT_DIR="$(wp_cli eval 'echo WP_CONTENT_DIR;')"
+	NETWORK_URL="$(wp_cli option get siteurl | tail -1)"
 }
 
 prepare_git_repo() {
@@ -596,7 +646,8 @@ fi
 echo ""
 echo -e "${BOLD}App tracking setup${NC}"
 
-APP_OUTPUT="$(wp_cli rudel app create --name=client-demo --domain="client-${RUN_ID}.example.test" --clone-from="$THEME_SANDBOX_ID" --github="${THEME_REPO}" --branch="${THEME_RELEASE_BRANCH}" --dir="themes/${THEME_REPO_NAME}")"
+APP_DOMAIN="client-${RUN_ID}.example.test"
+APP_OUTPUT="$(wp_cli rudel app create --name=client-demo --domain="${APP_DOMAIN}" --clone-from="$THEME_SANDBOX_ID" --github="${THEME_REPO}" --branch="${THEME_RELEASE_BRANCH}" --dir="themes/${THEME_REPO_NAME}")"
 APP_ID="$(parse_created_id "App created" "$APP_OUTPUT")"
 if [[ -n "$APP_ID" ]]; then
 	APP_IDS+=("$APP_ID")
@@ -613,7 +664,7 @@ else
 	fail "App GitHub tracking metadata is incorrect" "$APP_INFO_JSON"
 fi
 
-APP_URL="$(site_url_for_slug "$APP_ID")"
+APP_URL="$(site_url_for_domain "$APP_DOMAIN")"
 if [[ -n "$APP_URL" ]]; then
 	pass "GitHub-backed app created a multisite site"
 	assert_site_http_contract "GitHub-backed app site" "$APP_URL"

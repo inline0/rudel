@@ -41,6 +41,7 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
         $this->assertIsString($bootstrap);
         $this->assertStringContainsString("define('RUDEL_ENGINE', 'subsite')", $bootstrap);
         $this->assertStringContainsString("define('WP_HOME', \$_rudel_environment_url);", $bootstrap);
+        $this->assertStringContainsString("define('RUDEL_TABLE_PREFIX', 'wp_" . $environment->blog_id . "_');", $bootstrap);
 
         $this->assertFileExists($environment->path . '/wp-cli.yml');
         $wpCli = file_get_contents($environment->path . '/wp-cli.yml');
@@ -53,6 +54,44 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
         $this->assertIsString($runtimePlugin);
         $this->assertStringContainsString('pre_option_home', $runtimePlugin);
         $this->assertStringContainsString('rudel_runtime_environment_url', $runtimePlugin);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateAppWritesCanonicalDomainIntoRuntimeArtifacts(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/apps',
+            $this->tmpDir . '/sandboxes',
+            'app',
+            $this->runtimeStore()
+        );
+
+        $app = $manager->create('Demo App', [
+            'type' => 'app',
+            'domains' => ['demo.example.test'],
+        ]);
+
+        $this->assertSame('http://demo.example.test', $this->siteOptionValue((int) $app->blog_id, 'siteurl'));
+        $this->assertSame('http://demo.example.test', $this->siteOptionValue((int) $app->blog_id, 'home'));
+        $this->assertSame('demo.example.test', $GLOBALS['rudel_test_sites'][(int) $app->blog_id]['domain'] ?? null);
+
+        $bootstrap = file_get_contents($app->path . '/bootstrap.php');
+        $this->assertIsString($bootstrap);
+        $this->assertStringContainsString("\$_rudel_environment_url = 'http://demo.example.test';", $bootstrap);
+        $this->assertStringContainsString("define('RUDEL_TABLE_PREFIX', 'wp_" . $app->blog_id . "_');", $bootstrap);
+
+        $wpCli = file_get_contents($app->path . '/wp-cli.yml');
+        $this->assertIsString($wpCli);
+        $this->assertStringContainsString('url: http://demo.example.test/', $wpCli);
     }
 
     #[RunInSeparateProcess]

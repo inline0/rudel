@@ -18,6 +18,8 @@ That runtime state includes:
 - app deployments
 - Rudel configuration
 
+Those tables always live in the host WordPress database. Rudel does not keep a parallel JSON registry or any second runtime datastore for its own metadata.
+
 The environments table also carries the metadata that makes higher-level workflows possible: ownership, expiry, lineage, tracked GitHub repository data, and the identifiers Rudel uses to connect apps, app-derived sandboxes, and deploy records back together.
 
 ## Default tables
@@ -31,6 +33,8 @@ The environments table also carries the metadata that makes higher-level workflo
 Together those tables let Rudel answer the operational questions around the sites it manages: who owns an environment, which app a sandbox came from, or which backup belongs to a specific deployment record.
 
 One detail matters here: worktrees are stored in their own runtime table instead of being embedded permanently inside `clone_source`. That keeps Git-aware lifecycle state queryable and easier to update when environments change over time.
+
+Another detail matters for multisite lookups: Rudel stores host-only multisite domains in the native site tables. Custom network ports belong in rendered URLs such as `WP_HOME`, not in `wp_site.domain` or `wp_blogs.domain`.
 
 ## Table naming overrides
 
@@ -55,3 +59,5 @@ Runtime reads and writes should go through Rudel repositories and services:
 - `AppDeploymentRepository`
 
 That boundary is deliberate. Environment directories are for generated files and environment-owned artifacts, not as the source of truth for runtime metadata. If a higher-level product wants to inspect or manipulate Rudel state, it should talk to the runtime tables through Rudel's public API or internal repositories rather than reading files and guessing.
+
+App domains fit into that same boundary. The primary mapped app domain is the canonical app URL Rudel reports through its public API and CLI, while the backing multisite subsite remains the deterministic runtime substrate under the hood.
