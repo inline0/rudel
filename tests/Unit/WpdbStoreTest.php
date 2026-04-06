@@ -129,4 +129,60 @@ class WpdbStoreTest extends TestCase
 
 		$store->delete('wp_rudel_environments', ['id' => 1]);
 	}
+
+	public function testNestedTransactionsOnlyCommitOrRollbackAtTheOutermostBoundary(): void
+	{
+		$wpdb = new class () {
+			public string $prefix = 'wp_';
+			public string $base_prefix = 'wp_';
+			public int $insert_id = 0;
+			public string $last_error = '';
+			public array $queries = [];
+
+			public function insert(string $table, array $data)
+			{
+				unset($table, $data);
+				return 1;
+			}
+
+			public function update(string $table, array $data, array $where)
+			{
+				unset($table, $data, $where);
+				return 1;
+			}
+
+			public function delete(string $table, array $where)
+			{
+				unset($table, $where);
+				return 1;
+			}
+
+			public function prepare(string $query, ...$args)
+			{
+				unset($args);
+				return $query;
+			}
+
+			public function query(string $query)
+			{
+				$this->queries[] = $query;
+				return true;
+			}
+		};
+
+		$store = new WpdbStore($wpdb);
+
+		$store->begin();
+		$store->begin();
+		$store->commit();
+		$store->commit();
+		$store->begin();
+		$store->begin();
+		$store->rollback();
+
+		$this->assertSame(
+			['START TRANSACTION', 'COMMIT', 'START TRANSACTION', 'ROLLBACK'],
+			$wpdb->queries
+		);
+	}
 }

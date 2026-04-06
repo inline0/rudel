@@ -24,7 +24,7 @@ wp rudel app create --name=demo --domain=demo.example.test
 
 The created site is immediately visible through normal multisite tooling such as `wp site list`, while Rudel keeps the extra app metadata in its own runtime tables.
 
-The supplied primary domain also becomes the app's canonical Rudel URL. That is the URL Rudel reports through `app info`, the PHP API, deploy history, and rewrite flows. The underlying multisite subsite still exists as the deterministic runtime route that powers the app.
+The supplied primary domain also becomes the app's canonical Rudel URL. That is the URL Rudel reports through `app info`, the PHP API, deploy history, and rewrite flows. When the local multisite network runs on a non-default port such as `:9878`, Rudel keeps that port in the rendered canonical URL. The underlying multisite subsite still exists as the deterministic runtime route that powers the app.
 
 ## Create a sandbox from an app
 
@@ -79,6 +79,8 @@ wp rudel app restore demo-1234 --backup=baseline --force
 ## Deploy
 
 Deploys are what connect sandboxes back to apps. Rudel records them explicitly so the app history stays understandable instead of turning into an opaque sequence of file copies. The deploy flow replaces the app's own environment-local site state and `wp-content`; it does not treat another environment or the host network as the code source of truth.
+
+That source-of-truth rule includes removals. If a tracked theme or plugin no longer exists in the sandbox you deploy from, Rudel removes that tracked directory from the app instead of silently leaving stale code behind.
 
 Preview a deploy:
 

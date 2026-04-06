@@ -67,6 +67,42 @@ wp_cli() {
 	) | strip_wpenv
 }
 
+wp_shell() {
+	local command="$1"
+
+	(
+		cd "$RUDEL_DIR"
+		npx wp-env run cli -- bash -lc "$command" 2>&1
+	) | strip_wpenv
+}
+
+json_field() {
+	local key="$1"
+
+	php -r '
+		$data = json_decode(stream_get_contents(STDIN), true);
+		if (is_array($data) && array_is_list($data) && 1 === count($data) && is_array($data[0])) {
+			$data = $data[0];
+		}
+		$key = $argv[1];
+		$value = is_array($data) && array_key_exists($key, $data) ? $data[$key] : null;
+
+		if (is_array($value)) {
+			echo json_encode($value, JSON_UNESCAPED_SLASHES);
+			return;
+		}
+
+		if (is_bool($value)) {
+			echo $value ? "true" : "false";
+			return;
+		}
+
+		if (null !== $value) {
+			echo (string) $value;
+		}
+	' "$key"
+}
+
 wp_env_workdir() {
 	php -r '
 		$config = realpath($argv[1]);
@@ -214,6 +250,22 @@ site_url_for_domain() {
 	' "$domain" "$NETWORK_URL"
 }
 
+environment_json() {
+	wp_cli rudel info "$1" --format=json
+}
+
+environment_path() {
+	environment_json "$1" | json_field path
+}
+
+app_json() {
+	wp_cli rudel app info "$1" --format=json
+}
+
+app_path() {
+	app_json "$1" | json_field path
+}
+
 site_blog_id_for_slug() {
 	local slug="$1"
 
@@ -225,7 +277,7 @@ site_blog_id_for_domain() {
 	local domain="$1"
 
 	wp_cli site list --fields=blog_id,url --format=csv \
-		| awk -F, -v domain="$domain" 'NR > 1 && $2 ~ ("^http://" domain "/?$") { print $1; exit }'
+		| awk -F, -v domain="$domain" 'NR > 1 && $2 ~ ("^http://" domain "(:[0-9]+)?/?$") { print $1; exit }'
 }
 
 resolve_http_target() {
@@ -476,6 +528,15 @@ fi
 
 assert_site_http_contract "Sandbox site" "$ALPHA_URL"
 
+ALPHA_INFO_JSON=$(environment_json "$ALPHA_ID")
+ALPHA_PATH=$(printf '%s' "$ALPHA_INFO_JSON" | json_field path)
+ALPHA_WP_CONTENT=$(printf '%s' "$ALPHA_INFO_JSON" | json_field wp_content)
+if [[ "$ALPHA_WP_CONTENT" == "${ALPHA_PATH}/wp-content" ]]; then
+	pass "Sandbox info reports its environment-local wp-content path"
+else
+	fail "Sandbox info reported the wrong wp-content path" "$ALPHA_INFO_JSON"
+fi
+
 site_cli "$ALPHA_URL" option update blogname "Alpha Site" >/dev/null
 ALPHA_BLOGNAME=$(site_cli "$ALPHA_URL" option get blogname | tail -1)
 if [[ "$ALPHA_BLOGNAME" == "Alpha Site" ]]; then
@@ -548,7 +609,8 @@ else
 	fail "App info missing configured domain" "$APP_INFO_JSON"
 fi
 
-if printf '%s' "$APP_INFO_JSON" | grep -Fq '"url":"http:\/\/demo.example.test\/"'; then
+APP_CANONICAL_URL=$(site_url_for_domain "$APP_DOMAIN")
+if [[ "$(printf '%s' "$APP_INFO_JSON" | json_field url)" == "$APP_CANONICAL_URL" ]]; then
 	pass "App info reports the canonical app domain"
 else
 	fail "App info did not report the canonical app domain" "$APP_INFO_JSON"
@@ -601,6 +663,14 @@ else
 	fail "App-derived sandbox missing tracked GitHub source" "$FEATURE_INFO_JSON"
 fi
 
+FEATURE_PATH=$(printf '%s' "$FEATURE_INFO_JSON" | json_field path)
+FEATURE_WP_CONTENT=$(printf '%s' "$FEATURE_INFO_JSON" | json_field wp_content)
+if [[ "$FEATURE_WP_CONTENT" == "${FEATURE_PATH}/wp-content" ]]; then
+	pass "App-derived sandbox info reports its environment-local wp-content path"
+else
+	fail "App-derived sandbox info reported the wrong wp-content path" "$FEATURE_INFO_JSON"
+fi
+
 site_cli "$FEATURE_URL" option update blogname "Feature Deploy" >/dev/null
 
 DEPLOY_PLAN=$(wp_cli rudel app deploy "$APP_ID" --from="$FEATURE_ID" --backup=before-deploy --dry-run)
@@ -637,6 +707,77 @@ if echo "$APP_DEPLOYMENTS" | grep -q '"deployed_at"'; then
 	pass "App deployments are recorded"
 else
 	fail "App deployments list is empty" "$APP_DEPLOYMENTS"
+fi
+
+echo ""
+echo -e "${BOLD}Local git-backed deploy deletion${NC}"
+
+if wp_shell "command -v git >/dev/null" >/dev/null; then
+	LOCAL_APP_DOMAIN="git-demo.example.test"
+	LOCAL_APP_OUTPUT=$(wp_cli rudel app create --name="Git Demo" --domain="$LOCAL_APP_DOMAIN")
+	LOCAL_APP_ID=$(parse_created_id "App created" "$LOCAL_APP_OUTPUT")
+	if [[ -n "$LOCAL_APP_ID" ]]; then
+		APP_IDS+=("$LOCAL_APP_ID")
+		pass "Created git-backed app ${LOCAL_APP_ID}"
+	else
+		fail "Git-backed app creation failed" "$LOCAL_APP_OUTPUT"
+		exit 1
+	fi
+
+	LOCAL_APP_PATH=$(app_path "$LOCAL_APP_ID")
+	if [[ -z "$LOCAL_APP_PATH" ]]; then
+		fail "Could not resolve the git-backed app path" "$(app_json "$LOCAL_APP_ID")"
+		exit 1
+	fi
+
+	LOCAL_APP_THEME_DIR="${LOCAL_APP_PATH}/wp-content/themes/local-theme"
+	if wp_shell "mkdir -p '${LOCAL_APP_THEME_DIR}' && printf '%s\n' 'body { color: red; }' > '${LOCAL_APP_THEME_DIR}/style.css' && git -C '${LOCAL_APP_THEME_DIR}' init >/dev/null && git -C '${LOCAL_APP_THEME_DIR}' config user.email 'test@example.test' && git -C '${LOCAL_APP_THEME_DIR}' config user.name 'Test User' && git -C '${LOCAL_APP_THEME_DIR}' add -A && git -C '${LOCAL_APP_THEME_DIR}' commit -m 'init' >/dev/null && git -C '${LOCAL_APP_THEME_DIR}' branch -M main >/dev/null" >/dev/null; then
+		pass "Prepared a local git-backed theme inside the app"
+	else
+		fail "Could not prepare a local git-backed theme inside the app" "$LOCAL_APP_THEME_DIR"
+		exit 1
+	fi
+
+	LOCAL_FEATURE_OUTPUT=$(wp_cli rudel app create-sandbox "$LOCAL_APP_ID" --name="Git Demo Feature")
+	LOCAL_FEATURE_ID=$(parse_created_id "Sandbox created from app" "$LOCAL_FEATURE_OUTPUT")
+	if [[ -n "$LOCAL_FEATURE_ID" ]]; then
+		SANDBOX_IDS+=("$LOCAL_FEATURE_ID")
+		pass "Created git-backed app-derived sandbox ${LOCAL_FEATURE_ID}"
+	else
+		fail "Git-backed app-derived sandbox creation failed" "$LOCAL_FEATURE_OUTPUT"
+		exit 1
+	fi
+
+	LOCAL_FEATURE_PATH=$(environment_path "$LOCAL_FEATURE_ID")
+	if [[ -z "$LOCAL_FEATURE_PATH" ]]; then
+		fail "Could not resolve the git-backed sandbox path" "$(environment_json "$LOCAL_FEATURE_ID")"
+		exit 1
+	fi
+
+	LOCAL_FEATURE_THEME_DIR="${LOCAL_FEATURE_PATH}/wp-content/themes/local-theme"
+	if wp_shell "test -e '${LOCAL_FEATURE_THEME_DIR}/.git'" >/dev/null; then
+		pass "Git-backed app-derived sandbox keeps its local theme worktree"
+	else
+		fail "Git-backed app-derived sandbox did not create a local theme worktree" "$LOCAL_FEATURE_THEME_DIR"
+		exit 1
+	fi
+
+	wp_shell "rm -rf '${LOCAL_FEATURE_THEME_DIR}'" >/dev/null
+	LOCAL_DEPLOY_OUTPUT=$(wp_cli rudel app deploy "$LOCAL_APP_ID" --from="$LOCAL_FEATURE_ID" --backup=git-delete --force)
+	if echo "$LOCAL_DEPLOY_OUTPUT" | grep -qi "deployed"; then
+		pass "Deploy after tracked theme removal works"
+	else
+		fail "Deploy after tracked theme removal failed" "$LOCAL_DEPLOY_OUTPUT"
+		exit 1
+	fi
+
+	if wp_shell "test ! -e '${LOCAL_APP_THEME_DIR}'" >/dev/null; then
+		pass "Deploy removes tracked theme directories that no longer exist in the sandbox"
+	else
+		fail "Deploy left a removed tracked theme behind in the app" "$LOCAL_APP_THEME_DIR"
+	fi
+else
+	pass "Skipped local git-backed deploy deletion because git is unavailable in the cli container"
 fi
 
 echo ""

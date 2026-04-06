@@ -58,7 +58,7 @@ if ( ! function_exists( 'get_blog_details' ) ) {
 
 if ( ! function_exists( 'wpmu_create_blog' ) ) {
 	function wpmu_create_blog( string $domain, string $path, string $title, int $admin_user_id = 1 ) {
-		unset( $admin_user_id );
+		$GLOBALS['rudel_test_last_created_blog_admin_user_id'] = $admin_user_id;
 
 		$next_blog_id                           = (int) ( $GLOBALS['rudel_test_next_blog_id'] ?? 2 );
 		$GLOBALS['rudel_test_next_blog_id']     = $next_blog_id + 1;
@@ -125,6 +125,42 @@ if ( ! function_exists( 'wpmu_create_blog' ) ) {
 		}
 
 		return $next_blog_id;
+	}
+}
+
+if ( ! function_exists( 'get_current_user_id' ) ) {
+	function get_current_user_id(): int {
+		return (int) ( $GLOBALS['rudel_test_current_user_id'] ?? 0 );
+	}
+}
+
+if ( ! function_exists( 'get_super_admins' ) ) {
+	function get_super_admins(): array {
+		$super_admins = $GLOBALS['rudel_test_super_admins'] ?? array();
+		return is_array( $super_admins ) ? $super_admins : array();
+	}
+}
+
+if ( ! function_exists( 'get_user_by' ) ) {
+	function get_user_by( string $field, $value ) {
+		$users = $GLOBALS['rudel_test_users'] ?? array();
+		if ( ! is_array( $users ) ) {
+			return false;
+		}
+
+		if ( 'login' === $field && isset( $users[ $value ] ) && is_array( $users[ $value ] ) ) {
+			return (object) $users[ $value ];
+		}
+
+		if ( 'id' === $field ) {
+			foreach ( $users as $user ) {
+				if ( is_array( $user ) && isset( $user['ID'] ) && (int) $user['ID'] === (int) $value ) {
+					return (object) $user;
+				}
+			}
+		}
+
+		return false;
 	}
 }
 

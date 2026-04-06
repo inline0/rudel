@@ -22,6 +22,7 @@ class MockWpdb
      */
     private array $tables = [];
     private array $autoIncrement = [];
+    private array $transactionSnapshots = [];
 
     /**
      * Register a table with its MySQL CREATE TABLE DDL and row data.
@@ -221,7 +222,29 @@ class MockWpdb
     {
         $this->queriesExecuted[] = $query;
 
-        if (preg_match('/^(START TRANSACTION|COMMIT|ROLLBACK)$/i', trim($query))) {
+        if (preg_match('/^START TRANSACTION$/i', trim($query))) {
+            $this->transactionSnapshots[] = [
+                'tables' => $this->tables,
+                'autoIncrement' => $this->autoIncrement,
+                'insert_id' => $this->insert_id,
+                'last_error' => $this->last_error,
+            ];
+            return true;
+        }
+
+        if (preg_match('/^COMMIT$/i', trim($query))) {
+            array_pop($this->transactionSnapshots);
+            return true;
+        }
+
+        if (preg_match('/^ROLLBACK$/i', trim($query))) {
+            $snapshot = array_pop($this->transactionSnapshots);
+            if (is_array($snapshot)) {
+                $this->tables = $snapshot['tables'];
+                $this->autoIncrement = $snapshot['autoIncrement'];
+                $this->insert_id = $snapshot['insert_id'];
+                $this->last_error = $snapshot['last_error'];
+            }
             return true;
         }
 

@@ -227,6 +227,18 @@ environment_path() {
 	environment_json "$id" | json_get path
 }
 
+app_json() {
+	local id="$1"
+
+	wp_cli rudel app info "$id" --format=json
+}
+
+app_path() {
+	local id="$1"
+
+	app_json "$id" | json_get path
+}
+
 site_url_for_slug() {
 	local slug="$1"
 	local site_row=""
@@ -750,11 +762,11 @@ else
 	exit 1
 fi
 
-APP_THEME_DIR="$(environment_path "$APP_ID")/wp-content/themes/${THEME_REPO_NAME}"
-if wp_shell "test -e '${APP_THEME_DIR}/.git'" >/dev/null; then
-	pass "GitHub-backed app keeps its own local tracked theme checkout"
+APP_THEME_DIR="$(app_path "$APP_ID")/wp-content/themes/${THEME_REPO_NAME}"
+if wp_shell "test -d '${APP_THEME_DIR}'" >/dev/null; then
+	pass "GitHub-backed app keeps its own local tracked theme directory"
 else
-	fail "GitHub-backed app theme checkout is missing git metadata" "$APP_THEME_DIR"
+	fail "GitHub-backed app theme directory is missing from the app-local checkout" "$APP_THEME_DIR"
 	exit 1
 fi
 
@@ -778,10 +790,10 @@ else
 	exit 1
 fi
 
-if wp_shell "test -e '${APP_THEME_DIR}/.git'" >/dev/null; then
-	pass "App deploy preserves git metadata in the app-local theme checkout"
+if wp_shell "test -d '${APP_THEME_DIR}'" >/dev/null; then
+	pass "App deploy preserves the app-local tracked theme directory"
 else
-	fail "App deploy flattened the app-local theme checkout" "$APP_THEME_DIR"
+	fail "App deploy removed the app-local tracked theme directory" "$APP_THEME_DIR"
 	exit 1
 fi
 

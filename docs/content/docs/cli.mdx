@@ -160,7 +160,7 @@ wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-them
 
 Use `--github`, `--branch`, and `--dir` when the app should carry one tracked code source. That tracked source becomes the default GitHub context for app-derived sandboxes and deployment history.
 
-The `--domain` value is also the app's canonical Rudel URL. `wp rudel app info` and app deploy history report that primary domain even though the backing multisite site still exists underneath.
+The `--domain` value is also the app's canonical Rudel URL. `wp rudel app info` and app deploy history report that primary domain even though the backing multisite site still exists underneath. On local networks that run on a non-default port, the rendered canonical URL keeps that port as part of the reported app URL.
 
 ### `wp rudel app list`
 

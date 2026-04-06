@@ -70,4 +70,4 @@ and lifecycle state. If a higher-level product wants to inspect or manipulate
 Rudel state, it should talk to the runtime tables through Rudel's public API
 or internal repositories rather than reading files and guessing.
 
-App domains fit into that same boundary. The primary mapped app domain is the canonical app URL Rudel reports through its public API and CLI, while the backing multisite subsite remains the deterministic runtime substrate under the hood.
+App domains fit into that same boundary. The primary mapped app domain is the canonical app URL Rudel reports through its public API and CLI, while the backing multisite subsite remains the deterministic runtime substrate under the hood. If the network itself runs on a non-default port, Rudel keeps that port in rendered canonical app URLs instead of dropping back to a host-only URL shape.

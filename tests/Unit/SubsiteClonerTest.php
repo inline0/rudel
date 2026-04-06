@@ -163,4 +163,39 @@ class SubsiteClonerTest extends RudelTestCase
 
 		$this->assertSame('http://beta-site.localhost:9888/', $cloner->get_subsite_url(6));
 	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testCreateSubsiteFallsBackToARealAdminUserWhenNoExplicitIdIsProvided(): void
+	{
+		if (! defined('DOMAIN_CURRENT_SITE')) {
+			define('DOMAIN_CURRENT_SITE', 'example.test');
+		}
+
+		$GLOBALS['rudel_test_current_user_id'] = 0;
+		$GLOBALS['rudel_test_super_admins'] = ['network-admin'];
+		$GLOBALS['rudel_test_users'] = [
+			'network-admin' => [
+				'ID' => 42,
+				'user_login' => 'network-admin',
+			],
+		];
+
+		$cloner = new class () extends SubsiteCloner {
+			protected function is_multisite_network(): bool
+			{
+				return true;
+			}
+
+			protected function is_subdomain_network(): bool
+			{
+				return true;
+			}
+		};
+
+		$blogId = $cloner->create_subsite('alpha-site', 'Alpha Site');
+
+		$this->assertGreaterThan(1, $blogId);
+		$this->assertSame(42, $GLOBALS['rudel_test_last_created_blog_admin_user_id']);
+	}
 }

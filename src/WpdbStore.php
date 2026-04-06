@@ -25,6 +25,13 @@ class WpdbStore implements DatabaseStore {
 	private string $prefix;
 
 	/**
+	 * Nested transaction depth for one request-scoped store.
+	 *
+	 * @var int
+	 */
+	private int $transaction_depth = 0;
+
+	/**
 	 * Initialize dependencies.
 	 *
 	 * @param \wpdb|null $wpdb Optional database object override.
@@ -174,20 +181,37 @@ class WpdbStore implements DatabaseStore {
 	 * {@inheritDoc}
 	 */
 	public function begin(): void {
-		$this->execute( 'START TRANSACTION' );
+		if ( 0 === $this->transaction_depth ) {
+			$this->execute( 'START TRANSACTION' );
+		}
+
+		++$this->transaction_depth;
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function commit(): void {
-		$this->execute( 'COMMIT' );
+		if ( $this->transaction_depth <= 0 ) {
+			return;
+		}
+
+		--$this->transaction_depth;
+
+		if ( 0 === $this->transaction_depth ) {
+			$this->execute( 'COMMIT' );
+		}
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function rollback(): void {
+		if ( $this->transaction_depth <= 0 ) {
+			return;
+		}
+
+		$this->transaction_depth = 0;
 		$this->execute( 'ROLLBACK' );
 	}
 

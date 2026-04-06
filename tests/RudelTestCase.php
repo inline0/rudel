@@ -30,6 +30,10 @@ abstract class RudelTestCase extends TestCase
         $GLOBALS['rudel_test_multisite'] = true;
         $GLOBALS['rudel_test_subdomain_install'] = true;
         $GLOBALS['rudel_test_next_blog_id'] = 2;
+        $GLOBALS['rudel_test_current_user_id'] = 0;
+        $GLOBALS['rudel_test_super_admins'] = [];
+        $GLOBALS['rudel_test_users'] = [];
+        $GLOBALS['rudel_test_last_created_blog_admin_user_id'] = null;
         $GLOBALS['rudel_test_sites'] = [
             1 => [
                 'blog_id' => 1,

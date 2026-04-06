@@ -265,7 +265,14 @@ class Environment {
 	 * @return string
 	 */
 	public static function domain_url( string $domain ): string {
-		return trailingslashit( self::network_scheme() . '://' . trim( $domain ) );
+		$domain = trim( $domain );
+		$url    = self::network_scheme() . '://' . $domain;
+
+		if ( ! self::domain_includes_port( $domain ) ) {
+			$url .= self::network_port_suffix();
+		}
+
+		return trailingslashit( $url );
 	}
 
 	/**
@@ -327,6 +334,12 @@ class Environment {
 			if ( is_array( $parts ) ) {
 				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
 			}
+		} elseif ( function_exists( 'home_url' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation from the active site URL.
+			$parts = parse_url( home_url( '/' ) );
+			if ( is_array( $parts ) ) {
+				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
+			}
 		}
 
 		return $scheme;
@@ -343,6 +356,12 @@ class Environment {
 		if ( defined( 'WP_HOME' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation before full WP helpers are guaranteed.
 			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
+				$port = (int) $parts['port'];
+			}
+		} elseif ( function_exists( 'home_url' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation from the active site URL.
+			$parts = parse_url( home_url( '/' ) );
 			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
 				$port = (int) $parts['port'];
 			}
@@ -372,6 +391,12 @@ class Environment {
 		if ( defined( 'WP_HOME' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation before full WP helpers are guaranteed.
 			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) && isset( $parts['host'] ) ) {
+				$host = (string) $parts['host'];
+			}
+		} elseif ( function_exists( 'home_url' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation from the active site URL.
+			$parts = parse_url( home_url( '/' ) );
 			if ( is_array( $parts ) && isset( $parts['host'] ) ) {
 				$host = (string) $parts['host'];
 			}

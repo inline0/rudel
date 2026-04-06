@@ -59,15 +59,16 @@ class SubsiteCloner {
 	/**
 	 * Create a new multisite sub-site.
 	 *
-	 * @param string $sandbox_id    Sandbox identifier (used for the sub-site slug).
-	 * @param string $title         Human-readable title for the sub-site.
-	 * @param int    $admin_user_id User ID for the sub-site admin.
+	 * @param string   $sandbox_id    Sandbox identifier (used for the sub-site slug).
+	 * @param string   $title         Human-readable title for the sub-site.
+	 * @param int|null $admin_user_id Optional user ID for the sub-site admin.
 	 * @return int The new blog ID.
 	 *
 	 * @throws \RuntimeException If the host is not multisite or creation fails.
 	 */
-	public function create_subsite( string $sandbox_id, string $title, int $admin_user_id = 1 ): int {
-		$target = $this->get_subsite_target( $sandbox_id );
+	public function create_subsite( string $sandbox_id, string $title, ?int $admin_user_id = null ): int {
+		$target        = $this->get_subsite_target( $sandbox_id );
+		$admin_user_id = $this->resolve_admin_user_id( $admin_user_id );
 
 		if ( ! function_exists( 'wpmu_create_blog' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/ms.php';
@@ -83,6 +84,41 @@ class SubsiteCloner {
 		}
 
 		return (int) $blog_id;
+	}
+
+	/**
+	 * Choose a valid admin user for newly created multisite sites.
+	 *
+	 * @param int|null $admin_user_id Optional explicit override.
+	 * @return int
+	 */
+	protected function resolve_admin_user_id( ?int $admin_user_id = null ): int {
+		if ( is_int( $admin_user_id ) && $admin_user_id > 0 ) {
+			return $admin_user_id;
+		}
+
+		if ( function_exists( 'get_current_user_id' ) ) {
+			$current_user_id = (int) get_current_user_id();
+			if ( $current_user_id > 0 ) {
+				return $current_user_id;
+			}
+		}
+
+		if ( function_exists( 'get_super_admins' ) && function_exists( 'get_user_by' ) ) {
+			$super_admins = get_super_admins();
+			foreach ( $super_admins as $login ) {
+				if ( ! is_string( $login ) || '' === $login ) {
+					continue;
+				}
+
+				$user = get_user_by( 'login', $login );
+				if ( is_object( $user ) && isset( $user->ID ) && (int) $user->ID > 0 ) {
+					return (int) $user->ID;
+				}
+			}
+		}
+
+		return 1;
 	}
 
 	/**

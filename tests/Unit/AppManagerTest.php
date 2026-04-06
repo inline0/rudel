@@ -42,6 +42,30 @@ class AppManagerTest extends RudelTestCase
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
+	public function testCreateAppKeepsTheNetworkPortInItsCanonicalUrl(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+		define('ABSPATH', $wordpressRoot . '/');
+		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+		define('WP_HOME', 'http://localhost:9878');
+		define('DOMAIN_CURRENT_SITE', 'localhost');
+
+		$manager = new AppManager(
+			$this->tmpDir . '/apps',
+			$this->tmpDir . '/sandboxes'
+		);
+
+		$app = $manager->create('Port Demo', ['demo.example.test']);
+
+		$this->assertSame('http://demo.example.test:9878/', $app->get_url());
+		$this->assertSame('http://demo.example.test:9878', $this->siteOptionValue((int) $app->blog_id, 'siteurl'));
+		$this->assertSame('http://demo.example.test:9878', $this->siteOptionValue((int) $app->blog_id, 'home'));
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
 	public function testCreateSandboxInheritsTrackedGithubMetadataFromApp(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
@@ -169,6 +193,38 @@ class AppManagerTest extends RudelTestCase
 		$this->assertSame('body { color: blue; }', file_get_contents($appThemePath . '/style.css'));
 		$this->assertFileExists($appThemePath . '/new-template.php');
 		$this->assertFileExists($appThemePath . '/.git');
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testCreateCleansUpTheAppWhenALateLifecycleFailureOccurs(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+		define('ABSPATH', $wordpressRoot . '/');
+		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+		define('WP_HOME', 'http://example.test');
+		define('DOMAIN_CURRENT_SITE', 'example.test');
+
+		$GLOBALS['rudel_test_action_callbacks']['rudel_after_app_create'][] = static function (): void {
+			throw new \RuntimeException('Late app create failure');
+		};
+
+		$manager = new AppManager(
+			$this->tmpDir . '/apps',
+			$this->tmpDir . '/sandboxes'
+		);
+
+		try {
+			$manager->create('Broken Demo', ['broken.example.test']);
+			$this->fail('Expected app creation to fail after the environment had been created.');
+		} catch (\RuntimeException $e) {
+			$this->assertSame('Late app create failure', $e->getMessage());
+		}
+
+		$this->assertSame([], $manager->list());
+		$this->assertSame([], glob($this->tmpDir . '/apps/*') ?: []);
 	}
 
 	#[RunInSeparateProcess]

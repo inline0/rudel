@@ -229,7 +229,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			$data['db_path'] = 'N/A (managed by multisite)';
 		}
 		$data['url']        = $sandbox->get_url();
-		$data['wp_content'] = $sandbox->is_subsite() ? 'shared (network)' : $sandbox->get_wp_content_path();
+		$data['wp_content'] = $sandbox->get_runtime_wp_content_path();
 
 		$format = $assoc_args['format'] ?? 'table';
 		if ( 'table' === $format ) {

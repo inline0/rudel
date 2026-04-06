@@ -188,15 +188,12 @@ class EnvironmentStateReplacer {
 		array $source_worktrees,
 		array $target_worktrees
 	): void {
-		$protected = array_values( array_unique( array_merge( $source_worktrees, $target_worktrees ) ) );
+		$protected = array_values( array_unique( $source_worktrees ) );
 
 		if ( ! is_dir( $source_dir ) ) {
 			if ( is_dir( $target_dir ) ) {
 				$entries = new \FilesystemIterator( $target_dir, \FilesystemIterator::SKIP_DOTS );
 				foreach ( $entries as $entry ) {
-					if ( in_array( $entry->getFilename(), $protected, true ) ) {
-						continue;
-					}
 					$this->delete_path( $entry->getPathname() );
 				}
 			}
@@ -216,6 +213,9 @@ class EnvironmentStateReplacer {
 			$target_path = $target_dir . '/' . $name;
 
 			if ( ! is_dir( $source_path ) ) {
+				if ( file_exists( $target_path ) ) {
+					$this->delete_path( $target_path );
+				}
 				continue;
 			}
 

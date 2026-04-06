@@ -121,6 +121,7 @@ class AppManager {
 			'options' => $options,
 		);
 		Hooks::action( 'rudel_before_app_create', $context );
+		$app = null;
 
 		try {
 			$app = $this->manager->create( $name, $options );
@@ -130,6 +131,9 @@ class AppManager {
 
 			return $app;
 		} catch ( \Throwable $e ) {
+			if ( $app instanceof Environment ) {
+				$this->cleanup_failed_app_create( $app );
+			}
 			Hooks::action( 'rudel_app_create_failed', $context, $e );
 			throw $e;
 		}
@@ -758,6 +762,26 @@ class AppManager {
 			throw new \InvalidArgumentException(
 				sprintf( 'Domain "%s" is already mapped to app "%s".', $domain, $app->id )
 			);
+		}
+	}
+
+	/**
+	 * Best-effort cleanup when app registration fails after the environment exists.
+	 *
+	 * @param Environment $app Partially created app environment.
+	 * @return void
+	 */
+	private function cleanup_failed_app_create( Environment $app ): void {
+		try {
+			$this->apps->delete( $app->id );
+		} catch ( \Throwable $cleanup_error ) {
+			unset( $cleanup_error );
+		}
+
+		try {
+			$this->manager->destroy( $app->id );
+		} catch ( \Throwable $cleanup_error ) {
+			unset( $cleanup_error );
 		}
 	}
 

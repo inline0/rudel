@@ -45,30 +45,39 @@ class AppRepository {
 	 * @return Environment
 	 *
 	 * @throws \RuntimeException When the insert fails or the app cannot be reloaded.
+	 * @throws \Throwable When a transactional write fails and must be rolled back.
 	 */
 	public function create( Environment $environment, array $domains ): Environment {
 		$normalized = $this->normalize_domains( $domains );
 		$this->assert_domains_available( $normalized );
 
-		$now    = gmdate( 'c' );
-		$app_id = $this->store->insert(
-			$this->table(),
-			array(
-				'environment_id' => $environment->record_id,
-				'slug'           => $environment->id,
-				'created_at'     => $now,
-				'updated_at'     => $now,
-			)
-		);
-		$this->replace_domains( $app_id, $normalized );
-		$this->environments->update_fields( $environment->id, array( 'app_id' => $app_id ), 'app' );
+		$this->store->begin();
 
-		$app = $this->get( $environment->id );
-		if ( ! $app ) {
-			throw new \RuntimeException( sprintf( 'Failed to register app: %s', $environment->id ) );
+		try {
+			$now    = gmdate( 'c' );
+			$app_id = $this->store->insert(
+				$this->table(),
+				array(
+					'environment_id' => $environment->record_id,
+					'slug'           => $environment->id,
+					'created_at'     => $now,
+					'updated_at'     => $now,
+				)
+			);
+			$this->replace_domains_rows( $app_id, $normalized );
+			$this->environments->update_fields( $environment->id, array( 'app_id' => $app_id ), 'app' );
+
+			$app = $this->get( $environment->id );
+			if ( ! $app ) {
+				throw new \RuntimeException( sprintf( 'Failed to register app: %s', $environment->id ) );
+			}
+
+			$this->store->commit();
+			return $app;
+		} catch ( \Throwable $e ) {
+			$this->store->rollback();
+			throw $e;
 		}
-
-		return $app;
 	}
 
 	/**
@@ -137,11 +146,67 @@ class AppRepository {
 	 * @param int   $app_id App DB ID.
 	 * @param array $domains Normalized domains.
 	 * @return void
+	 *
+	 * @throws \Throwable When a transactional domain update fails and must be rolled back.
 	 */
 	public function replace_domains( int $app_id, array $domains ): void {
 		$normalized = $this->normalize_domains( $domains );
 		$this->assert_domains_available( $normalized, $app_id );
 
+		$this->store->begin();
+
+		try {
+			$this->replace_domains_rows( $app_id, $normalized );
+			$this->store->commit();
+		} catch ( \Throwable $e ) {
+			$this->store->rollback();
+			throw $e;
+		}
+	}
+
+	/**
+	 * Delete one app registration and detach child environments.
+	 *
+	 * @param int|string $id App DB ID or slug.
+	 * @return bool
+	 *
+	 * @throws \Throwable When a transactional delete fails and must be rolled back.
+	 */
+	public function delete( $id ): bool {
+		$row = $this->find_row( $id );
+		if ( ! is_array( $row ) ) {
+			return false;
+		}
+
+		$app_id = (int) $row['id'];
+		$this->store->begin();
+
+		try {
+			$this->store->execute(
+				'UPDATE ' . $this->store->table( 'environments' ) . ' SET app_id = NULL, updated_at = ? WHERE app_id = ? AND type = ?',
+				array( gmdate( 'c' ), $app_id, 'sandbox' )
+			);
+			$this->store->execute(
+				'DELETE FROM ' . $this->domains_table() . ' WHERE app_id = ?',
+				array( $app_id )
+			);
+			$this->store->delete( $this->table(), array( 'id' => $app_id ) );
+			$this->store->commit();
+			return true;
+		} catch ( \Throwable $e ) {
+			$this->store->rollback();
+			throw $e;
+		}
+	}
+
+	/**
+	 * Replace persisted domains for one app inside the current transaction.
+	 *
+	 * @param int                $app_id App DB ID.
+	 * @param array<int, string> $domains Normalized domains.
+	 * @return void
+	 */
+	private function replace_domains_rows( int $app_id, array $domains ): void {
 		$this->store->execute(
 			'DELETE FROM ' . $this->domains_table() . ' WHERE app_id = ?',
 			array( $app_id )
@@ -149,7 +214,7 @@ class AppRepository {
 
 		$now = gmdate( 'c' );
 
-		foreach ( $normalized as $index => $domain ) {
+		foreach ( $domains as $index => $domain ) {
 			$this->store->insert(
 				$this->domains_table(),
 				array(
@@ -161,32 +226,6 @@ class AppRepository {
 				)
 			);
 		}
-	}
-
-	/**
-	 * Delete one app registration and detach child environments.
-	 *
-	 * @param int|string $id App DB ID or slug.
-	 * @return bool
-	 */
-	public function delete( $id ): bool {
-		$row = $this->find_row( $id );
-		if ( ! is_array( $row ) ) {
-			return false;
-		}
-
-		$app_id = (int) $row['id'];
-		$this->store->execute(
-			'UPDATE ' . $this->store->table( 'environments' ) . ' SET app_id = NULL, updated_at = ? WHERE app_id = ? AND type = ?',
-			array( gmdate( 'c' ), $app_id, 'sandbox' )
-		);
-		$this->store->execute(
-			'DELETE FROM ' . $this->domains_table() . ' WHERE app_id = ?',
-			array( $app_id )
-		);
-		$this->store->delete( $this->table(), array( 'id' => $app_id ) );
-
-		return true;
 	}
 
 	/**

@@ -171,30 +171,39 @@ class EnvironmentRepository {
 	 * @return Environment
 	 *
 	 * @throws \RuntimeException When the write fails or the persisted row cannot be reloaded.
+	 * @throws \Throwable When a transactional write fails and must be rolled back.
 	 */
 	public function save( Environment $environment ): Environment {
 		$payload  = $this->payload_for_environment( $environment );
 		$existing = $this->find_row_by_slug( $environment->id, null );
 
-		if ( is_array( $existing ) ) {
-			$this->store->update(
-				$this->table(),
-				$payload,
-				array( 'id' => (int) $existing['id'] )
-			);
-			$record_id = (int) $existing['id'];
-		} else {
-			$record_id = $this->store->insert( $this->table(), $payload );
+		$this->store->begin();
+
+		try {
+			if ( is_array( $existing ) ) {
+				$this->store->update(
+					$this->table(),
+					$payload,
+					array( 'id' => (int) $existing['id'] )
+				);
+				$record_id = (int) $existing['id'];
+			} else {
+				$record_id = $this->store->insert( $this->table(), $payload );
+			}
+
+			$this->replace_worktrees( $record_id, $environment->clone_source['git_worktrees'] ?? array() );
+
+			$saved = $this->get_by_record_id( $record_id );
+			if ( ! $saved ) {
+				throw new \RuntimeException( sprintf( 'Failed to persist environment: %s', $environment->id ) );
+			}
+
+			$this->store->commit();
+			return $saved;
+		} catch ( \Throwable $e ) {
+			$this->store->rollback();
+			throw $e;
 		}
-
-		$this->replace_worktrees( $record_id, $environment->clone_source['git_worktrees'] ?? array() );
-
-		$saved = $this->get_by_record_id( $record_id );
-		if ( ! $saved ) {
-			throw new \RuntimeException( sprintf( 'Failed to persist environment: %s', $environment->id ) );
-		}
-
-		return $saved;
 	}
 
 	/**
@@ -206,6 +215,7 @@ class EnvironmentRepository {
 	 * @return Environment
 	 *
 	 * @throws \RuntimeException When the update fails or the environment cannot be reloaded.
+	 * @throws \Throwable When a transactional write fails and must be rolled back.
 	 */
 	public function update_fields( string $slug, array $changes, ?string $type = null ): Environment {
 		$row = $this->find_row_by_slug( $slug, $type );
@@ -214,25 +224,33 @@ class EnvironmentRepository {
 		}
 
 		$payload = $this->normalize_changes( $changes, $row );
-		if ( array_key_exists( '__worktrees', $payload ) ) {
-			$this->replace_worktrees(
-				(int) $row['id'],
-				is_array( $payload['__worktrees'] ) ? $payload['__worktrees'] : array()
-			);
-			unset( $payload['__worktrees'] );
-		}
+		$this->store->begin();
 
-		if ( ! empty( $payload ) ) {
-			$payload['updated_at'] = gmdate( 'c' );
-			$this->store->update( $this->table(), $payload, array( 'id' => (int) $row['id'] ) );
-		}
+		try {
+			if ( array_key_exists( '__worktrees', $payload ) ) {
+				$this->replace_worktrees(
+					(int) $row['id'],
+					is_array( $payload['__worktrees'] ) ? $payload['__worktrees'] : array()
+				);
+				unset( $payload['__worktrees'] );
+			}
 
-		$updated = $this->get_by_record_id( (int) $row['id'] );
-		if ( ! $updated ) {
-			throw new \RuntimeException( sprintf( 'Environment not found after update: %s', $slug ) );
-		}
+			if ( ! empty( $payload ) ) {
+				$payload['updated_at'] = gmdate( 'c' );
+				$this->store->update( $this->table(), $payload, array( 'id' => (int) $row['id'] ) );
+			}
 
-		return $updated;
+			$updated = $this->get_by_record_id( (int) $row['id'] );
+			if ( ! $updated ) {
+				throw new \RuntimeException( sprintf( 'Environment not found after update: %s', $slug ) );
+			}
+
+			$this->store->commit();
+			return $updated;
+		} catch ( \Throwable $e ) {
+			$this->store->rollback();
+			throw $e;
+		}
 	}
 
 	/**
@@ -241,6 +259,8 @@ class EnvironmentRepository {
 	 * @param string      $slug Environment slug.
 	 * @param string|null $type Optional exact type filter.
 	 * @return bool
+	 *
+	 * @throws \Throwable When a transactional delete fails and must be rolled back.
 	 */
 	public function delete( string $slug, ?string $type = null ): bool {
 		$row = $this->find_row_by_slug( $slug, $type );
@@ -248,10 +268,17 @@ class EnvironmentRepository {
 			return false;
 		}
 
-		$this->worktrees->replace_for_environment( (int) $row['id'], array() );
-		$this->store->delete( $this->table(), array( 'id' => (int) $row['id'] ) );
+		$this->store->begin();
 
-		return true;
+		try {
+			$this->worktrees->replace_for_environment( (int) $row['id'], array() );
+			$this->store->delete( $this->table(), array( 'id' => (int) $row['id'] ) );
+			$this->store->commit();
+			return true;
+		} catch ( \Throwable $e ) {
+			$this->store->rollback();
+			throw $e;
+		}
 	}
 
 	/**

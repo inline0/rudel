@@ -166,7 +166,8 @@ class AppOperationsService {
 		);
 		Hooks::action( 'rudel_before_app_deploy', $context );
 
-		$lock = $this->acquire_state_lock( $app );
+		$lock   = $this->acquire_state_lock( $app );
+		$backup = null;
 
 		try {
 			$backup      = $this->backup_manager( $app )->create( $plan['backup_name'] );
@@ -208,6 +209,9 @@ class AppOperationsService {
 
 			return $result;
 		} catch ( \Throwable $e ) {
+			if ( is_array( $backup ) ) {
+				$this->restore_failed_deploy( $app, $backup['name'] ?? null );
+			}
 			Hooks::action( 'rudel_app_deploy_failed', $context, $e );
 			throw $e;
 		} finally {
@@ -442,6 +446,40 @@ class AppOperationsService {
 	private function latest_backup( Environment $app ): ?array {
 		$backups = $this->backups( $app );
 		return $backups[0] ?? null;
+	}
+
+	/**
+	 * Restore the app backup created for a failed deploy and revert deploy metadata.
+	 *
+	 * @param Environment $app App environment before deploy.
+	 * @param string|null $backup_name Backup name created for deploy.
+	 * @return void
+	 */
+	private function restore_failed_deploy( Environment $app, ?string $backup_name ): void {
+		if ( ! is_string( $backup_name ) || '' === $backup_name ) {
+			return;
+		}
+
+		try {
+			$this->backup_manager( $app )->restore( $backup_name );
+		} catch ( \Throwable $restore_error ) {
+			unset( $restore_error );
+			return;
+		}
+
+		try {
+			$this->app_manager->update(
+				$app->id,
+				array(
+					'last_deployed_from_id'   => $app->last_deployed_from_id,
+					'last_deployed_from_type' => $app->last_deployed_from_type,
+					'last_deployed_at'        => $app->last_deployed_at,
+					'last_used_at'            => $app->last_used_at,
+				)
+			);
+		} catch ( \Throwable $update_error ) {
+			unset( $update_error );
+		}
 	}
 
 	/**

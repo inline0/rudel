@@ -3,6 +3,7 @@
 namespace Rudel\Tests\Unit;
 
 use Rudel\AppRepository;
+use Rudel\DatabaseStore;
 use Rudel\Environment;
 use Rudel\EnvironmentRepository;
 use Rudel\Tests\RudelTestCase;
@@ -115,5 +116,123 @@ class AppRepositoryTest extends RudelTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('shared.example.com');
         $this->apps()->create($second, ['shared.example.com']);
+    }
+
+    public function testCreateRollsBackAppRegistrationWhenDomainPersistenceFails(): void
+    {
+        $store = $this->failingStore('app_domains');
+        $appsRepository = new AppRepository($store, new EnvironmentRepository($store, $this->tmpDir . '/apps', 'app'));
+
+        $path = $this->tmpDir . '/apps/client-e';
+        mkdir($path, 0755, true);
+
+        $environmentRepository = new EnvironmentRepository($store, $this->tmpDir . '/apps', 'app');
+        $environment = $environmentRepository->save(
+            new Environment(
+                id: 'client-e',
+                name: 'Client E',
+                path: $path,
+                created_at: '2026-01-01T00:00:00+00:00',
+                type: 'app'
+            )
+        );
+
+        try {
+            $appsRepository->create($environment, ['client-e.com']);
+            $this->fail('Expected app registration to fail when domain persistence throws.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('Simulated failure for app_domains.', $e->getMessage());
+        }
+
+        $this->assertNull($appsRepository->get('client-e'));
+        $this->assertNull($environmentRepository->get('client-e')?->app_record_id);
+        $this->assertSame([], $store->fetch_all('SELECT * FROM ' . $store->table('app_domains')));
+    }
+
+    private function failingStore(string $failingSuffix): DatabaseStore
+    {
+        $inner = $this->runtimeStore();
+
+        return new class ($inner, $failingSuffix) implements DatabaseStore {
+            public function __construct(
+                private DatabaseStore $inner,
+                private string $failingSuffix
+            ) {
+            }
+
+            public function cache_key(): string
+            {
+                return $this->inner->cache_key();
+            }
+
+            public function driver(): string
+            {
+                return $this->inner->driver();
+            }
+
+            public function prefix(): string
+            {
+                return $this->inner->prefix();
+            }
+
+            public function table(string $suffix): string
+            {
+                return $this->inner->table($suffix);
+            }
+
+            public function execute(string $sql, array $params = array()): int
+            {
+                return $this->inner->execute($sql, $params);
+            }
+
+            public function fetch_row(string $sql, array $params = array()): ?array
+            {
+                return $this->inner->fetch_row($sql, $params);
+            }
+
+            public function fetch_all(string $sql, array $params = array()): array
+            {
+                return $this->inner->fetch_all($sql, $params);
+            }
+
+            public function fetch_var(string $sql, array $params = array())
+            {
+                return $this->inner->fetch_var($sql, $params);
+            }
+
+            public function insert(string $table, array $data): int
+            {
+                if ($table === $this->inner->table($this->failingSuffix)) {
+                    throw new \RuntimeException(sprintf('Simulated failure for %s.', $this->failingSuffix));
+                }
+
+                return $this->inner->insert($table, $data);
+            }
+
+            public function update(string $table, array $data, array $where): int
+            {
+                return $this->inner->update($table, $data, $where);
+            }
+
+            public function delete(string $table, array $where): int
+            {
+                return $this->inner->delete($table, $where);
+            }
+
+            public function begin(): void
+            {
+                $this->inner->begin();
+            }
+
+            public function commit(): void
+            {
+                $this->inner->commit();
+            }
+
+            public function rollback(): void
+            {
+                $this->inner->rollback();
+            }
+        };
     }
 }
