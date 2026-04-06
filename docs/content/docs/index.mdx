@@ -7,9 +7,15 @@ description: Rudel manages WordPress sandboxes and apps as real subdomain multis
 
 Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
 
-Every Rudel environment has a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel uses that runtime contract everywhere, then layers creation, cloning, templates, backups, deploy history, worktrees, and lifecycle policy on top of it.
+Every Rudel environment has a real `blog_id`, a real URL, normal `wp-admin`,
+normal login, normal REST requests, and normal asset handling. Rudel uses that
+site identity as the base for everything else it does: creation, cloning,
+templates, backups, deploy history, worktrees, and lifecycle policy.
 
-The product model is simple: multisite owns the runtime, and Rudel owns the environment lifecycle around that runtime.
+WordPress answers the browser question. Rudel answers the operator question.
+WordPress knows how the site boots and where it lives. Rudel knows why the
+site exists, what it belongs to, how it was created, and what should happen to
+it next.
 
 ## Two environment types
 
@@ -29,7 +35,10 @@ Rudel keeps two layers in sync.
 
 **Rudel runtime records** are the operational truth. Rudel stores environment metadata, app identity, domain metadata, worktrees, deployment history, and lifecycle policy in WordPress tables so it can reason about environments explicitly rather than inferring state from directories and URLs.
 
-Use WordPress for browser/runtime truth and Rudel for lifecycle truth. WordPress answers where a site lives and how it boots. Rudel answers who owns it, what app it came from, which worktree belongs to it, and which backup belongs to which deployment.
+Use WordPress for browser truth and Rudel for lifecycle truth. WordPress
+answers where a site lives and how it boots. Rudel answers who owns it, what
+app it came from, which worktree belongs to it, and which backup belongs to
+which deployment.
 
 ## What Rudel adds
 

@@ -7,7 +7,11 @@ description: How Rudel uses multisite boundaries and environment-owned files to 
 
 Rudel isolation starts with the multisite site boundary.
 
-Each environment is a real site. Site tables, site options, uploads, admin state, and site-scoped capabilities form the base isolation boundary. Rudel adds the operational pieces around that site so teams can create, clone, snapshot, back up, deploy, and destroy environments without losing track of what belongs where.
+Each environment is a real site. Site tables, site options, uploads, admin
+state, and site-scoped capabilities form the base isolation boundary. Rudel
+then keeps the operational files and metadata for that site grouped under the
+same environment identity so teams can create, clone, snapshot, back up,
+deploy, and destroy environments without losing track of what belongs where.
 
 ## Site data
 
@@ -18,7 +22,8 @@ Every Rudel environment is a real multisite site, which gives Rudel an isolation
 - per-site uploads
 - per-site admin and REST behavior
 
-Environment URLs, `wp-admin`, media uploads, and normal browser navigation therefore behave like ordinary site requests.
+Environment URLs, `wp-admin`, media uploads, and normal browser navigation
+therefore behave like ordinary site requests.
 
 ## Environment directories
 
@@ -32,8 +37,9 @@ Each environment also has a generated directory containing:
 
 This directory is where Rudel keeps the files it owns directly: bootstrap
 files, scoped CLI config, logs, snapshots, backups, and other environment
-artifacts. Code and worktree relationships stay in Rudel runtime state instead
-of being guessed from one directory convention.
+artifacts. Code and worktree relationships stay in Rudel runtime state, so the
+filesystem can stay focused on operator-owned files instead of acting as a
+secondary metadata store.
 
 ## Authentication and cache
 

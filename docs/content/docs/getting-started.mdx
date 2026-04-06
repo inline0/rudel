@@ -5,7 +5,10 @@ description: Install Rudel on a subdomain multisite network and create your firs
 
 # Getting Started
 
-Getting Rudel running is straightforward once the network shape is correct. The main requirement is a WordPress multisite network that runs on subdomains. From there, Rudel installs its runtime bootstrap, creates real sites for sandboxes and apps, and stores its operational metadata in WordPress tables.
+Getting Rudel running is straightforward once the network shape is correct.
+The main requirement is a WordPress multisite network that runs on subdomains.
+From there, Rudel installs its runtime bootstrap, creates real sites for
+sandboxes and apps, and stores its operational metadata in WordPress tables.
 
 ## Prerequisites
 
@@ -15,7 +18,10 @@ Before installing the plugin, make sure the host WordPress instance can support 
 - the network uses subdomains, not subdirectories
 - you can write to `wp-config.php`
 
-Rudel expects that foundation to be in place before installation. The URLs it creates are normal multisite URLs that WordPress owns directly.
+Rudel expects that foundation to be in place before installation. The sites it
+creates use the same URL contract as the rest of the network, so once Rudel is
+installed you are working with normal multisite sites rather than a separate
+preview surface.
 
 ## Install Rudel
 
@@ -77,7 +83,9 @@ wp option get siteurl
 
 ## Create an app
 
-Apps are the stable side of the lifecycle. They are also real multisite sites, but Rudel treats them as long-lived runtime targets that can accumulate backups, domain metadata, and deployment history over time.
+Apps are the stable side of the lifecycle. They are also real multisite sites,
+but Rudel treats them as long-lived runtime targets that can accumulate
+backups, domain metadata, and deployment history over time.
 
 ```bash
 wp rudel app create --name=demo --domain=demo.example.test
