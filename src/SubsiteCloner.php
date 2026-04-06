@@ -51,7 +51,7 @@ class SubsiteCloner {
 		}
 
 		return array(
-			'domain' => $environment_id . '.' . $this->get_current_domain(),
+			'domain' => $environment_id . '.' . $this->get_current_network_domain(),
 			'path'   => '/',
 		);
 	}
@@ -121,7 +121,12 @@ class SubsiteCloner {
 					$site_path = '/' . $site_path;
 				}
 
-				return $this->network_scheme() . '://' . $site_domain . $this->network_port_suffix() . rtrim( $site_path, '/' ) . '/';
+				$site_url = $this->network_scheme() . '://' . $site_domain;
+				if ( ! $this->domain_includes_port( $site_domain ) ) {
+					$site_url .= $this->network_port_suffix();
+				}
+
+				return $site_url . rtrim( $site_path, '/' ) . '/';
 			}
 
 			if ( ! empty( $details->siteurl ) ) {
@@ -223,6 +228,38 @@ class SubsiteCloner {
 	}
 
 	/**
+	 * Current multisite network domain as stored in multisite site records.
+	 *
+	 * In local networks that run on a custom port, WordPress stores the port
+	 * in the multisite domain column and expects lookups against that value.
+	 *
+	 * @return string Domain string suitable for wp_blogs.domain.
+	 */
+	private function get_current_network_domain(): string {
+		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
+			$domain = trim( (string) DOMAIN_CURRENT_SITE );
+			if ( '' !== $domain ) {
+				return $domain;
+			}
+		}
+
+		if ( defined( 'WP_HOME' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime host derivation without relying on later WP URL helpers.
+			$parts = parse_url( (string) WP_HOME );
+			if ( is_array( $parts ) && ! empty( $parts['host'] ) ) {
+				$domain = (string) $parts['host'];
+				if ( isset( $parts['port'] ) ) {
+					$domain .= ':' . (int) $parts['port'];
+				}
+
+				return $domain;
+			}
+		}
+
+		return $this->get_current_domain();
+	}
+
+	/**
 	 * Network request scheme.
 	 *
 	 * @return string
@@ -258,5 +295,15 @@ class SubsiteCloner {
 		}
 
 		return null === $port ? '' : ':' . $port;
+	}
+
+	/**
+	 * Whether one multisite site domain already carries an explicit port.
+	 *
+	 * @param string $domain Domain value from a multisite site record.
+	 * @return bool
+	 */
+	private function domain_includes_port( string $domain ): bool {
+		return 1 === preg_match( '/:\d+$/', $domain );
 	}
 }

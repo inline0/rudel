@@ -72,6 +72,32 @@ class SubsiteClonerTest extends RudelTestCase
         $this->assertSame('/', $target['path']);
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testGetSubsiteTargetKeepsTheNetworkPortWhenPresent(): void
+    {
+        if (! defined('DOMAIN_CURRENT_SITE')) {
+            define('DOMAIN_CURRENT_SITE', 'localhost:9888');
+        }
+
+        $cloner = new class () extends SubsiteCloner {
+            protected function is_multisite_network(): bool
+            {
+                return true;
+            }
+
+            protected function is_subdomain_network(): bool
+            {
+                return true;
+            }
+        };
+
+        $target = $cloner->get_subsite_target('alpha-site');
+
+        $this->assertSame('alpha-site.localhost:9888', $target['domain']);
+        $this->assertSame('/', $target['path']);
+    }
+
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
 	public function testDeleteSubsiteRemovesTheSiteRecord(): void
@@ -116,5 +142,25 @@ class SubsiteClonerTest extends RudelTestCase
 		$cloner = new SubsiteCloner();
 
 		$this->assertSame('http://alpha-site.localhost:9888/', $cloner->get_subsite_url(5));
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testGetSubsiteUrlDoesNotDoubleAppendTheNetworkPort(): void
+	{
+		if (! defined('WP_HOME')) {
+			define('WP_HOME', 'http://localhost:9888');
+		}
+
+		$GLOBALS['rudel_test_sites'][6] = [
+			'blog_id' => 6,
+			'domain' => 'beta-site.localhost:9888',
+			'path' => '/',
+			'siteurl' => 'http://beta-site.localhost:9888/',
+		];
+
+		$cloner = new SubsiteCloner();
+
+		$this->assertSame('http://beta-site.localhost:9888/', $cloner->get_subsite_url(6));
 	}
 }

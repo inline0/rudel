@@ -25,7 +25,9 @@ Rudel is a WordPress plugin for running disposable sandboxes and long-lived apps
 
 Every Rudel environment is a real multisite site with a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel builds the operator layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
 
-That gives you an environment system that feels native in the browser and deliberate enough for QA, agent workflows, demos, staged change work, and long-lived app operations.
+That gives you an environment system that behaves like normal WordPress in the
+browser while still giving you explicit lifecycle tools for QA, demos, staged
+change work, code review, and stable app operations.
 
 ## Requirements
 
@@ -85,7 +87,7 @@ Rudel has two lifecycle shapes, but one runtime model.
 
 Both are multisite sites. If Rudel gives you an environment URL, that URL is the site you visit.
 
-What Rudel adds around that runtime is the workflow layer:
+What Rudel adds on top of that runtime is the operational surface:
 
 - app-derived sandboxes
 - reusable templates
@@ -106,7 +108,7 @@ Rudel stores operational metadata in WordPress tables:
 
 Those tables are the source of truth for environments, app identity, domains, worktrees, deployment history, and lifecycle policy.
 
-Generated environment directories have a specific operator purpose. They hold the practical files Rudel needs around an environment: scoped `wp-cli.yml`, bootstrap files, logs, snapshots, backups, and other environment-owned artifacts. Rudel records code and worktree relationships in runtime tables rather than asking operators to infer them from filesystem layout.
+Generated environment directories hold the files Rudel owns around an environment: scoped `wp-cli.yml`, bootstrap files, logs, snapshots, backups, and other environment artifacts. Rudel records code and worktree relationships in runtime tables rather than asking teams to infer them from filesystem layout.
 
 ## WP-CLI Surface
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.3 - 2026-04-06
+
+- Fixed multisite subsite creation on local networks that run on a custom port by persisting the network port in subsite domain records instead of only appending it to generated URLs.
+- Fixed canonical environment URL rendering so existing multisite site records that already carry a port do not get a duplicate `:port` suffix.
+- Added focused unit coverage for local-port multisite subsite targets and URL rendering without double-appended ports.
+- Extended the live `wp-env` and GitHub E2E suites to prove generated multisite sites resolve over real HTTP for `wp-login.php` and `wp-admin/`.
+- Hardened the `wp-env` E2E bootstrap so failed starts clear stale cached project state before retrying.
+
 ## v0.5.2 - 2026-04-06
 
 - Fixed multisite subsite cloning so Rudel replaces the fresh site tables WordPress initializes before copying source site state into the new environment.

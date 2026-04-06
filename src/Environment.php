@@ -283,7 +283,12 @@ class Environment {
 						$site_path = '/' . $site_path;
 					}
 
-					return trailingslashit( self::network_scheme() . '://' . $site_domain . self::network_port_suffix() . $site_path );
+					$site_url = self::network_scheme() . '://' . $site_domain;
+					if ( ! self::domain_includes_port( $site_domain ) ) {
+						$site_url .= self::network_port_suffix();
+					}
+
+					return trailingslashit( $site_url . $site_path );
 				}
 
 				if ( ! empty( $details->siteurl ) ) {
@@ -336,6 +341,16 @@ class Environment {
 		}
 
 		return null === $port ? '' : ':' . $port;
+	}
+
+	/**
+	 * Whether one persisted multisite domain already includes its network port.
+	 *
+	 * @param string $domain Multisite site domain.
+	 * @return bool
+	 */
+	private static function domain_includes_port( string $domain ): bool {
+		return 1 === preg_match( '/:\d+$/', $domain );
 	}
 
 	/**

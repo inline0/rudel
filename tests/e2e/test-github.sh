@@ -79,7 +79,7 @@ cleanup() {
 
 	(
 		cd "$RUDEL_DIR"
-		printf 'y\n' | npx wp-env destroy >/dev/null 2>&1 || true
+		npx wp-env destroy --force >/dev/null 2>&1 || true
 	)
 
 	rm -rf "$TEST_TMPDIR"
@@ -121,6 +121,29 @@ wp_shell() {
 	) | strip_wpenv
 }
 
+wp_env_workdir() {
+	php -r '
+		$config = realpath($argv[1]);
+		if (false === $config) {
+			$config = $argv[1];
+		}
+
+		$home = getenv("WP_ENV_HOME");
+		if (! is_string($home) || "" === $home) {
+			$home = rtrim((string) getenv("HOME"), "/") . "/.wp-env";
+		}
+
+		echo rtrim($home, "/") . "/" . md5($config);
+	' "$RUDEL_DIR/.wp-env.json"
+}
+
+reset_wp_env_project_state() {
+	local workdir=""
+
+	workdir="$(wp_env_workdir)"
+	rm -rf "$workdir"
+}
+
 start_wp_env() {
 	local attempts=0
 	local max_attempts=3
@@ -134,7 +157,8 @@ start_wp_env() {
 
 		if (( attempts < max_attempts )); then
 			echo "wp-env start failed on attempt ${attempts}; retrying..." >&2
-			printf 'y\n' | npx wp-env destroy >/dev/null 2>&1 || true
+			npx wp-env destroy --force >/dev/null 2>&1 || true
+			reset_wp_env_project_state
 			sleep 2
 		fi
 	done
@@ -203,6 +227,87 @@ environment_path() {
 	environment_json "$id" | json_get path
 }
 
+site_url_for_slug() {
+	local slug="$1"
+
+	wp_cli site list --fields=url --format=csv \
+		| awk -F, -v slug="$slug" 'NR > 1 && $1 ~ ("^http://" slug "\\.") { print $1; exit }'
+}
+
+resolve_http_target() {
+	local url="$1"
+
+	php -r '
+		$parts = parse_url($argv[1]);
+		if (! is_array($parts) || empty($parts["host"])) {
+			fwrite(STDERR, "Could not parse site URL host.\n");
+			exit(1);
+		}
+
+		$scheme = (string) ($parts["scheme"] ?? "http");
+		$port = isset($parts["port"]) ? (int) $parts["port"] : ($scheme === "https" ? 443 : 80);
+		echo (string) $parts["host"] . "|" . (string) $port;
+	' "$url"
+}
+
+http_status() {
+	local url="$1"
+	local body_file="$2"
+	local headers_file="$3"
+	local target=""
+	local host=""
+	local port=""
+
+	target="$(resolve_http_target "$url")"
+	host="${target%%|*}"
+	port="${target##*|}"
+
+	curl -sS --resolve "${host}:${port}:127.0.0.1" -D "$headers_file" -o "$body_file" -w '%{http_code}' "$url"
+}
+
+assert_site_http_contract() {
+	local label="$1"
+	local site_url="$2"
+	local body_file=""
+	local headers_file=""
+	local status=""
+	local location=""
+
+	body_file="$(mktemp)"
+	headers_file="$(mktemp)"
+
+	status="$(http_status "${site_url%/}/wp-login.php" "$body_file" "$headers_file")"
+	if [[ "$status" == "200" ]]; then
+		pass "${label} login resolves over HTTP"
+	else
+		fail "${label} login did not resolve over HTTP" "$(cat "$body_file")"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
+
+	status="$(http_status "${site_url%/}/wp-admin/" "$body_file" "$headers_file")"
+	if [[ "$status" != "200" && "$status" != "302" ]]; then
+		fail "${label} admin did not resolve over HTTP" "$(cat "$body_file")"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
+
+	if [[ "$status" == "302" ]]; then
+		location="$(awk 'BEGIN{IGNORECASE=1} /^Location:/ {sub(/\r$/, "", $0); print substr($0, 11)}' "$headers_file" | tail -n 1)"
+		if [[ "$location" == *"/wp-login.php"* ]]; then
+			pass "${label} admin redirects into its login screen"
+		else
+			fail "${label} admin redirected somewhere unexpected" "$location"
+			rm -f "$body_file" "$headers_file"
+			exit 1
+		fi
+	else
+		pass "${label} admin resolves over HTTP"
+	fi
+
+	rm -f "$body_file" "$headers_file"
+}
+
 ensure_pr_merged() {
 	local repo="$1"
 	local pr_number="$2"
@@ -221,7 +326,7 @@ repo_branch_exists() {
 prepare_network() {
 	(
 		cd "$RUDEL_DIR"
-		printf 'y\n' | npx wp-env destroy >/dev/null 2>&1 || true
+		npx wp-env destroy --force >/dev/null 2>&1 || true
 		start_wp_env
 	)
 
@@ -452,6 +557,15 @@ else
 ${THEME_SANDBOX_OUTPUT}"
 fi
 
+THEME_SANDBOX_URL="$(site_url_for_slug "$THEME_SANDBOX_ID")"
+if [[ -n "$THEME_SANDBOX_URL" ]]; then
+	pass "Theme sandbox created a multisite site"
+	assert_site_http_contract "Theme sandbox site" "$THEME_SANDBOX_URL"
+else
+	fail "Theme sandbox multisite site was not created" "$(wp_cli site list --fields=blog_id,url --format=table)"
+	exit 1
+fi
+
 PLUGIN_SANDBOX_OUTPUT="$(wp_cli rudel create --github="${PLUGIN_REPO}" --type=plugin)"
 PLUGIN_SANDBOX_ID="$(parse_created_id "Sandbox created" "$PLUGIN_SANDBOX_OUTPUT")"
 if [[ -n "$PLUGIN_SANDBOX_ID" ]]; then
@@ -468,6 +582,15 @@ if wp_shell "test -f '${PLUGIN_SANDBOX_DIR}/${PLUGIN_REPO_NAME}.php'" >/dev/null
 else
 	fail "Plugin repository files are missing" "${PLUGIN_SANDBOX_DIR}
 ${PLUGIN_SANDBOX_OUTPUT}"
+fi
+
+PLUGIN_SANDBOX_URL="$(site_url_for_slug "$PLUGIN_SANDBOX_ID")"
+if [[ -n "$PLUGIN_SANDBOX_URL" ]]; then
+	pass "Plugin sandbox created a multisite site"
+	assert_site_http_contract "Plugin sandbox site" "$PLUGIN_SANDBOX_URL"
+else
+	fail "Plugin sandbox multisite site was not created" "$(wp_cli site list --fields=blog_id,url --format=table)"
+	exit 1
 fi
 
 echo ""
@@ -488,6 +611,15 @@ if [[ "$(printf '%s' "$APP_INFO_JSON" | json_get tracked_github_repo)" == "$THEM
 	pass "App stores tracked GitHub repository and branch"
 else
 	fail "App GitHub tracking metadata is incorrect" "$APP_INFO_JSON"
+fi
+
+APP_URL="$(site_url_for_slug "$APP_ID")"
+if [[ -n "$APP_URL" ]]; then
+	pass "GitHub-backed app created a multisite site"
+	assert_site_http_contract "GitHub-backed app site" "$APP_URL"
+else
+	fail "GitHub-backed app multisite site was not created" "$(wp_cli site list --fields=blog_id,url --format=table)"
+	exit 1
 fi
 
 echo ""

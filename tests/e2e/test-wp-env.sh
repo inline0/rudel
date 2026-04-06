@@ -36,7 +36,7 @@ cleanup() {
 
 	(
 		cd "$RUDEL_DIR"
-		npx wp-env destroy >/dev/null 2>&1 || true
+		npx wp-env destroy --force >/dev/null 2>&1 || true
 	)
 }
 trap cleanup EXIT
@@ -67,6 +67,29 @@ wp_cli() {
 	) | strip_wpenv
 }
 
+wp_env_workdir() {
+	php -r '
+		$config = realpath($argv[1]);
+		if (false === $config) {
+			$config = $argv[1];
+		}
+
+		$home = getenv("WP_ENV_HOME");
+		if (! is_string($home) || "" === $home) {
+			$home = rtrim((string) getenv("HOME"), "/") . "/.wp-env";
+		}
+
+		echo rtrim($home, "/") . "/" . md5($config);
+	' "$RUDEL_DIR/.wp-env.json"
+}
+
+reset_wp_env_project_state() {
+	local workdir=""
+
+	workdir="$(wp_env_workdir)"
+	rm -rf "$workdir"
+}
+
 start_wp_env() {
 	local attempts=0
 	local max_attempts=3
@@ -80,7 +103,8 @@ start_wp_env() {
 
 		if (( attempts < max_attempts )); then
 			echo "wp-env start failed on attempt ${attempts}; retrying..." >&2
-			npx wp-env destroy >/dev/null 2>&1 || true
+			npx wp-env destroy --force >/dev/null 2>&1 || true
+			reset_wp_env_project_state
 			sleep 2
 		fi
 	done
@@ -120,10 +144,84 @@ site_blog_id_for_slug() {
 		| awk -F, -v slug="$slug" 'NR > 1 && $2 ~ ("^http://" slug "\\.") { print $1; exit }'
 }
 
+resolve_http_target() {
+	local url="$1"
+
+	php -r '
+		$parts = parse_url($argv[1]);
+		if (! is_array($parts) || empty($parts["host"])) {
+			fwrite(STDERR, "Could not parse site URL host.\n");
+			exit(1);
+		}
+
+		$scheme = (string) ($parts["scheme"] ?? "http");
+		$port = isset($parts["port"]) ? (int) $parts["port"] : ($scheme === "https" ? 443 : 80);
+		echo (string) $parts["host"] . "|" . (string) $port;
+	' "$url"
+}
+
+http_status() {
+	local url="$1"
+	local body_file="$2"
+	local headers_file="$3"
+	local target=""
+	local host=""
+	local port=""
+
+	target="$(resolve_http_target "$url")"
+	host="${target%%|*}"
+	port="${target##*|}"
+
+	curl -sS --resolve "${host}:${port}:127.0.0.1" -D "$headers_file" -o "$body_file" -w '%{http_code}' "$url"
+}
+
+assert_site_http_contract() {
+	local label="$1"
+	local site_url="$2"
+	local body_file=""
+	local headers_file=""
+	local status=""
+	local location=""
+
+	body_file="$(mktemp)"
+	headers_file="$(mktemp)"
+
+	status="$(http_status "${site_url%/}/wp-login.php" "$body_file" "$headers_file")"
+	if [[ "$status" == "200" ]]; then
+		pass "${label} login resolves over HTTP"
+	else
+		fail "${label} login did not resolve over HTTP" "$(cat "$body_file")"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
+
+	status="$(http_status "${site_url%/}/wp-admin/" "$body_file" "$headers_file")"
+	if [[ "$status" != "200" && "$status" != "302" ]]; then
+		fail "${label} admin did not resolve over HTTP" "$(cat "$body_file")"
+		rm -f "$body_file" "$headers_file"
+		exit 1
+	fi
+
+	if [[ "$status" == "302" ]]; then
+		location="$(awk 'BEGIN{IGNORECASE=1} /^Location:/ {sub(/\r$/, "", $0); print substr($0, 11)}' "$headers_file" | tail -n 1)"
+		if [[ "$location" == *"/wp-login.php"* ]]; then
+			pass "${label} admin redirects into its login screen"
+		else
+			fail "${label} admin redirected somewhere unexpected" "$location"
+			rm -f "$body_file" "$headers_file"
+			exit 1
+		fi
+	else
+		pass "${label} admin resolves over HTTP"
+	fi
+
+	rm -f "$body_file" "$headers_file"
+}
+
 prepare_network() {
 	(
 		cd "$RUDEL_DIR"
-		npx wp-env destroy >/dev/null 2>&1 || true
+		npx wp-env destroy --force >/dev/null 2>&1 || true
 		start_wp_env
 	)
 
@@ -230,6 +328,8 @@ else
 	exit 1
 fi
 
+assert_site_http_contract "Sandbox site" "$ALPHA_URL"
+
 site_cli "$ALPHA_URL" option update blogname "Alpha Site" >/dev/null
 ALPHA_BLOGNAME=$(site_cli "$ALPHA_URL" option get blogname | tail -1)
 if [[ "$ALPHA_BLOGNAME" == "Alpha Site" ]]; then
@@ -291,6 +391,8 @@ else
 	exit 1
 fi
 
+assert_site_http_contract "App site" "$APP_URL"
+
 site_cli "$APP_URL" option update blogname "Demo App" >/dev/null
 APP_INFO_JSON=$(wp_cli rudel app info "$APP_ID" --format=json)
 if echo "$APP_INFO_JSON" | grep -q "demo.example.test"; then
@@ -336,6 +438,8 @@ else
 	fail "App-derived sandbox multisite site was not created" "$(wp_cli site list --fields=blog_id,url --format=table)"
 	exit 1
 fi
+
+assert_site_http_contract "App-derived sandbox site" "$FEATURE_URL"
 
 FEATURE_INFO_JSON=$(wp_cli rudel info "$FEATURE_ID" --format=json)
 if printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_repo":"inline0\/demo-theme"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_branch":"main"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_dir":"themes\/demo-theme"'; then

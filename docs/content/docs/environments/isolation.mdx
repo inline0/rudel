@@ -30,7 +30,10 @@ Each environment also has a generated directory containing:
 - `debug.log`
 - `snapshots/` or `backups/`
 
-This directory is the filesystem side of Rudel's operator model. It is where Rudel keeps the files it owns directly: bootstrap files, scoped CLI config, logs, snapshots, backups, and other environment artifacts. Code/worktree relationships are tracked in Rudel runtime state rather than being guessed from one directory convention.
+This directory is where Rudel keeps the files it owns directly: bootstrap
+files, scoped CLI config, logs, snapshots, backups, and other environment
+artifacts. Code and worktree relationships stay in Rudel runtime state instead
+of being guessed from one directory convention.
 
 ## Authentication and cache
 
