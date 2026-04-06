@@ -38,4 +38,32 @@ class MultisiteRuntimeContractTest extends RudelTestCase
         $this->assertSame('subsite', $record['engine']);
         $this->assertSame((int) $environment->blog_id, (int) $record['blog_id']);
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreatedEnvironmentUsesItsOwnLocalWpContentTree(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/sandboxes',
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $environment = $manager->create('Charlie Site');
+
+        $this->assertSame($environment->path . '/wp-content', $environment->get_runtime_wp_content_path());
+        $this->assertDirectoryExists($environment->get_runtime_wp_content_path());
+        $this->assertDirectoryExists($environment->get_runtime_content_path('themes'));
+        $this->assertDirectoryExists($environment->get_runtime_content_path('plugins'));
+        $this->assertDirectoryExists($environment->get_runtime_content_path('uploads'));
+    }
 }

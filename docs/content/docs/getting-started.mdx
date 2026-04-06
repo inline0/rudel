@@ -8,7 +8,8 @@ description: Install Rudel on a subdomain multisite network and create your firs
 Getting Rudel running is straightforward once the network shape is correct.
 The main requirement is a WordPress multisite network that runs on subdomains.
 From there, Rudel installs its runtime bootstrap, creates real sites for
-sandboxes and apps, and stores its operational metadata in WordPress tables.
+sandboxes and apps, gives each one its own cloned `wp-content`, and stores its
+operational metadata in WordPress tables.
 
 ## Prerequisites
 
@@ -60,7 +61,7 @@ That command creates three things together:
 
 1. a real multisite site
 2. a Rudel environment record
-3. a generated environment directory with scoped tooling and environment-owned files
+3. a generated environment directory with scoped tooling, a cloned `wp-content`, and other environment-owned files
 
 To see the browser URL WordPress assigned, ask WordPress directly:
 
@@ -74,7 +75,7 @@ You can then run commands directly against that site:
 wp --url=http://alpha.localhost option get siteurl
 ```
 
-Or work from the generated environment directory, which gives you a scoped `wp-cli.yml` plus the environment-owned files Rudel manages directly for that site, such as bootstrap files, logs, snapshots, backups, and workspace artifacts:
+Or work from the generated environment directory, which gives you a scoped `wp-cli.yml` plus the environment-local files Rudel manages directly for that site, including the cloned `wp-content`, bootstrap files, logs, snapshots, backups, and workspace artifacts:
 
 ```bash
 cd /path/to/wp-content/rudel-environments/alpha-1234
@@ -91,7 +92,7 @@ backups, domain metadata, and deployment history over time.
 wp rudel app create --name=demo --domain=demo.example.test
 ```
 
-The `--domain` value becomes part of the Rudel app metadata. The runtime site also shows up through normal multisite tools such as `wp site list`. WordPress owns the site itself, and Rudel owns the app lifecycle around it.
+The `--domain` value becomes part of the Rudel app metadata. The runtime site also shows up through normal multisite tools such as `wp site list`. WordPress owns the site itself, the app keeps its own environment-local `wp-content`, and Rudel owns the lifecycle around both.
 
 If the app should also carry a tracked GitHub code source, add it at creation time:
 

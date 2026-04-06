@@ -94,6 +94,23 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertDirectoryDoesNotExist($target);
     }
 
+    public function testRemoveWorktreeAcceptsCommonGitDir(): void
+    {
+        if (! $this->hasGit()) {
+            $this->markTestSkipped('git not available');
+        }
+
+        $repo = $this->createGitRepo('rm-common-repo');
+        $target = $this->tmpDir . '/rm-common-target';
+
+        $this->git->create_worktree($repo, $target, 'rudel/rm-common');
+        $common = $this->git->common_git_dir($target);
+
+        $this->assertIsString($common);
+        $this->assertTrue($this->git->remove_worktree($common, $target));
+        $this->assertDirectoryDoesNotExist($target);
+    }
+
     // is_branch_merged()
 
     public function testIsBranchMergedReturnsTrueAfterMerge(): void
@@ -153,6 +170,23 @@ class GitIntegrationTest extends RudelTestCase
         exec('git -C ' . escapeshellarg($repo) . ' branch 2>&1', $output);
         $branches = implode("\n", $output);
         $this->assertStringNotContainsString('rudel/to-delete', $branches);
+    }
+
+    public function testDeleteBranchAcceptsCommonGitDirAfterWorktreeRemoval(): void
+    {
+        if (! $this->hasGit()) {
+            $this->markTestSkipped('git not available');
+        }
+
+        $repo = $this->createGitRepo('del-common-repo');
+        $target = $this->tmpDir . '/del-common-target';
+
+        $this->git->create_worktree($repo, $target, 'rudel/del-common');
+        $common = $this->git->common_git_dir($target);
+        $this->assertIsString($common);
+
+        $this->assertTrue($this->git->remove_worktree($common, $target));
+        $this->assertTrue($this->git->delete_branch($common, 'rudel/del-common'));
     }
 
     // get_default_branch()

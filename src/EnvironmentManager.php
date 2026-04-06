@@ -190,6 +190,10 @@ class EnvironmentManager {
 			$subsite_cloner   = new SubsiteCloner();
 			$blog_id          = $subsite_cloner->create_subsite( $id, $name );
 			$target_url       = $this->get_target_environment_url( $id, $blog_id, $target_type, $target_domains );
+			$themes_cloned    = false;
+			$plugins_cloned   = false;
+			$uploads_cloned   = false;
+			$content_results  = array();
 
 			if ( 'app' === $target_type && is_array( $target_domains ) && ! empty( $target_domains ) ) {
 				$primary_domain = reset( $target_domains );
@@ -253,9 +257,9 @@ class EnvironmentManager {
 				$clone_source = $this->build_clone_source(
 					$this->get_host_site_url(),
 					false,
-					$clone_themes,
-					$clone_plugins,
-					$clone_uploads,
+					false,
+					false,
+					false,
 					array(
 						'multisite'  => true,
 						'target_url' => $target_url,
@@ -277,13 +281,23 @@ class EnvironmentManager {
 
 				$git_worktrees = array();
 				foreach ( $content_results as $dir => $result ) {
+					if ( $this->content_clone_succeeded( $result ) ) {
+						if ( 'themes' === $dir ) {
+							$themes_cloned = true;
+						} elseif ( 'plugins' === $dir ) {
+							$plugins_cloned = true;
+						} elseif ( 'uploads' === $dir ) {
+							$uploads_cloned = true;
+						}
+					}
+
 					if ( is_array( $result ) && ! empty( $result['worktrees'] ) ) {
 						foreach ( $result['worktrees'] as $repo_name => $branch ) {
 							$git_worktrees[] = array(
 								'type'   => $dir,
 								'name'   => $repo_name,
 								'branch' => $branch,
-								'repo'   => $this->get_host_wp_content_dir() . '/' . $dir . '/' . $repo_name,
+								'repo'   => $path . '/wp-content/' . $dir . '/' . $repo_name,
 							);
 						}
 					}
@@ -293,6 +307,12 @@ class EnvironmentManager {
 			$this->apply_site_options( $id, $path, $blog_id, $site_options );
 
 			$this->write_runtime_mu_plugin( $path );
+
+			if ( null !== $clone_source ) {
+				$clone_source['themes_cloned']  = $themes_cloned;
+				$clone_source['plugins_cloned'] = $plugins_cloned;
+				$clone_source['uploads_cloned'] = $uploads_cloned;
+			}
 
 			if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
 				$clone_source['git_worktrees'] = $git_worktrees;
@@ -713,18 +733,6 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Host WordPress wp-content directory path.
-	 *
-	 * @return string Absolute path without trailing slash.
-	 */
-	private function get_host_wp_content_dir(): string {
-		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			return rtrim( WP_CONTENT_DIR, '/' );
-		}
-		return $this->get_wp_core_path() . '/wp-content';
-	}
-
-	/**
 	 * Write the per-environment bootstrap.php.
 	 *
 	 * @param string $id Environment identifier.
@@ -1043,7 +1051,12 @@ class EnvironmentManager {
 	 * @param Environment $source Source environment.
 	 * @param string      $target_id New environment identifier.
 	 * @param string      $target_path New environment path.
-	 * @return array{git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string}>}
+	 * @return array{
+	 *     git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string}>,
+	 *     themes_cloned: bool,
+	 *     plugins_cloned: bool,
+	 *     uploads_cloned: bool
+	 * }
 	 */
 	private function clone_environment_content( Environment $source, string $target_id, string $target_path ): array {
 		$source_content = $source->get_wp_content_path();
@@ -1051,6 +1064,9 @@ class EnvironmentManager {
 		$content_cloner = new ContentCloner();
 		$git            = new GitIntegration();
 		$git_worktrees  = array();
+		$themes_cloned  = false;
+		$plugins_cloned = false;
+		$uploads_cloned = false;
 
 		$this->delete_directory( $target_content );
 
@@ -1070,12 +1086,17 @@ class EnvironmentManager {
 					mkdir( $target_pathname, 0755, true );
 
 					$results = $git->clone_with_worktrees( $source_path, $target_pathname, $target_id );
+					if ( 'themes' === $name ) {
+						$themes_cloned = true;
+					} elseif ( 'plugins' === $name ) {
+						$plugins_cloned = true;
+					}
 					foreach ( $results['worktrees'] as $repo_name => $branch ) {
 						$git_worktrees[] = array(
 							'type'   => $name,
 							'name'   => $repo_name,
 							'branch' => $branch,
-							'repo'   => $source_path . '/' . $repo_name,
+							'repo'   => $target_pathname . '/' . $repo_name,
 						);
 					}
 
@@ -1083,6 +1104,9 @@ class EnvironmentManager {
 				}
 
 				$content_cloner->copy_directory( $source_path, $target_pathname );
+				if ( 'uploads' === $name ) {
+					$uploads_cloned = true;
+				}
 				continue;
 			}
 
@@ -1097,8 +1121,33 @@ class EnvironmentManager {
 		}
 
 		return array(
-			'git_worktrees' => $git_worktrees,
+			'git_worktrees'  => $git_worktrees,
+			'themes_cloned'  => $themes_cloned,
+			'plugins_cloned' => $plugins_cloned,
+			'uploads_cloned' => $uploads_cloned,
 		);
+	}
+
+	/**
+	 * Whether one content clone result produced a local copy or worktree.
+	 *
+	 * @param mixed $result Clone result for one top-level wp-content directory.
+	 * @return bool
+	 */
+	private function content_clone_succeeded( $result ): bool {
+		if ( is_string( $result ) ) {
+			return 'copied' === $result;
+		}
+
+		if ( ! is_array( $result ) ) {
+			return false;
+		}
+
+		if ( isset( $result['status'] ) && 'copied' === $result['status'] ) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

@@ -23,7 +23,7 @@
 
 Rudel is a WordPress plugin for running disposable sandboxes and long-lived apps on a subdomain multisite network.
 
-Every Rudel environment is a real multisite site with a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel builds the operator layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
+Every Rudel environment is a real multisite site with a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Each environment also has its own cloned `wp-content`, which is the canonical file and code tree for that environment. Rudel builds the operator layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
 
 That gives teams an environment system that feels like ordinary WordPress in
 the browser while still giving operators explicit lifecycle tools for QA,
@@ -88,6 +88,10 @@ Rudel has two lifecycle shapes, but one runtime model.
 Both are multisite sites. If Rudel gives you an environment URL, that URL is
 the site you visit.
 
+Both also have their own environment-local `wp-content`. That cloned content
+tree is the only code and file source of truth for that environment. Worktrees
+live inside that environment-local tree as well.
+
 Apps add one extra rule on top of that: when an app has a primary mapped
 domain, Rudel treats that domain as the app's canonical URL in its API,
 deploy rewrites, and generated local tooling. The underlying multisite subsite
@@ -119,10 +123,11 @@ its own runtime metadata in JSON files or any parallel runtime database.
 Current Rudel is multisite-only and uses the host WordPress database as the
 only runtime store for its registry.
 
-Generated environment directories hold the files Rudel owns around an
-environment: scoped `wp-cli.yml`, bootstrap files, logs, snapshots, backups,
-and other environment artifacts. Rudel records code and worktree relationships
-in runtime tables so operators can inspect them directly.
+Generated environment directories hold the full environment-local file tree:
+scoped `wp-cli.yml`, bootstrap files, the cloned `wp-content`, logs,
+snapshots, backups, and other environment artifacts. Rudel records metadata
+about worktrees and lifecycle state in runtime tables so operators can inspect
+and query it directly.
 
 ## WP-CLI Surface
 

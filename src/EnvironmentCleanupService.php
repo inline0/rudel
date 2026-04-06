@@ -169,8 +169,9 @@ class EnvironmentCleanupService {
 			if ( ! $is_merged && $has_git ) {
 				$is_merged_locally = true;
 				foreach ( $worktrees as $worktree ) {
-					$default_branch = $git->get_default_branch( $worktree['repo'] );
-					if ( ! $git->is_branch_merged( $worktree['repo'], $worktree['branch'], $default_branch ) ) {
+					$repo_control   = $git->common_git_dir( $worktree['repo'] ) ?? $worktree['repo'];
+					$default_branch = $git->get_default_branch( $repo_control );
+					if ( ! $git->is_branch_merged( $repo_control, $worktree['branch'], $default_branch ) ) {
 						$is_merged_locally = false;
 						break;
 					}
@@ -191,9 +192,10 @@ class EnvironmentCleanupService {
 			}
 
 			foreach ( $worktrees as $worktree ) {
+				$repo_control  = $git->common_git_dir( $worktree['repo'] ) ?? $worktree['repo'];
 				$worktree_path = $environment->get_wp_content_path() . '/' . $worktree['type'] . '/' . $worktree['name'];
-				$git->remove_worktree( $worktree['repo'], $worktree_path );
-				$git->delete_branch( $worktree['repo'], $worktree['branch'] );
+				$git->remove_worktree( $repo_control, $worktree_path );
+				$git->delete_branch( $repo_control, $worktree['branch'] );
 			}
 
 			if ( $has_github ) {

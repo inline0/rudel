@@ -72,4 +72,8 @@ Destroy an app:
 wp rudel app destroy demo-1234 --force
 ```
 
-Destroying an environment removes its Rudel records, generated directory, and multisite site. That is why the distinction between sandboxes and apps matters: sandboxes should be easy to remove, while apps usually deserve a backup or deploy-aware recovery point before anything destructive happens.
+Destroying an environment removes its Rudel records, multisite site, and the
+full environment-local file tree under that generated directory, including the
+cloned `wp-content`. That is why the distinction between sandboxes and apps
+matters: sandboxes should be easy to remove, while apps usually deserve a
+backup or deploy-aware recovery point before anything destructive happens.

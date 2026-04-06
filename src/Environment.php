@@ -195,18 +195,16 @@ class Environment {
 	}
 
 	/**
-	 * Runtime wp-content path for the active WordPress network.
+	 * Runtime wp-content path for this environment.
 	 *
-	 * Subsite environments run against the shared network content tree, while
-	 * non-subsite callers keep using the environment-local scaffold.
+	 * In the 0.6 isolation model an environment-local wp-content tree is the
+	 * canonical code and file source for both apps and sandboxes. Host-side
+	 * operator flows should act on that same tree instead of jumping back to a
+	 * host-level fallback path.
 	 *
 	 * @return string Absolute path to the runtime wp-content directory.
 	 */
 	public function get_runtime_wp_content_path(): string {
-		if ( $this->is_subsite() && ( defined( 'WP_CONTENT_DIR' ) || defined( 'ABSPATH' ) ) ) {
-			return self::host_wp_content_dir();
-		}
-
 		return $this->get_wp_content_path();
 	}
 
@@ -387,23 +385,6 @@ class Environment {
 		}
 
 		return $host;
-	}
-
-	/**
-	 * Host WordPress wp-content directory path.
-	 *
-	 * @return string Absolute path without trailing slash.
-	 */
-	private static function host_wp_content_dir(): string {
-		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			return rtrim( WP_CONTENT_DIR, '/' );
-		}
-
-		if ( defined( 'ABSPATH' ) ) {
-			return rtrim( ABSPATH, '/' ) . '/wp-content';
-		}
-
-		return dirname( __DIR__, 3 ) . '/wp-content';
 	}
 
 	/**

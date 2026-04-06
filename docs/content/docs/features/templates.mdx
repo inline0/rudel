@@ -15,7 +15,8 @@ They work especially well in a multisite-based system because the runtime site c
 wp rudel template save my-sandbox-a1b2 --name=starter
 ```
 
-This copies the sandbox's site data and environment-owned content into a named template. You can optionally add a description:
+This copies the sandbox's site data and its environment-local `wp-content`
+into a named template. You can optionally add a description:
 
 ```bash
 wp rudel template save my-sandbox-a1b2 --name=starter --description="WordPress with WooCommerce and Storefront theme"
@@ -27,7 +28,10 @@ wp rudel template save my-sandbox-a1b2 --name=starter --description="WordPress w
 wp rudel create --name="new-project" --template=starter
 ```
 
-The new sandbox starts with the template's site data and copied content. Rudel rewrites the runtime identifiers for the new environment automatically so you can treat the result as a fresh site rather than a half-cloned artifact.
+The new sandbox starts with the template's site data and copied local
+`wp-content`. Rudel rewrites the runtime identifiers for the new environment
+automatically so you can treat the result as a fresh site rather than a
+half-cloned artifact.
 
 ## Managing templates
 

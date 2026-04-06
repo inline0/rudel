@@ -96,7 +96,7 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testUpdatePreservesCloneSourceAndUsesSharedRuntimeContentPath(): void
+    public function testUpdatePreservesCloneSourceAndUsesEnvironmentLocalRuntimeContentPath(): void
     {
         $wordpressRoot = $this->tmpDir . '/wordpress';
         mkdir($wordpressRoot . '/wp-content', 0755, true);
@@ -127,9 +127,9 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
 
         $this->assertSame('inline0/example-theme', $updated->clone_source['github_repo']);
         $this->assertSame('themes/example-theme', $updated->clone_source['github_dir']);
-        $this->assertSame($wordpressRoot . '/wp-content', $updated->get_runtime_wp_content_path());
+        $this->assertSame($updated->path . '/wp-content', $updated->get_runtime_wp_content_path());
         $this->assertSame(
-            $wordpressRoot . '/wp-content/themes/example-theme',
+            $updated->path . '/wp-content/themes/example-theme',
             $updated->get_runtime_content_path('themes/example-theme')
         );
     }

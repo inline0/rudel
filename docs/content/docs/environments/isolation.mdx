@@ -5,13 +5,14 @@ description: How Rudel uses multisite boundaries and environment-owned files to 
 
 # Isolation
 
-Rudel isolation starts with the multisite site boundary.
+Rudel isolation starts with the multisite site boundary and the environment-local content tree that belongs to that site.
 
 Each environment is a real site. Site tables, site options, uploads, admin
-state, and site-scoped capabilities form the base isolation boundary. Rudel
-then keeps the operational files and metadata for that site grouped under the
-same environment identity so teams can create, clone, snapshot, back up,
-deploy, and destroy environments without losing track of what belongs where.
+state, and site-scoped capabilities form the database and browser boundary.
+Rudel then gives that site its own cloned `wp-content` and keeps the
+operational files and metadata for that site grouped under the same
+environment identity so teams can create, clone, snapshot, back up, deploy,
+and destroy environments without losing track of what belongs where.
 
 ## Site data
 
@@ -25,21 +26,37 @@ Every Rudel environment is a real multisite site, which gives Rudel an isolation
 Environment URLs, `wp-admin`, media uploads, and normal browser navigation
 therefore behave like ordinary site requests.
 
+## Environment-local content
+
+Every Rudel environment also has its own `wp-content` inside the generated
+environment directory. That local tree is the canonical source of:
+
+- themes
+- plugins
+- uploads
+- environment-specific mu-plugins
+- git worktrees Rudel creates for tracked code
+
+Rudel does not treat host or network theme/plugin directories as the runtime
+source of truth for a live app or sandbox. Once you are inside an environment,
+its local `wp-content` is the environment.
+
 ## Environment directories
 
 Each environment also has a generated directory containing:
 
 - `bootstrap.php`
 - `wp-cli.yml`
-- environment-owned workspace files
+- the cloned `wp-content`
 - `debug.log`
 - `snapshots/` or `backups/`
 
-This directory is where Rudel keeps the files it owns directly: bootstrap
-files, scoped CLI config, logs, snapshots, backups, and other environment
-artifacts. Code and worktree relationships stay in Rudel runtime state, so the
-filesystem can stay focused on operator-owned files instead of acting as a
-secondary metadata store.
+This directory is where Rudel keeps the files that belong directly to that
+environment: bootstrap files, scoped CLI config, the local `wp-content`, logs,
+snapshots, backups, and other environment artifacts. Rudel still records
+metadata about worktrees and lifecycle state in runtime tables, but the file
+tree itself lives with the environment rather than in a shared network code
+location.
 
 ## Authentication and cache
 
@@ -56,4 +73,5 @@ Rudel uses the multisite user model:
 - network users are shared
 - membership and capabilities are site-scoped
 
-That means Rudel's isolation boundary is the site, not a second user table set. The practical consequence is usually what teams need anyway: access is scoped per site, while user identity remains network-wide.
+That means the one intentional shared runtime surface is still `wp_users`.
+Access is scoped per site, while user identity remains network-wide.

@@ -7,7 +7,7 @@ description: Long-lived Rudel sites with backups, deploys, and rollback.
 
 Apps are the stable side of the Rudel lifecycle.
 
-If sandboxes are where change happens, apps are where approved state lands. An app is a real multisite site that Rudel manages for continuity over time. An app keeps its identity, its domain metadata, its backups, and its deployment history while sandboxes come and go around it.
+If sandboxes are where change happens, apps are where approved state lands. An app is a real multisite site that Rudel manages for continuity over time. An app keeps its identity, its domain metadata, its own cloned `wp-content`, its backups, and its deployment history while sandboxes come and go around it.
 
 An app combines four things:
 
@@ -35,6 +35,8 @@ wp rudel app create-sandbox demo-1234 --name="Demo Feature"
 That sandbox clones from the app and becomes the workspace for change work. This is one of Rudel's core loops: the app stays stable, while sandboxes branch off from it for development, QA, or experimentation.
 
 When the source app has a primary domain, Rudel rewrites cloned site state from that app domain into the sandbox's own runtime URL. Deploying back into the app reverses that rewrite and restores the app's primary domain.
+
+That clone is complete at the environment level: the derived sandbox gets its own site tables and its own cloned `wp-content`. If Rudel creates git worktrees for tracked themes or plugins, those worktrees also live inside the sandbox's local `wp-content`, not in a shared network code directory.
 
 If the app tracks a GitHub repository, branch, and directory, the derived sandbox inherits that metadata automatically. In practice that means the sandbox already knows which repo it should push to and which base branch its pull requests should target.
 
@@ -76,7 +78,7 @@ wp rudel app restore demo-1234 --backup=baseline --force
 
 ## Deploy
 
-Deploys are what connect sandboxes back to apps. Rudel records them explicitly so the app history stays understandable instead of turning into an opaque sequence of file copies.
+Deploys are what connect sandboxes back to apps. Rudel records them explicitly so the app history stays understandable instead of turning into an opaque sequence of file copies. The deploy flow replaces the app's own environment-local site state and `wp-content`; it does not treat another environment or the host network as the code source of truth.
 
 Preview a deploy:
 

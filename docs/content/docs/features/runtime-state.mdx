@@ -9,6 +9,12 @@ Rudel runtime metadata is stored in WordPress tables.
 
 That is one of the most important architectural decisions in the project. Rudel does not treat generated directories as the authoritative source of metadata. The database is where Rudel tracks what environments exist, which ones are apps, which domains belong to which app, which worktrees are attached, and which deployments have happened.
 
+That does not make the filesystem secondary in the runtime itself. The
+environment directory still contains the canonical local `wp-content` for that
+app or sandbox. The database is the source of truth for metadata and lifecycle
+state. The environment-local file tree is the source of truth for code and
+uploads inside that environment.
+
 That runtime state includes:
 
 - environments
@@ -58,6 +64,10 @@ Runtime reads and writes should go through Rudel repositories and services:
 - `EnvironmentWorktreeRepository`
 - `AppDeploymentRepository`
 
-That boundary is deliberate. Environment directories are for generated files and environment-owned artifacts, not as the source of truth for runtime metadata. If a higher-level product wants to inspect or manipulate Rudel state, it should talk to the runtime tables through Rudel's public API or internal repositories rather than reading files and guessing.
+That boundary is deliberate. Environment directories are for environment-owned
+files, including the local `wp-content`, while runtime tables are for metadata
+and lifecycle state. If a higher-level product wants to inspect or manipulate
+Rudel state, it should talk to the runtime tables through Rudel's public API
+or internal repositories rather than reading files and guessing.
 
 App domains fit into that same boundary. The primary mapped app domain is the canonical app URL Rudel reports through its public API and CLI, while the backing multisite subsite remains the deterministic runtime substrate under the hood.

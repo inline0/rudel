@@ -83,4 +83,89 @@ class EnvironmentStateReplacerTest extends RudelTestCase
         $this->assertSame('http://demo.example.test', $targetRows[2]['option_value']);
         $this->assertSame('source state', file_get_contents($targetPath . '/wp-content/state.txt'));
     }
+
+    public function testReplaceKeepsTargetWorktreeDirectoryLocalAndPreservesGitMetadata(): void
+    {
+        global $wpdb;
+
+        $wpdb = new \MockWpdb();
+        $wpdb->base_prefix = 'wp_';
+
+        $sourcePath = $this->tmpDir . '/source-worktree';
+        $targetPath = $this->tmpDir . '/target-worktree';
+
+        mkdir($sourcePath . '/wp-content/themes/demo-theme', 0755, true);
+        mkdir($targetPath . '/wp-content/themes/demo-theme/.git', 0755, true);
+
+        file_put_contents($sourcePath . '/wp-content/themes/demo-theme/style.css', 'source css');
+        file_put_contents($sourcePath . '/wp-content/themes/demo-theme/new.php', '<?php echo "new";');
+        file_put_contents($targetPath . '/wp-content/themes/demo-theme/style.css', 'target css');
+        file_put_contents($targetPath . '/wp-content/themes/demo-theme/.git/HEAD', 'ref: refs/heads/main');
+
+        $wpdb->addTable(
+            'wp_2_options',
+            'CREATE TABLE `wp_2_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            [
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://feature.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://feature.example.test'],
+            ]
+        );
+        $wpdb->addTable(
+            'wp_3_options',
+            'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            [
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://app.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://app.example.test'],
+            ]
+        );
+
+        $source = new Environment(
+            id: 'feature',
+            name: 'Feature',
+            path: $sourcePath,
+            created_at: '2026-01-01T00:00:00+00:00',
+            clone_source: [
+                'git_worktrees' => [
+                    [
+                        'type' => 'themes',
+                        'name' => 'demo-theme',
+                        'branch' => 'rudel/feature',
+                        'repo' => $sourcePath . '/wp-content/themes/demo-theme',
+                    ],
+                ],
+            ],
+            multisite: true,
+            engine: 'subsite',
+            blog_id: 2,
+            type: 'sandbox'
+        );
+        $target = new Environment(
+            id: 'demo',
+            name: 'Demo',
+            path: $targetPath,
+            created_at: '2026-01-01T00:00:00+00:00',
+            clone_source: [
+                'git_worktrees' => [
+                    [
+                        'type' => 'themes',
+                        'name' => 'demo-theme',
+                        'branch' => 'rudel/demo',
+                        'repo' => $targetPath . '/wp-content/themes/demo-theme',
+                    ],
+                ],
+            ],
+            multisite: true,
+            engine: 'subsite',
+            blog_id: 3,
+            type: 'app',
+            domains: ['demo.example.test']
+        );
+
+        (new EnvironmentStateReplacer())->replace($source, $target);
+
+        $this->assertSame('source css', file_get_contents($targetPath . '/wp-content/themes/demo-theme/style.css'));
+        $this->assertFileExists($targetPath . '/wp-content/themes/demo-theme/new.php');
+        $this->assertFileExists($targetPath . '/wp-content/themes/demo-theme/.git/HEAD');
+        $this->assertSame('ref: refs/heads/main', file_get_contents($targetPath . '/wp-content/themes/demo-theme/.git/HEAD'));
+    }
 }

@@ -39,6 +39,9 @@ Returns the current app ID or `null`.
 
 Returns the current environment directory path or `null`.
 
+That directory contains the environment's local `wp-content`, which is the
+canonical file and code tree for the active app or sandbox.
+
 ### `Rudel::engine()`
 
 Returns `subsite` for active Rudel environments or `null` outside Rudel.
@@ -98,6 +101,11 @@ Returns the bundled runtime context in one array:
 ```
 
 In practice, `Rudel::context()` is the easiest thing to hand to templates, custom admin screens, or API responses when you want one consistent runtime payload instead of a dozen point lookups.
+
+The context payload is about the active site identity. For file and code
+operations, the important corresponding invariant is that the active
+environment's local `wp-content` under `Rudel::path()` is the canonical content
+tree for that environment.
 
 ## Environment lifecycle
 
@@ -226,7 +234,7 @@ The methods read more naturally as a lifecycle than as a flat list. A common flo
 5. deploy the sandbox into the app
 6. inspect deployment history or roll back if needed
 
-If the app tracks a GitHub repository, branch, and directory, `Rudel::create_sandbox_from_app()` carries that metadata into the new sandbox automatically. That keeps later push/PR and deploy operations aligned with the app's declared code source.
+If the app tracks a GitHub repository, branch, and directory, `Rudel::create_sandbox_from_app()` carries that metadata into the new sandbox automatically. That keeps later push/PR and deploy operations aligned with the app's declared code source while still working inside the sandbox's own local `wp-content`.
 
 The same flow also carries the app's URL contract forward: app-derived sandboxes rewrite from the app's canonical primary domain into the sandbox URL, and deploy-back restores the primary app domain again.
 

@@ -5,21 +5,21 @@ description: Branch-based workflows with automatic worktrees for git-tracked the
 
 # Git Integration
 
-When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of treating every sandbox as a dead-end file copy, it can create a dedicated `rudel/{sandbox-id}` branch and attach worktree metadata to the environment. That keeps code changes reviewable and mergeable in the same tools teams already use for ordinary git work.
+When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of treating every sandbox as a dead-end file copy, it can create a dedicated `rudel/{sandbox-id}` branch and attach worktree metadata to the environment. Those worktrees live inside the environment's own cloned `wp-content`, so git-aware code workflows still respect the same isolation boundary as the rest of the environment.
 
 ## How it works
 
-When you create a sandbox with `--clone-themes` or `--clone-plugins`, Rudel checks each copied theme or plugin directory for a `.git` folder. If it finds one, it creates a worktree on a new branch named `rudel/{sandbox-id}` and records that relationship in Rudel's runtime tables. Directories without git are copied normally, and uploads are always copied since they are runtime data rather than version-controlled source.
+When you create a sandbox with `--clone-themes` or `--clone-plugins`, Rudel checks each copied theme or plugin directory for a `.git` folder. If it finds one, it creates a worktree on a new branch named `rudel/{sandbox-id}` inside that sandbox's local `wp-content` and records that relationship in Rudel's runtime tables. Directories without git are copied normally, and uploads are always copied since they are runtime data rather than version-controlled source.
 
 ```bash
 wp rudel create --name=feature-x --clone-themes --clone-plugins
 ```
 
-If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox keeps using that theme as tracked code and Rudel records the repository path plus the generated sandbox branch. The important operator fact is the branch name and tracked directory, not one hard-coded filesystem layout.
+If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox keeps using that theme as tracked code inside its own local `wp-content`, and Rudel records the generated sandbox branch plus the tracked directory metadata in runtime tables.
 
 ## Working in the sandbox
 
-From the sandbox's tracked theme or plugin directory, you're on a regular git branch. You can commit, push, and create pull requests just like any other feature branch.
+From the sandbox's tracked theme or plugin directory inside that environment, you're on a regular git branch. You can commit, push, and create pull requests just like any other feature branch.
 
 ```bash
 cd /path/to/the/theme-or-plugin-directory-rudel-tracked-for-the-sandbox
@@ -49,7 +49,7 @@ wp rudel cleanup --merged --dry-run
 
 ## What gets git-tracked
 
-Only themes and plugins are eligible for git worktrees. The decision is per-directory: if a copied theme or plugin contains a `.git` directory, Rudel can track it as git-backed code. Directories without git are copied normally. Uploads are always file-copied.
+Only themes and plugins are eligible for git worktrees. The decision is per-directory: if a copied theme or plugin contains a `.git` directory, Rudel can track it as git-backed code inside the environment-local `wp-content`. Directories without git are copied normally. Uploads are always file-copied.
 
 The site data side of the sandbox is not part of git. That is the disposable part. The code changes in themes and plugins are the part that should be preserved, and git already handles that naturally.
 

@@ -24,7 +24,7 @@ Create a sandbox. This is the command you use when you want a new disposable mul
 wp rudel create [--name=<name>] [--github=<repo>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
 ```
 
-Rudel creates sandboxes as multisite sites. There is no engine choice anymore, only different ways to seed the initial content and metadata.
+Rudel creates sandboxes as multisite sites. There is no engine choice anymore, only different ways to seed the initial content and metadata. Each created sandbox also gets its own local `wp-content`, which becomes the canonical code and file tree for that environment.
 
 ### `wp rudel list`
 
@@ -198,7 +198,7 @@ wp rudel app create-sandbox <id> [--name=<name>] [--owner=<owner>] [--labels=<la
 
 If the source app tracks a GitHub repository, branch, and directory, the derived sandbox inherits that metadata automatically.
 
-If the source app has a primary domain, Rudel also rewrites cloned site state from that app domain into the sandbox URL so local change work stays isolated.
+If the source app has a primary domain, Rudel also rewrites cloned site state from that app domain into the sandbox URL so local change work stays isolated. The derived sandbox still uses its own local `wp-content`; deploying back later replaces the app's local state, not some shared network code directory.
 
 ### `wp rudel app backup`
 

@@ -23,7 +23,6 @@ TOTAL=0
 SANDBOX_IDS=()
 APP_IDS=()
 REPOS=()
-NETWORK_WP_CONTENT_DIR=""
 NETWORK_URL=""
 RUDEL_VERSION_VALUE="$(
 	php -r '
@@ -412,7 +411,6 @@ prepare_network() {
 	wp_cli db query "UPDATE wp_site SET domain = 'localhost'; UPDATE wp_blogs SET domain = REPLACE(domain, ':8888', '');" >/dev/null
 	wp_cli config set RUDEL_GITHUB_TOKEN "$GITHUB_TOKEN" >/dev/null
 	wp_cli plugin activate rudel >/dev/null
-	NETWORK_WP_CONTENT_DIR="$(wp_cli eval 'echo WP_CONTENT_DIR;')"
 	NETWORK_URL="$(wp_cli option get siteurl | tail -1)"
 }
 
@@ -591,9 +589,9 @@ else
 	exit 1
 fi
 
-THEME_SANDBOX_DIR="${NETWORK_WP_CONTENT_DIR}/themes/${THEME_REPO_NAME}"
+THEME_SANDBOX_DIR="$(environment_path "$THEME_SANDBOX_ID")/wp-content/themes/${THEME_REPO_NAME}"
 if wp_shell "test -f '${THEME_SANDBOX_DIR}/style.css' && test -f '${THEME_SANDBOX_DIR}/index.php'" >/dev/null; then
-	pass "Theme repository downloaded into shared network themes"
+	pass "Theme repository downloaded into the sandbox-local theme directory"
 else
 	fail "Theme repository files are missing" "${THEME_SANDBOX_DIR}
 ${THEME_SANDBOX_OUTPUT}"
@@ -626,9 +624,9 @@ else
 	exit 1
 fi
 
-PLUGIN_SANDBOX_DIR="${NETWORK_WP_CONTENT_DIR}/plugins/${PLUGIN_REPO_NAME}"
+PLUGIN_SANDBOX_DIR="$(environment_path "$PLUGIN_SANDBOX_ID")/wp-content/plugins/${PLUGIN_REPO_NAME}"
 if wp_shell "test -f '${PLUGIN_SANDBOX_DIR}/${PLUGIN_REPO_NAME}.php'" >/dev/null; then
-	pass "Plugin repository downloaded into shared network plugins"
+	pass "Plugin repository downloaded into the sandbox-local plugin directory"
 else
 	fail "Plugin repository files are missing" "${PLUGIN_SANDBOX_DIR}
 ${PLUGIN_SANDBOX_OUTPUT}"
@@ -744,15 +742,48 @@ else
 	fail "App-derived sandbox did not inherit tracked GitHub metadata" "$DERIVED_INFO_JSON"
 fi
 
-DERIVED_THEME_DIR="${NETWORK_WP_CONTENT_DIR}/themes/${THEME_REPO_NAME}"
+DERIVED_THEME_DIR="$(environment_path "$DERIVED_ID")/wp-content/themes/${THEME_REPO_NAME}"
 if wp_shell "test -d '${DERIVED_THEME_DIR}'" >/dev/null; then
-	pass "App-derived sandbox uses the tracked shared theme directory"
+	pass "App-derived sandbox uses its own local tracked theme directory"
 else
 	fail "Tracked theme directory is missing from app-derived sandbox" "$DERIVED_THEME_DIR"
 	exit 1
 fi
 
+APP_THEME_DIR="$(environment_path "$APP_ID")/wp-content/themes/${THEME_REPO_NAME}"
+if wp_shell "test -e '${APP_THEME_DIR}/.git'" >/dev/null; then
+	pass "GitHub-backed app keeps its own local tracked theme checkout"
+else
+	fail "GitHub-backed app theme checkout is missing git metadata" "$APP_THEME_DIR"
+	exit 1
+fi
+
 wp_shell "printf '%s\n' 'derived-push' > '${DERIVED_THEME_DIR}/derived-push.txt'" >/dev/null
+
+DEPLOY_MARKER="deploy-proof-${RUN_ID}.txt"
+wp_shell "printf '%s\n' 'deployed-from-derived-sandbox' > '${DERIVED_THEME_DIR}/${DEPLOY_MARKER}'" >/dev/null
+
+APP_DEPLOY_OUTPUT="$(wp_cli rudel app deploy "$APP_ID" --from="$DERIVED_ID" --backup=github-derived-backup --force)"
+if echo "$APP_DEPLOY_OUTPUT" | grep -qi "deployed"; then
+	pass "App deploy from derived sandbox works"
+else
+	fail "App deploy from derived sandbox failed" "$APP_DEPLOY_OUTPUT"
+	exit 1
+fi
+
+if wp_shell "test -f '${APP_THEME_DIR}/${DEPLOY_MARKER}'" >/dev/null; then
+	pass "App deploy copies sandbox changes into the app-local theme checkout"
+else
+	fail "App deploy did not copy sandbox changes into the app-local theme checkout" "$APP_THEME_DIR/${DEPLOY_MARKER}"
+	exit 1
+fi
+
+if wp_shell "test -e '${APP_THEME_DIR}/.git'" >/dev/null; then
+	pass "App deploy preserves git metadata in the app-local theme checkout"
+else
+	fail "App deploy flattened the app-local theme checkout" "$APP_THEME_DIR"
+	exit 1
+fi
 
 DERIVED_PUSH_OUTPUT="$(wp_cli rudel push "$DERIVED_ID" --message="Derived sandbox GitHub E2E push")"
 if echo "$DERIVED_PUSH_OUTPUT" | grep -q "Pushed to rudel/${DERIVED_ID}"; then
