@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.7 - 2026-04-06
+
+- Fixed the bootstrap formatting regression so the non-default-port host-site fix ships in a fully green release.
+
 ## v0.5.6 - 2026-04-06
 
 - Fixed host-site requests on non-default ports so bootstrap normalizes multisite lookup without dropping the portful canonical main-site URL.

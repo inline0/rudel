@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Rudel
  * Description: The WordPress isolation layer for sandboxes and multi-tenant apps.
- * Version: 0.5.6
+ * Version: 0.5.7
  * Author: Inline0
  * Author URI: https://inline0.com
  * License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RUDEL_VERSION', '0.5.6' );
+define( 'RUDEL_VERSION', '0.5.7' );
 define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
