@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.2 - 2026-04-06
+
+- Fixed multisite runtime URL overrides so Rudel no longer pins request-global `WP_HOME` / `WP_SITEURL` for resolved environments.
+- Added blog-aware runtime URL handling so `switch_to_blog()` flows like the My Sites admin-bar menu keep distinct root/current/sibling links.
+- Expanded PHPUnit and E2E regression coverage around multisite admin URL resolution and runtime bootstrap behavior.
+
 ## v0.6.1 - 2026-04-06
 
 - Added a standalone DB-backed core access path with `Rudel::init()`, `Rudel::ensure_schema()`, and neutral `Connection` / `PdoStore` support for external products that need Rudel registry access outside WordPress.
