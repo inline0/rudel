@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.4 - 2026-04-06
+
+- Published the local-port multisite site-resolution fixes from `main` as the current Composer/GitHub release so downstream consumers resolve the corrected subsite domain handling.
+
 ## v0.5.3 - 2026-04-06
 
 - Fixed multisite subsite creation on local networks that run on a custom port by persisting the network port in subsite domain records instead of only appending it to generated URLs.
