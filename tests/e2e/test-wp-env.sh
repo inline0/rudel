@@ -272,26 +272,41 @@ assert_site_http_contract() {
 	local headers_file=""
 	local status=""
 	local location=""
+	local attempts=0
+	local max_attempts=10
 
 	body_file="$(mktemp)"
 	headers_file="$(mktemp)"
 
-	status="$(http_status "${site_url%/}/" "$body_file" "$headers_file")"
-	location="$(redirect_location "$headers_file")"
-	if [[ "$status" == "200" ]]; then
-		pass "${label} root resolves over HTTP"
-	elif [[ ( "$status" == "301" || "$status" == "302" ) && "$location" == "${site_url%/}/" ]]; then
-		pass "${label} root redirects to its canonical URL"
-	else
-		fail "${label} root did not resolve over HTTP" "$(cat "$body_file")"
-		rm -f "$body_file" "$headers_file"
-		exit 1
-	fi
-	if [[ "$location" == *"/wp-signup.php"* ]]; then
-		fail "${label} root redirected into signup unexpectedly" "$location"
-		rm -f "$body_file" "$headers_file"
-		exit 1
-	fi
+	while (( attempts < max_attempts )); do
+		attempts=$((attempts + 1))
+		status="$(http_status "${site_url%/}/" "$body_file" "$headers_file")"
+		location="$(redirect_location "$headers_file")"
+
+		if [[ "$location" == *"/wp-signup.php"* ]]; then
+			fail "${label} root redirected into signup unexpectedly" "$location"
+			rm -f "$body_file" "$headers_file"
+			exit 1
+		fi
+
+		if [[ "$status" == "200" ]]; then
+			pass "${label} root resolves over HTTP"
+			break
+		fi
+
+		if [[ ( "$status" == "301" || "$status" == "302" ) && "$location" == "${site_url%/}/" ]]; then
+			pass "${label} root redirects to its canonical URL"
+			break
+		fi
+
+		if (( attempts >= max_attempts )); then
+			fail "${label} root did not resolve over HTTP" "Status: ${status}\nLocation: ${location}\n$(cat "$body_file")"
+			rm -f "$body_file" "$headers_file"
+			exit 1
+		fi
+
+		sleep 1
+	done
 
 	status="$(http_status "${site_url%/}/wp-login.php" "$body_file" "$headers_file")"
 	location="$(redirect_location "$headers_file")"
