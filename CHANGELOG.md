@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.9 - 2026-04-06
+
+- Published the verified fix for non-default-port host-site resolution so the clean release includes the bootstrap host-normalization correction and the stabilized `wp-env` HTTP contract coverage.
+
 ## v0.5.8 - 2026-04-06
 
 - Hardened the live `wp-env` host-site HTTP contract with a bounded readiness retry so fresh GitHub Actions multisite setups stop failing on startup timing instead of real routing regressions.
