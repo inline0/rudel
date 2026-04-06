@@ -37,11 +37,13 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
         $this->assertSame($environment->get_url(), $this->siteOptionValue((int) $environment->blog_id, 'home'));
 
         $this->assertFileExists($environment->path . '/bootstrap.php');
-        $bootstrap = file_get_contents($environment->path . '/bootstrap.php');
-        $this->assertIsString($bootstrap);
-        $this->assertStringContainsString("define('RUDEL_ENGINE', 'subsite')", $bootstrap);
-        $this->assertStringContainsString("define('WP_HOME', \$_rudel_environment_url);", $bootstrap);
-        $this->assertStringContainsString("define('RUDEL_TABLE_PREFIX', 'wp_" . $environment->blog_id . "_');", $bootstrap);
+	        $bootstrap = file_get_contents($environment->path . '/bootstrap.php');
+	        $this->assertIsString($bootstrap);
+	        $this->assertStringContainsString("define('RUDEL_ENGINE', 'subsite')", $bootstrap);
+	        $this->assertStringContainsString("define('RUDEL_ENVIRONMENT_URL', \$_rudel_environment_url);", $bootstrap);
+	        $this->assertStringNotContainsString("define('WP_HOME', \$_rudel_environment_url);", $bootstrap);
+	        $this->assertStringNotContainsString("define('WP_SITEURL', \$_rudel_environment_url);", $bootstrap);
+	        $this->assertStringContainsString("define('RUDEL_TABLE_PREFIX', 'wp_" . $environment->blog_id . "_');", $bootstrap);
 
         $this->assertFileExists($environment->path . '/wp-cli.yml');
         $wpCli = file_get_contents($environment->path . '/wp-cli.yml');
@@ -50,11 +52,12 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
         $this->assertStringContainsString('url: http://' . $environment->id . '.example.test/', $wpCli);
 
         $this->assertFileExists($environment->path . '/wp-content/mu-plugins/rudel-runtime.php');
-        $runtimePlugin = file_get_contents($environment->path . '/wp-content/mu-plugins/rudel-runtime.php');
-        $this->assertIsString($runtimePlugin);
-        $this->assertStringContainsString('pre_option_home', $runtimePlugin);
-        $this->assertStringContainsString('rudel_runtime_environment_url', $runtimePlugin);
-    }
+	        $runtimePlugin = file_get_contents($environment->path . '/wp-content/mu-plugins/rudel-runtime.php');
+	        $this->assertIsString($runtimePlugin);
+	        $this->assertStringContainsString('pre_option_home', $runtimePlugin);
+	        $this->assertStringContainsString('rudel_runtime_environment_url', $runtimePlugin);
+	        $this->assertStringContainsString('rudel_runtime_site_option_override', $runtimePlugin);
+	    }
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]

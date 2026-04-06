@@ -23,11 +23,54 @@ if ( ! function_exists( 'trailingslashit' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	function wp_parse_url( string $url, int $component = -1 ) {
+		return parse_url( $url, $component );
+	}
+}
+
+if ( ! function_exists( 'rudel_test_site_base_url_for_blog' ) ) {
+	function rudel_test_site_base_url_for_blog( int $blog_id, string $option = 'home' ): string {
+		$site = $GLOBALS['rudel_test_sites'][ $blog_id ] ?? null;
+		if ( is_array( $site ) && isset( $site[ $option ] ) && is_string( $site[ $option ] ) && '' !== $site[ $option ] ) {
+			return rtrim( $site[ $option ], '/' );
+		}
+
+		return defined( 'WP_HOME' ) ? rtrim( (string) WP_HOME, '/' ) : 'http://example.test';
+	}
+}
+
+if ( ! function_exists( 'rudel_test_append_url_path' ) ) {
+	function rudel_test_append_url_path( string $base, string $path = '' ): string {
+		$base = rtrim( $base, '/' );
+		if ( '' === $path ) {
+			return $base;
+		}
+
+		if ( '/' === $path ) {
+			return $base . '/';
+		}
+
+		return $base . '/' . ltrim( $path, '/' );
+	}
+}
+
 if ( ! function_exists( 'home_url' ) ) {
 	function home_url( string $path = '' ): string {
-		$base = defined( 'WP_HOME' ) ? rtrim( (string) WP_HOME, '/' ) : 'http://example.test';
-		$path = ltrim( $path, '/' );
-		return '' === $path ? $base : $base . '/' . $path;
+		$base = function_exists( 'get_option' )
+			? rtrim( (string) get_option( 'home', rudel_test_site_base_url_for_blog( get_current_blog_id(), 'home' ) ), '/' )
+			: rudel_test_site_base_url_for_blog( get_current_blog_id(), 'home' );
+		return rudel_test_append_url_path( $base, $path );
+	}
+}
+
+if ( ! function_exists( 'site_url' ) ) {
+	function site_url( string $path = '', ?string $scheme = null ): string {
+		unset( $scheme );
+		$base = function_exists( 'get_option' )
+			? rtrim( (string) get_option( 'siteurl', rudel_test_site_base_url_for_blog( get_current_blog_id(), 'siteurl' ) ), '/' )
+			: rudel_test_site_base_url_for_blog( get_current_blog_id(), 'siteurl' );
+		return rudel_test_append_url_path( $base, $path );
 	}
 }
 
@@ -53,6 +96,47 @@ if ( ! function_exists( 'get_blog_details' ) ) {
 	function get_blog_details( int $blog_id ) {
 		$site = $GLOBALS['rudel_test_sites'][ $blog_id ] ?? null;
 		return is_array( $site ) ? (object) $site : false;
+	}
+}
+
+if ( ! function_exists( 'get_current_blog_id' ) ) {
+	function get_current_blog_id(): int {
+		return (int) ( $GLOBALS['rudel_test_current_blog_id'] ?? 1 );
+	}
+}
+
+if ( ! function_exists( 'switch_to_blog' ) ) {
+	function switch_to_blog( int $blog_id ): bool {
+		$GLOBALS['rudel_test_blog_stack']   ??= array();
+		$GLOBALS['rudel_test_blog_stack'][] = get_current_blog_id();
+		$GLOBALS['rudel_test_current_blog_id'] = $blog_id;
+		$GLOBALS['blog_id']                    = $blog_id;
+		$GLOBALS['current_blog']               = get_blog_details( $blog_id );
+		$GLOBALS['table_prefix']               = 1 === $blog_id ? 'wp_' : 'wp_' . $blog_id . '_';
+		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \MockWpdb ) {
+			$GLOBALS['wpdb']->blogid = $blog_id;
+		}
+		return true;
+	}
+}
+
+if ( ! function_exists( 'restore_current_blog' ) ) {
+	function restore_current_blog(): bool {
+		$stack = $GLOBALS['rudel_test_blog_stack'] ?? array();
+		if ( ! is_array( $stack ) || array() === $stack ) {
+			return false;
+		}
+
+		$blog_id = (int) array_pop( $stack );
+		$GLOBALS['rudel_test_blog_stack']      = $stack;
+		$GLOBALS['rudel_test_current_blog_id'] = $blog_id;
+		$GLOBALS['blog_id']                    = $blog_id;
+		$GLOBALS['current_blog']               = get_blog_details( $blog_id );
+		$GLOBALS['table_prefix']               = 1 === $blog_id ? 'wp_' : 'wp_' . $blog_id . '_';
+		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \MockWpdb ) {
+			$GLOBALS['wpdb']->blogid = $blog_id;
+		}
+		return true;
 	}
 }
 
@@ -209,6 +293,22 @@ if ( ! function_exists( 'wp_update_site' ) ) {
 	}
 }
 
+if ( ! function_exists( 'add_action' ) ) {
+	function add_action( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
+		unset( $priority, $accepted_args );
+		$GLOBALS['rudel_test_action_callbacks'][ $hook ][] = $callback;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'add_filter' ) ) {
+	function add_filter( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
+		unset( $priority, $accepted_args );
+		$GLOBALS['rudel_test_filter_callbacks'][ $hook ][] = $callback;
+		return true;
+	}
+}
+
 if ( ! function_exists( 'do_action' ) ) {
 	function do_action( string $hook, ...$args ): void {
 		$GLOBALS['rudel_test_actions'][] = array(
@@ -238,18 +338,149 @@ if ( ! function_exists( 'apply_filters' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( string $option, $default = false ) {
+		$pre = apply_filters( 'pre_option_' . $option, false, $option, $default );
+		if ( false !== $pre ) {
+			return $pre;
+		}
+
+		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \MockWpdb ) {
+			$blog_id = get_current_blog_id();
+			$table   = 1 === $blog_id
+				? $GLOBALS['wpdb']->base_prefix . 'options'
+				: $GLOBALS['wpdb']->base_prefix . $blog_id . '_options';
+
+			foreach ( $GLOBALS['wpdb']->getTableRows( $table ) as $row ) {
+				if ( ( $row['option_name'] ?? null ) === $option ) {
+					$value = $row['option_value'] ?? $default;
+					if ( function_exists( 'maybe_unserialize' ) ) {
+						return maybe_unserialize( $value );
+					}
+
+					return $value;
+				}
+			}
+		}
+
+		$site = $GLOBALS['rudel_test_sites'][ get_current_blog_id() ] ?? null;
+		if ( is_array( $site ) && array_key_exists( $option, $site ) ) {
+			return $site[ $option ];
+		}
+
+		return $default;
+	}
+}
+
+if ( ! function_exists( 'get_blog_option' ) ) {
+	function get_blog_option( int $blog_id, string $option, $default = false ) {
+		$previous_blog_id               = get_current_blog_id();
+		$previous_table_prefix          = $GLOBALS['table_prefix'] ?? null;
+		$previous_wpdb_blog_id          = isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \MockWpdb ? $GLOBALS['wpdb']->blogid : null;
+		$previous_blog                  = $GLOBALS['current_blog'] ?? null;
+		$GLOBALS['rudel_test_current_blog_id'] = $blog_id;
+		$GLOBALS['blog_id']                    = $blog_id;
+		$GLOBALS['current_blog']               = get_blog_details( $blog_id );
+		$GLOBALS['table_prefix']               = 1 === $blog_id ? 'wp_' : 'wp_' . $blog_id . '_';
+		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \MockWpdb ) {
+			$GLOBALS['wpdb']->blogid = $blog_id;
+		}
+
+		try {
+			return get_option( $option, $default );
+		} finally {
+			$GLOBALS['rudel_test_current_blog_id'] = $previous_blog_id;
+			$GLOBALS['blog_id']                    = $previous_blog_id;
+			$GLOBALS['current_blog']               = $previous_blog;
+			$GLOBALS['table_prefix']               = $previous_table_prefix;
+			if ( null !== $previous_wpdb_blog_id && isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \MockWpdb ) {
+				$GLOBALS['wpdb']->blogid = $previous_wpdb_blog_id;
+			}
+		}
+	}
+}
+
+if ( ! function_exists( 'get_home_url' ) ) {
+	function get_home_url( ?int $blog_id = null, string $path = '', ?string $scheme = null ): string {
+		unset( $scheme );
+		if ( null === $blog_id || get_current_blog_id() === $blog_id ) {
+			return home_url( $path );
+		}
+
+		$base = rtrim( (string) get_blog_option( $blog_id, 'home', rudel_test_site_base_url_for_blog( $blog_id, 'home' ) ), '/' );
+		return rudel_test_append_url_path( $base, $path );
+	}
+}
+
+if ( ! function_exists( 'get_site_url' ) ) {
+	function get_site_url( ?int $blog_id = null, string $path = '', ?string $scheme = null ): string {
+		unset( $scheme );
+		if ( null === $blog_id || get_current_blog_id() === $blog_id ) {
+			return site_url( $path );
+		}
+
+		$base = rtrim( (string) get_blog_option( $blog_id, 'siteurl', rudel_test_site_base_url_for_blog( $blog_id, 'siteurl' ) ), '/' );
+		return rudel_test_append_url_path( $base, $path );
+	}
+}
+
+if ( ! function_exists( 'admin_url' ) ) {
+	function admin_url( string $path = '', ?string $scheme = 'admin' ): string {
+		unset( $scheme );
+		$admin_path = '' === $path ? 'wp-admin/' : 'wp-admin/' . ltrim( $path, '/' );
+		return get_site_url( null, $admin_path );
+	}
+}
+
+if ( ! function_exists( 'get_admin_url' ) ) {
+	function get_admin_url( ?int $blog_id = null, string $path = '', ?string $scheme = 'admin' ): string {
+		unset( $scheme );
+		$admin_path = '' === $path ? 'wp-admin/' : 'wp-admin/' . ltrim( $path, '/' );
+		return get_site_url( $blog_id, $admin_path );
+	}
+}
+
 if ( ! function_exists( 'wp_json_encode' ) ) {
 	function wp_json_encode( $value, int $flags = 0, int $depth = 512 ) {
 		return json_encode( $value, $flags, $depth );
 	}
 }
 
+if ( ! function_exists( 'maybe_serialize' ) ) {
+	function maybe_serialize( $data ) {
+		return is_array( $data ) || is_object( $data ) ? serialize( $data ) : $data;
+	}
+}
+
+if ( ! function_exists( 'maybe_unserialize' ) ) {
+	function maybe_unserialize( $data ) {
+		if ( ! is_string( $data ) ) {
+			return $data;
+		}
+
+		$trimmed = trim( $data );
+		if ( '' === $trimmed ) {
+			return $data;
+		}
+
+		if ( ! preg_match( '/^(?:a|O|s|i|b|d):|^N;/', $trimmed ) ) {
+			return $data;
+		}
+
+		$value = @unserialize( $data, array( 'allowed_classes' => false ) );
+		return false === $value && 'b:0;' !== $trimmed ? $data : $value;
+	}
+}
+
 $GLOBALS['wpdb']              = new \MockWpdb();
 $GLOBALS['wpdb']->prefix      = 'wp_';
 $GLOBALS['wpdb']->base_prefix = 'wp_';
+$GLOBALS['wpdb']->blogid      = 1;
 $GLOBALS['rudel_test_multisite']         = true;
 $GLOBALS['rudel_test_subdomain_install'] = true;
 $GLOBALS['rudel_test_next_blog_id']      = 2;
+$GLOBALS['rudel_test_current_blog_id']   = 1;
+$GLOBALS['rudel_test_blog_stack']        = array();
 $GLOBALS['rudel_test_sites']             = array(
 	1 => array(
 		'blog_id' => 1,
@@ -260,6 +491,9 @@ $GLOBALS['rudel_test_sites']             = array(
 		'title'   => 'Host Site',
 	),
 );
+$GLOBALS['blog_id'] = 1;
+$GLOBALS['current_blog'] = (object) $GLOBALS['rudel_test_sites'][1];
+$GLOBALS['table_prefix'] = 'wp_';
 
 // Global temp directory for all tests -- each test class manages its own subdirectory.
 define( 'RUDEL_TEST_TMPDIR', sys_get_temp_dir() . '/rudel-tests-' . getmypid() );

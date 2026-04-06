@@ -12,9 +12,10 @@
 
 class MockWpdb
 {
-    public string $prefix = 'wp_';
-    public string $base_prefix = 'wp_';
-    public int $insert_id = 0;
+	    public string $prefix = 'wp_';
+	    public string $base_prefix = 'wp_';
+	    public int $blogid = 1;
+	    public int $insert_id = 0;
     public string $last_error = '';
 
     /**

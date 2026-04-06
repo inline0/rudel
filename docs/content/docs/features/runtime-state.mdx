@@ -44,7 +44,7 @@ Together those tables let Rudel answer the operational questions around the site
 
 One detail matters here: worktrees are stored in their own runtime table instead of being embedded permanently inside `clone_source`. That keeps Git-aware lifecycle state queryable and easier to update when environments change over time.
 
-Another detail matters for multisite lookups: Rudel stores host-only multisite domains in the native site tables. Custom network ports belong in rendered URLs such as `WP_HOME`, not in `wp_site.domain` or `wp_blogs.domain`.
+Another detail matters for multisite lookups: Rudel stores host-only multisite domains in the native site tables. Custom network ports belong in rendered runtime URLs and per-site `home` / `siteurl` values, not in `wp_site.domain` or `wp_blogs.domain`. When Rudel has to override the current environment URL at runtime, it keeps that override scoped to the active blog so `switch_to_blog()` and multisite admin links can still resolve sibling sites correctly.
 
 ## Table naming overrides
 

@@ -352,12 +352,6 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 				if ( ! defined( 'RUDEL_HOST_URL' ) ) {
 					define( 'RUDEL_HOST_URL', $host_url );
 				}
-				if ( ! defined( 'WP_HOME' ) ) {
-					define( 'WP_HOME', $host_url );
-				}
-				if ( ! defined( 'WP_SITEURL' ) ) {
-					define( 'WP_SITEURL', $host_url );
-				}
 			}
 
 			return;
@@ -427,8 +421,6 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$environment_url = $site_url;
 		$def( 'RUDEL_HOST_URL', $host_url );
 		$def( 'RUDEL_ENVIRONMENT_URL', $environment_url );
-		$def( 'WP_SITEURL', $environment_url );
-		$def( 'WP_HOME', $environment_url );
 
 		$def( 'RUDEL_ENVIRONMENT_CONTENT_URL', $environment_url . '/wp-content' );
 		$def( 'WP_CONTENT_URL', $environment_url . '/wp-content' );

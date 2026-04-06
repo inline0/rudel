@@ -250,6 +250,27 @@ site_url_for_domain() {
 	' "$domain" "$NETWORK_URL"
 }
 
+cli_admin_url_for_site() {
+	local site_url="$1"
+
+	php -r '
+		$parts = parse_url($argv[1]);
+		if (! is_array($parts) || empty($parts["scheme"]) || empty($parts["host"])) {
+			exit(1);
+		}
+
+		$path = (string) ($parts["path"] ?? "/");
+		if ("" === $path) {
+			$path = "/";
+		}
+		if (! str_starts_with($path, "/")) {
+			$path = "/" . $path;
+		}
+
+		echo (string) $parts["scheme"] . "://" . (string) $parts["host"] . rtrim($path, "/") . "/wp-admin/";
+	' "$site_url"
+}
+
 environment_json() {
 	wp_cli rudel info "$1" --format=json
 }
@@ -707,6 +728,65 @@ if echo "$APP_DEPLOYMENTS" | grep -q '"deployed_at"'; then
 	pass "App deployments are recorded"
 else
 	fail "App deployments list is empty" "$APP_DEPLOYMENTS"
+fi
+
+echo ""
+echo -e "${BOLD}My Sites admin URLs${NC}"
+
+SIBLING_DOMAIN="sibling.example.test"
+SIBLING_OUTPUT=$(wp_cli rudel app create --name="Sibling App" --domain="$SIBLING_DOMAIN")
+SIBLING_ID=$(parse_created_id "App created" "$SIBLING_OUTPUT")
+if [[ -n "$SIBLING_ID" ]]; then
+	APP_IDS+=("$SIBLING_ID")
+	pass "Created sibling app ${SIBLING_ID}"
+else
+	fail "Sibling app creation failed" "$SIBLING_OUTPUT"
+	exit 1
+fi
+
+SIBLING_URL=$(site_url_for_domain "$SIBLING_DOMAIN")
+SIBLING_BLOG_ID=$(site_blog_id_for_domain "$SIBLING_DOMAIN")
+if [[ -n "$SIBLING_URL" && -n "$SIBLING_BLOG_ID" ]]; then
+	pass "Sibling app created a multisite site"
+else
+	fail "Sibling app multisite site was not created" "$(wp_cli site list --fields=blog_id,url --format=table)"
+	exit 1
+fi
+
+MY_SITES_SCRIPT=$(cat <<'PHP'
+wp_set_current_user(1);
+require_once ABSPATH . WPINC . '/class-wp-admin-bar.php';
+require_once ABSPATH . WPINC . '/admin-bar.php';
+
+$wp_admin_bar = new WP_Admin_Bar();
+$wp_admin_bar->initialize();
+wp_admin_bar_my_sites_menu($wp_admin_bar);
+
+$links = array();
+foreach ( $wp_admin_bar->get_nodes() as $node ) {
+	if ( is_object( $node ) && isset( $node->id, $node->href ) && preg_match( '/^blog-(\d+)-d$/', (string) $node->id, $matches ) ) {
+		$links[ (int) $matches[1] ] = (string) $node->href;
+	}
+}
+
+echo wp_json_encode( $links );
+PHP
+)
+MY_SITES_JSON=$(site_cli "$APP_URL" eval "$MY_SITES_SCRIPT" | grep -E '^\{.*\}$' | tail -n 1)
+
+ROOT_ADMIN_URL=$(cli_admin_url_for_site "$NETWORK_URL")
+APP_ADMIN_URL=$(cli_admin_url_for_site "$APP_URL")
+SIBLING_ADMIN_URL=$(cli_admin_url_for_site "$SIBLING_URL")
+
+ROOT_MENU_URL=$(printf '%s' "$MY_SITES_JSON" | json_field 1)
+APP_MENU_URL=$(printf '%s' "$MY_SITES_JSON" | json_field "$APP_BLOG_ID")
+SIBLING_MENU_URL=$(printf '%s' "$MY_SITES_JSON" | json_field "$SIBLING_BLOG_ID")
+
+if [[ "$ROOT_MENU_URL" == "$ROOT_ADMIN_URL" && "$APP_MENU_URL" == "$APP_ADMIN_URL" && "$SIBLING_MENU_URL" == "$SIBLING_ADMIN_URL" && "$ROOT_MENU_URL" != "$APP_MENU_URL" && "$ROOT_MENU_URL" != "$SIBLING_MENU_URL" && "$APP_MENU_URL" != "$SIBLING_MENU_URL" ]]; then
+	pass "My Sites menu keeps distinct dashboard URLs for root, current app, and sibling app"
+else
+	fail "My Sites menu collapsed dashboard URLs to the current app" "expected root=${ROOT_ADMIN_URL} app=${APP_ADMIN_URL} sibling=${SIBLING_ADMIN_URL}; got root=${ROOT_MENU_URL:-<missing>} app=${APP_MENU_URL:-<missing>} sibling=${SIBLING_MENU_URL:-<missing>}; full=${MY_SITES_JSON}"
+	exit 1
 fi
 
 echo ""

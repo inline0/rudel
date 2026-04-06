@@ -42,12 +42,6 @@ if (! defined('RUDEL_HOST_URL')) {
 if (! defined('RUDEL_ENVIRONMENT_URL')) {
     define('RUDEL_ENVIRONMENT_URL', $_rudel_environment_url);
 }
-if (! defined('WP_SITEURL')) {
-    define('WP_SITEURL', $_rudel_environment_url);
-}
-if (! defined('WP_HOME')) {
-    define('WP_HOME', $_rudel_environment_url);
-}
 if (! defined('RUDEL_ENVIRONMENT_CONTENT_URL')) {
     define('RUDEL_ENVIRONMENT_CONTENT_URL', $_rudel_environment_url . '/wp-content');
 }

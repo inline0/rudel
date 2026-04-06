@@ -244,7 +244,7 @@ class Environment {
 	/**
 	 * Public URL for this environment.
 	 *
-	 * @return string URL path or full URL if WP_HOME is defined.
+	 * @return string Canonical environment URL.
 	 */
 	public function get_url(): string {
 		if ( $this->is_app() && ! empty( $this->domains ) ) {

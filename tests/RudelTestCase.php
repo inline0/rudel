@@ -31,10 +31,12 @@ abstract class RudelTestCase extends TestCase
         $GLOBALS['rudel_test_filter_callbacks'] = [];
         $GLOBALS['rudel_test_multisite'] = true;
         $GLOBALS['rudel_test_subdomain_install'] = true;
-        $GLOBALS['rudel_test_next_blog_id'] = 2;
-        $GLOBALS['rudel_test_current_user_id'] = 0;
-        $GLOBALS['rudel_test_super_admins'] = [];
-        $GLOBALS['rudel_test_users'] = [];
+	        $GLOBALS['rudel_test_next_blog_id'] = 2;
+	        $GLOBALS['rudel_test_current_blog_id'] = 1;
+	        $GLOBALS['rudel_test_blog_stack'] = [];
+	        $GLOBALS['rudel_test_current_user_id'] = 0;
+	        $GLOBALS['rudel_test_super_admins'] = [];
+	        $GLOBALS['rudel_test_users'] = [];
         $GLOBALS['rudel_test_last_created_blog_admin_user_id'] = null;
         $GLOBALS['rudel_test_sites'] = [
             1 => [
@@ -46,9 +48,13 @@ abstract class RudelTestCase extends TestCase
                 'title' => 'Host Site',
             ],
         ];
-        $GLOBALS['wpdb'] = new \MockWpdb();
-        $GLOBALS['wpdb']->prefix = 'wp_';
-        $GLOBALS['wpdb']->base_prefix = 'wp_';
+	        $GLOBALS['wpdb'] = new \MockWpdb();
+	        $GLOBALS['wpdb']->prefix = 'wp_';
+	        $GLOBALS['wpdb']->base_prefix = 'wp_';
+	        $GLOBALS['wpdb']->blogid = 1;
+	        $GLOBALS['blog_id'] = 1;
+	        $GLOBALS['current_blog'] = (object) $GLOBALS['rudel_test_sites'][1];
+	        $GLOBALS['table_prefix'] = 'wp_';
         $GLOBALS['wpdb']->addTable(
             'wp_options',
             'CREATE TABLE `wp_options` (

@@ -17,7 +17,7 @@ if ( defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
 /**
- * Return the resolved environment URL even when the host defines WP_HOME/WP_SITEURL.
+ * Return the resolved environment URL for the active Rudel site.
  *
  * @return string|null
  */
@@ -26,11 +26,178 @@ function rudel_runtime_environment_url() {
 		return rtrim( RUDEL_ENVIRONMENT_URL, '/' );
 	}
 
-	if ( defined( 'WP_HOME' ) && is_string( WP_HOME ) && '' !== WP_HOME ) {
-		return rtrim( WP_HOME, '/' );
+	return null;
+}
+
+/**
+ * Return the resolved multisite blog ID for the active Rudel site.
+ *
+ * @return int|null
+ */
+function rudel_runtime_blog_id() {
+	if ( defined( 'RUDEL_TABLE_PREFIX' ) && is_string( RUDEL_TABLE_PREFIX ) ) {
+		if ( preg_match( '/(\d+)_$/', RUDEL_TABLE_PREFIX, $matches ) ) {
+			return (int) $matches[1];
+		}
 	}
 
 	return null;
+}
+
+/**
+ * Current multisite blog ID in this runtime context.
+ *
+ * @return int|null
+ */
+function rudel_runtime_current_blog_id() {
+	global $wpdb, $table_prefix, $blog_id, $current_blog;
+
+	if ( isset( $wpdb ) && is_object( $wpdb ) && isset( $wpdb->blogid ) ) {
+		$current_blog_id = (int) $wpdb->blogid;
+		if ( $current_blog_id > 0 ) {
+			return $current_blog_id;
+		}
+	}
+
+	if ( isset( $table_prefix ) && is_string( $table_prefix ) && preg_match( '/(\d+)_$/', $table_prefix, $matches ) ) {
+		return (int) $matches[1];
+	}
+
+	if ( isset( $current_blog ) && is_object( $current_blog ) && isset( $current_blog->blog_id ) ) {
+		return (int) $current_blog->blog_id;
+	}
+
+	if ( isset( $blog_id ) ) {
+		return (int) $blog_id;
+	}
+
+	if ( function_exists( 'get_current_blog_id' ) ) {
+		$current_blog_id = (int) get_current_blog_id();
+		if ( $current_blog_id > 0 ) {
+			return $current_blog_id;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Network port suffix including the leading colon when present.
+ *
+ * @return string
+ */
+function rudel_runtime_network_port_suffix() {
+	$host_url = rudel_runtime_host_url();
+	if ( null === $host_url ) {
+		return '';
+	}
+
+	$parts = wp_parse_url( $host_url );
+	if ( ! is_array( $parts ) || ! isset( $parts['port'] ) ) {
+		return '';
+	}
+
+	return ':' . (int) $parts['port'];
+}
+
+/**
+ * Canonical URL for one multisite blog in the current network.
+ *
+ * @param int $blog_id Blog ID.
+ * @return string|null
+ */
+function rudel_runtime_blog_url_for( $blog_id ) {
+	$blog_id = (int) $blog_id;
+	$domain  = '';
+	$path    = '/';
+
+	global $wpdb;
+
+	if ( isset( $wpdb ) && is_object( $wpdb ) && method_exists( $wpdb, 'prepare' ) && method_exists( $wpdb, 'get_row' ) ) {
+		$blogs_table = null;
+		if ( isset( $wpdb->blogs ) && is_string( $wpdb->blogs ) && '' !== $wpdb->blogs ) {
+			$blogs_table = $wpdb->blogs;
+		} elseif ( isset( $wpdb->base_prefix ) && is_string( $wpdb->base_prefix ) && '' !== $wpdb->base_prefix ) {
+			$blogs_table = $wpdb->base_prefix . 'blogs';
+		}
+
+		if ( is_string( $blogs_table ) && '' !== $blogs_table ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Runtime multisite site lookup without recursing through option APIs.
+			$row = $wpdb->get_row(
+				$wpdb->prepare(
+					'SELECT domain, path FROM `' . $blogs_table . '` WHERE blog_id = %d LIMIT 1',
+					$blog_id
+				)
+			);
+
+			if ( is_object( $row ) ) {
+				$domain = isset( $row->domain ) ? (string) $row->domain : '';
+				$path   = isset( $row->path ) ? (string) $row->path : '/';
+			}
+		}
+	}
+
+	if ( '' === $domain && function_exists( 'get_blog_details' ) ) {
+		$details = get_blog_details( $blog_id );
+		if ( $details && ! empty( $details->domain ) ) {
+			$domain = (string) $details->domain;
+			$path   = isset( $details->path ) ? (string) $details->path : '/';
+		}
+	}
+
+	if ( '' === $domain ) {
+		return null;
+	}
+
+	if ( '' === $path ) {
+		$path = '/';
+	}
+	if ( ! str_starts_with( $path, '/' ) ) {
+		$path = '/' . $path;
+	}
+
+	$scheme = 'http';
+	$host_url = rudel_runtime_host_url();
+	if ( null !== $host_url ) {
+		$parts = wp_parse_url( $host_url );
+		if ( is_array( $parts ) && isset( $parts['scheme'] ) ) {
+			$scheme = (string) $parts['scheme'];
+		}
+	}
+
+	$url = $scheme . '://' . $domain;
+	if ( ! preg_match( '/:\d+$/', $domain ) ) {
+		$url .= rudel_runtime_network_port_suffix();
+	}
+
+	return rtrim( $url, '/' ) . $path;
+}
+
+/**
+ * Blog-aware site URL override for the current option read.
+ *
+ * @param mixed $value Current pre_option value.
+ * @return mixed
+ */
+function rudel_runtime_site_option_override( $value ) {
+	$current_blog_id  = rudel_runtime_current_blog_id();
+	$resolved_blog_id = rudel_runtime_blog_id();
+
+	if ( null !== $resolved_blog_id && null !== $current_blog_id && $current_blog_id === $resolved_blog_id ) {
+		$environment_url = rudel_runtime_environment_url();
+		if ( null !== $environment_url ) {
+			return $environment_url;
+		}
+	}
+
+	if ( null !== $current_blog_id ) {
+		$blog_url = rudel_runtime_blog_url_for( $current_blog_id );
+		if ( null !== $blog_url ) {
+			return rtrim( $blog_url, '/' );
+		}
+	}
+
+	return $value;
 }
 
 /**
@@ -47,18 +214,20 @@ function rudel_runtime_host_url() {
 }
 
 if ( null !== rudel_runtime_environment_url() ) {
-	// Host-level WP_HOME/WP_SITEURL constants override database reads, so Rudel sites need a runtime pre_option override.
+	// Host-level WP_HOME/WP_SITEURL constants override database reads, but the
+	// override must stay blog-aware so switch_to_blog() still yields distinct
+	// root/current/sibling URLs in multisite admin flows.
 	add_filter(
 		'pre_option_home',
 		function ( $value ) {
-			return rudel_runtime_environment_url();
+			return rudel_runtime_site_option_override( $value );
 		}
 	);
 
 	add_filter(
 		'pre_option_siteurl',
 		function ( $value ) {
-			return rudel_runtime_environment_url();
+			return rudel_runtime_site_option_override( $value );
 		}
 	);
 
