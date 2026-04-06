@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.5 - 2026-04-06
+
+- Fixed canonical app-domain runtime behavior so app URLs, clone/deploy rewrites, and multisite site records stay aligned to the configured primary domain.
+- Fixed multisite bootstrap precedence and local-port request handling so explicit sandbox selection wins and subdomain sites resolve correctly on non-default ports.
+- Hardened real database write failure handling to match repository expectations, removed the leftover legacy app-domain map stub, and extended unit/integration/E2E coverage for the new runtime contract.
+
 ## v0.5.4 - 2026-04-06
 
 - Published the local-port multisite site-resolution fixes from `main` as the current Composer/GitHub release so downstream consumers resolve the corrected subsite domain handling.
