@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.8 - 2026-04-06
+
+- Hardened the live `wp-env` host-site HTTP contract with a bounded readiness retry so fresh GitHub Actions multisite setups stop failing on startup timing instead of real routing regressions.
+
 ## v0.5.7 - 2026-04-06
 
 - Fixed the bootstrap formatting regression so the non-default-port host-site fix ships in a fully green release.
