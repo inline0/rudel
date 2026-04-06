@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.6 - 2026-04-06
+
+- Fixed host-site requests on non-default ports so bootstrap normalizes multisite lookup without dropping the portful canonical main-site URL.
+- Added regression coverage for the no-environment host request path that previously broke the live `wp-env` HTTP contract.
+
 ## v0.5.5 - 2026-04-06
 
 - Fixed canonical app-domain runtime behavior so app URLs, clone/deploy rewrites, and multisite site records stay aligned to the configured primary domain.
