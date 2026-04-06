@@ -594,7 +594,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 
 			$content_type = $assoc_args['type'] ?? 'theme';
 			$type_dir     = 'plugin' === $content_type ? 'plugins' : 'themes';
-			$download_dir = $sandbox->get_wp_content_path() . '/' . $type_dir . '/' . $repo_name;
+			$download_dir = $sandbox->get_runtime_content_path( $type_dir . '/' . $repo_name );
 			if ( ! is_dir( $download_dir ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating directory for GitHub download.
 				mkdir( $download_dir, 0755, true );

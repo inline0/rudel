@@ -35,7 +35,7 @@ wp rudel app deploy client-a-com-a1b2 --from=client-a-feature-a1b2 --backup=befo
 Every deploy:
 
 1. creates or uses an app backup
-2. copies sandbox DB and `wp-content` into the app
+2. replaces the app with the sandbox's site state and tracked content
 3. rewrites runtime identifiers back to the app domain
 4. records a deployment ledger entry
 

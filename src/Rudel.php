@@ -375,7 +375,7 @@ class Rudel {
 			}
 
 			$type_dir                         = 'plugin' === $content_type ? 'plugins' : 'themes';
-			$download_dir                     = $sandbox->get_wp_content_path() . '/' . $type_dir . '/' . $repo_name;
+			$download_dir                     = $sandbox->get_runtime_content_path( $type_dir . '/' . $repo_name );
 			$result['github']['download_dir'] = $download_dir;
 
 			if ( ! is_dir( $download_dir ) ) {
@@ -967,10 +967,7 @@ class Rudel {
 				}
 			}
 
-			$local_dir = $sandbox->get_wp_content_path();
-			if ( '' !== $subdir ) {
-				$local_dir .= '/' . ltrim( $subdir, '/' );
-			}
+			$local_dir = $sandbox->get_runtime_content_path( $subdir );
 
 			if ( ! is_dir( $local_dir ) ) {
 				throw new \RuntimeException( sprintf( 'Directory not found: %s', $local_dir ) );

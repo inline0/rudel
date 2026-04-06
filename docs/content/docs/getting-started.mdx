@@ -5,7 +5,7 @@ description: Install Rudel on a subdomain multisite network and create your firs
 
 # Getting Started
 
-Getting Rudel running is straightforward once the underlying network shape is correct. The main requirement is that WordPress multisite is already configured for subdomains. From there, Rudel installs its runtime bootstrap, creates real sites for sandboxes and apps, and stores its operational metadata in WordPress tables.
+Getting Rudel running is straightforward once the network shape is correct. The main requirement is a WordPress multisite network that already runs on subdomains. From there, Rudel installs its runtime bootstrap, creates real sites for sandboxes and apps, and stores its operational metadata in WordPress tables.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ Before installing the plugin, make sure the host WordPress instance can already 
 - the network uses subdomains, not subdirectories
 - you can write to `wp-config.php`
 
-If that part is wrong, Rudel cannot patch around it later. The URLs it creates are meant to be real multisite URLs that WordPress can own directly.
+Rudel expects that foundation to be in place before installation. The URLs it creates are normal multisite URLs that WordPress owns directly.
 
 ## Install Rudel
 
@@ -54,7 +54,7 @@ That command creates three things together:
 
 1. a real multisite site
 2. a Rudel environment record
-3. a generated environment directory with scoped tooling and copied content
+3. a generated environment directory with scoped tooling and environment-owned files
 
 To see the browser URL WordPress assigned, ask WordPress directly:
 
@@ -68,7 +68,7 @@ You can then run commands directly against that site:
 wp --url=http://alpha.localhost option get siteurl
 ```
 
-Or work from the generated environment directory, which gives you a scoped `wp-cli.yml` and any copied code or worktree content Rudel created for the environment:
+Or work from the generated environment directory, which gives you a scoped `wp-cli.yml` plus the environment-owned files Rudel manages directly for that site, such as bootstrap files, logs, snapshots, backups, and workspace artifacts:
 
 ```bash
 cd /path/to/wp-content/rudel-environments/alpha-1234
@@ -84,6 +84,14 @@ wp rudel app create --name=demo --domain=demo.example.test
 ```
 
 The `--domain` value becomes part of the Rudel app metadata. The runtime site itself still shows up through normal multisite tools such as `wp site list`, which is exactly the split you want: WordPress owns the site, Rudel owns the app lifecycle around it.
+
+If the app should also carry a tracked GitHub code source, add it at creation time:
+
+```bash
+wp rudel app create --name=demo --domain=demo.example.test --github=inline0/demo-theme --branch=main --dir=themes/demo-theme
+```
+
+That tracked repository, branch, and directory are then inherited automatically when you create sandboxes from the app.
 
 ## Next steps
 

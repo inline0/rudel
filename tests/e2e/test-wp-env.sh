@@ -57,7 +57,7 @@ fail() {
 }
 
 strip_wpenv() {
-	sed 's/✔ Ran .*//' | sed '/^[[:space:]]*$/d'
+	sed '/^ℹ Starting /d' | sed 's/✔ Ran .*//' | sed '/^[[:space:]]*$/d'
 }
 
 wp_cli() {
@@ -250,7 +250,7 @@ fi
 echo ""
 echo -e "${BOLD}App lifecycle${NC}"
 
-APP_OUTPUT=$(wp_cli rudel app create --name=Demo --domain=demo.example.test)
+APP_OUTPUT=$(wp_cli rudel app create --name=Demo --domain=demo.example.test --github=inline0/demo-theme --branch=main --dir=themes/demo-theme)
 APP_ID=$(parse_created_id "App created" "$APP_OUTPUT")
 if [[ -n "$APP_ID" ]]; then
 	APP_IDS+=("$APP_ID")
@@ -270,11 +270,17 @@ else
 fi
 
 site_cli "$APP_URL" option update blogname "Demo App" >/dev/null
-APP_DOMAIN_JSON=$(wp_cli rudel app info "$APP_ID" --format=json)
-if echo "$APP_DOMAIN_JSON" | grep -q "demo.example.test"; then
+APP_INFO_JSON=$(wp_cli rudel app info "$APP_ID" --format=json)
+if echo "$APP_INFO_JSON" | grep -q "demo.example.test"; then
 	pass "App metadata retains its configured domain"
 else
-	fail "App info missing configured domain" "$APP_DOMAIN_JSON"
+	fail "App info missing configured domain" "$APP_INFO_JSON"
+fi
+
+if printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_repo":"inline0\/demo-theme"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_branch":"main"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_dir":"themes\/demo-theme"'; then
+	pass "App metadata retains its tracked GitHub source"
+else
+	fail "App info missing tracked GitHub source" "$APP_INFO_JSON"
 fi
 
 BACKUP_OUTPUT=$(wp_cli rudel app backup "$APP_ID" --name=baseline)
@@ -307,6 +313,13 @@ if [[ -n "$FEATURE_URL" ]]; then
 else
 	fail "App-derived sandbox multisite site was not created" "$(wp_cli site list --fields=blog_id,url --format=table)"
 	exit 1
+fi
+
+FEATURE_INFO_JSON=$(wp_cli rudel info "$FEATURE_ID" --format=json)
+if printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_repo":"inline0\/demo-theme"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_branch":"main"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_dir":"themes\/demo-theme"'; then
+	pass "App-derived sandbox inherits tracked GitHub source"
+else
+	fail "App-derived sandbox missing tracked GitHub source" "$FEATURE_INFO_JSON"
 fi
 
 site_cli "$FEATURE_URL" option update blogname "Feature Deploy" >/dev/null

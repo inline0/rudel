@@ -222,4 +222,6 @@ The methods read more naturally as a lifecycle than as a flat list. A common flo
 5. deploy the sandbox into the app
 6. inspect deployment history or roll back if needed
 
+If the app tracks a GitHub repository, branch, and directory, `Rudel::create_sandbox_from_app()` carries that metadata into the new sandbox automatically. That keeps later push/PR and deploy operations aligned with the app's declared code source.
+
 That is the same workflow the CLI exposes. The PHP API exists so higher-level tooling can drive it directly without shelling out to WP-CLI.

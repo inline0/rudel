@@ -126,6 +126,10 @@ class EnvironmentPolicy {
 			$normalized['tracked_github_dir'] = self::normalize_github_dir( $changes['tracked_github_dir'] );
 		}
 
+		if ( array_key_exists( 'clone_source', $changes ) ) {
+			$normalized['clone_source'] = self::normalize_clone_source( $changes['clone_source'] );
+		}
+
 		return $normalized;
 	}
 
@@ -255,6 +259,25 @@ class EnvironmentPolicy {
 
 		if ( preg_match( '#(^|/)\.\.?(?:/|$)#', $value ) ) {
 			throw new \InvalidArgumentException( 'Tracked GitHub directories must stay within wp-content.' );
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Normalize internal clone metadata.
+	 *
+	 * @param mixed $value Raw input.
+	 * @return array<string, mixed>|null
+	 * @throws \InvalidArgumentException If the value is not null or an array payload.
+	 */
+	private static function normalize_clone_source( $value ): ?array {
+		if ( null === $value ) {
+			return null;
+		}
+
+		if ( ! is_array( $value ) ) {
+			throw new \InvalidArgumentException( 'clone_source must be an array or null.' );
 		}
 
 		return $value;

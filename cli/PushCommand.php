@@ -58,10 +58,7 @@ class PushCommand extends AbstractEnvironmentCommand {
 		$subdir      = $assoc_args['dir'] ?? $sandbox->get_github_dir() ?? '';
 		$branch      = $sandbox->get_git_branch();
 		$base_branch = $sandbox->get_github_base_branch();
-		$local_dir   = $sandbox->get_wp_content_path();
-		if ( '' !== $subdir ) {
-			$local_dir .= '/' . ltrim( $subdir, '/' );
-		}
+		$local_dir   = $sandbox->get_runtime_content_path( $subdir );
 
 		if ( ! is_dir( $local_dir ) ) {
 			WP_CLI::error( "Directory not found: {$local_dir}" );

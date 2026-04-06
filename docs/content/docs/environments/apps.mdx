@@ -32,6 +32,22 @@ wp rudel app create-sandbox demo-1234 --name="Demo Feature"
 
 That sandbox clones from the app and becomes the workspace for change work. This is one of Rudel's core loops: the app stays stable, while sandboxes branch off from it for development, QA, or experimentation.
 
+If the app tracks a GitHub repository, branch, and directory, the derived sandbox inherits that metadata automatically. In practice that means the sandbox already knows which repo it should push to and which base branch its pull requests should target.
+
+Create an app with tracked GitHub metadata:
+
+```bash
+wp rudel app create --name=demo --domain=demo.example.test --github=inline0/demo-theme --branch=release --dir=themes/demo-theme
+```
+
+Then create a sandbox from it:
+
+```bash
+wp rudel app create-sandbox demo-1234 --name="Demo Feature"
+```
+
+The resulting sandbox can use `wp rudel push` and `wp rudel pr` without having to repeat `--github` or `--dir` unless you are intentionally overriding the tracked source.
+
 ## Backups
 
 Because apps are long-lived, their recovery model is different from sandbox snapshots. App backups are meant to preserve a stable site state that you may need to restore days or weeks later.

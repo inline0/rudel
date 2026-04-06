@@ -1,13 +1,13 @@
 ---
 title: Isolation
-description: How Rudel uses multisite and generated environment files to isolate work.
+description: How Rudel uses multisite boundaries and environment-owned files to isolate work.
 ---
 
 # Isolation
 
-Rudel isolation starts with WordPress multisite.
+Rudel isolation starts with the multisite site boundary.
 
-That point is worth repeating because it is easy to assume Rudel must be doing something exotic. It is not. The foundation is the same site isolation model WordPress already ships: per-site tables, per-site uploads, per-site admin state, and site-scoped capabilities. Rudel then adds an environment directory and runtime metadata layer on top of that.
+Each environment is a real site, so the first layer of isolation is already part of the runtime: site tables, site options, uploads, admin state, and site-scoped capabilities. Rudel then adds the operational pieces around that site so teams can create, clone, snapshot, back up, deploy, and destroy environments without losing track of what belongs where.
 
 ## Site data
 
@@ -18,7 +18,7 @@ Every Rudel environment is a real multisite site, so WordPress already gives Rud
 - per-site uploads
 - per-site admin and REST behavior
 
-Rudel builds on that instead of emulating it. That is why environment URLs, `wp-admin`, media uploads, and normal browser navigation behave like ordinary site requests.
+Rudel builds on that directly. That is why environment URLs, `wp-admin`, media uploads, and normal browser navigation behave like ordinary site requests.
 
 ## Environment directories
 
@@ -26,15 +26,15 @@ Each environment also has a generated directory containing:
 
 - `bootstrap.php`
 - `wp-cli.yml`
-- isolated `wp-content`
+- environment-owned workspace files
+- `debug.log`
 - `snapshots/` or `backups/`
-- worktree-managed code when present
 
-This directory is the filesystem side of isolation. It is where Rudel stores copied themes, plugins, templates, snapshots, backups, and other environment-owned files that do not belong in the runtime tables themselves.
+This directory is the filesystem side of Rudel's operator model. It is where Rudel keeps the files it owns directly: bootstrap files, scoped CLI config, logs, snapshots, backups, and other environment artifacts. Code/worktree relationships are tracked in Rudel runtime state rather than being guessed from one directory convention.
 
 ## Authentication and cache
 
-Rudel also scopes authentication salts and cache behavior per environment so sessions and persistent cache data stay isolated between environments and the host. The site boundary comes from multisite; Rudel makes sure the supporting runtime state follows that boundary cleanly.
+Rudel also scopes authentication salts and cache behavior per environment so sessions and persistent cache data stay isolated between environments and the host. The site boundary comes from multisite; Rudel makes sure the surrounding runtime state follows that boundary cleanly.
 
 ## Email
 

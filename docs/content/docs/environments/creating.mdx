@@ -5,9 +5,9 @@ description: Create sandboxes and apps on a subdomain multisite network.
 
 # Creating Environments
 
-Rudel creates real multisite sites. That is the most important thing to keep in mind while reading the creation commands, because it explains both what Rudel does for you and what it deliberately leaves to WordPress.
+Rudel creates real multisite sites. That is the most important thing to keep in mind while reading the creation commands, because it explains the whole runtime shape.
 
-When you create an environment, Rudel is creating a real site, recording that site in its runtime tables, and preparing the environment directory that will hold copied content, worktrees, snapshots, or backups.
+When you create an environment, Rudel is creating a real site, recording that site in its runtime tables, and preparing the environment directory that will hold scoped tooling, workspace files, snapshots, or backups.
 
 ## Create a sandbox
 
@@ -50,6 +50,14 @@ wp rudel app create --name=demo --domain=demo.example.test
 
 Apps are also backed by real multisite sites. Rudel stores their domain metadata, deploy history, worktrees, and other lifecycle context in runtime tables, but the site itself is still a normal multisite site that core can see and manage.
 
+If an app has a single long-lived code source, you can capture that at creation time:
+
+```bash
+wp rudel app create --name=demo --domain=demo.example.test --github=inline0/demo-theme --branch=main --dir=themes/demo-theme
+```
+
+That tracked GitHub context becomes part of the app record. App-derived sandboxes inherit it automatically, which means later `wp rudel push` and `wp rudel pr` calls can usually run without restating the repository details.
+
 ## Find the created site URLs
 
 ```bash
@@ -58,7 +66,7 @@ wp site list --fields=blog_id,url
 
 That output is the browser truth for Rudel environments. If you need the site URL, ask WordPress. If you need the extra lifecycle metadata around that site, ask Rudel.
 
-The environment directory is the corresponding filesystem truth. That is where Rudel keeps the scoped `wp-cli.yml`, copied code, worktrees, snapshots, backups, and other environment-owned files.
+The environment directory is the corresponding operator workspace. That is where Rudel keeps the scoped `wp-cli.yml`, bootstrap files, logs, snapshots, backups, and other environment-owned files.
 
 ## Policy metadata
 

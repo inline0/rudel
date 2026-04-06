@@ -80,13 +80,13 @@ Standard cleanup runs automatically on an hourly WP-Cron schedule when `auto_cle
 
 ## Merge-based cleanup
 
-If you use Rudel's [git integration](/docs/features/git), sandboxes can be cleaned up automatically when their branches are merged. This is separate from age-based cleanup:
+If you use Rudel's [git integration](/docs/features/git), sandboxes can be cleaned up automatically when their tracked branches are merged. This is separate from age-based cleanup:
 
 ```bash
 wp rudel cleanup --merged
 ```
 
-This checks each sandbox that has git worktrees. If all of a sandbox's branches have been merged into the default branch (usually `main`), the sandbox is destroyed, the worktrees are removed, and the branches are deleted.
+This checks each sandbox that has local git worktrees or tracked GitHub branch metadata. If all of that sandbox's tracked branches have been merged into the base branch, the sandbox is destroyed and Rudel removes the corresponding branch state as part of cleanup.
 
 Preview first with `--dry-run`:
 
@@ -94,4 +94,4 @@ Preview first with `--dry-run`:
 wp rudel cleanup --merged --dry-run
 ```
 
-This is the cleanest way to manage sandbox lifecycles when working with git: create a sandbox, do the work, merge the PR, and let cleanup remove the environment once the branch has clearly served its purpose.
+This is the cleanest way to manage sandbox lifecycles when working with git or GitHub-backed code flows: create a sandbox, do the work, merge the branch or PR, and let cleanup remove the environment once that branch has clearly served its purpose.

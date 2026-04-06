@@ -243,6 +243,7 @@ class AppManager {
 
 		try {
 			$sandbox = $this->sandbox_manager->create( $name, $options );
+			$sandbox = $this->inherit_git_tracking_from_app_sandbox( $sandbox, $app, $options );
 			Hooks::action( 'rudel_after_app_create_sandbox', $sandbox, $context );
 
 			return $sandbox;
@@ -678,6 +679,39 @@ class AppManager {
 		}
 
 		return $this->manager->update( $app->id, $changes );
+	}
+
+	/**
+	 * Carry tracked GitHub metadata forward when a sandbox is created from an app.
+	 *
+	 * @param Environment $sandbox Newly created sandbox.
+	 * @param Environment $app Source app.
+	 * @param array       $options Sandbox creation options.
+	 * @return Environment
+	 */
+	private function inherit_git_tracking_from_app_sandbox( Environment $sandbox, Environment $app, array $options ): Environment {
+		if (
+			array_key_exists( 'tracked_github_repo', $options ) ||
+			array_key_exists( 'tracked_github_branch', $options ) ||
+			array_key_exists( 'tracked_github_dir', $options )
+		) {
+			return $sandbox;
+		}
+
+		$changes = array_filter(
+			array(
+				'tracked_github_repo'   => $app->get_github_repo(),
+				'tracked_github_branch' => $app->get_github_base_branch(),
+				'tracked_github_dir'    => $app->get_github_dir(),
+			),
+			static fn( $value ) => null !== $value
+		);
+
+		if ( empty( $changes ) ) {
+			return $sandbox;
+		}
+
+		return $this->sandbox_manager->update( $sandbox->id, $changes );
 	}
 
 	/**

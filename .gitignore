@@ -2,6 +2,7 @@ vendor/
 lib/sqlite-database-integration/
 node_modules/
 .DS_Store
+.env.local
 *.rudel-backup-*
 .phpunit.cache/
 .vercel

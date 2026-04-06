@@ -158,6 +158,8 @@ Create an app.
 wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
+Use `--github`, `--branch`, and `--dir` when the app should carry one tracked code source. That tracked source becomes the default GitHub context for app-derived sandboxes and deployment history.
+
 ### `wp rudel app list`
 
 ```bash
@@ -176,6 +178,8 @@ wp rudel app info <id> [--format=<format>]
 wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--clear-github]
 ```
 
+This is also where you change or clear the app's tracked GitHub source after creation.
+
 ### `wp rudel app destroy`
 
 ```bash
@@ -189,6 +193,8 @@ Create a sandbox from an app.
 ```bash
 wp rudel app create-sandbox <id> [--name=<name>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
+
+If the source app tracks a GitHub repository, branch, and directory, the derived sandbox inherits that metadata automatically.
 
 ### `wp rudel app backup`
 

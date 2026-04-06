@@ -54,4 +54,44 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
         $this->assertStringContainsString('pre_option_home', $runtimePlugin);
         $this->assertStringContainsString('rudel_runtime_environment_url', $runtimePlugin);
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testUpdatePreservesCloneSourceAndUsesSharedRuntimeContentPath(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $this->createFakeSandbox('alpha-site', 'Alpha Site', [
+            'blog_id' => 2,
+            'multisite' => true,
+        ]);
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir,
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $updated = $manager->update('alpha-site', [
+            'clone_source' => [
+                'github_repo' => 'inline0/example-theme',
+                'github_dir' => 'themes/example-theme',
+            ],
+        ]);
+
+        $this->assertSame('inline0/example-theme', $updated->clone_source['github_repo']);
+        $this->assertSame('themes/example-theme', $updated->clone_source['github_dir']);
+        $this->assertSame($wordpressRoot . '/wp-content', $updated->get_runtime_wp_content_path());
+        $this->assertSame(
+            $wordpressRoot . '/wp-content/themes/example-theme',
+            $updated->get_runtime_content_path('themes/example-theme')
+        );
+    }
 }

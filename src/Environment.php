@@ -195,6 +195,37 @@ class Environment {
 	}
 
 	/**
+	 * Runtime wp-content path for the active WordPress network.
+	 *
+	 * Subsite environments run against the shared network content tree, while
+	 * non-subsite callers keep using the environment-local scaffold.
+	 *
+	 * @return string Absolute path to the runtime wp-content directory.
+	 */
+	public function get_runtime_wp_content_path(): string {
+		if ( $this->is_subsite() && ( defined( 'WP_CONTENT_DIR' ) || defined( 'ABSPATH' ) ) ) {
+			return self::host_wp_content_dir();
+		}
+
+		return $this->get_wp_content_path();
+	}
+
+	/**
+	 * Runtime content path, optionally scoped to one wp-content subdirectory.
+	 *
+	 * @param string $relative Relative path within wp-content.
+	 * @return string Absolute runtime path.
+	 */
+	public function get_runtime_content_path( string $relative = '' ): string {
+		$base = $this->get_runtime_wp_content_path();
+		if ( '' === $relative ) {
+			return $base;
+		}
+
+		return $base . '/' . ltrim( $relative, '/' );
+	}
+
+	/**
 	 * Calculate total disk usage of the sandbox directory.
 	 *
 	 * @return int Size in bytes.
@@ -276,6 +307,23 @@ class Environment {
 		}
 
 		return trailingslashit( $url );
+	}
+
+	/**
+	 * Host WordPress wp-content directory path.
+	 *
+	 * @return string Absolute path without trailing slash.
+	 */
+	private static function host_wp_content_dir(): string {
+		if ( defined( 'WP_CONTENT_DIR' ) ) {
+			return rtrim( WP_CONTENT_DIR, '/' );
+		}
+
+		if ( defined( 'ABSPATH' ) ) {
+			return rtrim( ABSPATH, '/' ) . '/wp-content';
+		}
+
+		return dirname( __DIR__, 3 ) . '/wp-content';
 	}
 
 	/**

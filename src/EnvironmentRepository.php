@@ -214,8 +214,11 @@ class EnvironmentRepository {
 		}
 
 		$payload = $this->normalize_changes( $changes, $row );
-		if ( ! empty( $payload['__worktrees'] ) ) {
-			$this->replace_worktrees( (int) $row['id'], $payload['__worktrees'] );
+		if ( array_key_exists( '__worktrees', $payload ) ) {
+			$this->replace_worktrees(
+				(int) $row['id'],
+				is_array( $payload['__worktrees'] ) ? $payload['__worktrees'] : array()
+			);
 			unset( $payload['__worktrees'] );
 		}
 

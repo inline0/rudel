@@ -7,9 +7,9 @@ description: Rudel manages WordPress sandboxes and apps as real subdomain multis
 
 Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
 
-That sentence is the foundation of the entire product. Rudel does not try to fake sites through synthetic URLs, browser cookies, or custom routing tricks. It starts from the thing WordPress already understands: a site with a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel then adds the orchestration that multisite does not provide by itself.
+That sentence is the foundation of the entire product. Every Rudel environment has a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Rudel uses that browser/runtime contract everywhere, then layers creation, cloning, templates, backups, deploy history, worktrees, and lifecycle policy on top of it.
 
-Once you see Rudel as "multisite runtime plus orchestration layer", the rest of the model becomes much easier to reason about.
+Once you see Rudel as "multisite runtime plus operator workflow", the rest of the model becomes much easier to reason about.
 
 ## Two environment types
 
@@ -44,7 +44,7 @@ The runtime is native multisite. The value Rudel adds is everything around the l
 - GitHub push and PR workflows
 - policy metadata such as owner, labels, protection, and expiry
 
-That is why Rudel feels different from plain multisite. It does not merely host sites. It gives those sites an operator model.
+That is why Rudel feels different from plain multisite. It gives those sites an operator model.
 
 ## Requirements
 

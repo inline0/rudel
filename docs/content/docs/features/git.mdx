@@ -5,31 +5,31 @@ description: Branch-based workflows with automatic worktrees for git-tracked the
 
 # Git Integration
 
-When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of treating every sandbox as a dead-end file copy, it can create a git worktree on a dedicated branch. That means the code changes made in the sandbox are still ordinary git changes that can be committed, reviewed, merged, and cleaned up normally.
+When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of treating every sandbox as a dead-end file copy, it can create a dedicated `rudel/{sandbox-id}` branch and attach worktree metadata to the environment. That keeps code changes reviewable and mergeable in the same tools teams already use for ordinary git work.
 
 ## How it works
 
-When you create a sandbox with `--clone-themes` or `--clone-plugins`, Rudel checks each theme and plugin directory for a `.git` folder. If it finds one, it creates a git worktree in the sandbox's wp-content on a new branch named `rudel/{sandbox-id}`. Directories without git are copied normally, and uploads are always copied since they're not typically version-controlled.
+When you create a sandbox with `--clone-themes` or `--clone-plugins`, Rudel checks each copied theme or plugin directory for a `.git` folder. If it finds one, it creates a worktree on a new branch named `rudel/{sandbox-id}` and records that relationship in Rudel's runtime tables. Directories without git are copied normally, and uploads are always copied since they are runtime data rather than version-controlled source.
 
 ```bash
 wp rudel create --name=feature-x --clone-themes --clone-plugins
 ```
 
-If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox gets a worktree at `wp-content/rudel-environments/feature-x-a1b2/wp-content/themes/my-theme` on the `rudel/feature-x-a1b2` branch.
+If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox keeps using that theme as tracked code and Rudel records the repository path plus the generated sandbox branch. The important operator fact is the branch name and tracked directory, not one hard-coded filesystem layout.
 
 ## Working in the sandbox
 
-From the sandbox's theme directory, you're on a regular git branch. You can commit, push, and create pull requests just like any other feature branch.
+From the sandbox's tracked theme or plugin directory, you're on a regular git branch. You can commit, push, and create pull requests just like any other feature branch.
 
 ```bash
-cd /path/to/wp-content/rudel-environments/feature-x-a1b2/wp-content/themes/my-theme
+cd /path/to/the/theme-or-plugin-directory-rudel-tracked-for-the-sandbox
 git status
 git add .
 git commit -m "Add new template"
 git push origin rudel/feature-x-a1b2
 ```
 
-AI coding agents working in the sandbox can commit their changes directly. The sandbox's `CLAUDE.md` includes the branch name so the code workspace and the environment lifecycle stay aligned.
+AI coding agents working in the sandbox can commit their changes directly. The sandbox's generated `CLAUDE.md` includes the branch name so the code workspace and the environment lifecycle stay aligned.
 
 ## Merging and cleanup
 
@@ -39,7 +39,7 @@ Once the branch is merged into main, the sandbox has served its purpose. Instead
 wp rudel cleanup --merged
 ```
 
-This checks every sandbox that has git worktrees. If all of a sandbox's branches have been merged into the default branch, the sandbox is destroyed, the worktrees are removed, and the branches are cleaned up.
+This checks every sandbox that carries tracked GitHub or git branch state. If all of a sandbox's tracked branches have been merged into their base branch, the sandbox is destroyed and Rudel cleans up the branch metadata along with the environment.
 
 To preview what would be removed without actually deleting:
 
@@ -49,7 +49,7 @@ wp rudel cleanup --merged --dry-run
 
 ## What gets git-tracked
 
-Only themes and plugins are eligible for git worktrees. The decision is per-directory: if `wp-content/themes/my-theme/.git` exists, that theme gets a worktree. If `wp-content/themes/other-theme/.git` does not exist, that theme is file-copied. Uploads are always file-copied.
+Only themes and plugins are eligible for git worktrees. The decision is per-directory: if a copied theme or plugin contains a `.git` directory, Rudel can track it as git-backed code. Directories without git are copied normally. Uploads are always file-copied.
 
 The site data side of the sandbox is not part of git. That is the disposable part. The code changes in themes and plugins are the part that should be preserved, and git already handles that naturally.
 
@@ -62,6 +62,11 @@ Define your GitHub token in `wp-config.php`:
 ```php
 define( 'RUDEL_GITHUB_TOKEN', 'ghp_your_token_here' );
 ```
+
+For a fine-grained personal access token, the important permissions are:
+
+- repository contents: read and write
+- pull requests: read and write
 
 Then push sandbox changes to GitHub and create PRs:
 
@@ -77,6 +82,14 @@ Rudel creates the branch (`rudel/{sandbox-id}`), uploads all files via the GitHu
 
 This works on any host that can make outbound HTTPS requests, which is essentially all of them.
 
+Apps can also carry a tracked GitHub repository, branch, and directory:
+
+```bash
+wp rudel app create --name=demo --domain=demo.example.test --github=inline0/demo-theme --branch=main --dir=themes/demo-theme
+```
+
+Any sandbox created from that app inherits the tracked GitHub metadata automatically. That keeps the branch and PR workflow consistent across the app lifecycle instead of making operators restate the same repo details on every derived sandbox.
+
 ## Without git
 
-If none of your themes or plugins are git repos and you don't use GitHub integration, these features do nothing. Sandboxes work exactly the same as before, with plain file copying. Git and GitHub integration are purely additive.
+If none of your themes or plugins are git repos and you do not use GitHub integration, Rudel simply copies the relevant code directories and keeps the environment lifecycle running normally. Git and GitHub integration are optional workflow layers on top of the multisite runtime.

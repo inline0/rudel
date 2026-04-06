@@ -75,7 +75,7 @@ class GitHubIntegration {
 	 */
 	public function create_branch( string $branch, ?string $base_branch = null ): void {
 		$base_branch ??= $this->get_default_branch();
-		$ref           = $this->api( 'GET', "/repos/{$this->repo}/git/ref/heads/{$base_branch}" );
+		$ref           = $this->api( 'GET', "/repos/{$this->repo}/git/ref/{$this->encode_git_ref( $base_branch )}" );
 		$sha           = $ref['object']['sha'];
 
 		$this->api(
@@ -96,7 +96,7 @@ class GitHubIntegration {
 	 */
 	public function delete_branch( string $branch ): bool {
 		try {
-			$this->api( 'DELETE', "/repos/{$this->repo}/git/refs/heads/{$branch}" );
+			$this->api( 'DELETE', "/repos/{$this->repo}/git/refs/{$this->encode_git_ref( $branch )}" );
 			return true;
 		} catch ( \RuntimeException $e ) {
 			return false;
@@ -113,8 +113,10 @@ class GitHubIntegration {
 	 * @throws \RuntimeException If the API call fails.
 	 */
 	public function download( string $branch, string $local_dir ): int {
-		$tree  = $this->api( 'GET', "/repos/{$this->repo}/git/trees/{$branch}?recursive=1" );
-		$count = 0;
+		$ref    = $this->api( 'GET', "/repos/{$this->repo}/git/ref/{$this->encode_git_ref( $branch )}" );
+		$commit = $this->api( 'GET', "/repos/{$this->repo}/git/commits/{$ref['object']['sha']}" );
+		$tree   = $this->api( 'GET', "/repos/{$this->repo}/git/trees/{$commit['tree']['sha']}?recursive=1" );
+		$count  = 0;
 
 		foreach ( $tree['tree'] ?? array() as $item ) {
 			if ( 'blob' !== $item['type'] ) {
@@ -153,7 +155,7 @@ class GitHubIntegration {
 	 * @throws \RuntimeException If the API call fails.
 	 */
 	public function push( string $branch, string $local_dir, string $message ): ?string {
-		$ref       = $this->api( 'GET', "/repos/{$this->repo}/git/ref/heads/{$branch}" );
+		$ref       = $this->api( 'GET', "/repos/{$this->repo}/git/ref/{$this->encode_git_ref( $branch )}" );
 		$head_sha  = $ref['object']['sha'];
 		$commit    = $this->api( 'GET', "/repos/{$this->repo}/git/commits/{$head_sha}" );
 		$base_tree = $commit['tree']['sha'];
@@ -221,7 +223,7 @@ class GitHubIntegration {
 
 		$this->api(
 			'PATCH',
-			"/repos/{$this->repo}/git/refs/heads/{$branch}",
+			"/repos/{$this->repo}/git/refs/{$this->encode_git_ref( $branch )}",
 			array( 'sha' => $new_commit['sha'] )
 		);
 
@@ -267,7 +269,16 @@ class GitHubIntegration {
 	 */
 	public function is_branch_merged( string $branch ): bool {
 		try {
-			$prs = $this->api( 'GET', "/repos/{$this->repo}/pulls?state=closed&head={$this->get_owner()}:{$branch}&per_page=1" );
+			$prs = $this->api(
+				'GET',
+				"/repos/{$this->repo}/pulls?" . http_build_query(
+					array(
+						'state'    => 'closed',
+						'head'     => $this->get_owner() . ':' . $branch,
+						'per_page' => 1,
+					)
+				)
+			);
 			foreach ( $prs as $pr ) {
 				if ( ! empty( $pr['merged_at'] ) ) {
 					return true;
@@ -287,6 +298,16 @@ class GitHubIntegration {
 	 */
 	private function get_owner(): string {
 		return explode( '/', $this->repo )[0];
+	}
+
+	/**
+	 * Encode one git ref for REST endpoints while preserving slash separators.
+	 *
+	 * @param string $ref Branch or ref name.
+	 * @return string
+	 */
+	private function encode_git_ref( string $ref ): string {
+		return rawurlencode( 'heads/' . $ref );
 	}
 
 	/**

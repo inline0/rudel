@@ -7,7 +7,7 @@ description: Rudel stores runtime metadata in WordPress tables.
 
 Rudel runtime metadata is stored in WordPress tables.
 
-That sounds mundane, but it is one of the most important architectural decisions in the project. Rudel does not treat environment directories as the authoritative source of metadata. The database is where Rudel tracks what environments exist, which ones are apps, which domains belong to which app, which worktrees are attached, and which deployments have happened.
+That is one of the most important architectural decisions in the project. Rudel does not treat generated directories as the authoritative source of metadata. The database is where Rudel tracks what environments exist, which ones are apps, which domains belong to which app, which worktrees are attached, and which deployments have happened.
 
 That runtime state includes:
 
@@ -18,6 +18,8 @@ That runtime state includes:
 - app deployments
 - Rudel configuration
 
+The environments table also carries the metadata that makes higher-level workflows possible: ownership, expiry, lineage, tracked GitHub repository data, and the identifiers Rudel uses to connect apps, app-derived sandboxes, and deploy records back together.
+
 ## Default tables
 
 - `wp_rudel_environments`
@@ -26,7 +28,9 @@ That runtime state includes:
 - `wp_rudel_worktrees`
 - `wp_rudel_app_deployments`
 
-Together those tables let Rudel answer the questions that WordPress multisite cannot answer by itself, such as who owns an environment, which app a sandbox came from, or which backup belongs to a specific deployment record.
+Together those tables let Rudel answer the operational questions around the sites it manages: who owns an environment, which app a sandbox came from, or which backup belongs to a specific deployment record.
+
+One detail matters here: worktrees are stored in their own runtime table instead of being embedded permanently inside `clone_source`. That keeps Git-aware lifecycle state queryable and easier to update when environments change over time.
 
 ## Table naming overrides
 
@@ -50,4 +54,4 @@ Runtime reads and writes should go through Rudel repositories and services:
 - `EnvironmentWorktreeRepository`
 - `AppDeploymentRepository`
 
-That boundary is deliberate. Environment directories are for generated files and copied content, not as the source of truth for runtime metadata. If a higher-level product wants to inspect or manipulate Rudel state, it should talk to the runtime tables through Rudel's public API or internal repositories rather than reading files and guessing.
+That boundary is deliberate. Environment directories are for generated files and environment-owned artifacts, not as the source of truth for runtime metadata. If a higher-level product wants to inspect or manipulate Rudel state, it should talk to the runtime tables through Rudel's public API or internal repositories rather than reading files and guessing.
