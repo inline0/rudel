@@ -29,13 +29,14 @@ if ( defined( 'RUDEL_ID' ) ) {
 	return;
 }
 
-$rudel_bootstrap_is_app        = false;
-$rudel_bootstrap_requested_url = null;
+	$rudel_bootstrap_is_app        = false;
+	$rudel_bootstrap_requested_url = null;
+	$rudel_bootstrap_host_url      = null;
 
 require_once __DIR__ . '/src/RuntimeTableConfig.php';
 require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
-( function () use ( &$rudel_bootstrap_is_app, &$rudel_bootstrap_requested_url, $rudel_bootstrap_sapi ) {
+	( function () use ( &$rudel_bootstrap_is_app, &$rudel_bootstrap_requested_url, &$rudel_bootstrap_host_url, $rudel_bootstrap_sapi ) {
 	$plugin_dir       = __DIR__;
 	$environments_dir = null;
 
@@ -73,9 +74,12 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			'port' => $parsed_port,
 		);
 	};
-	$raw_http_host = isset( $_SERVER['HTTP_HOST'] ) && is_string( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : '';
-	$raw_server    = isset( $_SERVER['SERVER_NAME'] ) && is_string( $_SERVER['SERVER_NAME'] ) ? $_SERVER['SERVER_NAME'] : '';
-	$raw_request   = '' !== $raw_http_host ? $raw_http_host : ( '' !== $raw_server ? $raw_server : 'localhost' );
+		$raw_http_host = isset( $_SERVER['HTTP_HOST'] ) && is_string( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : '';
+		$raw_server    = isset( $_SERVER['SERVER_NAME'] ) && is_string( $_SERVER['SERVER_NAME'] ) ? $_SERVER['SERVER_NAME'] : '';
+		$raw_request   = '' !== $raw_http_host ? $raw_http_host : ( '' !== $raw_server ? $raw_server : 'localhost' );
+		$raw_parts     = $split_host( $raw_request );
+		$raw_host      = isset( $raw_parts['host'] ) ? (string) $raw_parts['host'] : '';
+		$raw_port      = isset( $raw_parts['port'] ) ? $raw_parts['port'] : null;
 
 	if ( 'cli' !== $rudel_bootstrap_sapi ) {
 		foreach ( array( 'HTTP_HOST', 'SERVER_NAME' ) as $server_key ) {
@@ -338,9 +342,30 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		}
 	}
 
-	if ( ! $sandbox_id || ! $sandbox_path ) {
-		return;
-	}
+		if ( ! $sandbox_id || ! $sandbox_path ) {
+			if ( 'cli' !== $rudel_bootstrap_sapi && '' !== $raw_host && null !== $raw_port && ! in_array( $raw_port, array( 80, 443 ), true ) && $normalize_host( $raw_host ) === $current_network_host() ) {
+				$protocol = 'http';
+				if ( ! empty( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && in_array( $_SERVER['HTTP_X_FORWARDED_PROTO'], array( 'http', 'https' ), true ) ) {
+					$protocol = $_SERVER['HTTP_X_FORWARDED_PROTO'];
+				} elseif ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] ) {
+					$protocol = 'https';
+				}
+
+				$host_url = rtrim( $protocol . '://' . $raw_host . ':' . $raw_port, '/' );
+				$rudel_bootstrap_host_url = $host_url;
+				if ( ! defined( 'RUDEL_HOST_URL' ) ) {
+					define( 'RUDEL_HOST_URL', $host_url );
+				}
+				if ( ! defined( 'WP_HOME' ) ) {
+					define( 'WP_HOME', $host_url );
+				}
+				if ( ! defined( 'WP_SITEURL' ) ) {
+					define( 'WP_SITEURL', $host_url );
+				}
+			}
+
+			return;
+		}
 
 	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Dynamic constant names for WP config.
 	$def = function ( string $name, mixed $value ): void {

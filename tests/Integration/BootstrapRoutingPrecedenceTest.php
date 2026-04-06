@@ -122,6 +122,36 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
+	public function testHostRequestsKeepPortfulMainSiteUrlWhenNoEnvironmentMatches(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		$environmentsDir = $wordpressRoot . '/wp-content/rudel-environments';
+		$appsDir = $wordpressRoot . '/wp-content/rudel-apps';
+		mkdir($environmentsDir, 0755, true);
+		mkdir($appsDir, 0755, true);
+
+		define('ABSPATH', $wordpressRoot . '/');
+		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+		define('DOMAIN_CURRENT_SITE', 'localhost');
+		define('RUDEL_BOOTSTRAP_SAPI', 'fpm-fcgi');
+		define('RUDEL_DISABLE_OPEN_BASEDIR_JAIL', true);
+
+		$_SERVER['HTTP_HOST'] = 'localhost:9878';
+		$_SERVER['SERVER_NAME'] = 'localhost:9878';
+		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
+
+		require dirname(__DIR__, 2) . '/bootstrap.php';
+
+		$this->assertFalse(defined('RUDEL_ID'));
+		$this->assertSame('localhost', $_SERVER['HTTP_HOST']);
+		$this->assertSame('localhost', $_SERVER['SERVER_NAME']);
+		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
+		$this->assertSame('http://localhost:9878', constant('WP_HOME'));
+		$this->assertSame('http://localhost:9878', constant('WP_SITEURL'));
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
 	public function testBootstrapNormalizesCliUrlArgumentsWhileKeepingRenderedCliUrl(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
