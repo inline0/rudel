@@ -58,10 +58,6 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			$apps_dir = $abspath . 'wp-content/rudel-apps';
 		}
 
-		if ( ! is_dir( $environments_dir ) && ! is_dir( $apps_dir ) ) {
-			return;
-		}
-
 		$runtime_store = new \Rudel\BootstrapRuntimeStore();
 		$split_host    = function ( string $host ): array {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap host parsing.

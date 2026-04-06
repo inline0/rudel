@@ -125,10 +125,6 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 	public function testHostRequestsKeepPortfulMainSiteUrlWhenNoEnvironmentMatches(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
-		$environmentsDir = $wordpressRoot . '/wp-content/rudel-environments';
-		$appsDir = $wordpressRoot . '/wp-content/rudel-apps';
-		mkdir($environmentsDir, 0755, true);
-		mkdir($appsDir, 0755, true);
 
 		define('ABSPATH', $wordpressRoot . '/');
 		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
