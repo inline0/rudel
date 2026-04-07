@@ -13,7 +13,8 @@ That does not make the filesystem secondary in the runtime itself. The
 environment directory still contains the canonical local `wp-content` for that
 app or sandbox. The database is the source of truth for metadata and lifecycle
 state. The environment-local file tree is the source of truth for code and
-uploads inside that environment.
+uploads inside that environment, and the environment-local `db.php` drop-in is
+what points WordPress at that environment's isolated user tables.
 
 That runtime state includes:
 
@@ -25,6 +26,11 @@ That runtime state includes:
 - Rudel configuration
 
 Those tables always live in the host WordPress database. Rudel does not keep a parallel JSON registry or any second runtime datastore for its own metadata.
+
+That runtime registry is separate from live environment user tables. Apps and
+sandboxes derive their own isolated `users` and `usermeta` tables from the
+network base prefix plus the environment `blog_id`, but those tables are site
+state, not Rudel registry metadata.
 
 That also means higher-level products can talk to Rudel's registry outside
 WordPress as long as they use the same database. The standalone core path uses

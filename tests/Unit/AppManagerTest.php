@@ -107,6 +107,54 @@ class AppManagerTest extends RudelTestCase
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
+	public function testCreateSandboxClonesTheAppIsolatedUsers(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+		define('ABSPATH', $wordpressRoot . '/');
+		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+		define('WP_HOME', 'http://example.test');
+		define('DOMAIN_CURRENT_SITE', 'example.test');
+
+		$manager = new AppManager(
+			$this->tmpDir . '/apps',
+			$this->tmpDir . '/sandboxes'
+		);
+
+		$app = $manager->create('Client Demo', ['client.example.test']);
+		$appUsersTable = (string) $app->get_users_table();
+		$appUsermetaTable = (string) $app->get_usermeta_table();
+
+		$appUsers = $GLOBALS['wpdb']->getTableRows($appUsersTable);
+		$appUsers[] = [
+			'ID' => 2,
+			'user_login' => 'app-author',
+			'user_pass' => '$P$app',
+			'user_email' => 'author@example.test',
+		];
+		$GLOBALS['wpdb']->addTable($appUsersTable, 'CREATE TABLE `'.$appUsersTable.'` (`ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_login` varchar(60), `user_pass` varchar(255), `user_email` varchar(100), PRIMARY KEY (`ID`))', $appUsers);
+
+		$appUsermeta = $GLOBALS['wpdb']->getTableRows($appUsermetaTable);
+		$appUsermeta[] = [
+			'umeta_id' => 3,
+			'user_id' => 2,
+			'meta_key' => 'wp_' . $app->blog_id . '_capabilities',
+			'meta_value' => 'a:1:{s:6:"author";b:1;}',
+		];
+		$GLOBALS['wpdb']->addTable($appUsermetaTable, 'CREATE TABLE `'.$appUsermetaTable.'` (`umeta_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_id` bigint(20) unsigned NOT NULL, `meta_key` varchar(255), `meta_value` longtext, PRIMARY KEY (`umeta_id`))', $appUsermeta);
+
+		$sandbox = $manager->create_sandbox($app->id, 'Feature Sandbox');
+		$sandboxUsers = $GLOBALS['wpdb']->getTableRows((string) $sandbox->get_users_table());
+		$sandboxLogins = array_column($sandboxUsers, 'user_login');
+		$sandboxMetaKeys = array_column($GLOBALS['wpdb']->getTableRows((string) $sandbox->get_usermeta_table()), 'meta_key');
+
+		$this->assertContains('app-author', $sandboxLogins);
+		$this->assertContains('wp_' . $sandbox->blog_id . '_capabilities', $sandboxMetaKeys);
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
 	public function testCreateSandboxFromGitTrackedAppKeepsWorktreeInsideSandboxContentTree(): void
 	{
 		if (! $this->hasGit()) {

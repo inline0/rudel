@@ -467,7 +467,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$def( 'RUDEL_ENV_TYPE', $rudel_bootstrap_is_app ? 'app' : 'sandbox' );
 		$def( 'RUDEL_ENGINE', $_rudel_engine );
 		if ( null !== $environment_blog ) {
-			$base_prefix = null;
+			$base_prefix = $runtime_store->base_prefix();
 			if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->base_prefix ) && is_string( $GLOBALS['wpdb']->base_prefix ) && '' !== $GLOBALS['wpdb']->base_prefix ) {
 				$base_prefix = $GLOBALS['wpdb']->base_prefix;
 			} elseif ( isset( $GLOBALS['table_prefix'] ) && is_string( $GLOBALS['table_prefix'] ) && '' !== $GLOBALS['table_prefix'] ) {
@@ -476,6 +476,9 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
 			if ( is_string( $base_prefix ) && '' !== $base_prefix ) {
 				$def( 'RUDEL_TABLE_PREFIX', $base_prefix . $environment_blog . '_' );
+				$def( 'RUDEL_USER_SCOPE', 'isolated' );
+				$def( 'RUDEL_USERS_TABLE', $base_prefix . 'rudel_env_' . $environment_blog . '_users' );
+				$def( 'RUDEL_USERMETA_TABLE', $base_prefix . 'rudel_env_' . $environment_blog . '_usermeta' );
 			}
 		}
 		$def( 'RUDEL_ENV_RECORD_ID', $environment_row_id );

@@ -8,11 +8,11 @@ description: Rudel manages WordPress sandboxes and apps as real subdomain multis
 Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
 
 Every Rudel environment has a real `blog_id`, a real URL, normal `wp-admin`,
-normal login, normal REST requests, and normal asset handling. Each one also
-has its own cloned `wp-content`, which Rudel treats as the canonical file and
-code tree for that environment. Rudel uses that site identity plus that local
-content tree as the base for everything else it does: creation, cloning,
-templates, backups, deploy history, worktrees, and lifecycle policy.
+normal REST requests, normal asset handling, and its own isolated users. Each
+one also has its own cloned `wp-content`, which Rudel treats as the canonical
+file and code tree for that environment. Rudel uses that site identity plus
+that local content tree as the base for everything else it does: creation,
+cloning, templates, backups, deploy history, worktrees, and lifecycle policy.
 
 WordPress answers the browser question. Rudel answers the operator question.
 WordPress knows how the site boots and where it lives. Rudel knows why the
@@ -35,7 +35,7 @@ For apps, Rudel adds one more layer on top: a primary mapped app domain becomes 
 
 Rudel keeps two layers in sync.
 
-**WordPress multisite sites** are the routing and database truth. Every Rudel environment is backed by a real multisite site with native tables, site options, uploads, admin behavior, and browser routing.
+**WordPress multisite sites** are the routing and site-state truth. Every Rudel environment is backed by a real multisite site with native per-site tables, site options, uploads, admin behavior, browser routing, and its own isolated users.
 
 **Environment-local `wp-content` trees** are the file and code truth. Each app and sandbox runs against its own cloned `wp-content`, and any git worktrees Rudel creates live inside that environment-local tree.
 
@@ -44,9 +44,10 @@ Rudel keeps two layers in sync.
 Use WordPress for site truth, the environment directory for file truth, and
 Rudel runtime tables for lifecycle truth. WordPress answers where a site lives
 and how it boots. The environment-local `wp-content` answers which code and
-uploads belong to that environment. Rudel answers who owns it, what app it
-came from, which worktree belongs to it, and which backup belongs to which
-deployment.
+uploads belong to that environment. The environment-local `db.php` answers
+which isolated user tables belong to that environment. Rudel answers who owns
+it, what app it came from, which worktree belongs to it, and which backup
+belongs to which deployment.
 
 ## What Rudel adds
 

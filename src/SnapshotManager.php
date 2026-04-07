@@ -106,6 +106,7 @@ class SnapshotManager {
 			$source_prefix = $this->environment->get_table_prefix();
 			$snap_prefix   = $source_prefix . 'snap_' . substr( md5( $name ), 0, 6 ) . '_';
 			$mysql_cloner->copy_tables( $source_prefix, $snap_prefix, array( $source_prefix . 'snap_' ) );
+			$user_snapshot = ( new EnvironmentUserIsolationService() )->snapshot( $this->environment, $snap_prefix );
 
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing recovery point DB metadata.
 			file_put_contents(
@@ -114,6 +115,7 @@ class SnapshotManager {
 					array(
 						'engine'       => $this->environment->engine,
 						'table_prefix' => $snap_prefix,
+						'user_tables'  => $user_snapshot,
 					),
 					JSON_PRETTY_PRINT
 				) . "\n"
@@ -240,6 +242,10 @@ class SnapshotManager {
 					$target_prefix = $this->environment->get_table_prefix();
 					$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
 					$mysql_cloner->copy_tables( $db_meta['table_prefix'], $target_prefix );
+					( new EnvironmentUserIsolationService() )->restore_snapshot(
+						$this->environment,
+						is_array( $db_meta['user_tables'] ?? null ) ? $db_meta['user_tables'] : array()
+					);
 				}
 			}
 
@@ -251,6 +257,8 @@ class SnapshotManager {
 				$content_cloner = new ContentCloner();
 				$content_cloner->copy_directory( $snapshot_content, $environment_content );
 			}
+
+			$this->write_runtime_files( $environment_content );
 
 			$this->environment->update_meta_batch(
 				array(
@@ -295,6 +303,9 @@ class SnapshotManager {
 				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
 					$mysql_cloner = new MySQLCloner();
 					$mysql_cloner->drop_tables( $db_meta['table_prefix'] );
+					( new EnvironmentUserIsolationService() )->drop_snapshot(
+						is_array( $db_meta['user_tables'] ?? null ) ? $db_meta['user_tables'] : array()
+					);
 				}
 			}
 
@@ -366,6 +377,32 @@ class SnapshotManager {
 	 */
 	private function get_snapshot_path( string $name ): string {
 		return $this->get_snapshots_dir() . '/' . $name;
+	}
+
+	/**
+	 * Rewrite generated runtime files after content restore.
+	 *
+	 * @param string $environment_content Absolute env-local wp-content path.
+	 * @return void
+	 */
+	private function write_runtime_files( string $environment_content ): void {
+		$plugin_dir = defined( 'RUDEL_PLUGIN_DIR' ) ? RUDEL_PLUGIN_DIR : dirname( __DIR__ ) . '/';
+		$mu_dir     = $environment_content . '/mu-plugins';
+
+		if ( ! is_dir( $mu_dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Recreating generated MU plugin directory after restore.
+			mkdir( $mu_dir, 0755, true );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
+		$runtime_template = file_get_contents( $plugin_dir . 'templates/runtime-mu-plugin.php.tpl' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Rewriting the generated MU plugin after restore.
+		file_put_contents( $mu_dir . '/rudel-runtime.php', $runtime_template );
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
+		$db_template = file_get_contents( $plugin_dir . 'templates/db.php.tpl' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Rewriting the env-local db.php drop-in after restore.
+		file_put_contents( $environment_content . '/db.php', $db_template );
 	}
 
 	/**

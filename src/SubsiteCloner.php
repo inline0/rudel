@@ -92,7 +92,7 @@ class SubsiteCloner {
 	 * @param int|null $admin_user_id Optional explicit override.
 	 * @return int
 	 */
-	protected function resolve_admin_user_id( ?int $admin_user_id = null ): int {
+	public function resolve_admin_user_id( ?int $admin_user_id = null ): int {
 		if ( is_int( $admin_user_id ) && $admin_user_id > 0 ) {
 			return $admin_user_id;
 		}

@@ -75,3 +75,6 @@ define('RUDEL_ID', $sandbox_id);
 define('RUDEL_PATH', $sandbox_path);
 define('RUDEL_ENGINE', 'subsite');
 define('RUDEL_TABLE_PREFIX', '{{table_prefix}}');
+define('RUDEL_USER_SCOPE', 'isolated');
+define('RUDEL_USERS_TABLE', '{{users_table}}');
+define('RUDEL_USERMETA_TABLE', '{{usermeta_table}}');

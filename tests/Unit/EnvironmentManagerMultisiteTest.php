@@ -44,6 +44,8 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
 	        $this->assertStringNotContainsString("define('WP_HOME', \$_rudel_environment_url);", $bootstrap);
 	        $this->assertStringNotContainsString("define('WP_SITEURL', \$_rudel_environment_url);", $bootstrap);
 	        $this->assertStringContainsString("define('RUDEL_TABLE_PREFIX', 'wp_" . $environment->blog_id . "_');", $bootstrap);
+	        $this->assertStringContainsString("define('RUDEL_USERS_TABLE', 'wp_rudel_env_" . $environment->blog_id . "_users');", $bootstrap);
+	        $this->assertStringContainsString("define('RUDEL_USERMETA_TABLE', 'wp_rudel_env_" . $environment->blog_id . "_usermeta');", $bootstrap);
 
         $this->assertFileExists($environment->path . '/wp-cli.yml');
         $wpCli = file_get_contents($environment->path . '/wp-cli.yml');
@@ -57,7 +59,15 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
 	        $this->assertStringContainsString('pre_option_home', $runtimePlugin);
 	        $this->assertStringContainsString('rudel_runtime_environment_url', $runtimePlugin);
 	        $this->assertStringContainsString('rudel_runtime_site_option_override', $runtimePlugin);
-	    }
+
+        $this->assertFileExists($environment->path . '/wp-content/db.php');
+        $dbDropin = file_get_contents($environment->path . '/wp-content/db.php');
+        $this->assertIsString($dbDropin);
+        $this->assertStringContainsString("define( 'CUSTOM_USER_TABLE', RUDEL_USERS_TABLE );", $dbDropin);
+        $this->assertStringContainsString("define( 'CUSTOM_USER_META_TABLE', RUDEL_USERMETA_TABLE );", $dbDropin);
+        $this->assertSame('wp_rudel_env_' . $environment->blog_id . '_users', $environment->get_users_table());
+        $this->assertSame('wp_rudel_env_' . $environment->blog_id . '_usermeta', $environment->get_usermeta_table());
+    }
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
@@ -218,5 +228,32 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
         $environment = $manager->create('Gamma Site');
 
         $this->assertSame('http://' . $environment->id . '.localhost:9888/', $environment->get_url());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateProvisionedIsolatedUserTablesForTheEnvironment(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/sandboxes',
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $environment = $manager->create('User Scope Site');
+
+        $this->assertSame('wp_rudel_env_' . $environment->blog_id . '_users', $environment->get_users_table());
+        $this->assertSame('wp_rudel_env_' . $environment->blog_id . '_usermeta', $environment->get_usermeta_table());
+        $this->assertTrue($GLOBALS['wpdb']->hasTable((string) $environment->get_users_table()));
+        $this->assertTrue($GLOBALS['wpdb']->hasTable((string) $environment->get_usermeta_table()));
     }
 }

@@ -239,4 +239,93 @@ class EnvironmentStateReplacerTest extends RudelTestCase
 
         $this->assertDirectoryDoesNotExist($targetPath . '/wp-content/themes/demo-theme');
     }
+
+    public function testReplaceCopiesIsolatedUsersIntoTheTargetEnvironment(): void
+    {
+        global $wpdb;
+
+        $wpdb = new \MockWpdb();
+        $wpdb->base_prefix = 'wp_';
+
+        $sourcePath = $this->tmpDir . '/source-users';
+        $targetPath = $this->tmpDir . '/target-users';
+
+        mkdir($sourcePath . '/wp-content', 0755, true);
+        mkdir($targetPath . '/wp-content', 0755, true);
+
+        $wpdb->addTable(
+            'wp_2_options',
+            'CREATE TABLE `wp_2_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            [
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://feature.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://feature.example.test'],
+            ]
+        );
+        $wpdb->addTable(
+            'wp_3_options',
+            'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            [
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://app.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://app.example.test'],
+            ]
+        );
+        $wpdb->addTable(
+            'wp_rudel_env_2_users',
+            'CREATE TABLE `wp_rudel_env_2_users` (`ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_login` varchar(60), PRIMARY KEY (`ID`))',
+            [
+                ['ID' => 1, 'user_login' => 'feature-admin'],
+            ]
+        );
+        $wpdb->addTable(
+            'wp_rudel_env_2_usermeta',
+            'CREATE TABLE `wp_rudel_env_2_usermeta` (`umeta_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_id` bigint(20) unsigned NOT NULL, `meta_key` varchar(255), `meta_value` longtext, PRIMARY KEY (`umeta_id`))',
+            [
+                ['umeta_id' => 1, 'user_id' => 1, 'meta_key' => 'wp_2_capabilities', 'meta_value' => 'a:1:{s:13:"administrator";b:1;}'],
+            ]
+        );
+        $wpdb->addTable(
+            'wp_rudel_env_3_users',
+            'CREATE TABLE `wp_rudel_env_3_users` (`ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_login` varchar(60), PRIMARY KEY (`ID`))',
+            [
+                ['ID' => 1, 'user_login' => 'app-admin'],
+            ]
+        );
+        $wpdb->addTable(
+            'wp_rudel_env_3_usermeta',
+            'CREATE TABLE `wp_rudel_env_3_usermeta` (`umeta_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_id` bigint(20) unsigned NOT NULL, `meta_key` varchar(255), `meta_value` longtext, PRIMARY KEY (`umeta_id`))',
+            [
+                ['umeta_id' => 1, 'user_id' => 1, 'meta_key' => 'wp_3_capabilities', 'meta_value' => 'a:1:{s:13:"editor";b:1;}'],
+            ]
+        );
+
+        $source = new Environment(
+            id: 'feature',
+            name: 'Feature',
+            path: $sourcePath,
+            created_at: '2026-01-01T00:00:00+00:00',
+            multisite: true,
+            engine: 'subsite',
+            blog_id: 2,
+            type: 'sandbox'
+        );
+        $target = new Environment(
+            id: 'demo',
+            name: 'Demo',
+            path: $targetPath,
+            created_at: '2026-01-01T00:00:00+00:00',
+            multisite: true,
+            engine: 'subsite',
+            blog_id: 3,
+            type: 'app',
+            domains: ['demo.example.test']
+        );
+
+        (new EnvironmentStateReplacer())->replace($source, $target);
+
+        $targetUsers = $wpdb->getTableRows('wp_rudel_env_3_users');
+        $targetUsermeta = $wpdb->getTableRows('wp_rudel_env_3_usermeta');
+
+        $this->assertSame('feature-admin', $targetUsers[0]['user_login'] ?? null);
+        $this->assertSame('wp_3_capabilities', $targetUsermeta[0]['meta_key'] ?? null);
+    }
 }

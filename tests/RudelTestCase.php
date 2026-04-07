@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use Rudel\AppRepository;
 use Rudel\DatabaseStore;
 use Rudel\Environment;
+use Rudel\EnvironmentUserIsolationService;
 use Rudel\EnvironmentRepository;
 use Rudel\Rudel;
 use Rudel\RudelDatabase;
@@ -36,7 +37,12 @@ abstract class RudelTestCase extends TestCase
 	        $GLOBALS['rudel_test_blog_stack'] = [];
 	        $GLOBALS['rudel_test_current_user_id'] = 0;
 	        $GLOBALS['rudel_test_super_admins'] = [];
-	        $GLOBALS['rudel_test_users'] = [];
+	        $GLOBALS['rudel_test_users'] = [
+            'admin' => [
+                'ID' => 1,
+                'user_login' => 'admin',
+            ],
+        ];
         $GLOBALS['rudel_test_last_created_blog_admin_user_id'] = null;
         $GLOBALS['rudel_test_sites'] = [
             1 => [
@@ -65,6 +71,48 @@ abstract class RudelTestCase extends TestCase
                 PRIMARY KEY (`option_id`)
             )',
             []
+        );
+        $GLOBALS['wpdb']->addTable(
+            'wp_users',
+            'CREATE TABLE `wp_users` (
+                `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                `user_login` varchar(60) NOT NULL,
+                `user_pass` varchar(255) NOT NULL,
+                `user_email` varchar(100) NOT NULL,
+                PRIMARY KEY (`ID`)
+            )',
+            [
+                [
+                    'ID' => 1,
+                    'user_login' => 'admin',
+                    'user_pass' => '$P$example',
+                    'user_email' => 'admin@example.test',
+                ],
+            ]
+        );
+        $GLOBALS['wpdb']->addTable(
+            'wp_usermeta',
+            'CREATE TABLE `wp_usermeta` (
+                `umeta_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                `user_id` bigint(20) unsigned NOT NULL,
+                `meta_key` varchar(255) DEFAULT NULL,
+                `meta_value` longtext,
+                PRIMARY KEY (`umeta_id`)
+            )',
+            [
+                [
+                    'umeta_id' => 1,
+                    'user_id' => 1,
+                    'meta_key' => 'wp_capabilities',
+                    'meta_value' => 'a:1:{s:13:"administrator";b:1;}',
+                ],
+                [
+                    'umeta_id' => 2,
+                    'user_id' => 1,
+                    'meta_key' => 'wp_user_level',
+                    'meta_value' => '10',
+                ],
+            ]
         );
         RudelDatabase::reset();
         $this->tmpDir = RUDEL_TEST_TMPDIR . '/' . uniqid('test-');
@@ -137,6 +185,10 @@ abstract class RudelTestCase extends TestCase
 
         $repository = $this->environmentRepository((string) ($meta['type'] ?? 'sandbox'));
         $saved = $repository->save($environment);
+
+        if ($saved->uses_isolated_users()) {
+            (new EnvironmentUserIsolationService())->clone_from_host($saved);
+        }
 
         if ('app' === $saved->type) {
             $apps = new AppRepository($this->runtimeStore(), $this->environmentRepository('app'));

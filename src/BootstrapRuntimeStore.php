@@ -103,6 +103,15 @@ class BootstrapRuntimeStore {
 	}
 
 	/**
+	 * WordPress base table prefix parsed during bootstrap.
+	 *
+	 * @return string
+	 */
+	public function base_prefix(): string {
+		return $this->prefix;
+	}
+
+	/**
 	 * Run one environment lookup.
 	 *
 	 * @param string $sql SQL with one ? placeholder.

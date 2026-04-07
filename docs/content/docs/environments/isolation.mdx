@@ -8,7 +8,8 @@ description: How Rudel uses multisite boundaries and environment-owned files to 
 Rudel isolation starts with the multisite site boundary and the environment-local content tree that belongs to that site.
 
 Each environment is a real site. Site tables, site options, uploads, admin
-state, and site-scoped capabilities form the database and browser boundary.
+state, isolated users, and site-scoped capabilities form the database and
+browser boundary.
 Rudel then gives that site its own cloned `wp-content` and keeps the
 operational files and metadata for that site grouped under the same
 environment identity so teams can create, clone, snapshot, back up, deploy,
@@ -21,6 +22,7 @@ Every Rudel environment is a real multisite site, which gives Rudel an isolation
 - per-site tables through `blog_id`
 - per-site options
 - per-site uploads
+- per-environment `users` and `usermeta` tables
 - per-site admin and REST behavior
 
 Environment URLs, `wp-admin`, media uploads, and normal browser navigation
@@ -35,6 +37,7 @@ environment directory. That local tree is the canonical source of:
 - plugins
 - uploads
 - environment-specific mu-plugins
+- an environment-local `db.php` drop-in for isolated users
 - git worktrees Rudel creates for tracked code
 
 Rudel does not treat host or network theme/plugin directories as the runtime
@@ -68,10 +71,22 @@ Sandboxes block outbound email by default because they are meant for change work
 
 ## Users
 
-Rudel uses the multisite user model:
+Rudel no longer relies on the shared multisite `wp_users` tables for live
+environments.
 
-- network users are shared
-- membership and capabilities are site-scoped
+Every app and sandbox gets its own isolated `users` and `usermeta` tables, and
+an environment-local `db.php` drop-in points WordPress at those tables early in
+bootstrap. That means:
 
-That means the one intentional shared runtime surface is still `wp_users`.
-Access is scoped per site, while user identity remains network-wide.
+- app users are isolated from host users
+- sandbox users are isolated from app users unless the sandbox was cloned from that app
+- snapshots, backups, deploys, and restore flows carry the environment's users with the rest of its state
+
+Because user membership is isolated per environment, multisite network UI that
+depends on shared usermeta, such as cross-site "My Sites" membership lists, is
+no longer the source of truth for moving between Rudel environments. Rudel
+keeps the environments isolated and resolves each app or sandbox as its own
+site instead.
+
+The host WordPress database still stores Rudel's registry tables, but live
+environment identity is no longer shared through network-global `wp_users`.

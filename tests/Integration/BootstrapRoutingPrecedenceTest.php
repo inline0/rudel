@@ -73,6 +73,8 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		$this->assertSame($sandbox->id, constant('RUDEL_ID'));
 		$this->assertFalse(defined('RUDEL_IS_APP') ? (bool) constant('RUDEL_IS_APP') : true);
 		$this->assertSame('wp_3_', constant('RUDEL_TABLE_PREFIX'));
+		$this->assertSame('wp_rudel_env_3_users', constant('RUDEL_USERS_TABLE'));
+		$this->assertSame('wp_rudel_env_3_usermeta', constant('RUDEL_USERMETA_TABLE'));
 	}
 
 	#[RunInSeparateProcess]
@@ -113,13 +115,15 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
 		$this->assertSame('feature-port.localhost', $_SERVER['HTTP_HOST']);
-			$this->assertSame('feature-port.localhost', $_SERVER['SERVER_NAME']);
-			$this->assertSame($sandbox->id, constant('RUDEL_ID'));
-			$this->assertSame('http://feature-port.localhost:9878', constant('RUDEL_ENVIRONMENT_URL'));
-			$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-			$this->assertSame('http://localhost:9878', constant('WP_HOME'));
-			$this->assertSame('wp_3_', constant('RUDEL_TABLE_PREFIX'));
-		}
+		$this->assertSame('feature-port.localhost', $_SERVER['SERVER_NAME']);
+		$this->assertSame($sandbox->id, constant('RUDEL_ID'));
+		$this->assertSame('http://feature-port.localhost:9878', constant('RUDEL_ENVIRONMENT_URL'));
+		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
+		$this->assertSame('http://localhost:9878', constant('WP_HOME'));
+		$this->assertSame('wp_3_', constant('RUDEL_TABLE_PREFIX'));
+		$this->assertSame('wp_rudel_env_3_users', constant('RUDEL_USERS_TABLE'));
+		$this->assertSame('wp_rudel_env_3_usermeta', constant('RUDEL_USERMETA_TABLE'));
+	}
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
@@ -139,13 +143,13 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
-			$this->assertFalse(defined('RUDEL_ID'));
-			$this->assertSame('localhost', $_SERVER['HTTP_HOST']);
-			$this->assertSame('localhost', $_SERVER['SERVER_NAME']);
-			$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-			$this->assertFalse(defined('WP_HOME'));
-			$this->assertFalse(defined('WP_SITEURL'));
-		}
+		$this->assertFalse(defined('RUDEL_ID'));
+		$this->assertSame('localhost', $_SERVER['HTTP_HOST']);
+		$this->assertSame('localhost', $_SERVER['SERVER_NAME']);
+		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
+		$this->assertFalse(defined('WP_HOME'));
+		$this->assertFalse(defined('WP_SITEURL'));
+	}
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
@@ -186,12 +190,15 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
 		$this->assertSame('feature-port', constant('RUDEL_ID'));
-			$this->assertSame('--url=http://feature-port.localhost/', $argv[1]);
-			$this->assertSame('http://feature-port.localhost/', $_SERVER['argv'][2]);
-			$this->assertSame('http://feature-port.localhost:9878', constant('RUDEL_ENVIRONMENT_URL'));
-			$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-			$this->assertSame('http://localhost:9878', constant('WP_HOME'));
-		}
+		$this->assertSame('--url=http://feature-port.localhost/', $argv[1]);
+		$this->assertSame('http://feature-port.localhost/', $_SERVER['argv'][2]);
+		$this->assertSame('http://feature-port.localhost:9878', constant('RUDEL_ENVIRONMENT_URL'));
+		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
+		$this->assertSame('http://localhost:9878', constant('WP_HOME'));
+		$this->assertSame('wp_3_', constant('RUDEL_TABLE_PREFIX'));
+		$this->assertSame('wp_rudel_env_3_users', constant('RUDEL_USERS_TABLE'));
+		$this->assertSame('wp_rudel_env_3_usermeta', constant('RUDEL_USERMETA_TABLE'));
+	}
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
@@ -236,12 +243,14 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
 		$this->assertSame('demo-app', constant('RUDEL_ID'));
-			$this->assertTrue((bool) constant('RUDEL_IS_APP'));
-			$this->assertSame('demo.example.test', $_SERVER['HTTP_HOST']);
-			$this->assertSame('demo.example.test', $_SERVER['SERVER_NAME']);
-			$this->assertSame('http://demo.example.test:9878', constant('RUDEL_ENVIRONMENT_URL'));
-			$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-			$this->assertSame('http://localhost:9878', constant('WP_HOME'));
-			$this->assertSame('wp_4_', constant('RUDEL_TABLE_PREFIX'));
-		}
+		$this->assertTrue((bool) constant('RUDEL_IS_APP'));
+		$this->assertSame('demo.example.test', $_SERVER['HTTP_HOST']);
+		$this->assertSame('demo.example.test', $_SERVER['SERVER_NAME']);
+		$this->assertSame('http://demo.example.test:9878', constant('RUDEL_ENVIRONMENT_URL'));
+		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
+		$this->assertSame('http://localhost:9878', constant('WP_HOME'));
+		$this->assertSame('wp_4_', constant('RUDEL_TABLE_PREFIX'));
+		$this->assertSame('wp_rudel_env_4_users', constant('RUDEL_USERS_TABLE'));
+		$this->assertSame('wp_rudel_env_4_usermeta', constant('RUDEL_USERMETA_TABLE'));
+	}
 }

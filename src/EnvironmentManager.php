@@ -62,6 +62,13 @@ class EnvironmentManager {
 	private DatabaseStore $store;
 
 	/**
+	 * Isolated-user table workflows.
+	 *
+	 * @var EnvironmentUserIsolationService
+	 */
+	private EnvironmentUserIsolationService $user_isolation;
+
+	/**
 	 * Managed environment type.
 	 *
 	 * @var string
@@ -98,6 +105,7 @@ class EnvironmentManager {
 		$this->repository      = new EnvironmentRepository( $this->store, $this->environments_dir, $this->managed_type );
 		$this->cleanup_service = new EnvironmentCleanupService( $this->repository, array( $this, 'destroy' ) );
 		$this->state_replacer  = new EnvironmentStateReplacer();
+		$this->user_isolation  = new EnvironmentUserIsolationService();
 	}
 
 	/**
@@ -125,7 +133,9 @@ class EnvironmentManager {
 		$path          = null;
 		$engine        = 'subsite';
 		$blog_id       = null;
+		$admin_user_id = null;
 		$git_worktrees = array();
+		$user_tables   = array();
 		$site_options  = $this->normalize_site_options( $options['site_options'] ?? array() );
 		$created_at    = gmdate( 'c' );
 		$config        = new RudelConfig();
@@ -180,20 +190,23 @@ class EnvironmentManager {
 			mkdir( $path . '/tmp', 0755 );
 			// phpcs:enable
 
-			$clone_source     = null;
-			$clone_lineage    = array();
-			$is_multisite     = true;
-			$template         = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
-			$is_from_template = ! in_array( $template, array( 'blank', 'clone' ), true )
+			$clone_source       = null;
+			$clone_lineage      = array();
+			$is_multisite       = true;
+			$template           = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
+			$is_from_template   = ! in_array( $template, array( 'blank', 'clone' ), true )
 				&& ! $clone_from && ! $has_clone
 				&& $this->template_exists( $template );
-			$subsite_cloner   = new SubsiteCloner();
-			$blog_id          = $subsite_cloner->create_subsite( $id, $name );
-			$target_url       = $this->get_target_environment_url( $id, $blog_id, $target_type, $target_domains );
-			$themes_cloned    = false;
-			$plugins_cloned   = false;
-			$uploads_cloned   = false;
-			$content_results  = array();
+			$subsite_cloner     = new SubsiteCloner();
+			$source_environment = null;
+			$admin_user_id      = $subsite_cloner->resolve_admin_user_id( isset( $options['admin_user_id'] ) ? (int) $options['admin_user_id'] : null );
+			$blog_id            = $subsite_cloner->create_subsite( $id, $name, $admin_user_id );
+			$user_tables        = $this->user_isolation->metadata_for_blog( $blog_id );
+			$target_url         = $this->get_target_environment_url( $id, $blog_id, $target_type, $target_domains );
+			$themes_cloned      = false;
+			$plugins_cloned     = false;
+			$uploads_cloned     = false;
+			$content_results    = array();
 
 			if ( 'app' === $target_type && is_array( $target_domains ) && ! empty( $target_domains ) ) {
 				$primary_domain = reset( $target_domains );
@@ -211,26 +224,33 @@ class EnvironmentManager {
 				);
 			}
 
-			$this->write_environment_bootstrap( $id, $path, $target_url, $this->get_target_table_prefix( $blog_id ) );
+			$this->write_environment_bootstrap(
+				$id,
+				$path,
+				$target_url,
+				$this->get_target_table_prefix( $blog_id ),
+				$user_tables['users_table'],
+				$user_tables['usermeta_table']
+			);
 			$this->write_wp_cli_yml( $path, $target_url );
 			$this->write_claude_md( $id, $name, $path );
 
 			if ( $clone_from ) {
-				$source = $this->resolve_clone_source_environment( $clone_from );
-				if ( ! $source ) {
+				$source_environment = $this->resolve_clone_source_environment( $clone_from );
+				if ( ! $source_environment ) {
 					throw new \RuntimeException( sprintf( 'Source environment not found: %s', $clone_from ) );
 				}
-				if ( ! $source->is_subsite() ) {
+				if ( ! $source_environment->is_subsite() ) {
 					throw new \InvalidArgumentException( 'Subsite environments can only clone from other subsite environments.' );
 				}
-				if ( ! isset( $options['app_id'] ) && null !== $source->app_record_id && 'sandbox' === $target_type ) {
-					$options['app_id'] = $source->app_record_id;
+				if ( ! isset( $options['app_id'] ) && null !== $source_environment->app_record_id && 'sandbox' === $target_type ) {
+					$options['app_id'] = $source_environment->app_record_id;
 				}
 
-				$clone_source  = $this->clone_from_subsite_environment( $source, $id, $path, $blog_id );
+				$clone_source  = $this->clone_from_subsite_environment( $source_environment, $id, $path, $blog_id );
 				$clone_lineage = array(
-					'source_environment_id'   => $source->id,
-					'source_environment_type' => $source->type,
+					'source_environment_id'   => $source_environment->id,
+					'source_environment_type' => $source_environment->type,
 				);
 			} elseif ( $clone_db ) {
 				$clone_result = $subsite_cloner->clone_host_db_to_subsite( $blog_id );
@@ -307,6 +327,29 @@ class EnvironmentManager {
 			$this->apply_site_options( $id, $path, $blog_id, $site_options );
 
 			$this->write_runtime_mu_plugin( $path );
+			$this->write_environment_db_dropin( $path );
+
+			$runtime_environment = new Environment(
+				id: $id,
+				name: $name,
+				path: $path,
+				created_at: $created_at,
+				template: $template,
+				status: 'active',
+				clone_source: null,
+				multisite: $is_multisite,
+				engine: $engine,
+				blog_id: $blog_id,
+				type: $target_type,
+				domains: $target_domains,
+				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
+			);
+
+			if ( $source_environment instanceof Environment ) {
+				$this->user_isolation->clone_from_environment( $source_environment, $runtime_environment );
+			} else {
+				$this->user_isolation->clone_from_host( $runtime_environment );
+			}
 
 			if ( null !== $clone_source ) {
 				$clone_source['themes_cloned']  = $themes_cloned;
@@ -361,6 +404,19 @@ class EnvironmentManager {
 			return $environment;
 		} catch ( \Throwable $e ) {
 			if ( $blog_id ) {
+				$failed_environment = new Environment(
+					id: (string) $id,
+					name: $name,
+					path: (string) $path,
+					created_at: $created_at,
+					template: 'blank',
+					status: 'active',
+					multisite: true,
+					engine: $engine,
+					blog_id: $blog_id,
+					type: $options['type'] ?? 'sandbox',
+				);
+				$this->user_isolation->drop( $failed_environment );
 				$subsite_cloner = new SubsiteCloner();
 				$subsite_cloner->delete_subsite( $blog_id );
 			}
@@ -455,6 +511,7 @@ class EnvironmentManager {
 
 		try {
 			if ( $environment->is_subsite() && $environment->blog_id ) {
+				$this->user_isolation->drop( $environment );
 				$subsite_cloner = new SubsiteCloner();
 				$subsite_cloner->delete_subsite( $environment->blog_id );
 			}
@@ -491,6 +548,7 @@ class EnvironmentManager {
 		try {
 			$result = $this->state_replacer->replace( $source, $target );
 			$this->write_runtime_mu_plugin( $target->path );
+			$this->write_environment_db_dropin( $target->path );
 
 			Hooks::action( 'rudel_after_environment_replace_state', $result, $context );
 
@@ -739,9 +797,18 @@ class EnvironmentManager {
 	 * @param string $path Absolute path to the environment directory.
 	 * @param string $environment_url Canonical environment URL for this generated bootstrap.
 	 * @param string $table_prefix Active multisite table prefix.
+	 * @param string $users_table Isolated users table.
+	 * @param string $usermeta_table Isolated usermeta table.
 	 * @return void
 	 */
-	private function write_environment_bootstrap( string $id, string $path, string $environment_url, string $table_prefix ): void {
+	private function write_environment_bootstrap(
+		string $id,
+		string $path,
+		string $environment_url,
+		string $table_prefix,
+		string $users_table,
+		string $usermeta_table
+	): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$template = file_get_contents( $this->plugin_dir . 'templates/environment-bootstrap.php.tpl' );
 
@@ -752,6 +819,8 @@ class EnvironmentManager {
 				'{{sandbox_path}}'    => $path,
 				'{{environment_url}}' => $environment_url,
 				'{{table_prefix}}'    => $table_prefix,
+				'{{users_table}}'     => $users_table,
+				'{{usermeta_table}}'  => $usermeta_table,
 			)
 		);
 		$bootstrap_path = $path . '/bootstrap.php';
@@ -837,6 +906,23 @@ class EnvironmentManager {
 		$template = file_get_contents( $this->plugin_dir . 'templates/runtime-mu-plugin.php.tpl' );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing runtime MU plugin.
 		file_put_contents( $path . '/wp-content/mu-plugins/rudel-runtime.php', $template );
+	}
+
+	/**
+	 * Write the per-environment db.php drop-in that maps isolated user tables.
+	 *
+	 * @param string $path Absolute path to the environment directory.
+	 * @return void
+	 */
+	private function write_environment_db_dropin( string $path ): void {
+		if ( ! is_dir( $path . '/wp-content' ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Ensuring wp-content exists before writing the db.php drop-in.
+			mkdir( $path . '/wp-content', 0755, true );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
+		$template = file_get_contents( $this->plugin_dir . 'templates/db.php.tpl' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing environment db.php drop-in.
+		file_put_contents( $path . '/wp-content/db.php', $template );
 	}
 
 	/**

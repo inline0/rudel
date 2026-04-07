@@ -61,6 +61,7 @@ class EnvironmentStateReplacer {
 			$source_prefix,
 			$target_prefix
 		);
+		( new EnvironmentUserIsolationService() )->replace( $source, $target );
 
 		return $tables;
 	}

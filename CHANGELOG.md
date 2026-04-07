@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7.0 - 2026-04-07
+
+- Added isolated `users` and `usermeta` tables for every app and sandbox through environment-local `db.php`.
+- Made sandbox snapshot/restore plus app clone/deploy/restore flows carry isolated users with the rest of the environment state.
+- Fixed the WP-CLI bootstrap path so isolated user tables load outside browser requests too.
+- Updated docs and regression coverage around the new full-isolation runtime model.
+
 ## v0.6.2 - 2026-04-06
 
 - Fixed multisite runtime URL overrides so Rudel no longer pins request-global `WP_HOME` / `WP_SITEURL` for resolved environments.

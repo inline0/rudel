@@ -566,6 +566,19 @@ else
 	fail "Sandbox site options did not update" "$ALPHA_BLOGNAME"
 fi
 
+site_cli "$ALPHA_URL" user create alphaauthor alpha-author@example.test --role=author --user_pass=secret >/dev/null
+if site_cli "$ALPHA_URL" user get alphaauthor --field=ID >/dev/null 2>&1; then
+	pass "Sandbox can create isolated users inside its own runtime"
+else
+	fail "Sandbox user creation failed" "$ALPHA_URL"
+fi
+
+if wp_cli user get alphaauthor --field=ID >/dev/null 2>&1; then
+	fail "Sandbox user leaked into the host user table" "alphaauthor"
+else
+	pass "Sandbox users do not leak back into the host site"
+fi
+
 SNAPSHOT_OUTPUT=$(wp_cli rudel snapshot "$ALPHA_ID" --name=baseline)
 if echo "$SNAPSHOT_OUTPUT" | grep -q "Snapshot created: baseline"; then
 	pass "Snapshot creation works for sandbox sites"
@@ -574,12 +587,19 @@ else
 fi
 
 site_cli "$ALPHA_URL" option update blogname "Alpha Changed" >/dev/null
+site_cli "$ALPHA_URL" user create alphatemp alpha-temp@example.test --role=subscriber --user_pass=secret >/dev/null
 wp_cli rudel restore "$ALPHA_ID" --snapshot=baseline --force >/dev/null
 ALPHA_RESTORED=$(site_cli "$ALPHA_URL" option get blogname | tail -1)
 if [[ "$ALPHA_RESTORED" == "Alpha Site" ]]; then
 	pass "Snapshot restore returns the sandbox site to its prior state"
 else
 	fail "Snapshot restore did not restore sandbox state" "$ALPHA_RESTORED"
+fi
+
+if site_cli "$ALPHA_URL" user get alphaauthor --field=ID >/dev/null 2>&1 && ! site_cli "$ALPHA_URL" user get alphatemp --field=ID >/dev/null 2>&1; then
+	pass "Snapshot restore also restores isolated sandbox users"
+else
+	fail "Snapshot restore did not restore isolated sandbox users" "$(site_cli "$ALPHA_URL" user list --fields=user_login --format=csv | tail -n +2)"
 fi
 
 TEMPLATE_NAME="starter-${ALPHA_ID}"
@@ -623,6 +643,19 @@ fi
 assert_site_http_contract "App site" "$APP_URL"
 
 site_cli "$APP_URL" option update blogname "Demo App" >/dev/null
+site_cli "$APP_URL" user create appauthor app-author@example.test --role=author --user_pass=secret >/dev/null
+if site_cli "$APP_URL" user get appauthor --field=ID >/dev/null 2>&1; then
+	pass "App can create isolated users inside its own runtime"
+else
+	fail "App user creation failed" "$APP_URL"
+fi
+
+if wp_cli user get appauthor --field=ID >/dev/null 2>&1; then
+	fail "App user leaked into the host user table" "appauthor"
+else
+	pass "App users do not leak back into the host site"
+fi
+
 APP_INFO_JSON=$(wp_cli rudel app info "$APP_ID" --format=json)
 if echo "$APP_INFO_JSON" | grep -q "demo.example.test"; then
 	pass "App metadata retains its configured domain"
@@ -677,6 +710,12 @@ fi
 
 assert_site_http_contract "App-derived sandbox site" "$FEATURE_URL"
 
+if site_cli "$FEATURE_URL" user get appauthor --field=ID >/dev/null 2>&1; then
+	pass "App-derived sandboxes clone the app isolated users"
+else
+	fail "App-derived sandbox did not clone the app isolated users" "$(site_cli "$FEATURE_URL" user list --fields=user_login --format=csv | tail -n +2)"
+fi
+
 FEATURE_INFO_JSON=$(wp_cli rudel info "$FEATURE_ID" --format=json)
 if printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_repo":"inline0\/demo-theme"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_branch":"main"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_dir":"themes\/demo-theme"'; then
 	pass "App-derived sandbox inherits tracked GitHub source"
@@ -693,6 +732,13 @@ else
 fi
 
 site_cli "$FEATURE_URL" option update blogname "Feature Deploy" >/dev/null
+site_cli "$FEATURE_URL" user create featureonly feature-only@example.test --role=editor --user_pass=secret >/dev/null
+
+if site_cli "$APP_URL" user get featureonly --field=ID >/dev/null 2>&1; then
+	fail "Sandbox-only user appeared in the app before deploy" "featureonly"
+else
+	pass "Sandbox-only users stay isolated before deploy"
+fi
 
 DEPLOY_PLAN=$(wp_cli rudel app deploy "$APP_ID" --from="$FEATURE_ID" --backup=before-deploy --dry-run)
 if echo "$DEPLOY_PLAN" | grep -qi "$FEATURE_ID"; then
@@ -715,12 +761,24 @@ else
 	fail "App deploy did not replace site state" "$APP_DEPLOYED_NAME"
 fi
 
+if site_cli "$APP_URL" user get featureonly --field=ID >/dev/null 2>&1; then
+	pass "App deploy replaces isolated app users with the sandbox users"
+else
+	fail "App deploy did not replace isolated app users" "$(site_cli "$APP_URL" user list --fields=user_login --format=csv | tail -n +2)"
+fi
+
 wp_cli rudel app restore "$APP_ID" --backup=baseline --force >/dev/null
 APP_RESTORED_NAME=$(site_cli "$APP_URL" option get blogname | tail -1)
 if [[ "$APP_RESTORED_NAME" == "Demo App" ]]; then
 	pass "App restore returns the app site to its saved backup"
 else
 	fail "App restore did not restore site state" "$APP_RESTORED_NAME"
+fi
+
+if site_cli "$APP_URL" user get appauthor --field=ID >/dev/null 2>&1 && ! site_cli "$APP_URL" user get featureonly --field=ID >/dev/null 2>&1; then
+	pass "App restore also restores the saved isolated user set"
+else
+	fail "App restore did not restore the isolated app users" "$(site_cli "$APP_URL" user list --fields=user_login --format=csv | tail -n +2)"
 fi
 
 APP_DEPLOYMENTS=$(wp_cli rudel app deployments "$APP_ID" --format=json)
@@ -731,7 +789,7 @@ else
 fi
 
 echo ""
-echo -e "${BOLD}My Sites admin URLs${NC}"
+echo -e "${BOLD}Multisite admin URLs${NC}"
 
 SIBLING_DOMAIN="sibling.example.test"
 SIBLING_OUTPUT=$(wp_cli rudel app create --name="Sibling App" --domain="$SIBLING_DOMAIN")
@@ -753,39 +811,30 @@ else
 	exit 1
 fi
 
-MY_SITES_SCRIPT=$(cat <<'PHP'
-wp_set_current_user(1);
-require_once ABSPATH . WPINC . '/class-wp-admin-bar.php';
-require_once ABSPATH . WPINC . '/admin-bar.php';
-
-$wp_admin_bar = new WP_Admin_Bar();
-$wp_admin_bar->initialize();
-wp_admin_bar_my_sites_menu($wp_admin_bar);
-
-$links = array();
-foreach ( $wp_admin_bar->get_nodes() as $node ) {
-	if ( is_object( $node ) && isset( $node->id, $node->href ) && preg_match( '/^blog-(\d+)-d$/', (string) $node->id, $matches ) ) {
-		$links[ (int) $matches[1] ] = (string) $node->href;
-	}
-}
-
-echo wp_json_encode( $links );
+URL_RESOLUTION_SCRIPT=$(cat <<PHP
+echo wp_json_encode(
+	array(
+		1 => get_admin_url( 1 ),
+		${APP_BLOG_ID} => get_admin_url( ${APP_BLOG_ID} ),
+		${SIBLING_BLOG_ID} => get_admin_url( ${SIBLING_BLOG_ID} ),
+	)
+);
 PHP
 )
-MY_SITES_JSON=$(site_cli "$APP_URL" eval "$MY_SITES_SCRIPT" | grep -E '^\{.*\}$' | tail -n 1)
+URL_RESOLUTION_JSON=$(site_cli "$APP_URL" eval "$URL_RESOLUTION_SCRIPT" | grep -E '^\{.*\}$' | tail -n 1)
 
 ROOT_ADMIN_URL=$(cli_admin_url_for_site "$NETWORK_URL")
 APP_ADMIN_URL=$(cli_admin_url_for_site "$APP_URL")
 SIBLING_ADMIN_URL=$(cli_admin_url_for_site "$SIBLING_URL")
 
-ROOT_MENU_URL=$(printf '%s' "$MY_SITES_JSON" | json_field 1)
-APP_MENU_URL=$(printf '%s' "$MY_SITES_JSON" | json_field "$APP_BLOG_ID")
-SIBLING_MENU_URL=$(printf '%s' "$MY_SITES_JSON" | json_field "$SIBLING_BLOG_ID")
+ROOT_MENU_URL=$(printf '%s' "$URL_RESOLUTION_JSON" | json_field 1)
+APP_MENU_URL=$(printf '%s' "$URL_RESOLUTION_JSON" | json_field "$APP_BLOG_ID")
+SIBLING_MENU_URL=$(printf '%s' "$URL_RESOLUTION_JSON" | json_field "$SIBLING_BLOG_ID")
 
 if [[ "$ROOT_MENU_URL" == "$ROOT_ADMIN_URL" && "$APP_MENU_URL" == "$APP_ADMIN_URL" && "$SIBLING_MENU_URL" == "$SIBLING_ADMIN_URL" && "$ROOT_MENU_URL" != "$APP_MENU_URL" && "$ROOT_MENU_URL" != "$SIBLING_MENU_URL" && "$APP_MENU_URL" != "$SIBLING_MENU_URL" ]]; then
-	pass "My Sites menu keeps distinct dashboard URLs for root, current app, and sibling app"
+	pass "Per-blog admin URLs stay distinct for root, current app, and sibling app"
 else
-	fail "My Sites menu collapsed dashboard URLs to the current app" "expected root=${ROOT_ADMIN_URL} app=${APP_ADMIN_URL} sibling=${SIBLING_ADMIN_URL}; got root=${ROOT_MENU_URL:-<missing>} app=${APP_MENU_URL:-<missing>} sibling=${SIBLING_MENU_URL:-<missing>}; full=${MY_SITES_JSON}"
+	fail "Per-blog admin URLs collapsed to the current app" "expected root=${ROOT_ADMIN_URL} app=${APP_ADMIN_URL} sibling=${SIBLING_ADMIN_URL}; got root=${ROOT_MENU_URL:-<missing>} app=${APP_MENU_URL:-<missing>} sibling=${SIBLING_MENU_URL:-<missing>}; full=${URL_RESOLUTION_JSON}"
 	exit 1
 fi
 

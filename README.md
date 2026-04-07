@@ -23,7 +23,7 @@
 
 Rudel is a WordPress plugin for running disposable sandboxes and long-lived apps on a subdomain multisite network.
 
-Every Rudel environment is a real multisite site with a real `blog_id`, a real URL, normal `wp-admin`, normal login, normal REST requests, and normal asset handling. Each environment also has its own cloned `wp-content`, which is the canonical file and code tree for that environment. Rudel builds the operator layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
+Every Rudel environment is a real multisite site with a real `blog_id`, a real URL, normal `wp-admin`, normal REST requests, normal asset handling, and its own isolated users. Each environment also has its own cloned `wp-content`, which is the canonical file and code tree for that environment. Rudel builds the operator layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
 
 That gives teams an environment system that feels like ordinary WordPress in
 the browser while still giving operators explicit lifecycle tools for QA,
@@ -90,7 +90,8 @@ the site you visit.
 
 Both also have their own environment-local `wp-content`. That cloned content
 tree is the only code and file source of truth for that environment. Worktrees
-live inside that environment-local tree as well.
+live inside that environment-local tree as well, and an environment-local
+`db.php` drop-in points WordPress at that environment's isolated user tables.
 
 Apps add one extra rule on top of that: when an app has a primary mapped
 domain, Rudel treats that domain as the app's canonical URL in its API,

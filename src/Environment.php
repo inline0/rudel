@@ -186,6 +186,41 @@ class Environment {
 	}
 
 	/**
+	 * Whether this environment uses isolated user tables.
+	 *
+	 * @return bool
+	 */
+	public function uses_isolated_users(): bool {
+		return $this->is_subsite() && null !== $this->blog_id;
+	}
+
+	/**
+	 * Isolated users table for this environment.
+	 *
+	 * @return string|null
+	 */
+	public function get_users_table(): ?string {
+		if ( ! $this->uses_isolated_users() ) {
+			return null;
+		}
+
+		return self::users_table_for_blog( (int) $this->blog_id );
+	}
+
+	/**
+	 * Isolated usermeta table for this environment.
+	 *
+	 * @return string|null
+	 */
+	public function get_usermeta_table(): ?string {
+		if ( ! $this->uses_isolated_users() ) {
+			return null;
+		}
+
+		return self::usermeta_table_for_blog( (int) $this->blog_id );
+	}
+
+	/**
 	 * WP content path for this environment.
 	 *
 	 * @return string Absolute path to wp-content.
@@ -558,6 +593,12 @@ class Environment {
 			$data['blog_id'] = $this->blog_id;
 		}
 
+		if ( $this->uses_isolated_users() ) {
+			$data['user_scope']     = 'isolated';
+			$data['users_table']    = $this->get_users_table();
+			$data['usermeta_table'] = $this->get_usermeta_table();
+		}
+
 		if ( null !== $this->domains && ! empty( $this->domains ) ) {
 			$data['domains'] = $this->domains;
 		}
@@ -640,6 +681,26 @@ class Environment {
 	}
 
 	/**
+	 * Isolated users table name for one multisite blog.
+	 *
+	 * @param int $blog_id Blog ID.
+	 * @return string
+	 */
+	public static function users_table_for_blog( int $blog_id ): string {
+		return self::network_base_prefix() . 'rudel_env_' . $blog_id . '_users';
+	}
+
+	/**
+	 * Isolated usermeta table name for one multisite blog.
+	 *
+	 * @param int $blog_id Blog ID.
+	 * @return string
+	 */
+	public static function usermeta_table_for_blog( int $blog_id ): string {
+		return self::network_base_prefix() . 'rudel_env_' . $blog_id . '_usermeta';
+	}
+
+	/**
 	 * Generate a unique sandbox ID from a human-readable name.
 	 *
 	 * @param string $name Human-readable name.
@@ -713,5 +774,42 @@ class Environment {
 
 		$decoded = json_decode( $value, true );
 		return is_array( $decoded ) ? $decoded : null;
+	}
+
+	/**
+	 * Network base table prefix without any blog-specific suffix.
+	 *
+	 * @return string
+	 */
+	private static function network_base_prefix(): string {
+		global $wpdb, $table_prefix;
+
+		if ( isset( $wpdb ) && is_object( $wpdb ) && isset( $wpdb->base_prefix ) && is_string( $wpdb->base_prefix ) && '' !== $wpdb->base_prefix ) {
+			return $wpdb->base_prefix;
+		}
+
+		if ( defined( 'RUDEL_TABLE_PREFIX' ) && is_string( RUDEL_TABLE_PREFIX ) && '' !== RUDEL_TABLE_PREFIX ) {
+			return self::base_prefix_from_blog_prefix( RUDEL_TABLE_PREFIX );
+		}
+
+		if ( isset( $table_prefix ) && is_string( $table_prefix ) && '' !== $table_prefix ) {
+			return self::base_prefix_from_blog_prefix( $table_prefix );
+		}
+
+		return 'wp_';
+	}
+
+	/**
+	 * Strip a multisite blog suffix from one table prefix when present.
+	 *
+	 * @param string $prefix Raw table prefix.
+	 * @return string
+	 */
+	private static function base_prefix_from_blog_prefix( string $prefix ): string {
+		if ( 1 === preg_match( '/^(.*?)(\d+)_$/', $prefix, $matches ) ) {
+			return (string) $matches[1];
+		}
+
+		return $prefix;
 	}
 }

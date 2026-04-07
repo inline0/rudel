@@ -34,6 +34,8 @@ class MultisiteIsolationTest extends RudelTestCase
         $this->assertNotSame($alpha->blog_id, $beta->blog_id);
         $this->assertNotSame($alpha->get_table_prefix(), $beta->get_table_prefix());
         $this->assertNotSame($alpha->get_url(), $beta->get_url());
+        $this->assertNotSame($alpha->get_users_table(), $beta->get_users_table());
+        $this->assertNotSame($alpha->get_usermeta_table(), $beta->get_usermeta_table());
     }
 
     #[RunInSeparateProcess]
