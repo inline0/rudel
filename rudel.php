@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Rudel
  * Description: The WordPress isolation layer for sandboxes and multi-tenant apps.
- * Version: 0.8.1
+ * Version: 0.8.2
  * Author: Inline0
  * Author URI: https://inline0.com
  * License: GPL-2.0-or-later

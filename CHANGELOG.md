@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.2 - 2026-04-08
+
+- Updated Pitmaster-backed worktree creation to use explicit linked-worktree metadata names so app and sandbox environments can safely create sibling checkouts with the same basename.
+- Persisted the real worktree metadata name for cleanup and destroy flows instead of relying on checkout basenames.
+- Added unit and E2E regression coverage for repeated app-derived sandbox creation and cleanup cycles with preserved linked worktrees.
+
 ## v0.8.1 - 2026-04-08
 
 - Removed the last GitHub-era runtime naming from the schema, repositories, model hydration, and test helpers so Rudel now uses generic Git field names end to end.
