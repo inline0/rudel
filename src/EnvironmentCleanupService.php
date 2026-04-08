@@ -185,7 +185,8 @@ class EnvironmentCleanupService {
 			foreach ( $worktrees as $worktree ) {
 				$repo_control  = $git->common_git_dir( $worktree['repo'] ) ?? $worktree['repo'];
 				$worktree_path = $environment->get_wp_content_path() . '/' . $worktree['type'] . '/' . $worktree['name'];
-				$git->remove_worktree( $repo_control, $worktree_path );
+				$metadata_name = isset( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : null;
+				$git->remove_worktree( $repo_control, $worktree_path, '' !== (string) $metadata_name ? $metadata_name : null );
 				$git->delete_branch( $repo_control, $worktree['branch'] );
 			}
 

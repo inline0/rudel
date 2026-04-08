@@ -11,7 +11,7 @@
     ],
     "require": {
         "php": "^8.2",
-        "pitmaster/pitmaster": "^0.2.1"
+        "pitmaster/pitmaster": "^0.2.4"
     },
     "autoload": {
         "psr-4": {

@@ -312,12 +312,17 @@ class EnvironmentManager {
 					}
 
 					if ( is_array( $result ) && ! empty( $result['worktrees'] ) ) {
-						foreach ( $result['worktrees'] as $repo_name => $branch ) {
+						foreach ( $result['worktrees'] as $worktree ) {
+							if ( ! is_array( $worktree ) ) {
+								continue;
+							}
+
 							$git_worktrees[] = array(
-								'type'   => $dir,
-								'name'   => $repo_name,
-								'branch' => $branch,
-								'repo'   => $path . '/wp-content/' . $dir . '/' . $repo_name,
+								'type'          => $dir,
+								'name'          => (string) ( $worktree['name'] ?? '' ),
+								'branch'        => (string) ( $worktree['branch'] ?? '' ),
+								'repo'          => (string) ( $worktree['repo'] ?? '' ),
+								'metadata_name' => (string) ( $worktree['metadata_name'] ?? '' ),
 							);
 						}
 					}
@@ -510,6 +515,8 @@ class EnvironmentManager {
 		Hooks::action( 'rudel_before_environment_destroy', $context );
 
 		try {
+			$this->remove_environment_worktrees( $environment );
+
 			if ( $environment->is_subsite() && $environment->blog_id ) {
 				$this->user_isolation->drop( $environment );
 				$subsite_cloner = new SubsiteCloner();
@@ -621,6 +628,46 @@ class EnvironmentManager {
 		}
 
 		return rtrim( $url, '/' );
+	}
+
+	/**
+	 * Remove linked worktrees recorded for one environment.
+	 *
+	 * @param Environment $environment Environment being destroyed.
+	 * @return void
+	 */
+	private function remove_environment_worktrees( Environment $environment ): void {
+		$worktrees = $environment->clone_source['git_worktrees'] ?? array();
+		if ( ! is_array( $worktrees ) || empty( $worktrees ) ) {
+			return;
+		}
+
+		$git = new GitIntegration();
+
+		foreach ( $worktrees as $worktree ) {
+			if ( ! is_array( $worktree ) ) {
+				continue;
+			}
+
+			$repo   = isset( $worktree['repo'] ) ? trim( (string) $worktree['repo'] ) : '';
+			$type   = isset( $worktree['type'] ) ? trim( (string) $worktree['type'] ) : '';
+			$name   = isset( $worktree['name'] ) ? trim( (string) $worktree['name'] ) : '';
+			$branch = isset( $worktree['branch'] ) ? trim( (string) $worktree['branch'] ) : '';
+
+			if ( '' === $repo || '' === $type || '' === $name ) {
+				continue;
+			}
+
+			$repo_control  = $git->common_git_dir( $repo ) ?? $repo;
+			$worktree_path = $environment->get_wp_content_path() . '/' . $type . '/' . $name;
+			$metadata_name = isset( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : null;
+
+			$git->remove_worktree( $repo_control, $worktree_path, '' !== (string) $metadata_name ? $metadata_name : null );
+
+			if ( '' !== $branch ) {
+				$git->delete_branch( $repo_control, $branch );
+			}
+		}
 	}
 
 	/**
@@ -1138,7 +1185,7 @@ class EnvironmentManager {
 	 * @param string      $target_id New environment identifier.
 	 * @param string      $target_path New environment path.
 	 * @return array{
-	 *     git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string}>,
+	 *     git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string,metadata_name:string}>,
 	 *     themes_cloned: bool,
 	 *     plugins_cloned: bool,
 	 *     uploads_cloned: bool
@@ -1177,12 +1224,17 @@ class EnvironmentManager {
 					} elseif ( 'plugins' === $name ) {
 						$plugins_cloned = true;
 					}
-					foreach ( $results['worktrees'] as $repo_name => $branch ) {
+					foreach ( $results['worktrees'] as $worktree ) {
+						if ( ! is_array( $worktree ) ) {
+							continue;
+						}
+
 						$git_worktrees[] = array(
-							'type'   => $name,
-							'name'   => $repo_name,
-							'branch' => $branch,
-							'repo'   => $target_pathname . '/' . $repo_name,
+							'type'          => $name,
+							'name'          => (string) ( $worktree['name'] ?? '' ),
+							'branch'        => (string) ( $worktree['branch'] ?? '' ),
+							'repo'          => (string) ( $worktree['repo'] ?? '' ),
+							'metadata_name' => (string) ( $worktree['metadata_name'] ?? '' ),
 						);
 					}
 

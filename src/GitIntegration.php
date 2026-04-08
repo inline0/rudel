@@ -25,10 +25,13 @@ class GitIntegration {
 	 *
 	 * @param string $source_dir Source directory (e.g. host wp-content/themes).
 	 * @param string $target_dir Target directory (e.g. sandbox wp-content/themes).
-	 * @param string $sandbox_id Sandbox ID used for branch naming.
-	 * @return array{worktrees: array<string, string>, copied: string[]}
+	 * @param string $environment_id Environment ID used for branch naming and worktree metadata naming.
+	 * @return array{
+	 *     worktrees: array<int, array{name:string, branch:string, repo:string, metadata_name:string}>,
+	 *     copied: string[]
+	 * }
 	 */
-	public function clone_with_worktrees( string $source_dir, string $target_dir, string $sandbox_id ): array {
+	public function clone_with_worktrees( string $source_dir, string $target_dir, string $environment_id ): array {
 		$results = array(
 			'worktrees' => array(),
 			'copied'    => array(),
@@ -56,9 +59,15 @@ class GitIntegration {
 			}
 
 			if ( $this->is_git_repo( $source_path ) ) {
-				$branch = 'rudel/' . $sandbox_id;
-				if ( $this->create_worktree( $source_path, $target_path, $branch ) ) {
-					$results['worktrees'][ $dir ] = $branch;
+				$branch        = 'rudel/' . $environment_id;
+				$metadata_name = $this->worktree_metadata_name( $environment_id, basename( $target_dir ), $dir );
+				if ( $this->create_worktree( $source_path, $target_path, $branch, $metadata_name ) ) {
+					$results['worktrees'][] = array(
+						'name'          => $dir,
+						'branch'        => $branch,
+						'repo'          => $target_path,
+						'metadata_name' => $metadata_name,
+					);
 					continue;
 				}
 			}
@@ -166,14 +175,15 @@ class GitIntegration {
 	/**
 	 * Create a linked worktree in the target path on a new branch.
 	 *
-	 * @param string $repo_path Path to a repo checkout or common git dir.
-	 * @param string $target_path Path for the new worktree.
-	 * @param string $branch Branch name to create or reuse.
+	 * @param string      $repo_path Path to a repo checkout or common git dir.
+	 * @param string      $target_path Path for the new worktree.
+	 * @param string      $branch Branch name to create or reuse.
+	 * @param string|null $metadata_name Optional explicit linked-worktree metadata name.
 	 * @return bool
 	 */
-	public function create_worktree( string $repo_path, string $target_path, string $branch ): bool {
+	public function create_worktree( string $repo_path, string $target_path, string $branch, ?string $metadata_name = null ): bool {
 		try {
-			Pitmaster::open( $repo_path )->addWorktree( $target_path, $branch );
+			Pitmaster::open( $repo_path )->addWorktree( $target_path, $branch, null, $metadata_name );
 			return true;
 		} catch ( \Throwable $e ) {
 			unset( $e );
@@ -184,13 +194,14 @@ class GitIntegration {
 	/**
 	 * Remove a linked worktree and its checkout directory.
 	 *
-	 * @param string $repo_path Path to a repo checkout or common git dir.
-	 * @param string $target_path Path to the worktree checkout.
+	 * @param string      $repo_path Path to a repo checkout or common git dir.
+	 * @param string      $target_path Path to the worktree checkout.
+	 * @param string|null $metadata_name Optional explicit linked-worktree metadata name.
 	 * @return bool
 	 */
-	public function remove_worktree( string $repo_path, string $target_path ): bool {
+	public function remove_worktree( string $repo_path, string $target_path, ?string $metadata_name = null ): bool {
 		try {
-			Pitmaster::open( $repo_path )->removeWorktree( $target_path, true );
+			Pitmaster::open( $repo_path )->removeWorktree( $metadata_name ?? $target_path, true );
 		} catch ( \Throwable $e ) {
 			unset( $e );
 		}
@@ -442,6 +453,53 @@ class GitIntegration {
 		}
 
 		return $has_changes;
+	}
+
+	/**
+	 * Build a deterministic linked-worktree metadata name for one environment checkout.
+	 *
+	 * @param string $environment_id Environment slug.
+	 * @param string $content_type Top-level wp-content directory such as themes or plugins.
+	 * @param string $entry_name Repository directory name inside the content type.
+	 * @return string
+	 */
+	private function worktree_metadata_name( string $environment_id, string $content_type, string $entry_name ): string {
+		$parts = array_filter(
+			array(
+				$this->sanitize_worktree_fragment( $environment_id ),
+				$this->sanitize_worktree_fragment( $content_type ),
+				$this->sanitize_worktree_fragment( $entry_name ),
+			),
+			static fn( string $value ): bool => '' !== $value
+		);
+
+		$base = implode( '-', $parts );
+		if ( '' === $base ) {
+			$base = 'worktree';
+		}
+
+		if ( strlen( $base ) > 72 ) {
+			$base = rtrim( substr( $base, 0, 72 ), '-' );
+		}
+
+		return 'rudel-' . $base . '-' . substr( md5( $environment_id . '|' . $content_type . '|' . $entry_name ), 0, 8 );
+	}
+
+	/**
+	 * Normalize one metadata-name fragment into a filesystem-safe slug.
+	 *
+	 * @param string $value Raw fragment.
+	 * @return string
+	 */
+	private function sanitize_worktree_fragment( string $value ): string {
+		$value = strtolower( trim( $value ) );
+		$value = preg_replace( '/[^a-z0-9]+/', '-', $value );
+
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return trim( $value, '-' );
 	}
 
 	/**

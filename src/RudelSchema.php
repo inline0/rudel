@@ -35,6 +35,8 @@ class RudelSchema {
 			$store->execute( $sql );
 		}
 
+		self::upgrade_existing_tables( $store );
+
 		self::$ensured[ $key ] = true;
 	}
 
@@ -117,6 +119,7 @@ class RudelSchema {
 				environment_id BIGINT UNSIGNED NOT NULL,
 				content_type VARCHAR(32) NOT NULL,
 				name VARCHAR(191) NOT NULL,
+				metadata_name VARCHAR(191) NULL,
 				branch VARCHAR(191) NOT NULL,
 				repo_path VARCHAR(255) NOT NULL,
 				created_at VARCHAR(32) NOT NULL,
@@ -153,5 +156,123 @@ class RudelSchema {
 				KEY rudel_app_deployment_environment (environment_id)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
 		);
+	}
+
+	/**
+	 * Add newly introduced columns to existing installs and backfill safe defaults.
+	 *
+	 * @param DatabaseStore $store Runtime store.
+	 * @return void
+	 */
+	private static function upgrade_existing_tables( DatabaseStore $store ): void {
+		$environments = $store->table( 'environments' );
+		self::ensure_column( $store, $environments, 'tracked_git_remote', 'VARCHAR(191) NULL' );
+		self::ensure_column( $store, $environments, 'tracked_git_branch', 'VARCHAR(191) NULL' );
+		self::ensure_column( $store, $environments, 'tracked_git_dir', 'VARCHAR(191) NULL' );
+		self::backfill_column( $store, $environments, 'tracked_git_remote', 'tracked_github_repo' );
+		self::backfill_column( $store, $environments, 'tracked_git_branch', 'tracked_github_branch' );
+		self::backfill_column( $store, $environments, 'tracked_git_dir', 'tracked_github_dir' );
+
+		$worktrees = $store->table( 'worktrees' );
+		self::ensure_column( $store, $worktrees, 'metadata_name', 'VARCHAR(191) NULL' );
+		self::backfill_column( $store, $worktrees, 'metadata_name', 'name' );
+
+		$deployments = $store->table( 'app_deployments' );
+		self::ensure_column( $store, $deployments, 'git_remote', 'VARCHAR(191) NULL' );
+		self::ensure_column( $store, $deployments, 'git_branch', 'VARCHAR(191) NULL' );
+		self::ensure_column( $store, $deployments, 'git_base_branch', 'VARCHAR(191) NULL' );
+		self::ensure_column( $store, $deployments, 'git_dir', 'VARCHAR(191) NULL' );
+		self::backfill_column( $store, $deployments, 'git_remote', 'github_repo' );
+		self::backfill_column( $store, $deployments, 'git_branch', 'github_branch' );
+		self::backfill_column( $store, $deployments, 'git_base_branch', 'github_base_branch' );
+		self::backfill_column( $store, $deployments, 'git_dir', 'github_dir' );
+	}
+
+	/**
+	 * Add one column to an existing runtime table when it is still missing.
+	 *
+	 * @param DatabaseStore $store Runtime store.
+	 * @param string        $table Full table name.
+	 * @param string        $column Column name.
+	 * @param string        $definition SQL column definition without the column name.
+	 * @return void
+	 */
+	private static function ensure_column( DatabaseStore $store, string $table, string $column, string $definition ): void {
+		if ( self::column_exists( $store, $table, $column ) ) {
+			return;
+		}
+
+		$store->execute(
+			'ALTER TABLE ' . self::quote_identifier( $table ) . ' ADD COLUMN ' . self::quote_identifier( $column ) . ' ' . $definition
+		);
+	}
+
+	/**
+	 * Copy old column values into the new target column when the target is still empty.
+	 *
+	 * @param DatabaseStore $store Runtime store.
+	 * @param string        $table Full table name.
+	 * @param string        $target New column name.
+	 * @param string        $source Legacy column name.
+	 * @return void
+	 */
+	private static function backfill_column( DatabaseStore $store, string $table, string $target, string $source ): void {
+		if ( ! self::column_exists( $store, $table, $target ) || ! self::column_exists( $store, $table, $source ) ) {
+			return;
+		}
+
+		$rows = $store->fetch_all(
+			'SELECT id, ' . self::quote_identifier( $target ) . ', ' . self::quote_identifier( $source ) . ' FROM ' . self::quote_identifier( $table )
+		);
+
+		foreach ( $rows as $row ) {
+			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+			if ( $id <= 0 ) {
+				continue;
+			}
+
+			$target_value = $row[ $target ] ?? null;
+			$source_value = $row[ $source ] ?? null;
+			if ( null !== $target_value && '' !== trim( (string) $target_value ) ) {
+				continue;
+			}
+
+			if ( null === $source_value || '' === trim( (string) $source_value ) ) {
+				continue;
+			}
+
+			$store->update(
+				$table,
+				array( $target => (string) $source_value ),
+				array( 'id' => $id )
+			);
+		}
+	}
+
+	/**
+	 * Whether one runtime table already has the requested column.
+	 *
+	 * @param DatabaseStore $store Runtime store.
+	 * @param string        $table Full table name.
+	 * @param string        $column Column name.
+	 * @return bool
+	 */
+	private static function column_exists( DatabaseStore $store, string $table, string $column ): bool {
+		$row = $store->fetch_row(
+			'SHOW COLUMNS FROM ' . self::quote_identifier( $table ) . ' LIKE ?',
+			array( $column )
+		);
+
+		return is_array( $row ) && ! empty( $row );
+	}
+
+	/**
+	 * Quote one SQL identifier.
+	 *
+	 * @param string $identifier Table or column name.
+	 * @return string
+	 */
+	private static function quote_identifier( string $identifier ): string {
+		return '`' . str_replace( '`', '``', $identifier ) . '`';
 	}
 }

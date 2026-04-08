@@ -18,7 +18,7 @@ class ContentCloner {
 	 *
 	 * @param string $sandbox_wp_content Absolute path to the sandbox wp-content directory.
 	 * @param array  $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
-	 * @param string $sandbox_id         Optional sandbox ID for git worktree branch naming.
+	 * @param string $sandbox_id         Optional environment ID for git worktree branch and metadata naming.
 	 * @return array<string, mixed> Status per directory.
 	 */
 	public function clone_content( string $sandbox_wp_content, array $options = array(), string $sandbox_id = '' ): array {

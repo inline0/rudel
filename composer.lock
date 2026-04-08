@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "368ba9a714e8877e0c78f46c8db32b24",
+    "content-hash": "7c27da102129f0f0d65d1cd0b8d59d8d",
     "packages": [
         {
             "name": "pitmaster/pitmaster",
-            "version": "v0.2.1",
+            "version": "v0.2.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/inline0/pitmaster.git",
-                "reference": "4ce4f2d1dfef75e9e894a3999594d8a9ce4fae8c"
+                "reference": "7c18a6b7f91c3a390ebef3942bb13cf5b170cb16"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/inline0/pitmaster/zipball/4ce4f2d1dfef75e9e894a3999594d8a9ce4fae8c",
-                "reference": "4ce4f2d1dfef75e9e894a3999594d8a9ce4fae8c",
+                "url": "https://api.github.com/repos/inline0/pitmaster/zipball/7c18a6b7f91c3a390ebef3942bb13cf5b170cb16",
+                "reference": "7c18a6b7f91c3a390ebef3942bb13cf5b170cb16",
                 "shasum": ""
             },
             "require": {
@@ -89,7 +89,7 @@
                 "issues": "https://github.com/inline0/pitmaster/issues",
                 "source": "https://github.com/inline0/pitmaster"
             },
-            "time": "2026-04-08T06:51:24+00:00"
+            "time": "2026-04-08T09:22:10+00:00"
         }
     ],
     "packages-dev": [

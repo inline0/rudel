@@ -62,6 +62,7 @@ class EnvironmentRepositoryTest extends RudelTestCase
                     [
                         'type' => 'themes',
                         'name' => 'client-theme',
+                        'metadata_name' => 'rudel-client-fix-themes-client-theme-a1b2c3d4',
                         'branch' => 'rudel/client-fix',
                         'repo' => $path . '/wp-content/themes/client-theme',
                     ],
@@ -78,6 +79,39 @@ class EnvironmentRepositoryTest extends RudelTestCase
 
         $this->assertNull($repository->get('client-fix'));
         $this->assertSame([], $store->fetch_all('SELECT * FROM ' . $store->table('worktrees')));
+    }
+
+    public function testSavePersistsWorktreeMetadataNames(): void
+    {
+        $repository = new EnvironmentRepository($this->runtimeStore(), $this->tmpDir . '/sandboxes', 'sandbox');
+
+        $path = $this->tmpDir . '/sandboxes/client-fix';
+        mkdir($path . '/wp-content/themes/client-theme', 0755, true);
+
+        $saved = $repository->save(
+            new Environment(
+                id: 'client-fix',
+                name: 'Client Fix',
+                path: $path,
+                created_at: '2026-01-01T00:00:00+00:00',
+                clone_source: [
+                    'git_worktrees' => [
+                        [
+                            'type' => 'themes',
+                            'name' => 'client-theme',
+                            'metadata_name' => 'rudel-client-fix-themes-client-theme-a1b2c3d4',
+                            'branch' => 'rudel/client-fix',
+                            'repo' => $path . '/wp-content/themes/client-theme',
+                        ],
+                    ],
+                ]
+            )
+        );
+
+        $worktrees = $saved->clone_source['git_worktrees'] ?? [];
+
+        $this->assertCount(1, $worktrees);
+        $this->assertSame('rudel-client-fix-themes-client-theme-a1b2c3d4', $worktrees[0]['metadata_name']);
     }
 
     private function failingStore(string $failingSuffix): DatabaseStore

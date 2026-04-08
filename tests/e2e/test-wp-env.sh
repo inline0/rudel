@@ -103,6 +103,30 @@ json_field() {
 	' "$key"
 }
 
+git_worktree_count() {
+	php -r '
+		$data = json_decode(stream_get_contents(STDIN), true);
+		if (is_array($data) && array_is_list($data) && 1 === count($data) && is_array($data[0])) {
+			$data = $data[0];
+		}
+		$worktrees = $data["clone_source"]["git_worktrees"] ?? null;
+		echo is_array($worktrees) ? (string) count($worktrees) : "0";
+	'
+}
+
+first_git_worktree_metadata_name() {
+	php -r '
+		$data = json_decode(stream_get_contents(STDIN), true);
+		if (is_array($data) && array_is_list($data) && 1 === count($data) && is_array($data[0])) {
+			$data = $data[0];
+		}
+		$metadata = $data["clone_source"]["git_worktrees"][0]["metadata_name"] ?? "";
+		if (is_scalar($metadata)) {
+			echo (string) $metadata;
+		}
+	'
+}
+
 wp_env_workdir() {
 	php -r '
 		$config = realpath($argv[1]);
@@ -841,72 +865,135 @@ fi
 echo ""
 echo -e "${BOLD}Local git-backed deploy deletion${NC}"
 
-if wp_shell "command -v git >/dev/null" >/dev/null; then
-	LOCAL_APP_DOMAIN="git-demo.example.test"
-	LOCAL_APP_OUTPUT=$(wp_cli rudel app create --name="Git Demo" --domain="$LOCAL_APP_DOMAIN")
-	LOCAL_APP_ID=$(parse_created_id "App created" "$LOCAL_APP_OUTPUT")
-	if [[ -n "$LOCAL_APP_ID" ]]; then
-		APP_IDS+=("$LOCAL_APP_ID")
-		pass "Created git-backed app ${LOCAL_APP_ID}"
-	else
-		fail "Git-backed app creation failed" "$LOCAL_APP_OUTPUT"
-		exit 1
-	fi
-
-	LOCAL_APP_PATH=$(app_path "$LOCAL_APP_ID")
-	if [[ -z "$LOCAL_APP_PATH" ]]; then
-		fail "Could not resolve the git-backed app path" "$(app_json "$LOCAL_APP_ID")"
-		exit 1
-	fi
-
-	LOCAL_APP_THEME_DIR="${LOCAL_APP_PATH}/wp-content/themes/local-theme"
-	if wp_shell "mkdir -p '${LOCAL_APP_THEME_DIR}' && printf '%s\n' 'body { color: red; }' > '${LOCAL_APP_THEME_DIR}/style.css' && git -C '${LOCAL_APP_THEME_DIR}' init >/dev/null && git -C '${LOCAL_APP_THEME_DIR}' config user.email 'test@example.test' && git -C '${LOCAL_APP_THEME_DIR}' config user.name 'Test User' && git -C '${LOCAL_APP_THEME_DIR}' add -A && git -C '${LOCAL_APP_THEME_DIR}' commit -m 'init' >/dev/null && git -C '${LOCAL_APP_THEME_DIR}' branch -M main >/dev/null" >/dev/null; then
-		pass "Prepared a local git-backed theme inside the app"
-	else
-		fail "Could not prepare a local git-backed theme inside the app" "$LOCAL_APP_THEME_DIR"
-		exit 1
-	fi
-
-	LOCAL_FEATURE_OUTPUT=$(wp_cli rudel app create-sandbox "$LOCAL_APP_ID" --name="Git Demo Feature")
-	LOCAL_FEATURE_ID=$(parse_created_id "Sandbox created from app" "$LOCAL_FEATURE_OUTPUT")
-	if [[ -n "$LOCAL_FEATURE_ID" ]]; then
-		SANDBOX_IDS+=("$LOCAL_FEATURE_ID")
-		pass "Created git-backed app-derived sandbox ${LOCAL_FEATURE_ID}"
-	else
-		fail "Git-backed app-derived sandbox creation failed" "$LOCAL_FEATURE_OUTPUT"
-		exit 1
-	fi
-
-	LOCAL_FEATURE_PATH=$(environment_path "$LOCAL_FEATURE_ID")
-	if [[ -z "$LOCAL_FEATURE_PATH" ]]; then
-		fail "Could not resolve the git-backed sandbox path" "$(environment_json "$LOCAL_FEATURE_ID")"
-		exit 1
-	fi
-
-	LOCAL_FEATURE_THEME_DIR="${LOCAL_FEATURE_PATH}/wp-content/themes/local-theme"
-	if wp_shell "test -e '${LOCAL_FEATURE_THEME_DIR}/.git'" >/dev/null; then
-		pass "Git-backed app-derived sandbox keeps its local theme worktree"
-	else
-		fail "Git-backed app-derived sandbox did not create a local theme worktree" "$LOCAL_FEATURE_THEME_DIR"
-		exit 1
-	fi
-
-	wp_shell "rm -rf '${LOCAL_FEATURE_THEME_DIR}'" >/dev/null
-	LOCAL_DEPLOY_OUTPUT=$(wp_cli rudel app deploy "$LOCAL_APP_ID" --from="$LOCAL_FEATURE_ID" --backup=git-delete --force)
-	if echo "$LOCAL_DEPLOY_OUTPUT" | grep -qi "deployed"; then
-		pass "Deploy after tracked theme removal works"
-	else
-		fail "Deploy after tracked theme removal failed" "$LOCAL_DEPLOY_OUTPUT"
-		exit 1
-	fi
-
-	if wp_shell "test ! -e '${LOCAL_APP_THEME_DIR}'" >/dev/null; then
-		pass "Deploy removes tracked theme directories that no longer exist in the sandbox"
-	else
-		fail "Deploy left a removed tracked theme behind in the app" "$LOCAL_APP_THEME_DIR"
-	fi
+LOCAL_APP_DOMAIN="git-demo.example.test"
+LOCAL_APP_OUTPUT=$(wp_cli rudel app create --name="Git Demo" --domain="$LOCAL_APP_DOMAIN")
+LOCAL_APP_ID=$(parse_created_id "App created" "$LOCAL_APP_OUTPUT")
+if [[ -n "$LOCAL_APP_ID" ]]; then
+	APP_IDS+=("$LOCAL_APP_ID")
+	pass "Created git-backed app ${LOCAL_APP_ID}"
 else
-	pass "Skipped local git-backed deploy deletion because git is unavailable in the cli container"
+	fail "Git-backed app creation failed" "$LOCAL_APP_OUTPUT"
+	exit 1
+fi
+
+LOCAL_APP_PATH=$(app_path "$LOCAL_APP_ID")
+if [[ -z "$LOCAL_APP_PATH" ]]; then
+	fail "Could not resolve the git-backed app path" "$(app_json "$LOCAL_APP_ID")"
+	exit 1
+fi
+
+LOCAL_APP_THEME_DIR="${LOCAL_APP_PATH}/wp-content/themes/local-theme"
+LOCAL_GIT_SCRIPT=$(cat <<PHP
+\$path = '${LOCAL_APP_THEME_DIR}';
+if (! is_dir(\$path) && ! mkdir(\$path, 0755, true) && ! is_dir(\$path)) {
+	fwrite(STDERR, 'mkdir failed');
+	exit(1);
+}
+file_put_contents(\$path . '/style.css', "body { color: red; }\n");
+\$repo = \Pitmaster\Pitmaster::init(\$path);
+\$repo->config()->set('user.email', 'test@example.test');
+\$repo->config()->set('user.name', 'Test User');
+\$repo->add('style.css');
+\$repo->commit('init');
+echo 'ready';
+PHP
+)
+if wp_cli eval "$LOCAL_GIT_SCRIPT" | grep -q "ready"; then
+	pass "Prepared a local git-backed theme inside the app"
+else
+	fail "Could not prepare a local git-backed theme inside the app" "$LOCAL_APP_THEME_DIR"
+	exit 1
+fi
+
+LOCAL_FEATURE_OUTPUT=$(wp_cli rudel app create-sandbox "$LOCAL_APP_ID" --name="Git Demo Feature")
+LOCAL_FEATURE_ID=$(parse_created_id "Sandbox created from app" "$LOCAL_FEATURE_OUTPUT")
+if [[ -n "$LOCAL_FEATURE_ID" ]]; then
+	SANDBOX_IDS+=("$LOCAL_FEATURE_ID")
+	pass "Created git-backed app-derived sandbox ${LOCAL_FEATURE_ID}"
+else
+	fail "Git-backed app-derived sandbox creation failed" "$LOCAL_FEATURE_OUTPUT"
+	exit 1
+fi
+
+LOCAL_FEATURE_PATH=$(environment_path "$LOCAL_FEATURE_ID")
+if [[ -z "$LOCAL_FEATURE_PATH" ]]; then
+	fail "Could not resolve the git-backed sandbox path" "$(environment_json "$LOCAL_FEATURE_ID")"
+	exit 1
+fi
+
+LOCAL_FEATURE_THEME_DIR="${LOCAL_FEATURE_PATH}/wp-content/themes/local-theme"
+if wp_shell "test -e '${LOCAL_FEATURE_THEME_DIR}/.git'" >/dev/null; then
+	pass "Git-backed app-derived sandbox keeps its local theme worktree"
+else
+	fail "Git-backed app-derived sandbox did not create a local theme worktree" "$LOCAL_FEATURE_THEME_DIR"
+	exit 1
+fi
+
+LOCAL_FEATURE_INFO_JSON=$(environment_json "$LOCAL_FEATURE_ID")
+LOCAL_FEATURE_WORKTREE_COUNT=$(printf '%s' "$LOCAL_FEATURE_INFO_JSON" | git_worktree_count)
+LOCAL_FEATURE_METADATA_NAME=$(printf '%s' "$LOCAL_FEATURE_INFO_JSON" | first_git_worktree_metadata_name)
+if [[ "$LOCAL_FEATURE_WORKTREE_COUNT" -ge 1 && -n "$LOCAL_FEATURE_METADATA_NAME" ]]; then
+	pass "Git-backed app-derived sandbox records explicit worktree metadata"
+else
+	fail "Git-backed app-derived sandbox did not record explicit worktree metadata" "$LOCAL_FEATURE_INFO_JSON"
+	exit 1
+fi
+
+LOCAL_SECOND_OUTPUT=$(wp_cli rudel app create-sandbox "$LOCAL_APP_ID" --name="Git Demo Feature Two")
+LOCAL_SECOND_ID=$(parse_created_id "Sandbox created from app" "$LOCAL_SECOND_OUTPUT")
+if [[ -n "$LOCAL_SECOND_ID" ]]; then
+	SANDBOX_IDS+=("$LOCAL_SECOND_ID")
+	pass "Created second git-backed app-derived sandbox ${LOCAL_SECOND_ID}"
+else
+	fail "Second git-backed app-derived sandbox creation failed" "$LOCAL_SECOND_OUTPUT"
+	exit 1
+fi
+
+LOCAL_SECOND_INFO_JSON=$(environment_json "$LOCAL_SECOND_ID")
+LOCAL_SECOND_METADATA_NAME=$(printf '%s' "$LOCAL_SECOND_INFO_JSON" | first_git_worktree_metadata_name)
+if [[ -n "$LOCAL_SECOND_METADATA_NAME" && "$LOCAL_SECOND_METADATA_NAME" != "$LOCAL_FEATURE_METADATA_NAME" ]]; then
+	pass "Concurrent sandboxes use distinct linked-worktree metadata names"
+else
+	fail "Concurrent sandboxes collided on linked-worktree metadata" "$LOCAL_SECOND_INFO_JSON"
+	exit 1
+fi
+
+wp_cli rudel destroy "$LOCAL_FEATURE_ID" --force >/dev/null
+
+LOCAL_THIRD_OUTPUT=$(wp_cli rudel app create-sandbox "$LOCAL_APP_ID" --name="Git Demo Feature Three")
+LOCAL_THIRD_ID=$(parse_created_id "Sandbox created from app" "$LOCAL_THIRD_OUTPUT")
+if [[ -n "$LOCAL_THIRD_ID" ]]; then
+	SANDBOX_IDS+=("$LOCAL_THIRD_ID")
+	pass "Created replacement git-backed app-derived sandbox ${LOCAL_THIRD_ID}"
+else
+	fail "Replacement git-backed app-derived sandbox creation failed" "$LOCAL_THIRD_OUTPUT"
+	exit 1
+fi
+
+LOCAL_THIRD_INFO_JSON=$(environment_json "$LOCAL_THIRD_ID")
+LOCAL_THIRD_METADATA_NAME=$(printf '%s' "$LOCAL_THIRD_INFO_JSON" | first_git_worktree_metadata_name)
+if [[ -n "$LOCAL_THIRD_METADATA_NAME" && "$LOCAL_THIRD_METADATA_NAME" != "$LOCAL_SECOND_METADATA_NAME" ]]; then
+	pass "Repeated create/destroy/create cycles do not collide on worktree metadata"
+else
+	fail "Replacement sandbox reused a colliding worktree metadata name" "$LOCAL_THIRD_INFO_JSON"
+	exit 1
+fi
+
+LOCAL_THIRD_PATH=$(environment_path "$LOCAL_THIRD_ID")
+LOCAL_THIRD_THEME_DIR="${LOCAL_THIRD_PATH}/wp-content/themes/local-theme"
+wp_shell "rm -rf '${LOCAL_THIRD_THEME_DIR}'" >/dev/null
+LOCAL_DEPLOY_OUTPUT=$(wp_cli rudel app deploy "$LOCAL_APP_ID" --from="$LOCAL_THIRD_ID" --backup=git-delete --force)
+if echo "$LOCAL_DEPLOY_OUTPUT" | grep -qi "deployed"; then
+	pass "Deploy after tracked theme removal works"
+else
+	fail "Deploy after tracked theme removal failed" "$LOCAL_DEPLOY_OUTPUT"
+	exit 1
+fi
+
+if wp_shell "test ! -e '${LOCAL_APP_THEME_DIR}'" >/dev/null; then
+	pass "Deploy removes tracked theme directories that no longer exist in the app source sandbox"
+else
+	fail "Deploy left a removed tracked theme behind in the app" "$LOCAL_APP_THEME_DIR"
 fi
 
 echo ""

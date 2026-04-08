@@ -60,13 +60,24 @@ class GitIntegrationTest extends RudelTestCase
         $repo = $this->createGitRepo('wt-repo');
         $target = $this->tmpDir . '/wt-target';
 
-        $result = $this->git->create_worktree($repo, $target, 'rudel/test-sandbox');
+        $result = $this->git->create_worktree($repo, $target, 'rudel/test-sandbox', 'rudel-test-sandbox-themes-demo-a1b2c3d4');
 
         $this->assertTrue($result);
         $this->assertDirectoryExists($target);
         $this->assertFileExists($target . '/file.txt');
         $this->assertFileExists($target . '/.git');
         $this->assertSame('rudel/test-sandbox', Pitmaster::open($target)->branch());
+        $this->assertContains(
+            'rudel-test-sandbox-themes-demo-a1b2c3d4',
+            array_values(
+                array_filter(
+                    array_map(
+                        static fn(object $worktree): ?string => isset($worktree->name) && is_string($worktree->name) ? $worktree->name : null,
+                        Pitmaster::open($repo)->worktrees()
+                    )
+                )
+            )
+        );
     }
 
     public function testRemoveWorktreeRemovesDirectory(): void
@@ -74,10 +85,10 @@ class GitIntegrationTest extends RudelTestCase
         $repo = $this->createGitRepo('rm-wt-repo');
         $target = $this->tmpDir . '/rm-wt-target';
 
-        $this->git->create_worktree($repo, $target, 'rudel/rm-test');
+        $this->git->create_worktree($repo, $target, 'rudel/rm-test', 'rudel-rm-test-themes-demo-a1b2c3d4');
         $this->assertDirectoryExists($target);
 
-        $result = $this->git->remove_worktree($repo, $target);
+        $result = $this->git->remove_worktree($repo, $target, 'rudel-rm-test-themes-demo-a1b2c3d4');
         $this->assertTrue($result);
         $this->assertDirectoryDoesNotExist($target);
     }
@@ -87,11 +98,11 @@ class GitIntegrationTest extends RudelTestCase
         $repo = $this->createGitRepo('rm-common-repo');
         $target = $this->tmpDir . '/rm-common-target';
 
-        $this->git->create_worktree($repo, $target, 'rudel/rm-common');
+        $this->git->create_worktree($repo, $target, 'rudel/rm-common', 'rudel-rm-common-themes-demo-a1b2c3d4');
         $common = $this->git->common_git_dir($target);
 
         $this->assertIsString($common);
-        $this->assertTrue($this->git->remove_worktree($common, $target));
+        $this->assertTrue($this->git->remove_worktree($common, $target, 'rudel-rm-common-themes-demo-a1b2c3d4'));
         $this->assertDirectoryDoesNotExist($target);
     }
 
@@ -150,11 +161,11 @@ class GitIntegrationTest extends RudelTestCase
         $repo = $this->createGitRepo('del-common-repo');
         $target = $this->tmpDir . '/del-common-target';
 
-        $this->git->create_worktree($repo, $target, 'rudel/del-common');
+        $this->git->create_worktree($repo, $target, 'rudel/del-common', 'rudel-del-common-themes-demo-a1b2c3d4');
         $common = $this->git->common_git_dir($target);
         $this->assertIsString($common);
 
-        $this->assertTrue($this->git->remove_worktree($common, $target));
+        $this->assertTrue($this->git->remove_worktree($common, $target, 'rudel-del-common-themes-demo-a1b2c3d4'));
         $this->assertTrue($this->git->delete_branch($common, 'rudel/del-common'));
     }
 
@@ -187,12 +198,43 @@ class GitIntegrationTest extends RudelTestCase
 
         $results = $this->git->clone_with_worktrees($source, $target, 'my-sandbox');
 
-        $this->assertArrayHasKey('git-theme', $results['worktrees']);
-        $this->assertSame('rudel/my-sandbox', $results['worktrees']['git-theme']);
+        $this->assertCount(1, $results['worktrees']);
+        $this->assertSame('git-theme', $results['worktrees'][0]['name']);
+        $this->assertSame('rudel/my-sandbox', $results['worktrees'][0]['branch']);
+        $this->assertSame($target . '/git-theme', $results['worktrees'][0]['repo']);
+        $this->assertNotSame('', $results['worktrees'][0]['metadata_name']);
         $this->assertFileExists($target . '/git-theme/style.css');
         $this->assertFileExists($target . '/git-theme/.git');
         $this->assertContains('plain-theme', $results['copied']);
         $this->assertFileExists($target . '/plain-theme/style.css');
+    }
+
+    public function testCreateWorktreeSupportsDistinctMetadataNamesForMatchingCheckoutBasenames(): void
+    {
+        $repo = $this->createGitRepo('collision-repo');
+        $firstTarget = $this->tmpDir . '/app/wp-content/themes/divine-child';
+        $secondTarget = $this->tmpDir . '/sandbox/wp-content/themes/divine-child';
+
+        $this->assertTrue(
+            $this->git->create_worktree($repo, $firstTarget, 'rudel/app-demo', 'rudel-app-demo-themes-divine-child-a1b2c3d4')
+        );
+        $this->assertTrue(
+            $this->git->create_worktree($repo, $secondTarget, 'rudel/sandbox-demo', 'rudel-sandbox-demo-themes-divine-child-d4c3b2a1')
+        );
+
+        $linkedWorktreeNames = array_values(
+            array_filter(
+                array_map(
+                    static fn(object $worktree): ?string => isset($worktree->name) && is_string($worktree->name) ? $worktree->name : null,
+                    Pitmaster::open($repo)->worktrees()
+                )
+            )
+        );
+
+        $this->assertContains('rudel-app-demo-themes-divine-child-a1b2c3d4', $linkedWorktreeNames);
+        $this->assertContains('rudel-sandbox-demo-themes-divine-child-d4c3b2a1', $linkedWorktreeNames);
+        $this->assertFileExists($firstTarget . '/file.txt');
+        $this->assertFileExists($secondTarget . '/file.txt');
     }
 
     public function testCloneWithWorktreesHandlesEmptyDirectory(): void

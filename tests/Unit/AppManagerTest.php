@@ -2,17 +2,25 @@
 
 namespace Rudel\Tests\Unit;
 
+use Pitmaster\Pitmaster;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Rudel\AppManager;
+use Rudel\EnvironmentManager;
 use Rudel\Tests\RudelTestCase;
 
 class AppManagerTest extends RudelTestCase
 {
-	private function hasGit(): bool
+	private function createTrackedThemeRepo(string $path, string $contents = 'body { color: red; }'): void
 	{
-		exec('git --version 2>&1', $output, $code);
-		return 0 === $code;
+		mkdir($path, 0755, true);
+		file_put_contents($path . '/style.css', $contents);
+
+		$repo = Pitmaster::init($path);
+		$repo->config()->set('user.email', 'test@test.com');
+		$repo->config()->set('user.name', 'Test');
+		$repo->add('style.css');
+		$repo->commit('init');
 	}
 
 	#[RunInSeparateProcess]
@@ -157,10 +165,6 @@ class AppManagerTest extends RudelTestCase
 	#[PreserveGlobalState(false)]
 	public function testCreateSandboxFromGitTrackedAppKeepsWorktreeInsideSandboxContentTree(): void
 	{
-		if (! $this->hasGit()) {
-			$this->markTestSkipped('git not available');
-		}
-
 		$wordpressRoot = $this->tmpDir . '/wordpress';
 		mkdir($wordpressRoot . '/wp-content', 0755, true);
 
@@ -176,22 +180,26 @@ class AppManagerTest extends RudelTestCase
 
 		$app = $manager->create('Client Demo', ['client.example.test']);
 		$themePath = $app->path . '/wp-content/themes/client-theme';
-		mkdir($themePath, 0755, true);
-		file_put_contents($themePath . '/style.css', 'body { color: red; }');
-		exec('git -C ' . escapeshellarg($themePath) . ' init 2>&1');
-		exec('git -C ' . escapeshellarg($themePath) . ' config user.email "test@test.com" 2>&1');
-		exec('git -C ' . escapeshellarg($themePath) . ' config user.name "Test" 2>&1');
-		exec('git -C ' . escapeshellarg($themePath) . ' add -A 2>&1');
-		exec('git -C ' . escapeshellarg($themePath) . ' commit -m "init" 2>&1');
-		exec('git -C ' . escapeshellarg($themePath) . ' branch -M main 2>&1');
+		$this->createTrackedThemeRepo($themePath);
 
 		$sandbox = $manager->create_sandbox($app->id, 'Feature Sandbox');
 		$worktrees = $sandbox->clone_source['git_worktrees'] ?? [];
+		$metadataNames = array_values(array_filter(array_map(static fn(array $worktree): ?string => $worktree['metadata_name'] ?? null, $worktrees)));
+		$linkedWorktreeNames = array_values(
+			array_filter(
+				array_map(
+					static fn(object $worktree): ?string => isset($worktree->name) && is_string($worktree->name) ? $worktree->name : null,
+					Pitmaster::open($themePath)->worktrees()
+				)
+			)
+		);
 
 		$this->assertNotEmpty($worktrees);
 		$this->assertSame('themes', $worktrees[0]['type']);
 		$this->assertSame('client-theme', $worktrees[0]['name']);
 		$this->assertSame($sandbox->path . '/wp-content/themes/client-theme', $worktrees[0]['repo']);
+		$this->assertNotEmpty($metadataNames);
+		$this->assertContains($worktrees[0]['metadata_name'], $linkedWorktreeNames);
 		$this->assertDirectoryExists($sandbox->path . '/wp-content/themes/client-theme');
 		$this->assertFileExists($sandbox->path . '/wp-content/themes/client-theme/style.css');
 		$this->assertFileExists($sandbox->path . '/wp-content/themes/client-theme/.git');
@@ -201,10 +209,6 @@ class AppManagerTest extends RudelTestCase
 	#[PreserveGlobalState(false)]
 	public function testDeployFromGitTrackedSandboxKeepsAppWorktreeLocal(): void
 	{
-		if (! $this->hasGit()) {
-			$this->markTestSkipped('git not available');
-		}
-
 		$wordpressRoot = $this->tmpDir . '/wordpress';
 		mkdir($wordpressRoot . '/wp-content', 0755, true);
 
@@ -220,14 +224,7 @@ class AppManagerTest extends RudelTestCase
 
 		$app = $manager->create('Client Demo', ['client.example.test']);
 		$appThemePath = $app->path . '/wp-content/themes/client-theme';
-		mkdir($appThemePath, 0755, true);
-		file_put_contents($appThemePath . '/style.css', 'body { color: red; }');
-		exec('git -C ' . escapeshellarg($appThemePath) . ' init 2>&1');
-		exec('git -C ' . escapeshellarg($appThemePath) . ' config user.email "test@test.com" 2>&1');
-		exec('git -C ' . escapeshellarg($appThemePath) . ' config user.name "Test" 2>&1');
-		exec('git -C ' . escapeshellarg($appThemePath) . ' add -A 2>&1');
-		exec('git -C ' . escapeshellarg($appThemePath) . ' commit -m "init" 2>&1');
-		exec('git -C ' . escapeshellarg($appThemePath) . ' branch -M main 2>&1');
+		$this->createTrackedThemeRepo($appThemePath);
 
 		$sandbox = $manager->create_sandbox($app->id, 'Feature Sandbox');
 		$sandboxThemePath = $sandbox->path . '/wp-content/themes/client-theme';
@@ -241,6 +238,76 @@ class AppManagerTest extends RudelTestCase
 		$this->assertSame('body { color: blue; }', file_get_contents($appThemePath . '/style.css'));
 		$this->assertFileExists($appThemePath . '/new-template.php');
 		$this->assertFileExists($appThemePath . '/.git');
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testCreateSandboxFromGitTrackedAppUsesDistinctMetadataNamesAcrossRepeatedCycles(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+		define('ABSPATH', $wordpressRoot . '/');
+		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+		define('WP_HOME', 'http://example.test');
+		define('DOMAIN_CURRENT_SITE', 'example.test');
+
+		$manager = new AppManager(
+			$this->tmpDir . '/apps',
+			$this->tmpDir . '/sandboxes'
+		);
+		$sandboxes = new EnvironmentManager(
+			$this->tmpDir . '/sandboxes',
+			$this->tmpDir . '/apps',
+			'sandbox'
+		);
+
+		$app = $manager->create('Client Demo', ['client.example.test']);
+		$themePath = $app->path . '/wp-content/themes/client-theme';
+		$this->createTrackedThemeRepo($themePath);
+
+		$first = $manager->create_sandbox($app->id, 'Feature One');
+		$second = $manager->create_sandbox($app->id, 'Feature Two');
+
+		$firstWorktree = $first->clone_source['git_worktrees'][0] ?? null;
+		$secondWorktree = $second->clone_source['git_worktrees'][0] ?? null;
+
+		$this->assertIsArray($firstWorktree);
+		$this->assertIsArray($secondWorktree);
+		$this->assertNotSame($firstWorktree['metadata_name'], $secondWorktree['metadata_name']);
+
+		$namesBeforeDestroy = array_values(
+			array_filter(
+				array_map(
+					static fn(object $worktree): ?string => isset($worktree->name) && is_string($worktree->name) ? $worktree->name : null,
+					Pitmaster::open($themePath)->worktrees()
+				)
+			)
+		);
+
+		$this->assertContains($firstWorktree['metadata_name'], $namesBeforeDestroy);
+		$this->assertContains($secondWorktree['metadata_name'], $namesBeforeDestroy);
+
+		$this->assertTrue($sandboxes->destroy($first->id));
+
+		$third = $manager->create_sandbox($app->id, 'Feature Three');
+		$thirdWorktree = $third->clone_source['git_worktrees'][0] ?? null;
+		$this->assertIsArray($thirdWorktree);
+		$this->assertNotSame($secondWorktree['metadata_name'], $thirdWorktree['metadata_name']);
+
+		$namesAfterRecreate = array_values(
+			array_filter(
+				array_map(
+					static fn(object $worktree): ?string => isset($worktree->name) && is_string($worktree->name) ? $worktree->name : null,
+					Pitmaster::open($themePath)->worktrees()
+				)
+			)
+		);
+
+		$this->assertNotContains($firstWorktree['metadata_name'], $namesAfterRecreate);
+		$this->assertContains($secondWorktree['metadata_name'], $namesAfterRecreate);
+		$this->assertContains($thirdWorktree['metadata_name'], $namesAfterRecreate);
+		$this->assertFileExists($third->path . '/wp-content/themes/client-theme/.git');
 	}
 
 	#[RunInSeparateProcess]

@@ -110,6 +110,17 @@ class MockWpdb
      */
     public function get_row(string $query, $output = null)
     {
+        if (preg_match("/SHOW COLUMNS FROM `?(\\w+)`? LIKE '([^']+)'/i", $query, $m)) {
+            $table = $m[1];
+            $column = stripslashes($m[2]);
+
+            if ($this->tableHasColumn($table, $column)) {
+                return ['Field' => $column];
+            }
+
+            return null;
+        }
+
         if (preg_match('/SHOW CREATE TABLE `?(\w+)`?/i', $query, $m)) {
             $table = $m[1];
             if (isset($this->tables[$table])) {
@@ -258,6 +269,29 @@ class MockWpdb
                 ];
                 $this->autoIncrement[$table] = 0;
             }
+            return true;
+        }
+
+        if (preg_match('/ALTER TABLE\s+`?(\w+)`?\s+ADD COLUMN\s+`?(\w+)`?\s+(.+)$/i', trim($query), $m)) {
+            $table = $m[1];
+            $column = $m[2];
+            $definition = trim($m[3]);
+
+            if (! isset($this->tables[$table])) {
+                return true;
+            }
+
+            if (! $this->tableHasColumn($table, $column)) {
+                $ddl = rtrim($this->tables[$table]['ddl']);
+                $ddl = preg_replace('/\)\s*(ENGINE=.*)?$/i', '', $ddl) ?? $ddl;
+                $this->tables[$table]['ddl'] = $ddl . ",\n\t\t\t\t`{$column}` {$definition}\n\t\t\t)";
+
+                foreach ($this->tables[$table]['rows'] as &$row) {
+                    $row[$column] = null;
+                }
+                unset($row);
+            }
+
             return true;
         }
 
@@ -730,5 +764,15 @@ class MockWpdb
         );
 
         return $rows;
+    }
+
+    private function tableHasColumn(string $table, string $column): bool
+    {
+        $ddl = $this->tables[$table]['ddl'] ?? '';
+        if (! is_string($ddl) || '' === $ddl) {
+            return false;
+        }
+
+        return 1 === preg_match('/`' . preg_quote($column, '/') . '`/i', $ddl);
     }
 }

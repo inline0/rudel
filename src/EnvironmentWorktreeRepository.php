@@ -47,10 +47,11 @@ class EnvironmentWorktreeRepository {
 				continue;
 			}
 
-			$name         = isset( $worktree['name'] ) ? trim( (string) $worktree['name'] ) : '';
-			$content_type = isset( $worktree['type'] ) ? trim( (string) $worktree['type'] ) : '';
-			$branch       = isset( $worktree['branch'] ) ? trim( (string) $worktree['branch'] ) : '';
-			$repo_path    = isset( $worktree['repo'] ) ? trim( (string) $worktree['repo'] ) : '';
+			$name          = isset( $worktree['name'] ) ? trim( (string) $worktree['name'] ) : '';
+			$content_type  = isset( $worktree['type'] ) ? trim( (string) $worktree['type'] ) : '';
+			$branch        = isset( $worktree['branch'] ) ? trim( (string) $worktree['branch'] ) : '';
+			$repo_path     = isset( $worktree['repo'] ) ? trim( (string) $worktree['repo'] ) : '';
+			$metadata_name = isset( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : $name;
 
 			if ( '' === $name || '' === $content_type || '' === $branch || '' === $repo_path ) {
 				continue;
@@ -62,6 +63,7 @@ class EnvironmentWorktreeRepository {
 					'environment_id' => $environment_id,
 					'content_type'   => $content_type,
 					'name'           => $name,
+					'metadata_name'  => '' === $metadata_name ? $name : $metadata_name,
 					'branch'         => $branch,
 					'repo_path'      => $repo_path,
 					'created_at'     => $now,
@@ -79,16 +81,19 @@ class EnvironmentWorktreeRepository {
 	 */
 	public function list_for_environment( int $environment_id ): array {
 		$rows = $this->store->fetch_all(
-			'SELECT content_type, name, branch, repo_path FROM ' . $this->table() . ' WHERE environment_id = ? ORDER BY content_type ASC, name ASC',
+			'SELECT content_type, name, metadata_name, branch, repo_path FROM ' . $this->table() . ' WHERE environment_id = ? ORDER BY content_type ASC, name ASC',
 			array( $environment_id )
 		);
 
 		return array_map(
 			static fn( array $row ): array => array(
-				'type'   => (string) $row['content_type'],
-				'name'   => (string) $row['name'],
-				'branch' => (string) $row['branch'],
-				'repo'   => (string) $row['repo_path'],
+				'type'          => (string) $row['content_type'],
+				'name'          => (string) $row['name'],
+				'metadata_name' => isset( $row['metadata_name'] ) && is_scalar( $row['metadata_name'] ) && '' !== trim( (string) $row['metadata_name'] )
+					? trim( (string) $row['metadata_name'] )
+					: (string) $row['name'],
+				'branch'        => (string) $row['branch'],
+				'repo'          => (string) $row['repo_path'],
 			),
 			$rows
 		);
