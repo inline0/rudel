@@ -285,6 +285,16 @@ class MySQLClonerTest extends RudelTestCase
         $this->assertSame('http://sandbox.local', $unserialized['url']);
     }
 
+    public function testSearchReplaceValueHandlesSerializedFalse(): void
+    {
+        $data = serialize(false);
+
+        $result = $this->cloner->search_replace_value($data, 'http://example.com', 'http://sandbox.local');
+
+        $this->assertSame($data, $result);
+        $this->assertFalse(unserialize($result));
+    }
+
     public function testSearchReplaceValueLeavesNonMatchingDataUnchanged(): void
     {
         $data = serialize(['key' => 'no urls here']);

@@ -20,6 +20,27 @@ class MySQLCloner {
 	private const DEFAULT_CHUNK_SIZE = 500;
 
 	/**
+	 * Cached table discovery results keyed by prefix + exclusions.
+	 *
+	 * @var array<string, string[]>
+	 */
+	private array $discover_cache = array();
+
+	/**
+	 * Cached blog ID discovery results keyed by prefix.
+	 *
+	 * @var array<string, int[]>
+	 */
+	private array $blog_ids_cache = array();
+
+	/**
+	 * Cached table existence lookups keyed by table name.
+	 *
+	 * @var array<string, bool>
+	 */
+	private array $table_exists_cache = array();
+
+	/**
 	 * Clone host MySQL tables to a new prefix within the same database.
 	 *
 	 * @param string $target_prefix Table prefix for the sandbox.
@@ -86,6 +107,9 @@ class MySQLCloner {
 		$wpdb->query( "CREATE TABLE `{$target_table}` LIKE `{$source_table}`" );
 		$wpdb->query( "INSERT INTO `{$target_table}` SELECT * FROM `{$source_table}`" );
 		// phpcs:enable
+		$this->mark_table_exists( $source_table, true );
+		$this->mark_table_exists( $target_table, true );
+		$this->reset_discovery_cache();
 	}
 
 	/**
@@ -130,8 +154,11 @@ class MySQLCloner {
 		foreach ( $tables as $table ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names from validated SHOW TABLES results.
 			$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
+			$this->mark_table_exists( $table, false );
 			++$count;
 		}
+
+		$this->reset_discovery_cache();
 
 		return $count;
 	}
@@ -161,6 +188,7 @@ class MySQLCloner {
 			if ( $replace_existing && $this->table_exists_mysql( $wpdb, $target_table ) ) {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table names from validated SHOW TABLES results.
 				$wpdb->query( "DROP TABLE IF EXISTS `{$target_table}`" );
+				$this->mark_table_exists( $target_table, false );
 			}
 			$this->clone_table( $wpdb, $table, $target_table );
 			++$count;
@@ -178,20 +206,27 @@ class MySQLCloner {
 	 * @return string[] Array of table names.
 	 */
 	public function discover_tables( $wpdb, string $prefix, array $exclude_prefixes = array() ): array {
+		$cache_key = $prefix . '|' . implode( ',', $exclude_prefixes );
+		if ( isset( $this->discover_cache[ $cache_key ] ) ) {
+			return $this->discover_cache[ $cache_key ];
+		}
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time metadata query.
 		$results = $wpdb->get_col(
 			$wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $prefix ) . '%' )
 		);
 
 		if ( ! is_array( $results ) ) {
-			return array();
+			$this->discover_cache[ $cache_key ] = array();
+			return $this->discover_cache[ $cache_key ];
 		}
 
 		if ( empty( $exclude_prefixes ) ) {
-			return $results;
+			$this->discover_cache[ $cache_key ] = $results;
+			return $this->discover_cache[ $cache_key ];
 		}
 
-		return array_values(
+		$this->discover_cache[ $cache_key ] = array_values(
 			array_filter(
 				$results,
 				static function ( string $table ) use ( $exclude_prefixes ): bool {
@@ -205,6 +240,8 @@ class MySQLCloner {
 				}
 			)
 		);
+
+		return $this->discover_cache[ $cache_key ];
 	}
 
 	/**
@@ -395,6 +432,10 @@ class MySQLCloner {
 	 * @return int[] Array of blog ID integers.
 	 */
 	private function discover_blog_ids( $wpdb, string $prefix ): array {
+		if ( isset( $this->blog_ids_cache[ $prefix ] ) ) {
+			return $this->blog_ids_cache[ $prefix ];
+		}
+
 		$tables  = $this->discover_tables( $wpdb, $prefix );
 		$ids     = array();
 		$escaped = preg_quote( $prefix, '/' );
@@ -405,7 +446,9 @@ class MySQLCloner {
 			}
 		}
 
-		return array_keys( $ids );
+		$this->blog_ids_cache[ $prefix ] = array_keys( $ids );
+
+		return $this->blog_ids_cache[ $prefix ];
 	}
 
 	/**
@@ -477,11 +520,38 @@ class MySQLCloner {
 	 * @return bool
 	 */
 	private function table_exists_mysql( $wpdb, string $table ): bool {
+		if ( array_key_exists( $table, $this->table_exists_cache ) ) {
+			return $this->table_exists_cache[ $table ];
+		}
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time metadata query.
-		$result = $wpdb->get_var(
+		$result                             = $wpdb->get_var(
 			$wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) )
 		);
-		return null !== $result;
+		$this->table_exists_cache[ $table ] = null !== $result;
+
+		return $this->table_exists_cache[ $table ];
+	}
+
+	/**
+	 * Mark one table as present or absent in the existence cache.
+	 *
+	 * @param string $table Table name.
+	 * @param bool   $exists Whether the table exists.
+	 * @return void
+	 */
+	private function mark_table_exists( string $table, bool $exists ): void {
+		$this->table_exists_cache[ $table ] = $exists;
+	}
+
+	/**
+	 * Clear cached table discovery after schema mutations.
+	 *
+	 * @return void
+	 */
+	private function reset_discovery_cache(): void {
+		$this->discover_cache = array();
+		$this->blog_ids_cache = array();
 	}
 
 	/**

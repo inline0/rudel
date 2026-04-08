@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.3 - 2026-04-09
+
+- Reduced clone-time metadata churn by caching table discovery, blog ID discovery, and table existence lookups inside one MySQL clone operation.
+- Short-circuited serialized search/replace so plain strings no longer pay an `unserialize()` cost during URL rewrite passes, while still preserving serialized payload correctness including serialized `false`.
+- Added a dedicated `wp-env` clone benchmark script to time app create plus app-derived sandbox create flows directly against the real Rudel runtime.
+
 ## v0.8.2 - 2026-04-08
 
 - Updated Pitmaster-backed worktree creation to use explicit linked-worktree metadata names so app and sandbox environments can safely create sibling checkouts with the same basename.
