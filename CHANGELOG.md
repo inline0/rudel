@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.8.1 - 2026-04-08
+
+- Removed the last GitHub-era runtime naming from the schema, repositories, model hydration, and test helpers so Rudel now uses generic Git field names end to end.
+- Kept the `0.8` Pitmaster-backed Git model intact while cleaning up the post-release pre-release naming debt on `main`.
+
 ## v0.8.0 - 2026-04-08
 
 - Replaced shell `git` and provider-specific runtime flows with built-in Pitmaster-backed Git support for clone, push, worktree, and cleanup operations.
