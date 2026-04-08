@@ -2,9 +2,9 @@
 
 ## v0.8.0 - 2026-04-08
 
-- Replaced shell `git` and GitHub-specific runtime flows with built-in Pitmaster-backed Git support for clone, push, worktree, and cleanup operations.
+- Replaced shell `git` and provider-specific runtime flows with built-in Pitmaster-backed Git support for clone, push, worktree, and cleanup operations.
 - Raised the minimum supported PHP version to `8.2` and adopted `pitmaster/pitmaster` as the first-party Git engine.
-- Renamed tracked-source metadata and CLI/API surface from GitHub-specific terms to generic Git remote, branch, and directory terms.
+- Renamed tracked-source metadata and CLI/API surface from provider-specific terms to generic Git remote, branch, and directory terms.
 - Removed provider-specific pull request handling from Rudel core and documented the new generic Git workflow model across the README and docs.
 
 ## v0.7.0 - 2026-04-07
@@ -31,7 +31,7 @@
 - Hardened the isolation model so every app and sandbox uses its own local `wp-content` as the canonical file and code tree.
 - Moved git-backed theme and plugin worktrees fully inside each environment's local `wp-content` instead of relying on shared host paths.
 - Updated deploy and cleanup flows to preserve environment-local worktrees, keep `.git` metadata intact, and clean merged branches through worktree-aware git control paths.
-- Expanded unit, integration, security, and GitHub E2E coverage around the new environment-local runtime contract.
+- Expanded unit, integration, security, and live Git E2E coverage around the new environment-local runtime contract.
 - Rewrote the docs to describe Rudel as multisite-native site isolation plus environment-local content isolation, with `wp_users` remaining the only intentional shared runtime surface.
 
 ## v0.5.9 - 2026-04-06
@@ -40,7 +40,7 @@
 
 ## v0.5.8 - 2026-04-06
 
-- Hardened the live `wp-env` host-site HTTP contract with a bounded readiness retry so fresh GitHub Actions multisite setups stop failing on startup timing instead of real routing regressions.
+- Hardened the live `wp-env` host-site HTTP contract with a bounded readiness retry so fresh CI multisite setups stop failing on startup timing instead of real routing regressions.
 
 ## v0.5.7 - 2026-04-06
 
@@ -59,14 +59,14 @@
 
 ## v0.5.4 - 2026-04-06
 
-- Published the local-port multisite site-resolution fixes from `main` as the current Composer/GitHub release so downstream consumers resolve the corrected subsite domain handling.
+- Published the local-port multisite site-resolution fixes from `main` as the current Composer and release build so downstream consumers resolve the corrected subsite domain handling.
 
 ## v0.5.3 - 2026-04-06
 
 - Fixed multisite subsite creation on local networks that run on a custom port by persisting the network port in subsite domain records instead of only appending it to generated URLs.
 - Fixed canonical environment URL rendering so existing multisite site records that already carry a port do not get a duplicate `:port` suffix.
 - Added focused unit coverage for local-port multisite subsite targets and URL rendering without double-appended ports.
-- Extended the live `wp-env` and GitHub E2E suites to prove generated multisite sites resolve over real HTTP for `wp-login.php` and `wp-admin/`.
+- Extended the live `wp-env` and remote Git E2E suites to prove generated multisite sites resolve over real HTTP for `wp-login.php` and `wp-admin/`.
 - Hardened the `wp-env` E2E bootstrap so failed starts clear stale cached project state before retrying.
 
 ## v0.5.2 - 2026-04-06
@@ -79,10 +79,10 @@
 
 ## v0.5.1 - 2026-04-06
 
-- Fixed GitHub-backed sandbox metadata updates so clone-source repository state and tracked worktrees persist correctly in runtime tables.
-- Hardened the live GitHub workflow coverage to prove repository download, sandbox push, pull request creation, merge cleanup, app tracking, and app-derived sandbox inheritance end to end.
-- Added non-GitHub multisite e2e coverage for tracked app GitHub metadata so CI catches inheritance regressions without needing live API behavior.
-- Rewrote the multisite docs so the runtime model, isolation story, GitHub flow, and app lifecycle match the current product instead of the removed preview/subpath experiments.
+- Fixed tracked remote sandbox metadata updates so clone-source repository state and tracked worktrees persist correctly in runtime tables.
+- Hardened the live remote workflow coverage to prove repository download, sandbox push, branch cleanup, app tracking, and app-derived sandbox inheritance end to end.
+- Added multisite e2e coverage for tracked app remote metadata so CI catches inheritance regressions without needing live external API behavior.
+- Rewrote the multisite docs so the runtime model, isolation story, remote Git flow, and app lifecycle match the current product instead of the removed preview/subpath experiments.
 
 ## v0.5.0 - 2026-04-05
 
@@ -130,7 +130,7 @@
 
 ## v0.2.0 - 2026-03-29
 
-- Expanded Rudel beyond sandboxes with app mode, GitHub-backed workflows, stronger runtime isolation, and the first broader public API and docs pass.
+- Expanded Rudel beyond sandboxes with app mode, tracked remote workflows, stronger runtime isolation, and the first broader public API and docs pass.
 
 ## v0.1.0 - 2026-04-05
 

@@ -178,15 +178,9 @@ abstract class RudelTestCase extends TestCase
             last_deployed_from_id: isset($meta['last_deployed_from_id']) && is_scalar($meta['last_deployed_from_id']) ? (string) $meta['last_deployed_from_id'] : null,
             last_deployed_from_type: isset($meta['last_deployed_from_type']) && is_scalar($meta['last_deployed_from_type']) ? (string) $meta['last_deployed_from_type'] : null,
             last_deployed_at: isset($meta['last_deployed_at']) && is_scalar($meta['last_deployed_at']) ? (string) $meta['last_deployed_at'] : null,
-            tracked_git_remote: isset($meta['tracked_git_remote']) && is_scalar($meta['tracked_git_remote'])
-                ? (string) $meta['tracked_git_remote']
-                : (isset($meta['tracked_github_repo']) && is_scalar($meta['tracked_github_repo']) ? (string) $meta['tracked_github_repo'] : null),
-            tracked_git_branch: isset($meta['tracked_git_branch']) && is_scalar($meta['tracked_git_branch'])
-                ? (string) $meta['tracked_git_branch']
-                : (isset($meta['tracked_github_branch']) && is_scalar($meta['tracked_github_branch']) ? (string) $meta['tracked_github_branch'] : null),
-            tracked_git_dir: isset($meta['tracked_git_dir']) && is_scalar($meta['tracked_git_dir'])
-                ? (string) $meta['tracked_git_dir']
-                : (isset($meta['tracked_github_dir']) && is_scalar($meta['tracked_github_dir']) ? (string) $meta['tracked_github_dir'] : null),
+            tracked_git_remote: isset($meta['tracked_git_remote']) && is_scalar($meta['tracked_git_remote']) ? (string) $meta['tracked_git_remote'] : null,
+            tracked_git_branch: isset($meta['tracked_git_branch']) && is_scalar($meta['tracked_git_branch']) ? (string) $meta['tracked_git_branch'] : null,
+            tracked_git_dir: isset($meta['tracked_git_dir']) && is_scalar($meta['tracked_git_dir']) ? (string) $meta['tracked_git_dir'] : null,
         );
 
         $repository = $this->environmentRepository((string) ($meta['type'] ?? 'sandbox'));

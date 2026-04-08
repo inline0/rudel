@@ -135,9 +135,9 @@ class Environment {
 			last_deployed_from_id: self::string_or_null( $record['last_deployed_from_slug'] ?? null ),
 			last_deployed_from_type: self::string_or_null( $record['last_deployed_from_type'] ?? null ),
 			last_deployed_at: self::string_or_null( $record['last_deployed_at'] ?? null ),
-			tracked_git_remote: self::string_or_null( $record['tracked_github_repo'] ?? ( $record['tracked_git_remote'] ?? null ) ),
-			tracked_git_branch: self::string_or_null( $record['tracked_github_branch'] ?? ( $record['tracked_git_branch'] ?? null ) ),
-			tracked_git_dir: self::string_or_null( $record['tracked_github_dir'] ?? ( $record['tracked_git_dir'] ?? null ) ),
+			tracked_git_remote: self::string_or_null( $record['tracked_git_remote'] ?? null ),
+			tracked_git_branch: self::string_or_null( $record['tracked_git_branch'] ?? null ),
+			tracked_git_dir: self::string_or_null( $record['tracked_git_dir'] ?? null ),
 			record_id: isset( $record['id'] ) ? (int) $record['id'] : null,
 			app_record_id: isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
 		);
@@ -462,7 +462,7 @@ class Environment {
 	 * @return string|null Remote URL, or null.
 	 */
 	public function get_git_remote(): ?string {
-		return $this->clone_source['git_remote'] ?? ( $this->clone_source['github_repo'] ?? $this->tracked_git_remote );
+		return $this->clone_source['git_remote'] ?? $this->tracked_git_remote;
 	}
 
 	/**
@@ -471,7 +471,7 @@ class Environment {
 	 * @return string|null Relative directory path, or null for all of wp-content.
 	 */
 	public function get_git_dir(): ?string {
-		return $this->clone_source['git_dir'] ?? ( $this->clone_source['github_dir'] ?? $this->tracked_git_dir );
+		return $this->clone_source['git_dir'] ?? $this->tracked_git_dir;
 	}
 
 	/**
@@ -480,7 +480,7 @@ class Environment {
 	 * @return string|null Branch name, or null when the repository default branch should be used.
 	 */
 	public function get_git_base_branch(): ?string {
-		return $this->clone_source['git_base_branch'] ?? ( $this->clone_source['github_base_branch'] ?? $this->tracked_git_branch );
+		return $this->clone_source['git_base_branch'] ?? $this->tracked_git_branch;
 	}
 
 	/**

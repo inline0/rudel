@@ -382,9 +382,9 @@ class EnvironmentRepository {
 			'last_deployed_from_slug' => $environment->last_deployed_from_id,
 			'last_deployed_from_type' => $environment->last_deployed_from_type,
 			'last_deployed_at'        => $environment->last_deployed_at,
-			'tracked_github_repo'     => $environment->tracked_git_remote,
-			'tracked_github_branch'   => $environment->tracked_git_branch,
-			'tracked_github_dir'      => $environment->tracked_git_dir,
+			'tracked_git_remote'      => $environment->tracked_git_remote,
+			'tracked_git_branch'      => $environment->tracked_git_branch,
+			'tracked_git_dir'         => $environment->tracked_git_dir,
 			'created_at'              => $environment->created_at,
 			'updated_at'              => gmdate( 'c' ),
 		);
@@ -426,17 +426,14 @@ class EnvironmentRepository {
 				case 'last_used_at':
 					$payload['last_used_at'] = $value;
 					break;
-				case 'tracked_github_repo':
 				case 'tracked_git_remote':
-					$payload['tracked_github_repo'] = $value;
+					$payload['tracked_git_remote'] = $value;
 					break;
-				case 'tracked_github_branch':
 				case 'tracked_git_branch':
-					$payload['tracked_github_branch'] = $value;
+					$payload['tracked_git_branch'] = $value;
 					break;
-				case 'tracked_github_dir':
 				case 'tracked_git_dir':
-					$payload['tracked_github_dir'] = $value;
+					$payload['tracked_git_dir'] = $value;
 					break;
 				case 'protected':
 					$payload['is_protected'] = $value ? 1 : 0;
