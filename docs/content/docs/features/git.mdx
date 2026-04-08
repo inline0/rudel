@@ -1,6 +1,6 @@
 ---
 title: Git Integration
-description: Branch-based workflows with automatic worktrees for git-tracked themes and plugins.
+description: Branch-based workflows with automatic worktrees and built-in Git remotes.
 ---
 
 # Git Integration
@@ -19,7 +19,7 @@ If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox keeps u
 
 ## Working in the sandbox
 
-From the sandbox's tracked theme or plugin directory inside that environment, you're on a regular git branch. You can commit, push, and create pull requests just like any other feature branch.
+From the sandbox's tracked theme or plugin directory inside that environment, you're on a regular git branch. You can commit and push just like any other feature branch.
 
 ```bash
 cd /path/to/the/theme-or-plugin-directory-rudel-tracked-for-the-sandbox
@@ -39,7 +39,7 @@ Once the branch is merged into main, the sandbox has served its purpose. Instead
 wp rudel cleanup --merged
 ```
 
-This checks every sandbox that carries tracked GitHub or git branch state. If all of a sandbox's tracked branches have been merged into their base branch, the sandbox is destroyed and Rudel cleans up the branch metadata along with the environment.
+This checks every sandbox that carries tracked Git branch state. If all of a sandbox's tracked branches have been merged into their base branch, the sandbox is destroyed and Rudel cleans up the branch metadata along with the environment.
 
 To preview what would be removed without actually deleting:
 
@@ -53,46 +53,30 @@ Only themes and plugins are eligible for git worktrees. The decision is per-dire
 
 The site data side of the sandbox is not part of git. That is the disposable part. The code changes in themes and plugins are the part that should be preserved, and git already handles that naturally.
 
-## GitHub integration (no git binary needed)
+## Built-in Git remote support
 
-On shared hosting where `git` isn't installed, Rudel can work with GitHub directly via the REST API. This gives you the same branch-based workflow without any local git binary.
+Rudel now uses a PHP-native Git engine for clone, push, fetch, merge checks, and worktree lifecycle. That means you can keep using Git-backed code workflows on hosts where the `git` binary is not installed.
 
-Define your GitHub token in `wp-config.php`:
-
-```php
-define( 'RUDEL_GITHUB_TOKEN', 'ghp_your_token_here' );
-```
-
-For a fine-grained personal access token, the important permissions are:
-
-- repository contents: read and write
-- pull requests: read and write
-
-Then push sandbox changes to GitHub and create PRs:
+Use any normal remote URL Rudel can reach:
 
 ```bash
-# Push theme changes to a branch on GitHub
-wp rudel push my-sandbox-a1b2 --github=owner/my-theme --dir=themes/my-theme --message="Add header template"
-
-# Create a pull request
-wp rudel pr my-sandbox-a1b2 --github=owner/my-theme --title="New header template"
+wp rudel create --git=https://example.test/my-theme.git
+wp rudel push my-sandbox-a1b2 --git=https://example.test/my-theme.git --dir=themes/my-theme --message="Add header template"
 ```
 
-Rudel creates the branch (`rudel/{sandbox-id}`), uploads all files via the GitHub API, and opens the PR. When the PR is merged, `wp rudel cleanup --merged` detects it and destroys the sandbox.
+Rudel creates the branch (`rudel/{sandbox-id}`), keeps the tracked checkout inside the environment-local `wp-content`, and pushes the resulting commit through its built-in Git layer.
 
-This works on any host that can make outbound HTTPS requests, which is essentially all of them.
-
-Apps can also carry a tracked GitHub repository, branch, and directory:
+Apps can also carry one tracked Git remote, branch, and directory:
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test --github=inline0/demo-theme --branch=main --dir=themes/demo-theme
+wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/demo-theme.git --branch=main --dir=themes/demo-theme
 ```
 
-Any sandbox created from that app inherits the tracked GitHub metadata automatically. That keeps the branch and PR workflow consistent across the app lifecycle instead of making operators restate the same repo details on every derived sandbox.
+Any sandbox created from that app inherits the tracked Git metadata automatically. That keeps branch and merge-cleanup workflows consistent across the app lifecycle without making operators restate the same remote details on every derived sandbox.
 
 ## Without git
 
-If none of your themes or plugins are git repos and you do not use GitHub
-integration, Rudel simply copies the relevant code directories and keeps the
-environment lifecycle running normally. Git and GitHub integration are optional
-code-management layers on top of the multisite runtime.
+If none of your themes or plugins are git repos and you do not use tracked
+Git remotes, Rudel simply copies the relevant code directories and keeps the
+environment lifecycle running normally. Git integration is an optional
+code-management layer on top of the multisite runtime.

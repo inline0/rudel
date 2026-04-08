@@ -32,9 +32,9 @@ class AppDeploymentRepositoryTest extends RudelTestCase
                 path: $path,
                 created_at: '2026-01-01T00:00:00+00:00',
                 type: 'app',
-                tracked_github_repo: 'inline0/' . $id,
-                tracked_github_branch: 'main',
-                tracked_github_dir: 'themes/' . $id
+                tracked_git_remote: 'https://example.test/' . $id . '.git',
+                tracked_git_branch: 'main',
+                tracked_git_dir: 'themes/' . $id
             )
         );
 
@@ -54,9 +54,9 @@ class AppDeploymentRepositoryTest extends RudelTestCase
                 created_at: '2026-01-02T00:00:00+00:00',
                 app_record_id: $appId,
                 clone_source: [
-                    'github_repo' => 'inline0/client-a',
-                    'github_base_branch' => 'release/2026',
-                    'github_dir' => 'themes/client-a',
+                    'git_remote' => 'https://example.test/client-a.git',
+                    'git_base_branch' => 'release/2026',
+                    'git_dir' => 'themes/client-a',
                 ]
             )
         );
@@ -81,7 +81,7 @@ class AppDeploymentRepositoryTest extends RudelTestCase
         $this->assertSame('client-a', $found['app_id']);
         $this->assertSame('client-a-fix', $found['sandbox_id']);
         $this->assertSame(['client-a.com'], $found['app_domains']);
-        $this->assertSame('release/2026', $found['github_base_branch']);
+        $this->assertSame('release/2026', $found['git_base_branch']);
     }
 
     public function testListSortsNewestFirstAndPruneRemovesOlderDeployments(): void

@@ -432,67 +432,52 @@ class Rudel {
 	}
 
 	/**
-	 * Create a sandbox and seed it from a GitHub repository in one step.
+	 * Create a sandbox and seed it from a Git remote in one step.
 	 *
-	 * The CLI treats sandbox creation as successful even if the GitHub download fails,
-	 * so this method returns both the sandbox and any GitHub error instead of rolling the sandbox back.
+	 * The CLI treats sandbox creation as successful even if the remote clone fails,
+	 * so this method returns both the sandbox and any Git error instead of rolling the sandbox back.
 	 *
-	 * @param string $repo GitHub repository in owner/repo format.
+	 * @param string $remote_url Git remote URL.
 	 * @param array  $options Sandbox create options plus optional 'name' and 'type'.
-	 * @return array{environment: Environment, github: array{repo: string, branch: string, branch_created: bool, repo_name: string, content_type: string, download_dir: string, downloaded_files: int, error: string|null}}
+	 * @return array{environment: Environment, git: array{remote: string, branch: string, base_branch: string|null, repo_name: string, content_type: string, checkout_dir: string, error: string|null}}
 	 *
-	 * @throws \RuntimeException If sandbox creation fails before the GitHub bootstrap step can run.
+	 * @throws \RuntimeException If sandbox creation fails before the Git bootstrap step can run.
 	 */
-	public static function create_from_github( string $repo, array $options = array() ): array {
-		self::require_wordpress_runtime( 'Rudel::create_from_github()' );
-		$name         = isset( $options['name'] ) ? (string) $options['name'] : basename( $repo );
+	public static function create_from_git( string $remote_url, array $options = array() ): array {
+		self::require_wordpress_runtime( 'Rudel::create_from_git()' );
+		$name         = isset( $options['name'] ) ? (string) $options['name'] : basename( preg_replace( '/\.git$/', '', $remote_url ) );
 		$content_type = isset( $options['type'] ) ? (string) $options['type'] : 'theme';
 		unset( $options['name'], $options['type'] );
 
 		$sandbox = self::create( $name, $options );
 		$branch  = $sandbox->get_git_branch();
+		$repo    = new GitIntegration();
 
 		$result = array(
 			'environment' => $sandbox,
-			'github'      => array(
-				'repo'             => $repo,
-				'branch'           => $branch,
-				'branch_created'   => false,
-				'repo_name'        => basename( $repo ),
-				'content_type'     => $content_type,
-				'download_dir'     => '',
-				'downloaded_files' => 0,
-				'error'            => null,
+			'git'         => array(
+				'remote'       => $remote_url,
+				'branch'       => $branch,
+				'base_branch'  => null,
+				'repo_name'    => basename( preg_replace( '/\.git$/', '', $remote_url ) ),
+				'content_type' => $content_type,
+				'checkout_dir' => '',
+				'error'        => null,
 			),
 		);
 
 		try {
-			$github    = new GitHubIntegration( $repo );
-			$repo_name = basename( $repo );
+			$repo_name                     = $result['git']['repo_name'];
+			$type_dir                      = 'plugin' === $content_type ? 'plugins' : 'themes';
+			$checkout_dir                  = $sandbox->get_runtime_content_path( $type_dir . '/' . $repo_name );
+			$result['git']['checkout_dir'] = $checkout_dir;
+			$checkout                      = $repo->clone_remote_checkout( $remote_url, $checkout_dir, $branch );
+			$result['git']['base_branch']  = $checkout['base_branch'];
 
-			try {
-				$github->create_branch( $branch );
-				$result['github']['branch_created'] = true;
-			} catch ( \RuntimeException $e ) {
-				if ( ! str_contains( $e->getMessage(), 'Reference already exists' ) ) {
-					throw $e;
-				}
-			}
-
-			$type_dir                         = 'plugin' === $content_type ? 'plugins' : 'themes';
-			$download_dir                     = $sandbox->get_runtime_content_path( $type_dir . '/' . $repo_name );
-			$result['github']['download_dir'] = $download_dir;
-
-			if ( ! is_dir( $download_dir ) ) {
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- GitHub checkouts create their own target tree.
-				mkdir( $download_dir, 0755, true );
-			}
-
-			$result['github']['downloaded_files'] = $github->download( $branch, $download_dir );
-
-			$clone_source                = $sandbox->clone_source ?? array();
-			$clone_source['github_repo'] = $repo;
-			$clone_source['github_dir']  = $type_dir . '/' . $repo_name;
+			$clone_source                    = $sandbox->clone_source ?? array();
+			$clone_source['git_remote']      = $remote_url;
+			$clone_source['git_dir']         = $type_dir . '/' . $repo_name;
+			$clone_source['git_base_branch'] = $checkout['base_branch'];
 			self::manager()->update(
 				$sandbox->id,
 				array(
@@ -500,7 +485,7 @@ class Rudel {
 				)
 			);
 		} catch ( \Throwable $e ) {
-			$result['github']['error'] = $e->getMessage();
+			$result['git']['error'] = $e->getMessage();
 		}
 
 		return $result;
@@ -1021,77 +1006,49 @@ class Rudel {
 	}
 
 	/**
-	 * Get a GitHubIntegration instance for a repository.
-	 *
-	 * @param string      $repo  GitHub repository (owner/repo).
-	 * @param string|null $token GitHub token. Falls back to RUDEL_GITHUB_TOKEN.
-	 * @return GitHubIntegration
-	 *
-	 * @throws \RuntimeException If no token is available.
-	 */
-	public static function github( string $repo, ?string $token = null ): GitHubIntegration {
-		return new GitHubIntegration( $repo, $token );
-	}
-
-	/**
-	 * Push a sandbox's files to GitHub.
+	 * Push a sandbox checkout to its configured Git remote.
 	 *
 	 * @param string $sandbox_id Sandbox identifier.
-	 * @param string $repo       GitHub repository (owner/repo). Optional if stored in metadata.
+	 * @param string $remote_url Git remote URL. Optional if stored in metadata.
 	 * @param string $message    Commit message.
 	 * @param string $subdir     Subdirectory within wp-content to push (e.g. 'themes/my-theme').
 	 * @return string|null Commit SHA on success, null if no changes.
 	 *
-	 * @throws \RuntimeException If the sandbox is not found or push fails.
-	 * @throws \Throwable If push fails after lifecycle hooks begin.
+	 * @throws \RuntimeException If the sandbox is not found, no remote is available, or the checkout directory is missing.
+	 * @throws \Throwable If the configured Git backend fails while pushing.
 	 */
-	public static function push( string $sandbox_id, string $repo = '', string $message = 'Update from Rudel', string $subdir = '' ): ?string {
+	public static function push( string $sandbox_id, string $remote_url = '', string $message = 'Update from Rudel', string $subdir = '' ): ?string {
 		$sandbox = self::get( $sandbox_id );
 		if ( ! $sandbox ) {
 			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
 		}
 
-		$repo = '' !== $repo ? $repo : $sandbox->get_github_repo();
-		if ( ! $repo ) {
-			throw new \RuntimeException( 'GitHub repo required. Pass $repo or push via CLI first.' );
+		$remote_url = '' !== $remote_url ? $remote_url : ( $sandbox->get_git_remote() ?? '' );
+		if ( '' === $remote_url ) {
+			throw new \RuntimeException( 'Git remote required. Pass $remote_url or store it on the environment first.' );
 		}
 
-		$subdir = '' !== $subdir ? $subdir : ( $sandbox->get_github_dir() ?? '' );
+		$subdir = '' !== $subdir ? $subdir : ( $sandbox->get_git_dir() ?? '' );
 
 		$context = array(
 			'environment' => $sandbox,
-			'repo'        => $repo,
+			'remote'      => $remote_url,
 			'message'     => $message,
 			'subdir'      => $subdir,
 		);
 		Hooks::action( 'rudel_before_environment_push', $context );
 
 		try {
-			$github      = new GitHubIntegration( $repo );
-			$branch      = $sandbox->get_git_branch();
-			$base_branch = $sandbox->get_github_base_branch();
-
-			// Repeat pushes are normal, so an existing sandbox branch is not an error.
-			try {
-				$github->create_branch( $branch, $base_branch );
-			} catch ( \RuntimeException $e ) {
-				if ( ! str_contains( $e->getMessage(), 'Reference already exists' ) ) {
-					throw $e;
-				}
-			}
-
 			$local_dir = $sandbox->get_runtime_content_path( $subdir );
-
 			if ( ! is_dir( $local_dir ) ) {
 				throw new \RuntimeException( sprintf( 'Directory not found: %s', $local_dir ) );
 			}
 
-			$sha = $github->push( $branch, $local_dir, $message );
+			$sha = ( new GitIntegration() )->push_checkout( $local_dir, $sandbox->get_git_branch(), $message, $remote_url );
 
-			// Remember the repo after the first successful push so later calls can omit it.
-			if ( $sha && ! $sandbox->get_github_repo() ) {
-				$clone_source                = $sandbox->clone_source ?? array();
-				$clone_source['github_repo'] = $repo;
+			if ( $sha && ! $sandbox->get_git_remote() ) {
+				$clone_source               = $sandbox->clone_source ?? array();
+				$clone_source['git_remote'] = $remote_url;
 				self::manager()->update(
 					$sandbox->id,
 					array(
@@ -1105,53 +1062,6 @@ class Rudel {
 			return $sha;
 		} catch ( \Throwable $e ) {
 			Hooks::action( 'rudel_environment_push_failed', $context, $e );
-			throw $e;
-		}
-	}
-
-	/**
-	 * Create a GitHub pull request from a sandbox branch.
-	 *
-	 * @param string $sandbox_id Sandbox identifier.
-	 * @param string $title      PR title. Defaults to sandbox name.
-	 * @param string $repo       GitHub repository. Optional if stored in metadata.
-	 * @param string $body       PR description.
-	 * @return array{number: int, url: string, html_url: string} PR data.
-	 *
-	 * @throws \RuntimeException If the sandbox is not found or PR creation fails.
-	 * @throws \Throwable If PR creation fails after lifecycle hooks begin.
-	 */
-	public static function pr( string $sandbox_id, string $title = '', string $repo = '', string $body = '' ): array {
-		$sandbox = self::get( $sandbox_id );
-		if ( ! $sandbox ) {
-			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
-		}
-
-		$repo = '' !== $repo ? $repo : $sandbox->get_github_repo();
-		if ( ! $repo ) {
-			throw new \RuntimeException( 'GitHub repo required. Pass $repo or push via CLI first.' );
-		}
-
-		$context = array(
-			'environment' => $sandbox,
-			'repo'        => $repo,
-			'title'       => $title,
-			'body'        => $body,
-		);
-		Hooks::action( 'rudel_before_environment_pr', $context );
-
-		try {
-			$github = new GitHubIntegration( $repo );
-			$branch = $sandbox->get_git_branch();
-			$title  = '' !== $title ? $title : $sandbox->name;
-			$body   = '' !== $body ? $body : sprintf( 'Created from Rudel sandbox `%s`', $sandbox->id );
-
-			$result = $github->create_pr( $branch, $title, $body, $sandbox->get_github_base_branch() );
-			Hooks::action( 'rudel_after_environment_pr', $result, $context );
-
-			return $result;
-		} catch ( \Throwable $e ) {
-			Hooks::action( 'rudel_environment_pr_failed', $context, $e );
 			throw $e;
 		}
 	}

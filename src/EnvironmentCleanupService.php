@@ -144,29 +144,20 @@ class EnvironmentCleanupService {
 				continue;
 			}
 
-			$branch      = $environment->get_git_branch();
-			$github_repo = $environment->get_github_repo();
-			$worktrees   = $environment->clone_source['git_worktrees'] ?? array();
-			$has_git     = ! empty( $worktrees );
-			$has_github  = ! empty( $github_repo );
+			$branch     = $environment->get_git_branch();
+			$git_remote = $environment->get_git_remote();
+			$worktrees  = $environment->clone_source['git_worktrees'] ?? array();
+			$has_git    = ! empty( $worktrees );
+			$has_remote = ! empty( $git_remote );
 
-			if ( ! $has_git && ! $has_github ) {
+			if ( ! $has_git && ! $has_remote ) {
 				$result['skipped'][] = $environment->id;
 				continue;
 			}
 
 			$is_merged = false;
 
-			if ( $has_github ) {
-				try {
-					$is_merged = ( new GitHubIntegration( $github_repo ) )->is_branch_merged( $branch );
-				} catch ( \RuntimeException $e ) {
-					$is_merged = false;
-					unset( $e );
-				}
-			}
-
-			if ( ! $is_merged && $has_git ) {
+			if ( $has_git ) {
 				$is_merged_locally = true;
 				foreach ( $worktrees as $worktree ) {
 					$repo_control   = $git->common_git_dir( $worktree['repo'] ) ?? $worktree['repo'];
@@ -198,11 +189,11 @@ class EnvironmentCleanupService {
 				$git->delete_branch( $repo_control, $worktree['branch'] );
 			}
 
-			if ( $has_github ) {
-				try {
-					( new GitHubIntegration( $github_repo ) )->delete_branch( $branch );
-				} catch ( \RuntimeException $e ) {
-					unset( $e );
+			if ( $has_remote && $has_git ) {
+				$first_repo = $worktrees[ array_key_first( $worktrees ) ]['repo'] ?? null;
+				if ( is_string( $first_repo ) && '' !== $first_repo ) {
+					$repo_control = $git->common_git_dir( $first_repo ) ?? $first_repo;
+					$git->delete_remote_branch( $repo_control, $branch );
 				}
 			}
 

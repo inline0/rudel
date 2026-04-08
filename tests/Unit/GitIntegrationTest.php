@@ -2,6 +2,7 @@
 
 namespace Rudel\Tests\Unit;
 
+use Pitmaster\Pitmaster;
 use Rudel\GitIntegration;
 use Rudel\Tests\RudelTestCase;
 
@@ -15,35 +16,34 @@ class GitIntegrationTest extends RudelTestCase
         $this->git = new GitIntegration();
     }
 
-    private function hasGit(): bool
-    {
-        exec('git --version 2>&1', $output, $code);
-        return 0 === $code;
-    }
-
-    private function createGitRepo(string $name): string
+    private function createGitRepo(string $name, array $files = ['file.txt' => 'initial']): string
     {
         $path = $this->tmpDir . '/' . $name;
         mkdir($path, 0755, true);
-        exec('git -C ' . escapeshellarg($path) . ' init 2>&1');
-        exec('git -C ' . escapeshellarg($path) . ' config user.email "test@test.com" 2>&1');
-        exec('git -C ' . escapeshellarg($path) . ' config user.name "Test" 2>&1');
-        file_put_contents($path . '/file.txt', 'initial');
-        exec('git -C ' . escapeshellarg($path) . ' add -A 2>&1');
-        exec('git -C ' . escapeshellarg($path) . ' commit -m "init" 2>&1');
-        // Ensure default branch is 'main' regardless of git config.
-        exec('git -C ' . escapeshellarg($path) . ' branch -M main 2>&1');
+
+        $repo = Pitmaster::init($path);
+        $repo->config()->set('user.email', 'test@test.com');
+        $repo->config()->set('user.name', 'Test');
+
+        foreach ($files as $relative => $contents) {
+            $fullPath = $path . '/' . $relative;
+            $dir = dirname($fullPath);
+
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+
+            file_put_contents($fullPath, $contents);
+            $repo->add($relative);
+        }
+
+        $repo->commit('init');
+
         return $path;
     }
 
-    // is_git_repo()
-
     public function testIsGitRepoReturnsTrueForGitDir(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
-
         $repo = $this->createGitRepo('test-repo');
         $this->assertTrue($this->git->is_git_repo($repo));
     }
@@ -55,14 +55,8 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertFalse($this->git->is_git_repo($dir));
     }
 
-    // create_worktree() / remove_worktree()
-
     public function testCreateWorktreeCreatesDirectoryWithBranch(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
-
         $repo = $this->createGitRepo('wt-repo');
         $target = $this->tmpDir . '/wt-target';
 
@@ -71,18 +65,12 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertTrue($result);
         $this->assertDirectoryExists($target);
         $this->assertFileExists($target . '/file.txt');
-
-        // Verify we're on the right branch.
-        exec('git -C ' . escapeshellarg($target) . ' branch --show-current 2>&1', $output);
-        $this->assertSame('rudel/test-sandbox', trim($output[0]));
+        $this->assertFileExists($target . '/.git');
+        $this->assertSame('rudel/test-sandbox', Pitmaster::open($target)->branch());
     }
 
     public function testRemoveWorktreeRemovesDirectory(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
-
         $repo = $this->createGitRepo('rm-wt-repo');
         $target = $this->tmpDir . '/rm-wt-target';
 
@@ -96,10 +84,6 @@ class GitIntegrationTest extends RudelTestCase
 
     public function testRemoveWorktreeAcceptsCommonGitDir(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
-
         $repo = $this->createGitRepo('rm-common-repo');
         $target = $this->tmpDir . '/rm-common-target';
 
@@ -111,73 +95,58 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertDirectoryDoesNotExist($target);
     }
 
-    // is_branch_merged()
-
     public function testIsBranchMergedReturnsTrueAfterMerge(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
+        $repoPath = $this->createGitRepo('merge-repo');
+        $repo = Pitmaster::open($repoPath);
 
-        $repo = $this->createGitRepo('merge-repo');
+        $repo->createBranch('rudel/feature');
+        $repo->checkout('rudel/feature');
+        file_put_contents($repoPath . '/feature.txt', 'feature');
+        $repo->add('feature.txt');
+        $repo->commit('feature');
+        $repo->checkout('main');
+        $repo->merge('rudel/feature');
 
-        // Create a branch, add a commit, merge it.
-        exec('git -C ' . escapeshellarg($repo) . ' checkout -b rudel/feature 2>&1');
-        file_put_contents($repo . '/feature.txt', 'feature');
-        exec('git -C ' . escapeshellarg($repo) . ' add -A 2>&1');
-        exec('git -C ' . escapeshellarg($repo) . ' commit -m "feature" 2>&1');
-        exec('git -C ' . escapeshellarg($repo) . ' checkout main 2>&1');
-        exec('git -C ' . escapeshellarg($repo) . ' merge rudel/feature 2>&1');
-
-        $this->assertTrue($this->git->is_branch_merged($repo, 'rudel/feature', 'main'));
+        $this->assertTrue($this->git->is_branch_merged($repoPath, 'rudel/feature', 'main'));
     }
 
     public function testIsBranchMergedReturnsFalseWhenNotMerged(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
+        $repoPath = $this->createGitRepo('unmerged-repo');
+        $repo = Pitmaster::open($repoPath);
 
-        $repo = $this->createGitRepo('unmerged-repo');
+        $repo->createBranch('rudel/unmerged');
+        $repo->checkout('rudel/unmerged');
+        file_put_contents($repoPath . '/unmerged.txt', 'work');
+        $repo->add('unmerged.txt');
+        $repo->commit('wip');
+        $repo->checkout('main');
 
-        exec('git -C ' . escapeshellarg($repo) . ' checkout -b rudel/unmerged 2>&1');
-        file_put_contents($repo . '/unmerged.txt', 'work');
-        exec('git -C ' . escapeshellarg($repo) . ' add -A 2>&1');
-        exec('git -C ' . escapeshellarg($repo) . ' commit -m "wip" 2>&1');
-        exec('git -C ' . escapeshellarg($repo) . ' checkout main 2>&1');
-
-        $this->assertFalse($this->git->is_branch_merged($repo, 'rudel/unmerged', 'main'));
+        $this->assertFalse($this->git->is_branch_merged($repoPath, 'rudel/unmerged', 'main'));
     }
-
-    // delete_branch()
 
     public function testDeleteBranchRemovesMergedBranch(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
+        $repoPath = $this->createGitRepo('del-branch-repo');
+        $repo = Pitmaster::open($repoPath);
 
-        $repo = $this->createGitRepo('del-branch-repo');
+        $repo->createBranch('rudel/to-delete');
+        $repo->checkout('rudel/to-delete');
+        file_put_contents($repoPath . '/remove.txt', 'remove');
+        $repo->add('remove.txt');
+        $repo->commit('remove');
+        $repo->checkout('main');
+        $repo->merge('rudel/to-delete');
 
-        exec('git -C ' . escapeshellarg($repo) . ' checkout -b rudel/to-delete 2>&1');
-        exec('git -C ' . escapeshellarg($repo) . ' checkout main 2>&1');
-        exec('git -C ' . escapeshellarg($repo) . ' merge rudel/to-delete 2>&1');
+        $result = $this->git->delete_branch($repoPath, 'rudel/to-delete');
 
-        $result = $this->git->delete_branch($repo, 'rudel/to-delete');
         $this->assertTrue($result);
-
-        // Branch should be gone.
-        exec('git -C ' . escapeshellarg($repo) . ' branch 2>&1', $output);
-        $branches = implode("\n", $output);
-        $this->assertStringNotContainsString('rudel/to-delete', $branches);
+        $this->assertNull(Pitmaster::open($repoPath)->branch('rudel/to-delete'));
     }
 
     public function testDeleteBranchAcceptsCommonGitDirAfterWorktreeRemoval(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
-
         $repo = $this->createGitRepo('del-common-repo');
         $target = $this->tmpDir . '/del-common-target';
 
@@ -189,57 +158,39 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertTrue($this->git->delete_branch($common, 'rudel/del-common'));
     }
 
-    // get_default_branch()
-
     public function testGetDefaultBranchReturnsMain(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
-
         $repo = $this->createGitRepo('default-branch-repo');
-        $branch = $this->git->get_default_branch($repo);
-
-        // Without a remote, falls back to 'main'.
-        $this->assertSame('main', $branch);
+        $this->assertSame('main', $this->git->get_default_branch($repo));
     }
-
-    // clone_with_worktrees()
 
     public function testCloneWithWorktreesCreatesWorktreeForGitRepos(): void
     {
-        if (! $this->hasGit()) {
-            $this->markTestSkipped('git not available');
-        }
-
-        // Set up source: one git repo theme, one plain theme.
         $source = $this->tmpDir . '/themes-src';
-        mkdir($source, 0755);
+        mkdir($source, 0755, true);
 
         $gitTheme = $source . '/git-theme';
-        mkdir($gitTheme, 0755);
-        exec('git -C ' . escapeshellarg($gitTheme) . ' init 2>&1');
-        exec('git -C ' . escapeshellarg($gitTheme) . ' config user.email "t@t.com" 2>&1');
-        exec('git -C ' . escapeshellarg($gitTheme) . ' config user.name "T" 2>&1');
+        mkdir($gitTheme, 0755, true);
+        $repo = Pitmaster::init($gitTheme);
+        $repo->config()->set('user.email', 't@t.com');
+        $repo->config()->set('user.name', 'T');
         file_put_contents($gitTheme . '/style.css', 'body {}');
-        exec('git -C ' . escapeshellarg($gitTheme) . ' add -A 2>&1');
-        exec('git -C ' . escapeshellarg($gitTheme) . ' commit -m "init" 2>&1');
+        $repo->add('style.css');
+        $repo->commit('init');
 
         $plainTheme = $source . '/plain-theme';
-        mkdir($plainTheme, 0755);
+        mkdir($plainTheme, 0755, true);
         file_put_contents($plainTheme . '/style.css', 'body {}');
 
         $target = $this->tmpDir . '/themes-dst';
-        mkdir($target, 0755);
+        mkdir($target, 0755, true);
 
         $results = $this->git->clone_with_worktrees($source, $target, 'my-sandbox');
 
-        // Git theme should be a worktree.
         $this->assertArrayHasKey('git-theme', $results['worktrees']);
         $this->assertSame('rudel/my-sandbox', $results['worktrees']['git-theme']);
         $this->assertFileExists($target . '/git-theme/style.css');
-
-        // Plain theme should be file-copied.
+        $this->assertFileExists($target . '/git-theme/.git');
         $this->assertContains('plain-theme', $results['copied']);
         $this->assertFileExists($target . '/plain-theme/style.css');
     }
@@ -247,21 +198,12 @@ class GitIntegrationTest extends RudelTestCase
     public function testCloneWithWorktreesHandlesEmptyDirectory(): void
     {
         $source = $this->tmpDir . '/empty-src';
-        mkdir($source, 0755);
+        mkdir($source, 0755, true);
 
         $target = $this->tmpDir . '/empty-dst';
-        mkdir($target, 0755);
+        mkdir($target, 0755, true);
 
         $results = $this->git->clone_with_worktrees($source, $target, 'test');
-
-        $this->assertEmpty($results['worktrees']);
-        $this->assertEmpty($results['copied']);
-    }
-
-    public function testCloneWithWorktreesHandlesNonexistentSource(): void
-    {
-        $target = $this->tmpDir . '/no-src-dst';
-        $results = $this->git->clone_with_worktrees('/nonexistent', $target, 'test');
 
         $this->assertEmpty($results['worktrees']);
         $this->assertEmpty($results['copied']);

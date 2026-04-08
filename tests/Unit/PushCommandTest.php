@@ -5,7 +5,7 @@ namespace Rudel\Tests\Unit;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Rudel\Environment;
-use Rudel\GitHubIntegration;
+use Rudel\GitIntegration;
 use Rudel\Tests\RudelTestCase;
 
 class PushCommandTest extends RudelTestCase
@@ -61,7 +61,7 @@ class PushCommandTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testPushRequiresGitHubRepo(): void
+    public function testPushRequiresGitRemote(): void
     {
         $this->bootstrapWpCli();
 
@@ -69,119 +69,107 @@ class PushCommandTest extends RudelTestCase
         $cmd = new \Rudel\CLI\PushCommand($this->environmentManager($environment));
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('GitHub repo required');
+        $this->expectExceptionMessage('Git remote required');
         $cmd(['push-box'], []);
     }
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testPushStoresRepoAndReportsSuccess(): void
+    public function testPushStoresRemoteAndReportsSuccess(): void
     {
         $this->bootstrapWpCli();
 
         $environment = $this->createEnvironment('push-box');
-        $fakeGithub = new class extends GitHubIntegration {
-            public array $branchCalls = [];
+        $fakeGit = new class extends GitIntegration {
             public array $pushCalls = [];
 
-            public function __construct() {}
-
-            public function create_branch(string $branch, ?string $base_branch = null): void
-            {
-                $this->branchCalls[] = [
-                    'branch' => $branch,
-                    'base_branch' => $base_branch,
-                ];
-            }
-
-            public function push(string $branch, string $local_dir, string $message): ?string
+            public function push_checkout(string $repo_path, string $branch, string $message, ?string $remote_url = null): ?string
             {
                 $this->pushCalls[] = [
+                    'repo_path' => $repo_path,
                     'branch' => $branch,
-                    'local_dir' => $local_dir,
                     'message' => $message,
+                    'remote_url' => $remote_url,
                 ];
 
                 return 'abc1234';
             }
         };
 
-        $cmd = new class($this->environmentManager($environment), $fakeGithub) extends \Rudel\CLI\PushCommand {
-            public function __construct(\Rudel\EnvironmentManager $manager, private GitHubIntegration $github)
+        $cmd = new class($this->environmentManager($environment), $fakeGit) extends \Rudel\CLI\PushCommand {
+            public function __construct(\Rudel\EnvironmentManager $manager, private GitIntegration $git)
             {
                 parent::__construct($manager);
             }
 
-            protected function github(string $repo): GitHubIntegration
+            protected function git(): GitIntegration
             {
-                return $this->github;
+                return $this->git;
             }
         };
 
-        $cmd(['push-box'], ['github' => 'owner/repo', 'dir' => 'themes/my-theme', 'message' => 'Ship it']);
+        $cmd(['push-box'], ['git' => 'https://example.test/owner/repo.git', 'dir' => 'themes/my-theme', 'message' => 'Ship it']);
 
         $this->assertSame([[
+            'repo_path' => $environment->get_wp_content_path() . '/themes/my-theme',
             'branch' => 'rudel/push-box',
-            'base_branch' => null,
-        ]], $fakeGithub->branchCalls);
-        $this->assertSame('rudel/push-box', $fakeGithub->pushCalls[0]['branch']);
-        $this->assertSame($environment->get_wp_content_path() . '/themes/my-theme', $fakeGithub->pushCalls[0]['local_dir']);
-        $this->assertSame('Ship it', $fakeGithub->pushCalls[0]['message']);
+            'message' => 'Ship it',
+            'remote_url' => 'https://example.test/owner/repo.git',
+        ]], $fakeGit->pushCalls);
         $this->assertSame(['Pushed to rudel/push-box (abc1234)'], \WP_CLI::$successes);
 
         $updated = \Rudel\Environment::from_path($environment->path);
         $this->assertNotNull($updated);
-        $this->assertSame('owner/repo', $updated->clone_source['github_repo']);
+        $this->assertSame('https://example.test/owner/repo.git', $updated->clone_source['git_remote']);
     }
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testPushUsesTrackedBaseBranchFromAppDerivedSandbox(): void
+    public function testPushUsesTrackedGitRemoteAndDirectoryByDefault(): void
     {
         $this->bootstrapWpCli();
 
         $environment = $this->createEnvironment('push-box', [
-            'github_repo' => 'owner/repo',
-            'github_base_branch' => 'release/2026',
-            'github_dir' => 'themes/my-theme',
+            'git_remote' => 'https://example.test/owner/repo.git',
+            'git_base_branch' => 'release/2026',
+            'git_dir' => 'themes/my-theme',
         ]);
-        $fakeGithub = new class extends GitHubIntegration {
-            public array $branchCalls = [];
+        $fakeGit = new class extends GitIntegration {
+            public array $pushCalls = [];
 
-            public function __construct() {}
-
-            public function create_branch(string $branch, ?string $base_branch = null): void
+            public function push_checkout(string $repo_path, string $branch, string $message, ?string $remote_url = null): ?string
             {
-                $this->branchCalls[] = [
+                $this->pushCalls[] = [
+                    'repo_path' => $repo_path,
                     'branch' => $branch,
-                    'base_branch' => $base_branch,
+                    'message' => $message,
+                    'remote_url' => $remote_url,
                 ];
-            }
 
-            public function push(string $branch, string $local_dir, string $message): ?string
-            {
                 return 'def5678';
             }
         };
 
-        $cmd = new class($this->environmentManager($environment), $fakeGithub) extends \Rudel\CLI\PushCommand {
-            public function __construct(\Rudel\EnvironmentManager $manager, private GitHubIntegration $github)
+        $cmd = new class($this->environmentManager($environment), $fakeGit) extends \Rudel\CLI\PushCommand {
+            public function __construct(\Rudel\EnvironmentManager $manager, private GitIntegration $git)
             {
                 parent::__construct($manager);
             }
 
-            protected function github(string $repo): GitHubIntegration
+            protected function git(): GitIntegration
             {
-                return $this->github;
+                return $this->git;
             }
         };
 
         $cmd(['push-box'], []);
 
         $this->assertSame([[
+            'repo_path' => $environment->get_wp_content_path() . '/themes/my-theme',
             'branch' => 'rudel/push-box',
-            'base_branch' => 'release/2026',
-        ]], $fakeGithub->branchCalls);
+            'message' => 'Update from Rudel sandbox',
+            'remote_url' => 'https://example.test/owner/repo.git',
+        ]], $fakeGit->pushCalls);
         $this->assertSame(['Pushed to rudel/push-box (def5678)'], \WP_CLI::$successes);
     }
 
@@ -191,37 +179,30 @@ class PushCommandTest extends RudelTestCase
     {
         $this->bootstrapWpCli();
 
-        $environment = $this->createEnvironment('push-box', ['github_repo' => 'owner/repo']);
-        $fakeGithub = new class extends GitHubIntegration {
-            public function __construct() {}
-
-            public function create_branch(string $branch, ?string $base_branch = null): void
-            {
-                throw new \RuntimeException('Reference already exists');
-            }
-
-            public function push(string $branch, string $local_dir, string $message): ?string
+        $environment = $this->createEnvironment('push-box', ['git_remote' => 'https://example.test/owner/repo.git']);
+        $fakeGit = new class extends GitIntegration {
+            public function push_checkout(string $repo_path, string $branch, string $message, ?string $remote_url = null): ?string
             {
                 return null;
             }
         };
 
-        $cmd = new class($this->environmentManager($environment), $fakeGithub) extends \Rudel\CLI\PushCommand {
-            public function __construct(\Rudel\EnvironmentManager $manager, private GitHubIntegration $github)
+        $cmd = new class($this->environmentManager($environment), $fakeGit) extends \Rudel\CLI\PushCommand {
+            public function __construct(\Rudel\EnvironmentManager $manager, private GitIntegration $git)
             {
                 parent::__construct($manager);
             }
 
-            protected function github(string $repo): GitHubIntegration
+            protected function git(): GitIntegration
             {
-                return $this->github;
+                return $this->git;
             }
         };
 
         $cmd(['push-box'], []);
 
         $logOutput = implode("\n", array_filter(\WP_CLI::$log, 'is_string'));
-        $this->assertStringContainsString('Branch already exists.', $logOutput);
+        $this->assertStringContainsString('Pushing rudel/push-box...', $logOutput);
         $this->assertStringContainsString('No changes to push.', $logOutput);
         $this->assertSame([], \WP_CLI::$successes);
     }
@@ -232,7 +213,7 @@ class PushCommandTest extends RudelTestCase
     {
         $this->bootstrapWpCli();
 
-        $environment = $this->createEnvironment('push-box', ['github_repo' => 'owner/repo']);
+        $environment = $this->createEnvironment('push-box', ['git_remote' => 'https://example.test/owner/repo.git']);
         $cmd = new \Rudel\CLI\PushCommand($this->environmentManager($environment));
 
         $this->expectException(\RuntimeException::class);

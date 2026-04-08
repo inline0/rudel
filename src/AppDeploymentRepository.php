@@ -58,10 +58,10 @@ class AppDeploymentRepository {
 			'tables_copied'           => isset( $data['tables_copied'] ) ? (int) $data['tables_copied'] : null,
 			'label'                   => $this->normalize_optional_string( $data['label'] ?? null ),
 			'notes'                   => $this->normalize_optional_string( $data['notes'] ?? null ),
-			'github_repo'             => $data['github_repo'] ?? $sandbox->get_github_repo() ?? $app->get_github_repo(),
-			'github_branch'           => $data['github_branch'] ?? $sandbox->get_git_branch(),
-			'github_base_branch'      => $data['github_base_branch'] ?? $sandbox->get_github_base_branch() ?? $app->get_github_base_branch(),
-			'github_dir'              => $data['github_dir'] ?? $sandbox->get_github_dir() ?? $app->get_github_dir(),
+			'github_repo'             => $data['git_remote'] ?? ( $data['github_repo'] ?? ( $sandbox->get_git_remote() ?? $app->get_git_remote() ) ),
+			'github_branch'           => $data['git_branch'] ?? ( $data['github_branch'] ?? $sandbox->get_git_branch() ),
+			'github_base_branch'      => $data['git_base_branch'] ?? ( $data['github_base_branch'] ?? ( $sandbox->get_git_base_branch() ?? $app->get_git_base_branch() ) ),
+			'github_dir'              => $data['git_dir'] ?? ( $data['github_dir'] ?? ( $sandbox->get_git_dir() ?? $app->get_git_dir() ) ),
 			'deployed_at'             => $deployed_at,
 			'created_at'              => $now,
 			'updated_at'              => $now,
@@ -185,10 +185,10 @@ class AppDeploymentRepository {
 		);
 
 		if ( ! empty( $row['github_repo'] ) ) {
-			$record['github_repo']        = (string) $row['github_repo'];
-			$record['github_branch']      = (string) $row['github_branch'];
-			$record['github_base_branch'] = (string) $row['github_base_branch'];
-			$record['github_dir']         = (string) $row['github_dir'];
+			$record['git_remote']      = (string) $row['github_repo'];
+			$record['git_branch']      = (string) $row['github_branch'];
+			$record['git_base_branch'] = (string) $row['github_base_branch'];
+			$record['git_dir']         = (string) $row['github_dir'];
 		}
 
 		return $record;

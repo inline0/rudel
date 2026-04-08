@@ -133,13 +133,13 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
 
         $updated = $manager->update('alpha-site', [
             'clone_source' => [
-                'github_repo' => 'inline0/example-theme',
-                'github_dir' => 'themes/example-theme',
+                'git_remote' => 'https://example.test/example-theme.git',
+                'git_dir' => 'themes/example-theme',
             ],
         ]);
 
-        $this->assertSame('inline0/example-theme', $updated->clone_source['github_repo']);
-        $this->assertSame('themes/example-theme', $updated->clone_source['github_dir']);
+        $this->assertSame('https://example.test/example-theme.git', $updated->clone_source['git_remote']);
+        $this->assertSame('themes/example-theme', $updated->clone_source['git_dir']);
         $this->assertSame($updated->path . '/wp-content', $updated->get_runtime_wp_content_path());
         $this->assertSame(
             $updated->path . '/wp-content/themes/example-theme',

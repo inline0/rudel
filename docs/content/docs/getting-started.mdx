@@ -94,19 +94,19 @@ wp rudel app create --name=demo --domain=demo.example.test
 
 The `--domain` value becomes part of the Rudel app metadata. The runtime site also shows up through normal multisite tools such as `wp site list`. WordPress owns the site itself, the app keeps its own environment-local `wp-content`, and Rudel owns the lifecycle around both.
 
-If the app should also carry a tracked GitHub code source, add it at creation time:
+If the app should also carry one tracked Git code source, add it at creation time:
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test --github=inline0/demo-theme --branch=main --dir=themes/demo-theme
+wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/demo-theme.git --branch=main --dir=themes/demo-theme
 ```
 
-That tracked repository, branch, and directory are then inherited automatically when you create sandboxes from the app.
+That tracked remote, branch, and directory are then inherited automatically when you create sandboxes from the app.
 
 ## Next steps
 
 From here, the next useful pages are:
 
-- [Creating Environments](/docs/environments/creating) for clone options, templates, and GitHub seeding
+- [Creating Environments](/docs/environments/creating) for clone options, templates, and Git seeding
 - [Apps](/docs/environments/apps) for the long-lived site lifecycle
 - [Snapshots](/docs/features/snapshots) for the recovery model
 - [Runtime State](/docs/features/runtime-state) for where Rudel stores operational data

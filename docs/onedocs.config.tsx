@@ -42,9 +42,9 @@ export default defineConfig({
         icon: <Database className={iconClass} />,
       },
       {
-        title: "GitHub Integration",
+        title: "Git Worktrees",
         description:
-          "Push changes and create PRs via the GitHub API. No git binary needed.",
+          "Built-in PHP-native Git clone, push, and worktree flows with no host git binary required.",
         icon: <GitBranch className={iconClass} />,
       },
       {

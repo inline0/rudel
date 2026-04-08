@@ -88,24 +88,24 @@ class AppOperationsService {
 
 		$backup_name ??= 'pre-deploy-' . gmdate( 'Ymd_His' );
 		$plan          = array(
-			'app_id'                => $app->id,
-			'app_name'              => $app->name,
-			'app_domains'           => $app->domains ?? array(),
-			'sandbox_id'            => $sandbox->id,
-			'sandbox_name'          => $sandbox->name,
-			'engine'                => $app->engine,
-			'backup_name'           => $backup_name,
-			'lock_path'             => $this->lock_path( $app ),
-			'tracked_github_repo'   => $sandbox->get_github_repo() ?? $app->get_github_repo(),
-			'tracked_github_branch' => $sandbox->get_github_base_branch() ?? $app->get_github_base_branch(),
-			'tracked_github_dir'    => $sandbox->get_github_dir() ?? $app->get_github_dir(),
-			'label'                 => $this->normalize_optional_string( $options['label'] ?? null ),
-			'notes'                 => $this->normalize_optional_string( $options['notes'] ?? null ),
-			'checks'                => array(
+			'app_id'             => $app->id,
+			'app_name'           => $app->name,
+			'app_domains'        => $app->domains ?? array(),
+			'sandbox_id'         => $sandbox->id,
+			'sandbox_name'       => $sandbox->name,
+			'engine'             => $app->engine,
+			'backup_name'        => $backup_name,
+			'lock_path'          => $this->lock_path( $app ),
+			'tracked_git_remote' => $sandbox->get_git_remote() ?? $app->get_git_remote(),
+			'tracked_git_branch' => $sandbox->get_git_base_branch() ?? $app->get_git_base_branch(),
+			'tracked_git_dir'    => $sandbox->get_git_dir() ?? $app->get_git_dir(),
+			'label'              => $this->normalize_optional_string( $options['label'] ?? null ),
+			'notes'              => $this->normalize_optional_string( $options['notes'] ?? null ),
+			'checks'             => array(
 				'engines_match'       => $sandbox->engine === $app->engine,
 				'subsite_unsupported' => false,
 			),
-			'dry_run'               => ! empty( $options['dry_run'] ),
+			'dry_run'            => ! empty( $options['dry_run'] ),
 		);
 
 		return Hooks::filter( 'rudel_app_deploy_plan', $plan, $app, $sandbox );
@@ -186,14 +186,14 @@ class AppOperationsService {
 			$deployment = $this->deployment_log( $this->require_app( $app->id ) )->record(
 				$sandbox,
 				array(
-					'deployed_at'        => $deployed_at,
-					'backup_name'        => $backup['name'],
-					'tables_copied'      => $state['tables_copied'],
-					'label'              => $plan['label'],
-					'notes'              => $plan['notes'],
-					'github_repo'        => $plan['tracked_github_repo'],
-					'github_base_branch' => $plan['tracked_github_branch'],
-					'github_dir'         => $plan['tracked_github_dir'],
+					'deployed_at'     => $deployed_at,
+					'backup_name'     => $backup['name'],
+					'tables_copied'   => $state['tables_copied'],
+					'label'           => $plan['label'],
+					'notes'           => $plan['notes'],
+					'git_remote'      => $plan['tracked_git_remote'],
+					'git_base_branch' => $plan['tracked_git_branch'],
+					'git_dir'         => $plan['tracked_git_dir'],
 				)
 			);
 

@@ -1,30 +1,30 @@
 <?php
 /**
- * WP-CLI command to push sandbox changes to GitHub.
+ * WP-CLI command to push sandbox changes to a Git remote.
  *
  * @package Rudel
  */
 
 namespace Rudel\CLI;
 
-use Rudel\GitHubIntegration;
+use Rudel\GitIntegration;
 use WP_CLI;
 
 /**
- * Push sandbox file changes to GitHub.
+ * Push sandbox file changes to a tracked remote.
  */
 class PushCommand extends AbstractEnvironmentCommand {
 
 	/**
-	 * Push sandbox file changes to GitHub.
+	 * Push sandbox file changes to a Git remote.
 	 *
 	 * ## OPTIONS
 	 *
 	 * <id>
 	 * : Sandbox ID.
 	 *
-	 * [--github=<repo>]
-	 * : GitHub repository (owner/repo). Remembered after first use.
+	 * [--git=<remote>]
+	 * : Git remote URL. Remembered after first successful push.
 	 *
 	 * [--message=<message>]
 	 * : Commit message.
@@ -33,14 +33,14 @@ class PushCommand extends AbstractEnvironmentCommand {
 	 * ---
 	 *
 	 * [--dir=<dir>]
-	 * : Subdirectory within wp-content to push (e.g. themes/my-theme). Defaults to all of wp-content.
+	 * : Subdirectory within wp-content to push (e.g. themes/my-theme). Defaults to the tracked directory or all of wp-content.
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     $ wp rudel push my-sandbox-a1b2 --github=inline0/my-theme --dir=themes/my-theme --message="Add header template"
+	 *     $ wp rudel push my-sandbox-a1b2 --git=https://example.test/theme.git --dir=themes/my-theme --message="Add header template"
 	 *     Success: Pushed to rudel/my-sandbox-a1b2 (abc1234)
 	 *
-	 * @param array $args       Positional arguments.
+	 * @param array $args Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 * @return void
 	 *
@@ -48,43 +48,28 @@ class PushCommand extends AbstractEnvironmentCommand {
 	 */
 	public function __invoke( $args, $assoc_args ): void {
 		$sandbox = $this->require_environment( $args[0] );
-		$repo    = $assoc_args['github'] ?? $sandbox->get_github_repo();
+		$remote  = $assoc_args['git'] ?? $sandbox->get_git_remote();
 
-		if ( ! $repo ) {
-			WP_CLI::error( 'GitHub repo required. Pass --github=owner/repo (only needed on first push).' );
+		if ( ! $remote ) {
+			WP_CLI::error( 'Git remote required. Pass --git=<remote> (only needed on first push).' );
 		}
 
-		$message     = $assoc_args['message'] ?? 'Update from Rudel sandbox';
-		$subdir      = $assoc_args['dir'] ?? $sandbox->get_github_dir() ?? '';
-		$branch      = $sandbox->get_git_branch();
-		$base_branch = $sandbox->get_github_base_branch();
-		$local_dir   = $sandbox->get_runtime_content_path( $subdir );
+		$message   = $assoc_args['message'] ?? 'Update from Rudel sandbox';
+		$subdir    = $assoc_args['dir'] ?? $sandbox->get_git_dir() ?? '';
+		$branch    = $sandbox->get_git_branch();
+		$local_dir = $sandbox->get_runtime_content_path( $subdir );
 
 		if ( ! is_dir( $local_dir ) ) {
 			WP_CLI::error( "Directory not found: {$local_dir}" );
 		}
 
 		try {
-			$github = $this->github( $repo );
-
-			WP_CLI::log( "Ensuring branch {$branch} exists..." );
-			try {
-				$github->create_branch( $branch, $base_branch );
-				WP_CLI::log( '  Branch created.' );
-			} catch ( \RuntimeException $e ) {
-				if ( str_contains( $e->getMessage(), 'Reference already exists' ) ) {
-					WP_CLI::log( '  Branch already exists.' );
-				} else {
-					WP_CLI::error( $e->getMessage() );
-				}
-			}
-
-			WP_CLI::log( 'Pushing changes...' );
-			$sha = $github->push( $branch, $local_dir, $message );
+			WP_CLI::log( "Pushing {$branch}..." );
+			$sha = $this->git()->push_checkout( $local_dir, $branch, $message, $remote );
 			if ( $sha ) {
-				if ( ! $sandbox->get_github_repo() ) {
-					$clone_source                = $sandbox->clone_source ?? array();
-					$clone_source['github_repo'] = $repo;
+				if ( ! $sandbox->get_git_remote() ) {
+					$clone_source               = $sandbox->clone_source ?? array();
+					$clone_source['git_remote'] = $remote;
 					$this->manager->update(
 						$sandbox->id,
 						array(
@@ -93,21 +78,21 @@ class PushCommand extends AbstractEnvironmentCommand {
 					);
 				}
 				WP_CLI::success( "Pushed to {$branch} ({$sha})" );
-			} else {
-				WP_CLI::log( 'No changes to push.' );
+				return;
 			}
+
+			WP_CLI::log( 'No changes to push.' );
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
 		}
 	}
 
 	/**
-	 * Create a GitHub integration instance.
+	 * Create the Git integration service.
 	 *
-	 * @param string $repo GitHub repository in owner/repo format.
-	 * @return GitHubIntegration
+	 * @return GitIntegration
 	 */
-	protected function github( string $repo ): GitHubIntegration {
-		return new GitHubIntegration( $repo );
+	protected function git(): GitIntegration {
+		return new GitIntegration();
 	}
 }

@@ -21,8 +21,7 @@ All `wp` commands run from this directory are automatically scoped to this sandb
 - `wp rudel logs {{sandbox_id}} --follow` -- watch errors in real time
 - `wp rudel snapshot {{sandbox_id}} --name=<name>` -- save current state
 - `wp rudel restore {{sandbox_id}} --snapshot=<name>` -- restore a saved state
-- `wp rudel push {{sandbox_id}} --message="<msg>"` -- push changes to GitHub
-- `wp rudel pr {{sandbox_id}} --title="<title>"` -- create a GitHub pull request
+- `wp rudel push {{sandbox_id}} --message="<msg>"` -- push changes to the tracked Git remote
 
 ## Error logging
 

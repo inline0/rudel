@@ -382,9 +382,9 @@ class EnvironmentRepository {
 			'last_deployed_from_slug' => $environment->last_deployed_from_id,
 			'last_deployed_from_type' => $environment->last_deployed_from_type,
 			'last_deployed_at'        => $environment->last_deployed_at,
-			'tracked_github_repo'     => $environment->tracked_github_repo,
-			'tracked_github_branch'   => $environment->tracked_github_branch,
-			'tracked_github_dir'      => $environment->tracked_github_dir,
+			'tracked_github_repo'     => $environment->tracked_git_remote,
+			'tracked_github_branch'   => $environment->tracked_git_branch,
+			'tracked_github_dir'      => $environment->tracked_git_dir,
 			'created_at'              => $environment->created_at,
 			'updated_at'              => gmdate( 'c' ),
 		);
@@ -403,17 +403,40 @@ class EnvironmentRepository {
 		foreach ( $changes as $key => $value ) {
 			switch ( $key ) {
 				case 'name':
+					$payload['name'] = $value;
+					break;
 				case 'path':
+					$payload['path'] = $value;
+					break;
 				case 'template':
+					$payload['template'] = $value;
+					break;
 				case 'status':
+					$payload['status'] = $value;
+					break;
 				case 'owner':
+					$payload['owner'] = $value;
+					break;
 				case 'purpose':
+					$payload['purpose'] = $value;
+					break;
 				case 'expires_at':
+					$payload['expires_at'] = $value;
+					break;
 				case 'last_used_at':
+					$payload['last_used_at'] = $value;
+					break;
 				case 'tracked_github_repo':
+				case 'tracked_git_remote':
+					$payload['tracked_github_repo'] = $value;
+					break;
 				case 'tracked_github_branch':
+				case 'tracked_git_branch':
+					$payload['tracked_github_branch'] = $value;
+					break;
 				case 'tracked_github_dir':
-					$payload[ $key ] = $value;
+				case 'tracked_git_dir':
+					$payload['tracked_github_dir'] = $value;
 					break;
 				case 'protected':
 					$payload['is_protected'] = $value ? 1 : 0;

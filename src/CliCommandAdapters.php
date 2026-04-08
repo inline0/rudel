@@ -20,17 +20,17 @@ class CliCommandAdapters {
 	 * @return array<string, mixed>
 	 */
 	public static function sandbox_create( array $args, array $assoc_args ): array {
-		$github_repo = self::optional_assoc( $assoc_args, 'github' );
-		$name        = self::sandbox_create_name( $assoc_args, $github_repo );
-		$options     = self::sandbox_create_options( $assoc_args );
+		$git_remote = self::optional_assoc( $assoc_args, 'git' );
+		$name       = self::sandbox_create_name( $assoc_args, $git_remote );
+		$options    = self::sandbox_create_options( $assoc_args );
 
-		if ( null !== $github_repo ) {
+		if ( null !== $git_remote ) {
 			$options['name'] = $name;
 			$options['type'] = self::optional_assoc( $assoc_args, 'type' ) ?? 'theme';
 
 			return self::php_plan(
-				Rudel::class . '::create_from_github',
-				array( $github_repo, $options )
+				Rudel::class . '::create_from_git',
+				array( $git_remote, $options )
 			);
 		}
 
@@ -205,25 +205,6 @@ class CliCommandAdapters {
 	}
 
 	/**
-	 * Resolve sandbox PR creation.
-	 *
-	 * @param array<int, string>   $args Positional arguments.
-	 * @param array<string, mixed> $assoc_args Associative arguments.
-	 * @return array<string, mixed>
-	 */
-	public static function sandbox_pr( array $args, array $assoc_args ): array {
-		return self::php_plan(
-			Rudel::class . '::pr',
-			array(
-				self::required_positional( $args, 0, 'id' ),
-				self::optional_assoc( $assoc_args, 'title' ) ?? '',
-				self::optional_assoc( $assoc_args, 'github' ) ?? '',
-				self::optional_assoc( $assoc_args, 'body' ) ?? '',
-			)
-		);
-	}
-
-	/**
 	 * Resolve sandbox push.
 	 *
 	 * @param array<int, string>   $args Positional arguments.
@@ -237,7 +218,7 @@ class CliCommandAdapters {
 			Rudel::class . '::push',
 			array(
 				$id,
-				self::optional_assoc( $assoc_args, 'github' ) ?? '',
+				self::optional_assoc( $assoc_args, 'git' ) ?? '',
 				self::optional_assoc( $assoc_args, 'message' ) ?? 'Update from Rudel sandbox',
 				self::optional_assoc( $assoc_args, 'dir' ) ?? '',
 			)
@@ -822,7 +803,7 @@ class CliCommandAdapters {
 	}
 
 	/**
-	 * Normalize tracked GitHub metadata flags shared by app commands.
+	 * Normalize tracked Git metadata flags shared by app commands.
 	 *
 	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return array<string, mixed>
@@ -831,10 +812,10 @@ class CliCommandAdapters {
 	 */
 	private static function git_tracking_changes( array $assoc_args ): array {
 		$changes = array();
-		$clear   = self::flag( $assoc_args, 'clear-github' );
+		$clear   = self::flag( $assoc_args, 'clear-git' );
 
-		if ( array_key_exists( 'github', $assoc_args ) ) {
-			$changes['github'] = $assoc_args['github'];
+		if ( array_key_exists( 'git', $assoc_args ) ) {
+			$changes['git'] = $assoc_args['git'];
 		}
 
 		if ( array_key_exists( 'branch', $assoc_args ) ) {
@@ -846,11 +827,11 @@ class CliCommandAdapters {
 		}
 
 		if ( $clear && ! empty( $changes ) ) {
-			throw new \InvalidArgumentException( 'Cannot combine --clear-github with --github, --branch, or --dir.' );
+			throw new \InvalidArgumentException( 'Cannot combine --clear-git with --git, --branch, or --dir.' );
 		}
 
 		if ( $clear ) {
-			$changes['clear_github'] = true;
+			$changes['clear_git'] = true;
 		}
 
 		return $changes;
@@ -860,17 +841,17 @@ class CliCommandAdapters {
 	 * Keep sandbox create naming identical everywhere the command is interpreted.
 	 *
 	 * @param array<string, mixed> $assoc_args Associative arguments.
-	 * @param string|null          $github_repo Optional GitHub repository slug.
+	 * @param string|null          $git_remote Optional Git remote.
 	 * @return string
 	 */
-	private static function sandbox_create_name( array $assoc_args, ?string $github_repo ): string {
+	private static function sandbox_create_name( array $assoc_args, ?string $git_remote ): string {
 		$name = self::optional_assoc( $assoc_args, 'name' );
 		if ( null !== $name && '' !== $name ) {
 			return $name;
 		}
 
-		if ( null !== $github_repo && '' !== $github_repo ) {
-			return basename( $github_repo );
+		if ( null !== $git_remote && '' !== $git_remote ) {
+			return basename( preg_replace( '/\.git$/', '', $git_remote ) );
 		}
 
 		return 'sandbox';

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.0 - 2026-04-08
+
+- Replaced shell `git` and GitHub-specific runtime flows with built-in Pitmaster-backed Git support for clone, push, worktree, and cleanup operations.
+- Raised the minimum supported PHP version to `8.2` and adopted `pitmaster/pitmaster` as the first-party Git engine.
+- Renamed tracked-source metadata and CLI/API surface from GitHub-specific terms to generic Git remote, branch, and directory terms.
+- Removed provider-specific pull request handling from Rudel core and documented the new generic Git workflow model across the README and docs.
+
 ## v0.7.0 - 2026-04-07
 
 - Added isolated `users` and `usermeta` tables for every app and sandbox through environment-local `db.php`.

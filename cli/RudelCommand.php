@@ -8,7 +8,6 @@
 namespace Rudel\CLI;
 
 use Rudel\Environment;
-use Rudel\GitHubIntegration;
 use Rudel\Rudel;
 use Rudel\RudelConfig;
 use WP_CLI;
@@ -29,10 +28,10 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * ## OPTIONS
 	 *
 	 * [--name=<name>]
-	 * : Human-readable name. Auto-generated from --github repo or random if omitted.
+	 * : Human-readable name. Auto-generated from --git remote or random if omitted.
 	 *
-	 * [--github=<repo>]
-	 * : GitHub repository (owner/repo). Creates a branch and downloads files into the sandbox.
+	 * [--git=<remote>]
+	 * : Git remote URL. Creates a local checkout inside the sandbox and switches it to the Rudel branch.
 	 *
 	 * [--template=<template>]
 	 * : Template to use. Default: blank.
@@ -77,7 +76,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * : Set an explicit expiry timestamp.
 	 *
 	 * [--type=<type>]
-	 * : Content type for --github downloads: 'theme' or 'plugin'.
+	 * : Content type for --git checkouts: 'theme' or 'plugin'.
 	 * ---
 	 * default: theme
 	 * options:
@@ -93,7 +92,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel create --name="my-sandbox"
 	 *     Success: Sandbox created: my-sandbox-a1b2
 	 *
-	 *     $ wp rudel create --github=inline0/my-theme
+	 *     $ wp rudel create --git=https://example.test/my-theme.git
 	 *     Success: Sandbox created: my-theme-c3d4
 	 *
 	 *     $ wp rudel create --clone-all
@@ -106,16 +105,23 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * @when after_wp_load
 	 */
 	public function create( $args, $assoc_args ): void {
-		$github_repo = $assoc_args['github'] ?? null;
-		$name        = $this->resolve_create_name( $assoc_args, $github_repo );
-		$options     = $this->build_create_options( $assoc_args );
-		$clone_from  = $options['clone_from'] ?? null;
-		$has_clone   = $options['clone_db'] || $options['clone_themes'] || $options['clone_plugins'] || $options['clone_uploads'];
+		$git_remote = $assoc_args['git'] ?? null;
+		$name       = $this->resolve_create_name( $assoc_args, $git_remote );
+		$options    = $this->build_create_options( $assoc_args );
+		$clone_from = $options['clone_from'] ?? null;
+		$has_clone  = $options['clone_db'] || $options['clone_themes'] || $options['clone_plugins'] || $options['clone_uploads'];
 
 		$this->log_create_plan( $name, $options, $clone_from, $has_clone );
 
 		try {
-			$sandbox = $this->manager->create( $name, $options );
+			if ( $git_remote ) {
+				$options['name'] = $name;
+				$options['type'] = $assoc_args['type'] ?? 'theme';
+				$result          = Rudel::create_from_git( $git_remote, $options );
+				$sandbox         = $result['environment'];
+			} else {
+				$sandbox = $this->manager->create( $name, $options );
+			}
 		} catch ( \Throwable $e ) {
 			WP_CLI::error( $e->getMessage() );
 		}
@@ -126,8 +132,16 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			$this->log_clone_summary( $sandbox->clone_source );
 		}
 
-		if ( $github_repo ) {
-			$this->setup_github_checkout( $sandbox, $github_repo, $assoc_args );
+		if ( $git_remote ) {
+			if ( is_array( $result['git'] ?? null ) && ! empty( $result['git']['error'] ) ) {
+				WP_CLI::warning( 'Git checkout failed: ' . $result['git']['error'] );
+			} else {
+				$type_dir = 'plugin' === ( $assoc_args['type'] ?? 'theme' ) ? 'plugins' : 'themes';
+				WP_CLI::log( '' );
+				WP_CLI::log( '  Git remote: ' . $git_remote );
+				WP_CLI::log( '  Branch:     ' . $sandbox->get_git_branch() );
+				WP_CLI::log( '  Checkout:   ' . $type_dir . '/' . basename( preg_replace( '/\.git$/', '', $git_remote ) ) );
+			}
 		}
 
 		$this->log_sandbox_ready( $sandbox );
@@ -463,16 +477,16 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	/**
 	 * Resolve the create name from CLI arguments.
 	 *
-	 * @param array       $assoc_args  Command arguments.
-	 * @param string|null $github_repo GitHub repository slug.
+	 * @param array       $assoc_args Command arguments.
+	 * @param string|null $git_remote Git remote URL.
 	 * @return string
 	 */
-	private function resolve_create_name( array $assoc_args, ?string $github_repo ): string {
+	private function resolve_create_name( array $assoc_args, ?string $git_remote ): string {
 		if ( ! empty( $assoc_args['name'] ) ) {
 			return $assoc_args['name'];
 		}
-		if ( $github_repo ) {
-			return basename( $github_repo );
+		if ( $git_remote ) {
+			return basename( preg_replace( '/\.git$/', '', $git_remote ) );
 		}
 		return 'sandbox';
 	}
@@ -559,62 +573,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		}
 		if ( ! empty( $clone_source['uploads_cloned'] ) ) {
 			WP_CLI::log( '    Uploads: copied' );
-		}
-	}
-
-	/**
-	 * Configure GitHub content for a newly created sandbox.
-	 *
-	 * @param Environment          $sandbox     Created sandbox.
-	 * @param string               $github_repo Repository slug.
-	 * @param array<string, mixed> $assoc_args  Command arguments.
-	 * @return void
-	 */
-	private function setup_github_checkout( Environment $sandbox, string $github_repo, array $assoc_args ): void {
-		try {
-			$github    = new GitHubIntegration( $github_repo );
-			$branch    = $sandbox->get_git_branch();
-			$repo_name = basename( $github_repo );
-
-			WP_CLI::log( '' );
-			WP_CLI::log( "  GitHub: {$github_repo}" );
-
-			try {
-				$github->create_branch( $branch );
-				WP_CLI::log( "  Branch: {$branch} (created)" );
-			} catch ( \RuntimeException $e ) {
-				if ( str_contains( $e->getMessage(), 'Reference already exists' ) ) {
-					WP_CLI::log( "  Branch: {$branch} (exists)" );
-				} else {
-					WP_CLI::warning( "GitHub setup failed: {$e->getMessage()}" );
-					WP_CLI::warning( 'Sandbox was created but GitHub worktree was not set up.' );
-					return;
-				}
-			}
-
-			$content_type = $assoc_args['type'] ?? 'theme';
-			$type_dir     = 'plugin' === $content_type ? 'plugins' : 'themes';
-			$download_dir = $sandbox->get_runtime_content_path( $type_dir . '/' . $repo_name );
-			if ( ! is_dir( $download_dir ) ) {
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating directory for GitHub download.
-				mkdir( $download_dir, 0755, true );
-			}
-
-			$file_count = $github->download( $branch, $download_dir );
-			WP_CLI::log( "  Downloaded: {$file_count} files into {$type_dir}/{$repo_name}/" );
-
-			$clone_source                = $sandbox->clone_source ?? array();
-			$clone_source['github_repo'] = $github_repo;
-			$clone_source['github_dir']  = $type_dir . '/' . $repo_name;
-			$this->manager->update(
-				$sandbox->id,
-				array(
-					'clone_source' => $clone_source,
-				)
-			);
-		} catch ( \Throwable $e ) {
-			WP_CLI::warning( "GitHub setup failed: {$e->getMessage()}" );
-			WP_CLI::warning( 'Sandbox was created but GitHub worktree was not set up.' );
 		}
 	}
 

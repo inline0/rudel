@@ -239,18 +239,6 @@ class HookCatalog {
 				'type' => 'action',
 				'args' => array( '$context', '$error' ),
 			),
-			'rudel_before_environment_pr'                  => array(
-				'type' => 'action',
-				'args' => array( '$context' ),
-			),
-			'rudel_after_environment_pr'                   => array(
-				'type' => 'action',
-				'args' => array( '$result', '$context' ),
-			),
-			'rudel_environment_pr_failed'                  => array(
-				'type' => 'action',
-				'args' => array( '$context', '$error' ),
-			),
 			'rudel_before_automation_cleanup'              => array(
 				'type' => 'action',
 				'args' => array( '$config' ),

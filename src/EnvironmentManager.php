@@ -392,9 +392,9 @@ class EnvironmentManager {
 				last_deployed_from_id: $policy_meta['last_deployed_from_id'] ?? null,
 				last_deployed_from_type: $policy_meta['last_deployed_from_type'] ?? null,
 				last_deployed_at: $policy_meta['last_deployed_at'] ?? null,
-				tracked_github_repo: $policy_meta['tracked_github_repo'] ?? null,
-				tracked_github_branch: $policy_meta['tracked_github_branch'] ?? null,
-				tracked_github_dir: $policy_meta['tracked_github_dir'] ?? null,
+				tracked_git_remote: $policy_meta['tracked_git_remote'] ?? null,
+				tracked_git_branch: $policy_meta['tracked_git_branch'] ?? null,
+				tracked_git_dir: $policy_meta['tracked_git_dir'] ?? null,
 				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
 			$environment = $this->repository->save( $environment );

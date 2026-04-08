@@ -66,7 +66,7 @@ class AppManagerTest extends RudelTestCase
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
-	public function testCreateSandboxInheritsTrackedGithubMetadataFromApp(): void
+	public function testCreateSandboxInheritsTrackedGitMetadataFromApp(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
 		mkdir($wordpressRoot . '/wp-content', 0755, true);
@@ -82,19 +82,19 @@ class AppManagerTest extends RudelTestCase
 		);
 
 		$app = $manager->create('Client Demo', ['client.example.test'], [
-			'tracked_github_repo' => 'inline0/client-theme',
-			'tracked_github_branch' => 'release',
-			'tracked_github_dir' => 'themes/client-theme',
+			'tracked_git_remote' => 'https://example.test/client-theme.git',
+			'tracked_git_branch' => 'release',
+			'tracked_git_dir' => 'themes/client-theme',
 		]);
 
 		$sandbox = $manager->create_sandbox($app->id, 'Feature Sandbox');
 
-		$this->assertSame('inline0/client-theme', $sandbox->tracked_github_repo);
-		$this->assertSame('release', $sandbox->tracked_github_branch);
-		$this->assertSame('themes/client-theme', $sandbox->tracked_github_dir);
-		$this->assertSame('inline0/client-theme', $sandbox->get_github_repo());
-		$this->assertSame('release', $sandbox->get_github_base_branch());
-		$this->assertSame('themes/client-theme', $sandbox->get_github_dir());
+		$this->assertSame('https://example.test/client-theme.git', $sandbox->tracked_git_remote);
+		$this->assertSame('release', $sandbox->tracked_git_branch);
+		$this->assertSame('themes/client-theme', $sandbox->tracked_git_dir);
+		$this->assertSame('https://example.test/client-theme.git', $sandbox->get_git_remote());
+		$this->assertSame('release', $sandbox->get_git_base_branch());
+		$this->assertSame('themes/client-theme', $sandbox->get_git_dir());
 		$this->assertSame(
 			'http://' . $sandbox->id . '.example.test',
 			$this->siteOptionValue((int) $sandbox->blog_id, 'siteurl')

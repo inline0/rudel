@@ -21,7 +21,7 @@ You can rename only the root command with `RUDEL_CLI_COMMAND` before Rudel boots
 Create a sandbox. This is the command you use when you want a new disposable multisite site for change work.
 
 ```bash
-wp rudel create [--name=<name>] [--github=<repo>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
+wp rudel create [--name=<name>] [--git=<remote>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
 ```
 
 Rudel creates sandboxes as multisite sites. There is no engine choice anymore, only different ways to seed the initial content and metadata. Each created sandbox also gets its own local `wp-content`, which becomes the canonical code and file tree for that environment.
@@ -126,24 +126,16 @@ Delete a template.
 wp rudel template delete <name> [--force]
 ```
 
-## GitHub workflow
+## Git workflow
 
-GitHub commands are optional, but they become important once a sandbox is carrying real code changes in worktree-managed themes or plugins.
+Git commands are optional, but they become important once a sandbox is carrying real code changes in worktree-managed themes or plugins.
 
 ### `wp rudel push`
 
-Push sandbox changes to GitHub.
+Push sandbox changes to a tracked Git remote.
 
 ```bash
-wp rudel push <id> [--github=<repo>] [--message=<message>] [--dir=<dir>]
-```
-
-### `wp rudel pr`
-
-Open a pull request from a sandbox branch.
-
-```bash
-wp rudel pr <id> [--github=<repo>] [--title=<title>] [--body=<body>]
+wp rudel push <id> [--git=<remote>] [--message=<message>] [--dir=<dir>]
 ```
 
 ## App commands
@@ -155,10 +147,10 @@ Everything under `wp rudel app ...` is about the long-lived side of the system. 
 Create an app.
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
+wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--git=<remote>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
-Use `--github`, `--branch`, and `--dir` when the app should carry one tracked code source. That tracked source becomes the default GitHub context for app-derived sandboxes and deployment history.
+Use `--git`, `--branch`, and `--dir` when the app should carry one tracked code source. That tracked source becomes the default Git context for app-derived sandboxes and deployment history.
 
 The `--domain` value is also the app's canonical Rudel URL. `wp rudel app info` and app deploy history report that primary domain even though the backing multisite site still exists underneath. On local networks that run on a non-default port, the rendered canonical URL keeps that port as part of the reported app URL.
 
@@ -177,10 +169,10 @@ wp rudel app info <id> [--format=<format>]
 ### `wp rudel app update`
 
 ```bash
-wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry] [--github=<repo>] [--branch=<branch>] [--dir=<dir>] [--clear-github]
+wp rudel app update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--unprotected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--clear-expiry] [--git=<remote>] [--branch=<branch>] [--dir=<dir>] [--clear-git]
 ```
 
-This is also where you change or clear the app's tracked GitHub source after creation.
+This is also where you change or clear the app's tracked Git source after creation.
 
 ### `wp rudel app destroy`
 
@@ -196,7 +188,7 @@ Create a sandbox from an app.
 wp rudel app create-sandbox <id> [--name=<name>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
-If the source app tracks a GitHub repository, branch, and directory, the derived sandbox inherits that metadata automatically.
+If the source app tracks a Git remote, branch, and directory, the derived sandbox inherits that metadata automatically.
 
 If the source app has a primary domain, Rudel also rewrites cloned site state from that app domain into the sandbox URL so local change work stays isolated. The derived sandbox still uses its own local `wp-content`; deploying back later replaces the app's local state, not some shared network code directory.
 

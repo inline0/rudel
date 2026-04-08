@@ -86,7 +86,7 @@ If you use Rudel's [git integration](/docs/features/git), sandboxes can be clean
 wp rudel cleanup --merged
 ```
 
-This checks each sandbox that has local git worktrees or tracked GitHub branch metadata. If all of that sandbox's tracked branches have been merged into the base branch, the sandbox is destroyed and Rudel removes the corresponding branch state as part of cleanup.
+This checks each sandbox that has local git worktrees or tracked Git branch metadata. If all of that sandbox's tracked branches have been merged into the base branch, the sandbox is destroyed and Rudel removes the corresponding branch state as part of cleanup.
 
 Preview first with `--dry-run`:
 
@@ -94,4 +94,4 @@ Preview first with `--dry-run`:
 wp rudel cleanup --merged --dry-run
 ```
 
-This is the cleanest way to manage sandbox lifecycles when working with git or GitHub-backed code flows: create a sandbox, do the work, merge the branch or PR, and let cleanup remove the environment once that branch has clearly served its purpose.
+This is the cleanest way to manage sandbox lifecycles when working with git-backed code flows: create a sandbox, do the work, merge the branch, and let cleanup remove the environment once that branch has clearly served its purpose.

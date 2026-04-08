@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Rudel
  * Description: The WordPress isolation layer for sandboxes and multi-tenant apps.
- * Version: 0.7.0
+ * Version: 0.8.0
  * Author: Inline0
  * Author URI: https://inline0.com
  * License: GPL-2.0-or-later
- * Requires PHP: 8.0
+ * Requires PHP: 8.2
  * Requires at least: 6.4
  *
  * @package Rudel
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RUDEL_VERSION', '0.7.0' );
+define( 'RUDEL_VERSION', '0.8.0' );
 define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -74,7 +74,6 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' app', Rudel\CLI\AppCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' cleanup', Rudel\CLI\CleanupCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' logs', Rudel\CLI\LogsCommand::class );
-	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' pr', Rudel\CLI\PrCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' push', Rudel\CLI\PushCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' restore', Rudel\CLI\RestoreCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' snapshot', Rudel\CLI\SnapshotCommand::class );

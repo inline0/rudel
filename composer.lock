@@ -4,8 +4,94 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3bcc2196bb4464e4d294cad552cabad9",
-    "packages": [],
+    "content-hash": "368ba9a714e8877e0c78f46c8db32b24",
+    "packages": [
+        {
+            "name": "pitmaster/pitmaster",
+            "version": "v0.2.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/inline0/pitmaster.git",
+                "reference": "4ce4f2d1dfef75e9e894a3999594d8a9ce4fae8c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/inline0/pitmaster/zipball/4ce4f2d1dfef75e9e894a3999594d8a9ce4fae8c",
+                "reference": "4ce4f2d1dfef75e9e894a3999594d8a9ce4fae8c",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "ext-zlib": "*",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^2.0",
+                "phpunit/phpunit": "^11.0",
+                "squizlabs/php_codesniffer": "^3.0"
+            },
+            "bin": [
+                "bin/pitmaster"
+            ],
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Pitmaster\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Pitmaster\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ],
+                "test:unit": [
+                    "phpunit --testsuite unit"
+                ],
+                "test:integration": [
+                    "phpunit --testsuite integration"
+                ],
+                "analyse": [
+                    "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M"
+                ],
+                "cs": [
+                    "phpcs --warning-severity=0"
+                ],
+                "cs:fix": [
+                    "phpcbf"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "inline0",
+                    "homepage": "https://github.com/inline0"
+                }
+            ],
+            "description": "Pure PHP Git implementation. Reads and writes Git repositories without shelling out to git.",
+            "homepage": "https://github.com/inline0/pitmaster",
+            "keywords": [
+                "diff",
+                "git",
+                "merge",
+                "pack",
+                "php",
+                "repository",
+                "vcs"
+            ],
+            "support": {
+                "issues": "https://github.com/inline0/pitmaster/issues",
+                "source": "https://github.com/inline0/pitmaster"
+            },
+            "time": "2026-04-08T06:51:24+00:00"
+        }
+    ],
     "packages-dev": [
         {
             "name": "dealerdirect/phpcodesniffer-composer-installer",
@@ -2332,7 +2418,7 @@
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.0"
+        "php": "^8.2"
     },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"

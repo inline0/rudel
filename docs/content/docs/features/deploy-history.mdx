@@ -21,7 +21,7 @@ That shows:
 
 - which app and sandbox are involved
 - the backup name that will be created
-- the tracked GitHub context that will be attached to the deployment
+- the tracked Git context that will be attached to the deployment
 - the lock file path Rudel uses to prevent overlapping destructive operations
 
 Dry-run is not a nice-to-have here. It is the moment where operators can confirm that the right sandbox is about to affect the right app before anything destructive happens.
@@ -55,7 +55,7 @@ Each deployment record stores:
 - backup name for rollback
 - copied table count
 - label and notes
-- GitHub repo, base branch, and directory context
+- Git remote, base branch, and directory context
 
 ## Roll back
 

@@ -31,7 +31,7 @@ demos, staged change work, code review, and stable app operations.
 
 ## Requirements
 
-- PHP 8.0+
+- PHP 8.2+
 - WordPress 6.4+
 - WordPress multisite configured for subdomains
 - write access to `wp-config.php` during initial runtime installation
@@ -156,7 +156,6 @@ Sandbox lifecycle:
 - `wp rudel template list`
 - `wp rudel template delete`
 - `wp rudel push`
-- `wp rudel pr`
 
 App lifecycle:
 

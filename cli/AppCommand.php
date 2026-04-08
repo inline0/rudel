@@ -62,8 +62,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--clone-from=<id>]
 	 * : Clone from an existing sandbox or app. Mutually exclusive with --clone-db/--clone-all.
 	 *
-	 * [--github=<repo>]
-	 * : Track a GitHub repository in owner/repo format for sandbox push and PR workflows.
+	 * [--git=<remote>]
+	 * : Track a Git remote for sandbox creation, push, and deployment workflows.
 	 *
 	 * [--branch=<branch>]
 	 * : Stable mainline branch for deployments and app-derived sandbox branches.
@@ -125,8 +125,8 @@ class AppCommand extends \WP_CLI_Command {
 		WP_CLI::log( '' );
 		WP_CLI::log( "  Path:   {$app->path}" );
 		WP_CLI::log( "  Domain: {$domain}" );
-		if ( $app->tracked_github_repo ) {
-			WP_CLI::log( '  GitHub: ' . $app->tracked_github_repo );
+		if ( $app->get_git_remote() ) {
+			WP_CLI::log( '  Git remote: ' . $app->get_git_remote() );
 		}
 	}
 
@@ -310,8 +310,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--clear-expiry]
 	 * : Remove any explicit expiry.
 	 *
-	 * [--github=<repo>]
-	 * : Track a GitHub repository in owner/repo format.
+	 * [--git=<remote>]
+	 * : Track a Git remote.
 	 *
 	 * [--branch=<branch>]
 	 * : Stable mainline branch for deployments and app-derived sandbox branches.
@@ -319,8 +319,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--dir=<dir>]
 	 * : Optional wp-content subdirectory tied to the tracked repository.
 	 *
-	 * [--clear-github]
-	 * : Remove tracked GitHub metadata.
+	 * [--clear-git]
+	 * : Remove tracked Git metadata.
 	 *
 	 * @param array $args Positional arguments.
 	 * @param array $assoc_args Associative arguments.
@@ -350,7 +350,7 @@ class AppCommand extends \WP_CLI_Command {
 		WP_CLI::log( '  Owner:     ' . ( $app->owner ?? '-' ) );
 		WP_CLI::log( '  Protected: ' . $this->format_protection( $app->is_protected() ) );
 		WP_CLI::log( '  Expires:   ' . ( $app->expires_at ?? '-' ) );
-		WP_CLI::log( '  GitHub:    ' . ( $app->tracked_github_repo ?? '-' ) );
+		WP_CLI::log( '  Git remote: ' . ( $app->get_git_remote() ?? '-' ) );
 	}
 
 	/**
@@ -521,14 +521,14 @@ class AppCommand extends \WP_CLI_Command {
 
 		$items = array_map(
 			static function ( array $deployment ): array {
-				$deployment['app_domains']        = implode( ', ', $deployment['app_domains'] ?? array() );
-				$deployment['github_repo']        = $deployment['github_repo'] ?? '';
-				$deployment['github_branch']      = $deployment['github_branch'] ?? '';
-				$deployment['github_base_branch'] = $deployment['github_base_branch'] ?? '';
-				$deployment['github_dir']         = $deployment['github_dir'] ?? '';
-				$deployment['label']              = $deployment['label'] ?? '';
-				$deployment['notes']              = $deployment['notes'] ?? '';
-				$deployment['backup_name']        = $deployment['backup_name'] ?? '';
+				$deployment['app_domains']     = implode( ', ', $deployment['app_domains'] ?? array() );
+				$deployment['git_remote']      = $deployment['git_remote'] ?? '';
+				$deployment['git_branch']      = $deployment['git_branch'] ?? '';
+				$deployment['git_base_branch'] = $deployment['git_base_branch'] ?? '';
+				$deployment['git_dir']         = $deployment['git_dir'] ?? '';
+				$deployment['label']           = $deployment['label'] ?? '';
+				$deployment['notes']           = $deployment['notes'] ?? '';
+				$deployment['backup_name']     = $deployment['backup_name'] ?? '';
 				return $deployment;
 			},
 			$deployments
@@ -789,17 +789,17 @@ class AppCommand extends \WP_CLI_Command {
 	}
 
 	/**
-	 * Build tracked GitHub metadata changes from CLI arguments.
+	 * Build tracked Git metadata changes from CLI arguments.
 	 *
 	 * @param array $assoc_args CLI associative arguments.
 	 * @return array<string, mixed>
 	 */
 	private function build_git_tracking_changes( array $assoc_args ): array {
 		$changes = array();
-		$clear   = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clear-github', false );
+		$clear   = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clear-git', false );
 
-		if ( array_key_exists( 'github', $assoc_args ) ) {
-			$changes['github'] = $assoc_args['github'];
+		if ( array_key_exists( 'git', $assoc_args ) ) {
+			$changes['git'] = $assoc_args['git'];
 		}
 
 		if ( array_key_exists( 'branch', $assoc_args ) ) {
@@ -811,11 +811,11 @@ class AppCommand extends \WP_CLI_Command {
 		}
 
 		if ( $clear && ! empty( $changes ) ) {
-			WP_CLI::error( 'Cannot combine --clear-github with --github, --branch, or --dir.' );
+			WP_CLI::error( 'Cannot combine --clear-git with --git, --branch, or --dir.' );
 		}
 
 		if ( $clear ) {
-			$changes['clear_github'] = true;
+			$changes['clear_git'] = true;
 		}
 
 		return $changes;

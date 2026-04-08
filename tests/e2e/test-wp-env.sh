@@ -621,7 +621,7 @@ echo ""
 echo -e "${BOLD}App lifecycle${NC}"
 
 APP_DOMAIN="demo.example.test"
-APP_OUTPUT=$(wp_cli rudel app create --name=Demo --domain="$APP_DOMAIN" --github=inline0/demo-theme --branch=main --dir=themes/demo-theme)
+APP_OUTPUT=$(wp_cli rudel app create --name=Demo --domain="$APP_DOMAIN" --git=https://example.test/demo-theme.git --branch=main --dir=themes/demo-theme)
 APP_ID=$(parse_created_id "App created" "$APP_OUTPUT")
 if [[ -n "$APP_ID" ]]; then
 	APP_IDS+=("$APP_ID")
@@ -670,10 +670,10 @@ else
 	fail "App info did not report the canonical app domain" "$APP_INFO_JSON"
 fi
 
-if printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_repo":"inline0\/demo-theme"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_branch":"main"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_github_dir":"themes\/demo-theme"'; then
-	pass "App metadata retains its tracked GitHub source"
+if printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_git_remote":"https:\/\/example.test\/demo-theme.git"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_git_branch":"main"' && printf '%s' "$APP_INFO_JSON" | grep -Fq '"tracked_git_dir":"themes\/demo-theme"'; then
+	pass "App metadata retains its tracked Git source"
 else
-	fail "App info missing tracked GitHub source" "$APP_INFO_JSON"
+	fail "App info missing tracked Git source" "$APP_INFO_JSON"
 fi
 
 BACKUP_OUTPUT=$(wp_cli rudel app backup "$APP_ID" --name=baseline)
@@ -717,10 +717,10 @@ else
 fi
 
 FEATURE_INFO_JSON=$(wp_cli rudel info "$FEATURE_ID" --format=json)
-if printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_repo":"inline0\/demo-theme"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_branch":"main"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_github_dir":"themes\/demo-theme"'; then
-	pass "App-derived sandbox inherits tracked GitHub source"
+if printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_git_remote":"https:\/\/example.test\/demo-theme.git"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_git_branch":"main"' && printf '%s' "$FEATURE_INFO_JSON" | grep -Fq '"tracked_git_dir":"themes\/demo-theme"'; then
+	pass "App-derived sandbox inherits tracked Git source"
 else
-	fail "App-derived sandbox missing tracked GitHub source" "$FEATURE_INFO_JSON"
+	fail "App-derived sandbox missing tracked Git source" "$FEATURE_INFO_JSON"
 fi
 
 FEATURE_PATH=$(printf '%s' "$FEATURE_INFO_JSON" | json_field path)

@@ -573,84 +573,84 @@ class AppManager {
 	}
 
 	/**
-	 * Normalize tracked GitHub metadata for app create/update flows.
+	 * Normalize tracked Git metadata for app create/update flows.
 	 *
 	 * @param array            $changes Raw change set.
 	 * @param Environment|null $app Existing app for update validation.
 	 * @return array<string, mixed>
-	 * @throws \InvalidArgumentException If tracked GitHub metadata is inconsistent.
+	 * @throws \InvalidArgumentException If tracked Git metadata is inconsistent.
 	 */
 	private function normalize_git_tracking_changes( array $changes, ?Environment $app = null ): array {
 		$normalized = $changes;
-		$clear_git  = ! empty( $normalized['clear_github'] );
+		$clear_git  = ! empty( $normalized['clear_git'] );
 
-		if ( array_key_exists( 'github', $normalized ) ) {
-			$normalized['tracked_github_repo'] = $normalized['github'];
-			unset( $normalized['github'] );
+		if ( array_key_exists( 'git', $normalized ) ) {
+			$normalized['tracked_git_remote'] = $normalized['git'];
+			unset( $normalized['git'] );
 		}
 
 		if ( array_key_exists( 'branch', $normalized ) ) {
-			$normalized['tracked_github_branch'] = $normalized['branch'];
+			$normalized['tracked_git_branch'] = $normalized['branch'];
 			unset( $normalized['branch'] );
 		}
 
 		if ( array_key_exists( 'dir', $normalized ) ) {
-			$normalized['tracked_github_dir'] = $normalized['dir'];
+			$normalized['tracked_git_dir'] = $normalized['dir'];
 			unset( $normalized['dir'] );
 		}
 
 		if ( $clear_git ) {
-			unset( $normalized['clear_github'] );
+			unset( $normalized['clear_git'] );
 
 			if (
-				array_key_exists( 'tracked_github_repo', $normalized ) ||
-				array_key_exists( 'tracked_github_branch', $normalized ) ||
-				array_key_exists( 'tracked_github_dir', $normalized )
+				array_key_exists( 'tracked_git_remote', $normalized ) ||
+				array_key_exists( 'tracked_git_branch', $normalized ) ||
+				array_key_exists( 'tracked_git_dir', $normalized )
 			) {
-				throw new \InvalidArgumentException( 'Cannot clear the tracked GitHub repository while also setting branch or directory.' );
+				throw new \InvalidArgumentException( 'Cannot clear the tracked Git remote while also setting branch or directory.' );
 			}
 
-			$normalized['tracked_github_repo']   = null;
-			$normalized['tracked_github_branch'] = null;
-			$normalized['tracked_github_dir']    = null;
+			$normalized['tracked_git_remote'] = null;
+			$normalized['tracked_git_branch'] = null;
+			$normalized['tracked_git_dir']    = null;
 			return $normalized;
 		}
 
-		$repo_key_present   = array_key_exists( 'tracked_github_repo', $normalized );
-		$branch_key_present = array_key_exists( 'tracked_github_branch', $normalized );
-		$dir_key_present    = array_key_exists( 'tracked_github_dir', $normalized );
+		$repo_key_present   = array_key_exists( 'tracked_git_remote', $normalized );
+		$branch_key_present = array_key_exists( 'tracked_git_branch', $normalized );
+		$dir_key_present    = array_key_exists( 'tracked_git_dir', $normalized );
 
-		if ( $repo_key_present && is_scalar( $normalized['tracked_github_repo'] ) ) {
-			$repo                              = trim( (string) $normalized['tracked_github_repo'] );
-			$normalized['tracked_github_repo'] = '' === $repo ? null : $repo;
+		if ( $repo_key_present && is_scalar( $normalized['tracked_git_remote'] ) ) {
+			$repo                             = trim( (string) $normalized['tracked_git_remote'] );
+			$normalized['tracked_git_remote'] = '' === $repo ? null : $repo;
 		}
 
 		if ( ! $repo_key_present && ! $branch_key_present && ! $dir_key_present ) {
 			return $normalized;
 		}
 
-		$current_repo = $app?->tracked_github_repo;
-		$final_repo   = $repo_key_present ? $normalized['tracked_github_repo'] : $current_repo;
+		$current_repo = $app?->tracked_git_remote;
+		$final_repo   = $repo_key_present ? $normalized['tracked_git_remote'] : $current_repo;
 
 		if ( null === $final_repo && $repo_key_present ) {
 			if ( $branch_key_present || $dir_key_present ) {
-				throw new \InvalidArgumentException( 'Cannot clear the tracked GitHub repository while also setting branch or directory.' );
+				throw new \InvalidArgumentException( 'Cannot clear the tracked Git remote while also setting branch or directory.' );
 			}
 
-			$normalized['tracked_github_branch'] = null;
-			$normalized['tracked_github_dir']    = null;
+			$normalized['tracked_git_branch'] = null;
+			$normalized['tracked_git_dir']    = null;
 			return $normalized;
 		}
 
 		if ( null === $final_repo && ( $branch_key_present || $dir_key_present ) ) {
-			throw new \InvalidArgumentException( 'Tracked GitHub branch and directory require a GitHub repository.' );
+			throw new \InvalidArgumentException( 'Tracked Git branch and directory require a Git remote.' );
 		}
 
 		return $normalized;
 	}
 
 	/**
-	 * Carry tracked GitHub metadata forward when an app is cloned from another environment.
+	 * Carry tracked Git metadata forward when an app is cloned from another environment.
 	 *
 	 * @param Environment $app Newly created app.
 	 * @param array       $options App creation options.
@@ -658,9 +658,9 @@ class AppManager {
 	 */
 	private function inherit_git_tracking_from_source( Environment $app, array $options ): Environment {
 		if (
-			array_key_exists( 'tracked_github_repo', $options ) ||
-			array_key_exists( 'tracked_github_branch', $options ) ||
-			array_key_exists( 'tracked_github_dir', $options )
+			array_key_exists( 'tracked_git_remote', $options ) ||
+			array_key_exists( 'tracked_git_branch', $options ) ||
+			array_key_exists( 'tracked_git_dir', $options )
 		) {
 			return $app;
 		}
@@ -677,9 +677,9 @@ class AppManager {
 
 		$changes = array_filter(
 			array(
-				'tracked_github_repo'   => $source->get_github_repo(),
-				'tracked_github_branch' => $source->get_github_base_branch(),
-				'tracked_github_dir'    => $source->get_github_dir(),
+				'tracked_git_remote' => $source->get_git_remote(),
+				'tracked_git_branch' => $source->get_git_base_branch(),
+				'tracked_git_dir'    => $source->get_git_dir(),
 			),
 			static fn( $value ) => null !== $value
 		);
@@ -692,7 +692,7 @@ class AppManager {
 	}
 
 	/**
-	 * Carry tracked GitHub metadata forward when a sandbox is created from an app.
+	 * Carry tracked Git metadata forward when a sandbox is created from an app.
 	 *
 	 * @param Environment $sandbox Newly created sandbox.
 	 * @param Environment $app Source app.
@@ -701,18 +701,18 @@ class AppManager {
 	 */
 	private function inherit_git_tracking_from_app_sandbox( Environment $sandbox, Environment $app, array $options ): Environment {
 		if (
-			array_key_exists( 'tracked_github_repo', $options ) ||
-			array_key_exists( 'tracked_github_branch', $options ) ||
-			array_key_exists( 'tracked_github_dir', $options )
+			array_key_exists( 'tracked_git_remote', $options ) ||
+			array_key_exists( 'tracked_git_branch', $options ) ||
+			array_key_exists( 'tracked_git_dir', $options )
 		) {
 			return $sandbox;
 		}
 
 		$changes = array_filter(
 			array(
-				'tracked_github_repo'   => $app->get_github_repo(),
-				'tracked_github_branch' => $app->get_github_base_branch(),
-				'tracked_github_dir'    => $app->get_github_dir(),
+				'tracked_git_remote' => $app->get_git_remote(),
+				'tracked_git_branch' => $app->get_git_base_branch(),
+				'tracked_git_dir'    => $app->get_git_dir(),
 			),
 			static fn( $value ) => null !== $value
 		);

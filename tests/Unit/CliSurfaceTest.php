@@ -22,7 +22,6 @@ class CliSurfaceTest extends TestCase
                 'system.status',
                 'sandbox.cleanup',
                 'sandbox.logs',
-                'sandbox.pr',
                 'sandbox.push',
                 'sandbox.restore',
                 'sandbox.snapshot',

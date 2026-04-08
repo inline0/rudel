@@ -10,7 +10,6 @@ namespace Rudel;
 use Rudel\CLI\AppCommand;
 use Rudel\CLI\CleanupCommand;
 use Rudel\CLI\LogsCommand;
-use Rudel\CLI\PrCommand;
 use Rudel\CLI\PushCommand;
 use Rudel\CLI\RestoreCommand;
 use Rudel\CLI\RudelCommand;
@@ -121,11 +120,11 @@ class CliCommandMap {
 					),
 					array(
 						'transport' => 'php',
-						'callable'  => Rudel::class . '::create_from_github',
+						'callable'  => Rudel::class . '::create_from_git',
 					),
 				),
 				CliCommandAdapters::class . '::sandbox_create',
-				'Create a sandbox, optionally seeded from GitHub.'
+				'Create a sandbox, optionally seeded from a Git remote.'
 			),
 			self::definition_item(
 				'sandbox.list',
@@ -238,20 +237,6 @@ class CliCommandMap {
 				'Read, clear, or follow a sandbox log.'
 			),
 			self::definition_item(
-				'sandbox.pr',
-				array( 'pr' ),
-				PrCommand::class,
-				'__invoke',
-				array(
-					array(
-						'transport' => 'php',
-						'callable'  => Rudel::class . '::pr',
-					),
-				),
-				CliCommandAdapters::class . '::sandbox_pr',
-				'Open a pull request from a sandbox branch.'
-			),
-			self::definition_item(
 				'sandbox.push',
 				array( 'push' ),
 				PushCommand::class,
@@ -263,7 +248,7 @@ class CliCommandMap {
 					),
 				),
 				CliCommandAdapters::class . '::sandbox_push',
-				'Push sandbox files to GitHub.'
+				'Push sandbox files to a Git remote.'
 			),
 			self::definition_item(
 				'sandbox.restore',

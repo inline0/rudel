@@ -25,13 +25,13 @@ The most useful fields are:
 - `last_deployed_from_type`
 - `last_deployed_at`
 
-Tracked GitHub context also lives in metadata on apps:
+Tracked Git context also lives in metadata on apps:
 
-- `tracked_github_repo`
-- `tracked_github_branch`
-- `tracked_github_dir`
+- `tracked_git_remote`
+- `tracked_git_branch`
+- `tracked_git_dir`
 
-That GitHub metadata is workflow context, not identity. It tells Rudel what code represents the app's deployed mainline so app-derived sandboxes and deploy records can inherit it without extra operator input every time.
+That Git metadata is workflow context, not identity. It tells Rudel what code represents the app's deployed mainline so app-derived sandboxes and deploy records can inherit it without extra operator input every time.
 
 ## Setting metadata at creation time
 
@@ -102,8 +102,8 @@ For apps:
 
 ```php
 $app = Rudel::update_app( 'client-a-com-a1b2', [
-    'tracked_github_repo'   => 'inline0/client-a-theme',
-    'tracked_github_branch' => 'main',
-    'tracked_github_dir'    => 'themes/client-a',
+    'tracked_git_remote' => 'https://example.test/client-a-theme.git',
+    'tracked_git_branch' => 'main',
+    'tracked_git_dir'    => 'themes/client-a',
 ] );
 ```

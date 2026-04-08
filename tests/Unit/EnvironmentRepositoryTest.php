@@ -9,6 +9,41 @@ use Rudel\Tests\RudelTestCase;
 
 class EnvironmentRepositoryTest extends RudelTestCase
 {
+    public function testUpdateFieldsMapsTrackedGitAndMetadataToTheRightColumns(): void
+    {
+        $repository = new EnvironmentRepository($this->runtimeStore(), $this->tmpDir . '/sandboxes', 'sandbox');
+
+        $path = $this->tmpDir . '/sandboxes/client-fix';
+        mkdir($path, 0755, true);
+
+        $saved = $repository->save(
+            new Environment(
+                id: 'client-fix',
+                name: 'Client Fix',
+                path: $path,
+                created_at: '2026-01-01T00:00:00+00:00'
+            )
+        );
+
+        $updated = $repository->update_fields(
+            $saved->id,
+            [
+                'name' => 'Client Fix Updated',
+                'last_used_at' => '2026-01-02T00:00:00+00:00',
+                'tracked_git_remote' => 'https://example.test/client-fix.git',
+                'tracked_git_branch' => 'release',
+                'tracked_git_dir' => 'themes/client-fix',
+            ],
+            'sandbox'
+        );
+
+        $this->assertSame('Client Fix Updated', $updated->name);
+        $this->assertSame('2026-01-02T00:00:00+00:00', $updated->last_used_at);
+        $this->assertSame('https://example.test/client-fix.git', $updated->tracked_git_remote);
+        $this->assertSame('release', $updated->tracked_git_branch);
+        $this->assertSame('themes/client-fix', $updated->tracked_git_dir);
+    }
+
     public function testSaveRollsBackWhenWorktreePersistenceFails(): void
     {
         $store = $this->failingStore('worktrees');

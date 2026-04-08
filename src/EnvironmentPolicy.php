@@ -114,16 +114,16 @@ class EnvironmentPolicy {
 			$normalized['last_deployed_at'] = self::normalize_timestamp( $changes['last_deployed_at'], 'last_deployed_at' );
 		}
 
-		if ( array_key_exists( 'tracked_github_repo', $changes ) ) {
-			$normalized['tracked_github_repo'] = self::normalize_github_repo( $changes['tracked_github_repo'] );
+		if ( array_key_exists( 'tracked_git_remote', $changes ) ) {
+			$normalized['tracked_git_remote'] = self::normalize_git_remote( $changes['tracked_git_remote'] );
 		}
 
-		if ( array_key_exists( 'tracked_github_branch', $changes ) ) {
-			$normalized['tracked_github_branch'] = self::normalize_github_branch( $changes['tracked_github_branch'] );
+		if ( array_key_exists( 'tracked_git_branch', $changes ) ) {
+			$normalized['tracked_git_branch'] = self::normalize_git_branch( $changes['tracked_git_branch'] );
 		}
 
-		if ( array_key_exists( 'tracked_github_dir', $changes ) ) {
-			$normalized['tracked_github_dir'] = self::normalize_github_dir( $changes['tracked_github_dir'] );
+		if ( array_key_exists( 'tracked_git_dir', $changes ) ) {
+			$normalized['tracked_git_dir'] = self::normalize_git_dir( $changes['tracked_git_dir'] );
 		}
 
 		if ( array_key_exists( 'clone_source', $changes ) ) {
@@ -208,32 +208,32 @@ class EnvironmentPolicy {
 	}
 
 	/**
-	 * Normalize a tracked GitHub repository identifier.
+	 * Normalize a tracked Git remote identifier.
 	 *
 	 * @param mixed $value Raw input.
 	 * @return string|null
-	 * @throws \InvalidArgumentException If the value is not a valid owner/repo string.
+	 * @throws \InvalidArgumentException If the value is not a valid remote URL or slug.
 	 */
-	private static function normalize_github_repo( $value ): ?string {
+	private static function normalize_git_remote( $value ): ?string {
 		$value = self::normalize_optional_string( $value );
 		if ( null === $value ) {
 			return null;
 		}
 
-		if ( ! preg_match( '/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $value ) ) {
-			throw new \InvalidArgumentException( 'GitHub repositories must use the owner/repo format.' );
+		if ( str_contains( $value, ' ' ) ) {
+			throw new \InvalidArgumentException( 'Tracked Git remotes cannot contain spaces.' );
 		}
 
 		return $value;
 	}
 
 	/**
-	 * Normalize an optional tracked GitHub branch.
+	 * Normalize an optional tracked Git branch.
 	 *
 	 * @param mixed $value Raw input.
 	 * @return string|null
 	 */
-	private static function normalize_github_branch( $value ): ?string {
+	private static function normalize_git_branch( $value ): ?string {
 		return self::normalize_optional_string( $value );
 	}
 
@@ -244,7 +244,7 @@ class EnvironmentPolicy {
 	 * @return string|null
 	 * @throws \InvalidArgumentException If the path is absolute or traverses outside wp-content.
 	 */
-	private static function normalize_github_dir( $value ): ?string {
+	private static function normalize_git_dir( $value ): ?string {
 		$value = self::normalize_optional_string( $value );
 		if ( null === $value ) {
 			return null;
@@ -258,7 +258,7 @@ class EnvironmentPolicy {
 		}
 
 		if ( preg_match( '#(^|/)\.\.?(?:/|$)#', $value ) ) {
-			throw new \InvalidArgumentException( 'Tracked GitHub directories must stay within wp-content.' );
+			throw new \InvalidArgumentException( 'Tracked Git directories must stay within wp-content.' );
 		}
 
 		return $value;
