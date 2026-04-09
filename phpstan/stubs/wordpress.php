@@ -122,6 +122,12 @@ if ( ! function_exists( 'do_action' ) ) {
 	function do_action( string $hook_name, mixed ...$args ): void {}
 }
 
+if ( ! function_exists( 'trailingslashit' ) ) {
+	function trailingslashit( string $value ): string {
+		return rtrim( $value, '/' ) . '/';
+	}
+}
+
 if ( ! function_exists( 'home_url' ) ) {
 	function home_url( string $path = '', ?string $scheme = null ): string {
 		return WP_HOME;
