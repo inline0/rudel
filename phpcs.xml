@@ -62,8 +62,8 @@
         <severity>0</severity>
     </rule>
 
-    <!-- PHP 8.0+ -->
-    <config name="testVersion" value="8.0-"/>
+    <!-- PHP 8.2+ -->
+    <config name="testVersion" value="8.2-"/>
 
     <!-- Text domain -->
     <rule ref="WordPress.WP.I18n">
