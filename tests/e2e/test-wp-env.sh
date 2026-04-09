@@ -472,7 +472,7 @@ prepare_network() {
 
 	wp_cli db reset --yes >/dev/null
 	wp_cli core install \
-		--url=localhost:8888 \
+		--url=localhost:8000 \
 		--title='Rudel Test Host' \
 		--admin_user=admin \
 		--admin_password=password \
@@ -480,7 +480,7 @@ prepare_network() {
 		--skip-email >/dev/null
 	wp_cli plugin activate rudel >/dev/null
 	wp_cli core multisite-install \
-		--url=localhost:8888 \
+		--url=localhost:8000 \
 		--base=/ \
 		--subdomains \
 		--title='Rudel Test Network' \
@@ -496,7 +496,7 @@ prepare_network() {
 	wp_cli config set PATH_CURRENT_SITE "'/'" --raw >/dev/null
 	wp_cli config set SITE_ID_CURRENT_SITE 1 --raw >/dev/null
 	wp_cli config set BLOG_ID_CURRENT_SITE 1 --raw >/dev/null
-	wp_cli db query "UPDATE wp_site SET domain = 'localhost'; UPDATE wp_blogs SET domain = REPLACE(domain, ':8888', '');" >/dev/null
+	wp_cli db query "UPDATE wp_site SET domain = 'localhost'; UPDATE wp_blogs SET domain = REPLACE(domain, ':8000', '');" >/dev/null
 	wp_cli plugin activate rudel >/dev/null
 }
 
@@ -534,13 +534,13 @@ else
 fi
 
 NETWORK_URL=$(wp_cli option get siteurl | tail -1)
-if [[ "$NETWORK_URL" == "http://localhost:8888" ]]; then
+if [[ "$NETWORK_URL" == "http://localhost:8000" ]]; then
 	pass "Host site URL is configured"
 else
 	fail "Unexpected host site URL" "$NETWORK_URL"
 fi
 
-assert_site_http_contract "Host site" "http://localhost:8888"
+assert_site_http_contract "Host site" "http://localhost:8000"
 
 STATUS_OUTPUT=$(wp_cli rudel status)
 if echo "$STATUS_OUTPUT" | grep -qi "installed" && echo "$STATUS_OUTPUT" | grep -qi "yes"; then

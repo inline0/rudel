@@ -95,7 +95,7 @@ prepare_network() {
 
 	wp_cli db reset --yes >/dev/null
 	wp_cli core install \
-		--url=localhost:8888 \
+		--url=localhost:8000 \
 		--title='Rudel Benchmark Host' \
 		--admin_user=admin \
 		--admin_password=password \
@@ -103,7 +103,7 @@ prepare_network() {
 		--skip-email >/dev/null
 	wp_cli plugin activate rudel >/dev/null
 	wp_cli core multisite-install \
-		--url=localhost:8888 \
+		--url=localhost:8000 \
 		--base=/ \
 		--subdomains \
 		--title='Rudel Benchmark Network' \
@@ -119,7 +119,7 @@ prepare_network() {
 	wp_cli config set PATH_CURRENT_SITE "'/'" --raw >/dev/null
 	wp_cli config set SITE_ID_CURRENT_SITE 1 --raw >/dev/null
 	wp_cli config set BLOG_ID_CURRENT_SITE 1 --raw >/dev/null
-	wp_cli db query "UPDATE wp_site SET domain = 'localhost'; UPDATE wp_blogs SET domain = REPLACE(domain, ':8888', '');" >/dev/null
+	wp_cli db query "UPDATE wp_site SET domain = 'localhost'; UPDATE wp_blogs SET domain = REPLACE(domain, ':8000', '');" >/dev/null
 	wp_cli plugin activate rudel >/dev/null
 }
 
