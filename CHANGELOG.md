@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.4 - 2026-04-11
+
+- Added opt-in shared `plugins` and `uploads` layouts while keeping the default fully isolated environment model unchanged.
+- Made app-derived sandboxes inherit shared `plugins/uploads` policy unless explicitly overridden, and excluded shared directories from env-owned snapshot/template/deploy replacement flows.
+- Switched the local `wp-env` ports to `8000/8001` and restored the canonical `composer stan` alias so the local full-suite runner matches the repo validation surface again.
+
 ## v0.8.3 - 2026-04-09
 
 - Reduced clone-time metadata churn by caching table discovery, blog ID discovery, and table existence lookups inside one MySQL clone operation.
