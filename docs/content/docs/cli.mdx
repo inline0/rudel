@@ -21,10 +21,12 @@ You can rename only the root command with `RUDEL_CLI_COMMAND` before Rudel boots
 Create a sandbox. This is the command you use when you want a new disposable multisite site for change work.
 
 ```bash
-wp rudel create [--name=<name>] [--git=<remote>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
+wp rudel create [--name=<name>] [--git=<remote>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--shared-plugins] [--shared-uploads] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
 ```
 
 Rudel creates sandboxes as multisite sites. There is no engine choice anymore, only different ways to seed the initial content and metadata. Each created sandbox also gets its own local `wp-content`, which becomes the canonical code and file tree for that environment.
+
+`--shared-plugins` and `--shared-uploads` are opt-in exceptions to the default fully local content model. They keep the environment-local `wp-content` root, but replace `plugins` and/or `uploads` with links back to the host directories.
 
 ### `wp rudel list`
 
@@ -147,7 +149,7 @@ Everything under `wp rudel app ...` is about the long-lived side of the system. 
 Create an app.
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--git=<remote>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
+wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--shared-plugins] [--shared-uploads] [--git=<remote>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
 Use `--git`, `--branch`, and `--dir` when the app should carry one tracked code source. That tracked source becomes the default Git context for app-derived sandboxes and deployment history.
@@ -185,10 +187,12 @@ wp rudel app destroy <id> [--force]
 Create a sandbox from an app.
 
 ```bash
-wp rudel app create-sandbox <id> [--name=<name>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
+wp rudel app create-sandbox <id> [--name=<name>] [--shared-plugins] [--shared-uploads] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
 If the source app tracks a Git remote, branch, and directory, the derived sandbox inherits that metadata automatically.
+
+If the source app uses shared plugins or uploads, the derived sandbox inherits those settings automatically unless you override them with the sandbox creation flags.
 
 If the source app has a primary domain, Rudel also rewrites cloned site state from that app domain into the sandbox URL so local change work stays isolated. The derived sandbox still uses its own local `wp-content`; deploying back later replaces the app's local state, not some shared network code directory.
 

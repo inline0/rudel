@@ -157,6 +157,10 @@ class EnvironmentManager {
 			$clone_themes   = ! empty( $options['clone_themes'] );
 			$clone_plugins  = ! empty( $options['clone_plugins'] );
 			$clone_uploads  = ! empty( $options['clone_uploads'] );
+			$shared_plugins_explicit = array_key_exists( 'shared_plugins', $options );
+			$shared_uploads_explicit = array_key_exists( 'shared_uploads', $options );
+			$shared_plugins          = ! empty( $options['shared_plugins'] );
+			$shared_uploads          = ! empty( $options['shared_uploads'] );
 			$has_clone      = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
 			$target_type    = $options['type'] ?? 'sandbox';
 			$target_domains = $options['domains'] ?? null;
@@ -168,6 +172,13 @@ class EnvironmentManager {
 			if ( ! in_array( $target_type, array( 'sandbox', 'app' ), true ) ) {
 				throw new \InvalidArgumentException( sprintf( 'Invalid environment type: %s. Must be "sandbox" or "app".', $target_type ) );
 			}
+
+			$this->validate_shared_content_options(
+				$shared_plugins,
+				isset( $options['tracked_git_dir'] ) && is_scalar( $options['tracked_git_dir'] ) ? (string) $options['tracked_git_dir'] : null
+			);
+			$options['shared_plugins'] = $shared_plugins;
+			$options['shared_uploads'] = $shared_uploads;
 
 			if ( ! function_exists( 'is_multisite' ) || ! is_multisite() ) {
 				throw new \RuntimeException( 'Rudel requires a WordPress multisite installation.' );
@@ -246,8 +257,29 @@ class EnvironmentManager {
 				if ( ! isset( $options['app_id'] ) && null !== $source_environment->app_record_id && 'sandbox' === $target_type ) {
 					$options['app_id'] = $source_environment->app_record_id;
 				}
+				if ( ! $shared_plugins_explicit ) {
+					$shared_plugins = $source_environment->shared_plugins;
+				}
+				if ( ! $shared_uploads_explicit ) {
+					$shared_uploads = $source_environment->shared_uploads;
+				}
+				$options['shared_plugins'] = $shared_plugins;
+				$options['shared_uploads'] = $shared_uploads;
+				$this->validate_shared_content_options(
+					$shared_plugins,
+					isset( $options['tracked_git_dir'] ) && is_scalar( $options['tracked_git_dir'] ) ? (string) $options['tracked_git_dir'] : null
+				);
 
-				$clone_source  = $this->clone_from_subsite_environment( $source_environment, $id, $path, $blog_id );
+				$clone_source  = $this->clone_from_subsite_environment(
+					$source_environment,
+					$id,
+					$path,
+					$blog_id,
+					array(
+						'plugins' => $shared_plugins,
+						'uploads' => $shared_uploads,
+					)
+				);
 				$clone_lineage = array(
 					'source_environment_id'   => $source_environment->id,
 					'source_environment_type' => $source_environment->type,
@@ -293,8 +325,8 @@ class EnvironmentManager {
 					$path . '/wp-content',
 					array(
 						'themes'  => $clone_themes,
-						'plugins' => $clone_plugins,
-						'uploads' => $clone_uploads,
+						'plugins' => $clone_plugins && ! $shared_plugins,
+						'uploads' => $clone_uploads && ! $shared_uploads,
 					),
 					$id
 				);
@@ -329,6 +361,8 @@ class EnvironmentManager {
 				}
 			}
 
+			EnvironmentContentLayout::materialize_for_path( $path . '/wp-content', $shared_plugins, $shared_uploads );
+
 			$this->apply_site_options( $id, $path, $blog_id, $site_options );
 
 			$this->write_runtime_mu_plugin( $path );
@@ -347,6 +381,8 @@ class EnvironmentManager {
 				blog_id: $blog_id,
 				type: $target_type,
 				domains: $target_domains,
+				shared_plugins: $shared_plugins,
+				shared_uploads: $shared_uploads,
 				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
 
@@ -400,6 +436,8 @@ class EnvironmentManager {
 				tracked_git_remote: $policy_meta['tracked_git_remote'] ?? null,
 				tracked_git_branch: $policy_meta['tracked_git_branch'] ?? null,
 				tracked_git_dir: $policy_meta['tracked_git_dir'] ?? null,
+				shared_plugins: ! empty( $policy_meta['shared_plugins'] ),
+				shared_uploads: ! empty( $policy_meta['shared_uploads'] ),
 				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
 			$environment = $this->repository->save( $environment );
@@ -420,6 +458,8 @@ class EnvironmentManager {
 					engine: $engine,
 					blog_id: $blog_id,
 					type: $options['type'] ?? 'sandbox',
+					shared_plugins: ! empty( $options['shared_plugins'] ),
+					shared_uploads: ! empty( $options['shared_uploads'] ),
 				);
 				$this->user_isolation->drop( $failed_environment );
 				$subsite_cloner = new SubsiteCloner();
@@ -487,6 +527,9 @@ class EnvironmentManager {
 				$site_options
 			);
 			$updated = $this->repository->update_fields( $id, $changes, $environment->type );
+			if ( array_key_exists( 'shared_plugins', $changes ) || array_key_exists( 'shared_uploads', $changes ) ) {
+				EnvironmentContentLayout::materialize_for_environment( $updated );
+			}
 			Hooks::action( 'rudel_after_environment_update', $updated, $context );
 			return $updated;
 		} catch ( \Throwable $e ) {
@@ -729,6 +772,20 @@ class EnvironmentManager {
 	 */
 	private function get_environment_site_url( Environment $environment ): string {
 		return rtrim( $environment->get_url(), '/' );
+	}
+
+	/**
+	 * Reject environment layouts that would combine shared plugins with tracked plugin checkouts.
+	 *
+	 * @param bool        $shared_plugins Whether plugins are shared with the host.
+	 * @param string|null $tracked_git_dir Optional tracked wp-content subdirectory.
+	 * @return void
+	 * @throws \InvalidArgumentException When shared plugins are combined with plugin-tracked Git directories.
+	 */
+	private function validate_shared_content_options( bool $shared_plugins, ?string $tracked_git_dir ): void {
+		if ( EnvironmentContentLayout::conflicts_with_shared_plugins( $shared_plugins, $tracked_git_dir ) ) {
+			throw new \InvalidArgumentException( 'Shared plugins cannot be combined with plugin-tracked Git directories.' );
+		}
 	}
 
 	/**
@@ -1120,17 +1177,19 @@ class EnvironmentManager {
 	/**
 	 * Clone one subdomain-multisite environment into another subdomain-multisite site.
 	 *
-	 * @param Environment $source Source environment.
-	 * @param string      $target_id Target environment slug.
-	 * @param string      $target_path Target environment path.
-	 * @param int         $target_blog_id Target multisite blog ID.
+	 * @param Environment         $source Source environment.
+	 * @param string              $target_id Target environment slug.
+	 * @param string              $target_path Target environment path.
+	 * @param int                 $target_blog_id Target multisite blog ID.
+	 * @param array<string, bool> $shared_content Shared top-level wp-content directories keyed by directory name.
 	 * @return array<string, mixed>
 	 */
 	private function clone_from_subsite_environment(
 		Environment $source,
 		string $target_id,
 		string $target_path,
-		int $target_blog_id
+		int $target_blog_id,
+		array $shared_content = array()
 	): array {
 		global $wpdb;
 
@@ -1144,7 +1203,7 @@ class EnvironmentManager {
 		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
 		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
 
-		$content_clone = $this->clone_environment_content( $source, $target_id, $target_path );
+		$content_clone = $this->clone_environment_content( $source, $target_id, $target_path, $shared_content );
 
 		return Hooks::filter(
 			'rudel_environment_clone_source',
@@ -1181,9 +1240,10 @@ class EnvironmentManager {
 	/**
 	 * Clone wp-content from another environment while preserving git worktrees for code directories.
 	 *
-	 * @param Environment $source Source environment.
-	 * @param string      $target_id New environment identifier.
-	 * @param string      $target_path New environment path.
+	 * @param Environment         $source Source environment.
+	 * @param string              $target_id New environment identifier.
+	 * @param string              $target_path New environment path.
+	 * @param array<string, bool> $shared_content Shared top-level wp-content directories keyed by directory name.
 	 * @return array{
 	 *     git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string,metadata_name:string}>,
 	 *     themes_cloned: bool,
@@ -1191,7 +1251,7 @@ class EnvironmentManager {
 	 *     uploads_cloned: bool
 	 * }
 	 */
-	private function clone_environment_content( Environment $source, string $target_id, string $target_path ): array {
+	private function clone_environment_content( Environment $source, string $target_id, string $target_path, array $shared_content = array() ): array {
 		$source_content = $source->get_wp_content_path();
 		$target_content = $target_path . '/wp-content';
 		$content_cloner = new ContentCloner();
@@ -1212,8 +1272,14 @@ class EnvironmentManager {
 			$name            = $entry->getFilename();
 			$source_path     = $entry->getPathname();
 			$target_pathname = $target_content . '/' . $name;
+			$is_shared       = ! empty( $shared_content[ $name ] );
+			$is_directory    = $entry->isDir() || ( $entry->isLink() && is_dir( (string) realpath( $source_path ) ) );
 
-			if ( $entry->isDir() ) {
+			if ( $is_shared && in_array( $name, array( 'plugins', 'uploads' ), true ) ) {
+				continue;
+			}
+
+			if ( $is_directory ) {
 				if ( in_array( $name, array( 'themes', 'plugins' ), true ) ) {
 					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating top-level content directory before git worktree clone.
 					mkdir( $target_pathname, 0755, true );
@@ -1258,6 +1324,12 @@ class EnvironmentManager {
 			copy( $source_path, $target_pathname );
 		}
 
+		EnvironmentContentLayout::materialize_for_path(
+			$target_content,
+			! empty( $shared_content['plugins'] ),
+			! empty( $shared_content['uploads'] )
+		);
+
 		return array(
 			'git_worktrees'  => $git_worktrees,
 			'themes_cloned'  => $themes_cloned,
@@ -1295,6 +1367,11 @@ class EnvironmentManager {
 	 * @return bool True on success.
 	 */
 	private function delete_directory( string $dir ): bool {
+		if ( is_link( $dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content root during environment cleanup.
+			return unlink( $dir );
+		}
+
 		if ( ! is_dir( $dir ) ) {
 			return false;
 		}
@@ -1305,16 +1382,22 @@ class EnvironmentManager {
 		);
 
 		foreach ( $iterator as $item ) {
+			$item_path = $item->getPathname();
 			if ( ! $item->isWritable() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Handling read-only generated files.
-				chmod( $item->getPathname(), 0644 );
+				chmod( $item_path, 0644 );
+			}
+			if ( $item->isLink() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during environment cleanup.
+				unlink( $item_path );
+				continue;
 			}
 			if ( $item->isDir() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Direct recursive directory removal.
-				rmdir( $item->getPathname() );
+				rmdir( $item_path );
 			} else {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Direct file deletion during directory cleanup.
-				unlink( $item->getPathname() );
+				unlink( $item_path );
 			}
 		}
 

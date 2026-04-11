@@ -36,6 +36,8 @@ class EnvironmentPolicy {
 			'protected'    => false,
 			'expires_at'   => null,
 			'last_used_at' => $created_at,
+			'shared_plugins' => false,
+			'shared_uploads' => false,
 		);
 		$normalized_create = self::normalize_changes( $input, $type, $created_at );
 
@@ -124,6 +126,14 @@ class EnvironmentPolicy {
 
 		if ( array_key_exists( 'tracked_git_dir', $changes ) ) {
 			$normalized['tracked_git_dir'] = self::normalize_git_dir( $changes['tracked_git_dir'] );
+		}
+
+		if ( array_key_exists( 'shared_plugins', $changes ) ) {
+			$normalized['shared_plugins'] = self::normalize_boolean( $changes['shared_plugins'] );
+		}
+
+		if ( array_key_exists( 'shared_uploads', $changes ) ) {
+			$normalized['shared_uploads'] = self::normalize_boolean( $changes['shared_uploads'] );
 		}
 
 		if ( array_key_exists( 'clone_source', $changes ) ) {

@@ -51,6 +51,12 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * [--clone-uploads]
 	 * : Copy host uploads into the sandbox.
 	 *
+	 * [--shared-plugins]
+	 * : Link sandbox plugins to the host plugins directory instead of cloning them.
+	 *
+	 * [--shared-uploads]
+	 * : Link sandbox uploads to the host uploads directory instead of cloning them.
+	 *
 	 * [--clone-all]
 	 * : Clone everything (database, themes, plugins, uploads).
 	 *
@@ -510,6 +516,14 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			),
 			$this->build_policy_changes( $assoc_args )
 		);
+
+		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
+			$options['shared_plugins'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-plugins', false );
+		}
+
+		if ( array_key_exists( 'shared-uploads', $assoc_args ) ) {
+			$options['shared_uploads'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-uploads', false );
+		}
 
 		if ( $clone_from ) {
 			$options['clone_from'] = $clone_from;

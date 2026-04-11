@@ -40,6 +40,14 @@ wp rudel create --git=https://example.test/example-theme.git
 
 Those options compose in the way you would expect. Templates and Git seeding help you start from a known shape, while clone flags decide how much host or source-environment state should be copied into the new environment-local `wp-content` and site tables.
 
+If you want a lighter-weight environment without giving up isolated themes, you can opt into live shared host directories for plugins and uploads:
+
+```bash
+wp rudel create --name=alpha --shared-plugins --shared-uploads
+```
+
+That keeps the environment's `wp-content` local, but `wp-content/plugins` and `wp-content/uploads` become links back to the host directories instead of copied directories. Full isolation remains the default.
+
 ## Create an app
 
 Apps use the same runtime model, but they are meant to be the stable side of the lifecycle: the places you deploy into, back up, and keep attached to domain metadata.
@@ -57,6 +65,14 @@ wp rudel app create --name=demo --domain=demo.example.test --git=https://example
 ```
 
 That tracked Git context becomes part of the app record. App-derived sandboxes inherit it automatically, which means later `wp rudel push` calls can usually run without restating the remote details.
+
+Apps can also opt into shared host plugins or uploads when that better matches the workflow:
+
+```bash
+wp rudel app create --name=demo --domain=demo.example.test --shared-plugins --shared-uploads
+```
+
+Derived sandboxes inherit those shared-directory settings unless you override them at creation time.
 
 ## Find the created site URLs
 

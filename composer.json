@@ -35,6 +35,7 @@
         "test:unit": "phpunit --testsuite unit",
         "test:integration": "phpunit --testsuite integration",
         "test:security": "phpunit --testsuite security",
+        "stan": "@analyse",
         "analyse": "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=1G",
         "cs": "phpcs --warning-severity=0",
         "cs:fix": "phpcbf",

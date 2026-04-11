@@ -51,6 +51,8 @@ wp rudel cleanup --merged --dry-run
 
 Only themes and plugins are eligible for git worktrees. The decision is per-directory: if a copied theme or plugin contains a `.git` directory, Rudel can track it as git-backed code inside the environment-local `wp-content`. Directories without git are copied normally. Uploads are always file-copied.
 
+One opt-in constraint matters here: if an environment uses `shared_plugins`, plugin directories are live-linked to the host and are therefore not valid Rudel-owned Git worktree targets. Theme-tracked Git workflows are unaffected.
+
 The site data side of the sandbox is not part of git. That is the disposable part. The code changes in themes and plugins are the part that should be preserved, and git already handles that naturally.
 
 ## Built-in Git remote support

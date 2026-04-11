@@ -222,6 +222,12 @@ class ContentCloner {
 	 * @return void
 	 */
 	private function delete_directory( string $dir ): void {
+		if ( is_link( $dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content root before recloning content.
+			unlink( $dir );
+			return;
+		}
+
 		if ( ! is_dir( $dir ) ) {
 			return;
 		}
@@ -232,12 +238,18 @@ class ContentCloner {
 		);
 
 		foreach ( $iterator as $item ) {
+			$item_path = $item->getPathname();
+			if ( $item->isLink() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry before recloning content.
+				unlink( $item_path );
+				continue;
+			}
 			if ( $item->isDir() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removing empty directory during content clone.
-				rmdir( $item->getPathname() );
+				rmdir( $item_path );
 			} else {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing file during content clone.
-				unlink( $item->getPathname() );
+				unlink( $item_path );
 			}
 		}
 

@@ -133,6 +133,8 @@ class RudelSchemaTest extends RudelTestCase
         $this->assertSame('https://example.test/demo.git', $environmentRow['tracked_git_remote']);
         $this->assertSame('main', $environmentRow['tracked_git_branch']);
         $this->assertSame('themes/demo', $environmentRow['tracked_git_dir']);
+        $this->assertArrayHasKey('shared_plugins', $environmentRow);
+        $this->assertArrayHasKey('shared_uploads', $environmentRow);
 
         $this->assertSame('demo-theme', $worktreeRow['metadata_name']);
 

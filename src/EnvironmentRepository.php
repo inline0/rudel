@@ -385,6 +385,8 @@ class EnvironmentRepository {
 			'tracked_git_remote'      => $environment->tracked_git_remote,
 			'tracked_git_branch'      => $environment->tracked_git_branch,
 			'tracked_git_dir'         => $environment->tracked_git_dir,
+			'shared_plugins'          => $environment->shared_plugins ? 1 : 0,
+			'shared_uploads'          => $environment->shared_uploads ? 1 : 0,
 			'created_at'              => $environment->created_at,
 			'updated_at'              => gmdate( 'c' ),
 		);
@@ -434,6 +436,12 @@ class EnvironmentRepository {
 					break;
 				case 'tracked_git_dir':
 					$payload['tracked_git_dir'] = $value;
+					break;
+				case 'shared_plugins':
+					$payload['shared_plugins'] = $value ? 1 : 0;
+					break;
+				case 'shared_uploads':
+					$payload['shared_uploads'] = $value ? 1 : 0;
 					break;
 				case 'protected':
 					$payload['is_protected'] = $value ? 1 : 0;

@@ -36,7 +36,7 @@ That also means higher-level products can talk to Rudel's registry outside
 WordPress as long as they use the same database. The standalone core path uses
 the same runtime tables; it does not create a second metadata layer.
 
-The environments table also carries the metadata that makes higher-level workflows possible: ownership, expiry, lineage, tracked Git remote data, and the identifiers Rudel uses to connect apps, app-derived sandboxes, and deploy records back together.
+The environments table also carries the metadata that makes higher-level workflows possible: ownership, expiry, lineage, tracked Git remote data, shared-content policy, and the identifiers Rudel uses to connect apps, app-derived sandboxes, and deploy records back together.
 
 ## Default tables
 
@@ -79,6 +79,11 @@ files, including the local `wp-content`, while runtime tables are for metadata
 and lifecycle state. If a higher-level product wants to inspect or manipulate
 Rudel state, it should talk to the runtime tables through Rudel's public API
 or internal repositories rather than reading files and guessing.
+
+One example of that split is shared content mode. The runtime tables record
+whether `plugins` or `uploads` are shared with the host. The environment
+directory then materializes that policy as links inside the environment-local
+`wp-content` tree.
 
 Outside WordPress, the public entrypoint for that is `Rudel::init()` with a
 direct DB `Connection`. That gives external products access to Rudel's

@@ -115,6 +115,74 @@ class AppManagerTest extends RudelTestCase
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
+	public function testCreateSandboxInheritsSharedPluginsAndUploadsFromApp(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		mkdir($wordpressRoot . '/wp-content/plugins/demo-plugin', 0755, true);
+		mkdir($wordpressRoot . '/wp-content/uploads/2026/04', 0755, true);
+
+		file_put_contents($wordpressRoot . '/wp-content/plugins/demo-plugin/demo-plugin.php', '<?php');
+		file_put_contents($wordpressRoot . '/wp-content/uploads/2026/04/demo.txt', 'shared upload');
+
+		define('ABSPATH', $wordpressRoot . '/');
+		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+		define('WP_HOME', 'http://example.test');
+		define('DOMAIN_CURRENT_SITE', 'example.test');
+
+		$manager = new AppManager(
+			$this->tmpDir . '/apps',
+			$this->tmpDir . '/sandboxes'
+		);
+
+		$app = $manager->create('Client Demo', ['client.example.test'], [
+			'shared_plugins' => true,
+			'shared_uploads' => true,
+		]);
+
+		$sandbox = $manager->create_sandbox($app->id, 'Feature Sandbox');
+
+		$this->assertTrue($app->shared_plugins);
+		$this->assertTrue($app->shared_uploads);
+		$this->assertTrue($sandbox->shared_plugins);
+		$this->assertTrue($sandbox->shared_uploads);
+		$this->assertTrue(is_link($sandbox->path . '/wp-content/plugins'));
+		$this->assertTrue(is_link($sandbox->path . '/wp-content/uploads'));
+		$this->assertSame($wordpressRoot . '/wp-content/plugins', readlink($sandbox->path . '/wp-content/plugins'));
+		$this->assertSame($wordpressRoot . '/wp-content/uploads', readlink($sandbox->path . '/wp-content/uploads'));
+		$this->assertFileExists($sandbox->path . '/wp-content/plugins/demo-plugin/demo-plugin.php');
+		$this->assertFileExists($sandbox->path . '/wp-content/uploads/2026/04/demo.txt');
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testCreateRejectsSharedPluginsWhenTrackedGitDirectoryTargetsPlugins(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+		define('ABSPATH', $wordpressRoot . '/');
+		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+		define('WP_HOME', 'http://example.test');
+		define('DOMAIN_CURRENT_SITE', 'example.test');
+
+		$manager = new AppManager(
+			$this->tmpDir . '/apps',
+			$this->tmpDir . '/sandboxes'
+		);
+
+		$this->expectException(\InvalidArgumentException::class);
+		$this->expectExceptionMessage('Shared plugins cannot be combined with plugin-tracked Git directories.');
+
+		$manager->create('Client Demo', ['client.example.test'], [
+			'shared_plugins' => true,
+			'tracked_git_remote' => 'https://example.test/client-plugin.git',
+			'tracked_git_branch' => 'main',
+			'tracked_git_dir' => 'plugins/client-plugin',
+		]);
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
 	public function testCreateSandboxClonesTheAppIsolatedUsers(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';

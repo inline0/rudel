@@ -76,9 +76,18 @@ class EnvironmentStateReplacer {
 	private function replace_environment_content( Environment $source, Environment $target ): void {
 		$source_worktrees = $this->worktree_map( $source );
 		$target_worktrees = $this->worktree_map( $target );
+		$shared_groups    = array_values(
+			array_unique(
+				array_merge(
+					$source->shared_content_directories(),
+					$target->shared_content_directories()
+				)
+			)
+		);
 
-		if ( ! empty( $source_worktrees ) || ! empty( $target_worktrees ) ) {
-			$this->replace_environment_content_with_worktrees( $source, $target, $source_worktrees, $target_worktrees );
+		if ( ! empty( $source_worktrees ) || ! empty( $target_worktrees ) || ! empty( $shared_groups ) ) {
+			$this->replace_environment_content_with_worktrees( $source, $target, $source_worktrees, $target_worktrees, $shared_groups );
+			EnvironmentContentLayout::materialize_for_environment( $target );
 			return;
 		}
 
@@ -97,13 +106,15 @@ class EnvironmentStateReplacer {
 	 * @param Environment             $target Target environment.
 	 * @param array<string, string[]> $source_worktrees Worktree map grouped by top-level directory.
 	 * @param array<string, string[]> $target_worktrees Worktree map grouped by top-level directory.
+	 * @param string[]                $shared_groups Top-level directories that must stay shared on the target.
 	 * @return void
 	 */
 	private function replace_environment_content_with_worktrees(
 		Environment $source,
 		Environment $target,
 		array $source_worktrees,
-		array $target_worktrees
+		array $target_worktrees,
+		array $shared_groups
 	): void {
 		$source_content = $source->get_wp_content_path();
 		$target_content = $target->get_wp_content_path();
@@ -132,7 +143,7 @@ class EnvironmentStateReplacer {
 		$this->sync_generic_directory(
 			$source_content,
 			$target_content,
-			$groups,
+			array_values( array_unique( array_merge( $groups, $shared_groups ) ) ),
 			false
 		);
 	}
@@ -314,6 +325,12 @@ class EnvironmentStateReplacer {
 	 * @return void
 	 */
 	private function delete_path( string $path ): void {
+		if ( is_link( $path ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during environment replacement.
+			unlink( $path );
+			return;
+		}
+
 		if ( is_dir( $path ) ) {
 			$this->delete_directory( $path );
 			return;
@@ -342,6 +359,11 @@ class EnvironmentStateReplacer {
 	 * @return bool
 	 */
 	private function delete_directory( string $dir ): bool {
+		if ( is_link( $dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content root during environment replacement.
+			return unlink( $dir );
+		}
+
 		if ( ! is_dir( $dir ) ) {
 			return false;
 		}
@@ -352,12 +374,18 @@ class EnvironmentStateReplacer {
 		);
 
 		foreach ( $iterator as $item ) {
+			$item_path = $item->getPathname();
+			if ( $item->isLink() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during environment replacement.
+				unlink( $item_path );
+				continue;
+			}
 			if ( $item->isDir() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removing directory during environment replacement.
-				rmdir( $item->getPathname() );
+				rmdir( $item_path );
 			} else {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing file during environment replacement.
-				unlink( $item->getPathname() );
+				unlink( $item_path );
 			}
 		}
 

@@ -41,6 +41,8 @@ class Environment {
 	 * @param string|null $tracked_git_remote       Git remote this environment tracks as its deployed code source.
 	 * @param string|null $tracked_git_branch       Branch this environment treats as its stable mainline.
 	 * @param string|null $tracked_git_dir          Optional wp-content subdirectory associated with the tracked repository.
+	 * @param bool        $shared_plugins           Whether plugins are shared live from the host wp-content directory.
+	 * @param bool        $shared_uploads           Whether uploads are shared live from the host wp-content directory.
 	 * @param int|null    $record_id                DB record ID for the environment row.
 	 * @param int|null    $app_record_id            DB record ID for the related app row, when present.
 	 */
@@ -71,6 +73,8 @@ class Environment {
 		public readonly ?string $tracked_git_remote = null,
 		public readonly ?string $tracked_git_branch = null,
 		public readonly ?string $tracked_git_dir = null,
+		public readonly bool $shared_plugins = false,
+		public readonly bool $shared_uploads = false,
 		public readonly ?int $record_id = null,
 		public readonly ?int $app_record_id = null,
 	) {}
@@ -138,6 +142,8 @@ class Environment {
 			tracked_git_remote: self::string_or_null( $record['tracked_git_remote'] ?? null ),
 			tracked_git_branch: self::string_or_null( $record['tracked_git_branch'] ?? null ),
 			tracked_git_dir: self::string_or_null( $record['tracked_git_dir'] ?? null ),
+			shared_plugins: ! empty( $record['shared_plugins'] ),
+			shared_uploads: ! empty( $record['shared_uploads'] ),
 			record_id: isset( $record['id'] ) ? (int) $record['id'] : null,
 			app_record_id: isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
 		);
@@ -256,6 +262,15 @@ class Environment {
 		}
 
 		return $base . '/' . ltrim( $relative, '/' );
+	}
+
+	/**
+	 * Shared top-level wp-content directories for this environment.
+	 *
+	 * @return array<int, string>
+	 */
+	public function shared_content_directories(): array {
+		return EnvironmentContentLayout::shared_directories( $this );
 	}
 
 	/**
@@ -646,6 +661,9 @@ class Environment {
 		if ( null !== $this->tracked_git_dir ) {
 			$data['tracked_git_dir'] = $this->tracked_git_dir;
 		}
+
+		$data['shared_plugins'] = $this->shared_plugins;
+		$data['shared_uploads'] = $this->shared_uploads;
 
 		return $data;
 	}

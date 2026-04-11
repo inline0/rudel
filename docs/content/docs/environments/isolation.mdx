@@ -44,6 +44,19 @@ Rudel does not treat host or network theme/plugin directories as the runtime
 source of truth for a live app or sandbox. Once you are inside an environment,
 its local `wp-content` is the environment.
 
+By default, that means themes, plugins, and uploads are all local to the
+environment. Rudel also supports an opt-in shared mode for `plugins` and
+`uploads` only. In that mode, the environment still owns the local
+`wp-content` root, but those two top-level directories become links back to
+the host `wp-content` directories. Themes stay local.
+
+That shared mode is a deliberate tradeoff, not a hidden fallback:
+
+- `shared_plugins` means plugin code is live-shared with the host
+- `shared_uploads` means media files are live-shared with the host
+- shared directories are excluded from Rudel-owned snapshot/template copying and deploy replacement
+- shared plugins cannot be combined with plugin-tracked Git directories
+
 ## Environment directories
 
 Each environment also has a generated directory containing:

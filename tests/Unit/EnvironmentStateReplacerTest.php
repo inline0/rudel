@@ -328,4 +328,89 @@ class EnvironmentStateReplacerTest extends RudelTestCase
         $this->assertSame('feature-admin', $targetUsers[0]['user_login'] ?? null);
         $this->assertSame('wp_3_capabilities', $targetUsermeta[0]['meta_key'] ?? null);
     }
+
+    public function testReplacePreservesSharedPluginsAndUploadsOnTheTarget(): void
+    {
+        global $wpdb;
+
+        $wpdb = new \MockWpdb();
+        $wpdb->base_prefix = 'wp_';
+
+        $hostWpContent = $this->tmpDir . '/host-wp-content';
+        $sourcePath = $this->tmpDir . '/source-shared';
+        $targetPath = $this->tmpDir . '/target-shared';
+
+        if (! defined('WP_CONTENT_DIR')) {
+            define('WP_CONTENT_DIR', $hostWpContent);
+        }
+
+        mkdir($hostWpContent . '/plugins/demo-plugin', 0755, true);
+        mkdir($hostWpContent . '/uploads/2026/04', 0755, true);
+        mkdir($sourcePath . '/wp-content/themes/source-theme', 0755, true);
+        mkdir($targetPath . '/wp-content/themes/target-theme', 0755, true);
+
+        file_put_contents($hostWpContent . '/plugins/demo-plugin/demo-plugin.php', '<?php');
+        file_put_contents($hostWpContent . '/uploads/2026/04/demo.txt', 'shared upload');
+        file_put_contents($sourcePath . '/wp-content/themes/source-theme/style.css', 'source css');
+        file_put_contents($targetPath . '/wp-content/themes/target-theme/style.css', 'target css');
+
+        symlink($hostWpContent . '/plugins', $sourcePath . '/wp-content/plugins');
+        symlink($hostWpContent . '/uploads', $sourcePath . '/wp-content/uploads');
+        symlink($hostWpContent . '/plugins', $targetPath . '/wp-content/plugins');
+        symlink($hostWpContent . '/uploads', $targetPath . '/wp-content/uploads');
+
+        $wpdb->addTable(
+            'wp_2_options',
+            'CREATE TABLE `wp_2_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            [
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://feature.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://feature.example.test'],
+            ]
+        );
+        $wpdb->addTable(
+            'wp_3_options',
+            'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            [
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://app.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://app.example.test'],
+            ]
+        );
+
+        $source = new Environment(
+            id: 'feature',
+            name: 'Feature',
+            path: $sourcePath,
+            created_at: '2026-01-01T00:00:00+00:00',
+            multisite: true,
+            engine: 'subsite',
+            blog_id: 2,
+            type: 'sandbox',
+            shared_plugins: true,
+            shared_uploads: true
+        );
+        $target = new Environment(
+            id: 'demo',
+            name: 'Demo',
+            path: $targetPath,
+            created_at: '2026-01-01T00:00:00+00:00',
+            multisite: true,
+            engine: 'subsite',
+            blog_id: 3,
+            type: 'app',
+            domains: ['demo.example.test'],
+            shared_plugins: true,
+            shared_uploads: true
+        );
+
+        (new EnvironmentStateReplacer())->replace($source, $target);
+
+        $this->assertTrue(is_link($targetPath . '/wp-content/plugins'));
+        $this->assertTrue(is_link($targetPath . '/wp-content/uploads'));
+        $this->assertSame($hostWpContent . '/plugins', readlink($targetPath . '/wp-content/plugins'));
+        $this->assertSame($hostWpContent . '/uploads', readlink($targetPath . '/wp-content/uploads'));
+        $this->assertFileExists($targetPath . '/wp-content/plugins/demo-plugin/demo-plugin.php');
+        $this->assertFileExists($targetPath . '/wp-content/uploads/2026/04/demo.txt');
+        $this->assertFileExists($targetPath . '/wp-content/themes/source-theme/style.css');
+        $this->assertDirectoryDoesNotExist($targetPath . '/wp-content/themes/target-theme');
+    }
 }

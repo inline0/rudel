@@ -71,6 +71,52 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreateCanSharePluginsAndUploadsWithTheHostContentTree(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content/plugins/demo-plugin', 0755, true);
+        mkdir($wordpressRoot . '/wp-content/uploads/2026/04', 0755, true);
+
+        file_put_contents($wordpressRoot . '/wp-content/plugins/demo-plugin/demo-plugin.php', '<?php');
+        file_put_contents($wordpressRoot . '/wp-content/uploads/2026/04/demo.txt', 'shared upload');
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/sandboxes',
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $environment = $manager->create('Shared Content Site', [
+            'shared_plugins' => true,
+            'shared_uploads' => true,
+        ]);
+
+        $this->assertTrue($environment->shared_plugins);
+        $this->assertTrue($environment->shared_uploads);
+        $this->assertTrue(is_link($environment->path . '/wp-content/plugins'));
+        $this->assertTrue(is_link($environment->path . '/wp-content/uploads'));
+        $this->assertDirectoryExists($environment->path . '/wp-content/themes');
+        $this->assertFalse(is_link($environment->path . '/wp-content/themes'));
+        $this->assertFileExists($environment->path . '/wp-content/plugins/demo-plugin/demo-plugin.php');
+        $this->assertFileExists($environment->path . '/wp-content/uploads/2026/04/demo.txt');
+        $this->assertSame(
+            $wordpressRoot . '/wp-content/plugins',
+            readlink($environment->path . '/wp-content/plugins')
+        );
+        $this->assertSame(
+            $wordpressRoot . '/wp-content/uploads',
+            readlink($environment->path . '/wp-content/uploads')
+        );
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateAppWritesCanonicalDomainIntoRuntimeArtifacts(): void
     {
         $wordpressRoot = $this->tmpDir . '/wordpress';

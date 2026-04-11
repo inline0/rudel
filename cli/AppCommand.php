@@ -56,6 +56,12 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--clone-uploads]
 	 * : Copy host uploads.
 	 *
+	 * [--shared-plugins]
+	 * : Link app plugins to the host plugins directory instead of cloning them.
+	 *
+	 * [--shared-uploads]
+	 * : Link app uploads to the host uploads directory instead of cloning them.
+	 *
 	 * [--clone-all]
 	 * : Clone everything.
 	 *
@@ -112,6 +118,14 @@ class AppCommand extends \WP_CLI_Command {
 			$this->build_git_tracking_changes( $assoc_args ),
 			$this->build_policy_changes( $assoc_args )
 		);
+
+		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
+			$options['shared_plugins'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-plugins', false );
+		}
+
+		if ( array_key_exists( 'shared-uploads', $assoc_args ) ) {
+			$options['shared_uploads'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-uploads', false );
+		}
 
 		WP_CLI::log( "Creating app '{$name}' for {$domain}..." );
 
@@ -373,6 +387,12 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--purpose=<purpose>]
 	 * : Optional description of why the sandbox exists.
 	 *
+	 * [--shared-plugins]
+	 * : Link sandbox plugins to the host plugins directory instead of keeping isolated copies.
+	 *
+	 * [--shared-uploads]
+	 * : Link sandbox uploads to the host uploads directory instead of keeping isolated copies.
+	 *
 	 * [--protected]
 	 * : Exclude the sandbox from automated cleanup.
 	 *
@@ -399,6 +419,13 @@ class AppCommand extends \WP_CLI_Command {
 
 		$name    = $assoc_args['name'] ?? "{$app->name} Sandbox";
 		$options = $this->build_policy_changes( $assoc_args );
+		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
+			$options['shared_plugins'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-plugins', false );
+		}
+
+		if ( array_key_exists( 'shared-uploads', $assoc_args ) ) {
+			$options['shared_uploads'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-uploads', false );
+		}
 
 		try {
 			$sandbox = $this->manager->create_sandbox( $id, $name, $options );

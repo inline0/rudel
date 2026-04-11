@@ -181,6 +181,8 @@ abstract class RudelTestCase extends TestCase
             tracked_git_remote: isset($meta['tracked_git_remote']) && is_scalar($meta['tracked_git_remote']) ? (string) $meta['tracked_git_remote'] : null,
             tracked_git_branch: isset($meta['tracked_git_branch']) && is_scalar($meta['tracked_git_branch']) ? (string) $meta['tracked_git_branch'] : null,
             tracked_git_dir: isset($meta['tracked_git_dir']) && is_scalar($meta['tracked_git_dir']) ? (string) $meta['tracked_git_dir'] : null,
+            shared_plugins: ! empty($meta['shared_plugins']),
+            shared_uploads: ! empty($meta['shared_uploads']),
         );
 
         $repository = $this->environmentRepository((string) ($meta['type'] ?? 'sandbox'));

@@ -642,6 +642,41 @@ else
 fi
 
 echo ""
+echo -e "${BOLD}Shared plugins and uploads${NC}"
+
+wp_shell "mkdir -p /var/www/html/wp-content/plugins/shared-demo /var/www/html/wp-content/uploads/2026/04 && printf '<?php\n' > /var/www/html/wp-content/plugins/shared-demo/shared-demo.php && printf 'shared upload' > /var/www/html/wp-content/uploads/2026/04/shared.txt" >/dev/null
+
+SHARED_OUTPUT=$(wp_cli rudel create --name=shared-content --shared-plugins --shared-uploads)
+SHARED_ID=$(parse_created_id "Sandbox created" "$SHARED_OUTPUT")
+if [[ -n "$SHARED_ID" ]]; then
+	SANDBOX_IDS+=("$SHARED_ID")
+	pass "Created sandbox ${SHARED_ID} with shared plugins/uploads"
+else
+	fail "Shared sandbox creation failed" "$SHARED_OUTPUT"
+	exit 1
+fi
+
+SHARED_INFO_JSON=$(environment_json "$SHARED_ID")
+SHARED_PATH=$(printf '%s' "$SHARED_INFO_JSON" | json_field path)
+if printf '%s' "$SHARED_INFO_JSON" | grep -Fq '"shared_plugins":true' && printf '%s' "$SHARED_INFO_JSON" | grep -Fq '"shared_uploads":true'; then
+	pass "Sandbox info reports shared plugins/uploads metadata"
+else
+	fail "Sandbox info did not report shared plugins/uploads metadata" "$SHARED_INFO_JSON"
+fi
+
+if wp_shell "[[ -L '${SHARED_PATH}/wp-content/plugins' && -L '${SHARED_PATH}/wp-content/uploads' ]]" >/dev/null 2>&1; then
+	pass "Shared sandbox links plugins and uploads into its local wp-content"
+else
+	fail "Shared sandbox did not create plugins/uploads links" "$SHARED_PATH"
+fi
+
+if wp_shell "[[ -f '${SHARED_PATH}/wp-content/plugins/shared-demo/shared-demo.php' && -f '${SHARED_PATH}/wp-content/uploads/2026/04/shared.txt' ]]" >/dev/null 2>&1; then
+	pass "Shared sandbox sees host plugin and upload content through those links"
+else
+	fail "Shared sandbox could not see host plugin/upload content" "$SHARED_PATH"
+fi
+
+echo ""
 echo -e "${BOLD}App lifecycle${NC}"
 
 APP_DOMAIN="demo.example.test"
@@ -810,6 +845,54 @@ if echo "$APP_DEPLOYMENTS" | grep -q '"deployed_at"'; then
 	pass "App deployments are recorded"
 else
 	fail "App deployments list is empty" "$APP_DEPLOYMENTS"
+fi
+
+SHARED_APP_DOMAIN="shared.example.test"
+SHARED_APP_OUTPUT=$(wp_cli rudel app create --name="Shared App" --domain="$SHARED_APP_DOMAIN" --shared-plugins --shared-uploads)
+SHARED_APP_ID=$(parse_created_id "App created" "$SHARED_APP_OUTPUT")
+if [[ -n "$SHARED_APP_ID" ]]; then
+	APP_IDS+=("$SHARED_APP_ID")
+	pass "Created app ${SHARED_APP_ID} with shared plugins/uploads"
+else
+	fail "Shared app creation failed" "$SHARED_APP_OUTPUT"
+	exit 1
+fi
+
+SHARED_APP_INFO_JSON=$(wp_cli rudel app info "$SHARED_APP_ID" --format=json)
+if printf '%s' "$SHARED_APP_INFO_JSON" | grep -Fq '"shared_plugins":true' && printf '%s' "$SHARED_APP_INFO_JSON" | grep -Fq '"shared_uploads":true'; then
+	pass "App info reports shared plugins/uploads metadata"
+else
+	fail "App info did not report shared plugins/uploads metadata" "$SHARED_APP_INFO_JSON"
+fi
+
+SHARED_FEATURE_OUTPUT=$(wp_cli rudel app create-sandbox "$SHARED_APP_ID" --name="Shared App Feature")
+SHARED_FEATURE_ID=$(parse_created_id "Sandbox created from app" "$SHARED_FEATURE_OUTPUT")
+if [[ -n "$SHARED_FEATURE_ID" ]]; then
+	SANDBOX_IDS+=("$SHARED_FEATURE_ID")
+	pass "Created shared app-derived sandbox ${SHARED_FEATURE_ID}"
+else
+	fail "Shared app-derived sandbox creation failed" "$SHARED_FEATURE_OUTPUT"
+	exit 1
+fi
+
+SHARED_FEATURE_INFO_JSON=$(environment_json "$SHARED_FEATURE_ID")
+SHARED_FEATURE_PATH=$(printf '%s' "$SHARED_FEATURE_INFO_JSON" | json_field path)
+if printf '%s' "$SHARED_FEATURE_INFO_JSON" | grep -Fq '"shared_plugins":true' && printf '%s' "$SHARED_FEATURE_INFO_JSON" | grep -Fq '"shared_uploads":true'; then
+	pass "App-derived sandbox inherits shared plugins/uploads metadata"
+else
+	fail "App-derived sandbox did not inherit shared plugins/uploads metadata" "$SHARED_FEATURE_INFO_JSON"
+fi
+
+if wp_shell "[[ -L '${SHARED_FEATURE_PATH}/wp-content/plugins' && -L '${SHARED_FEATURE_PATH}/wp-content/uploads' ]]" >/dev/null 2>&1; then
+	pass "App-derived shared sandbox links plugins and uploads into its local wp-content"
+else
+	fail "App-derived shared sandbox did not create plugins/uploads links" "$SHARED_FEATURE_PATH"
+fi
+
+if wp_shell "[[ -f '${SHARED_FEATURE_PATH}/wp-content/plugins/shared-demo/shared-demo.php' && -f '${SHARED_FEATURE_PATH}/wp-content/uploads/2026/04/shared.txt' ]]" >/dev/null 2>&1; then
+	pass "App-derived shared sandbox sees host plugin and upload content"
+else
+	fail "App-derived shared sandbox could not see host plugin/upload content" "$SHARED_FEATURE_PATH"
 fi
 
 echo ""

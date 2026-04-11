@@ -93,6 +93,11 @@ tree is the only code and file source of truth for that environment. Worktrees
 live inside that environment-local tree as well, and an environment-local
 `db.php` drop-in points WordPress at that environment's isolated user tables.
 
+If you want a lighter-weight layout, Rudel also supports opt-in shared
+`plugins` and `uploads`. That keeps the environment-local `wp-content` root
+but links those two directories back to the host instead of copying them.
+Themes stay local.
+
 Apps add one extra rule on top of that: when an app has a primary mapped
 domain, Rudel treats that domain as the app's canonical URL in its API,
 deploy rewrites, and generated local tooling. The underlying multisite subsite

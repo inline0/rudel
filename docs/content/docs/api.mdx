@@ -181,6 +181,17 @@ Create a sandbox.
 
 This still requires a live WordPress multisite runtime.
 
+Relevant create options include:
+
+- `clone_db`
+- `clone_themes`
+- `clone_plugins`
+- `clone_uploads`
+- `clone_from`
+- `shared_plugins`
+- `shared_uploads`
+- `template`
+
 ### `Rudel::update( string $id, array $changes )`
 
 Update sandbox metadata.
@@ -237,6 +248,9 @@ Create an app.
 
 This still requires a live WordPress multisite runtime.
 
+App creation accepts the same content-layout options as sandbox creation,
+including `shared_plugins` and `shared_uploads`.
+
 ### `Rudel::update_app( string $id, array $changes )`
 
 Update app metadata.
@@ -252,6 +266,9 @@ This still requires a live WordPress multisite runtime.
 Create a sandbox cloned from an app.
 
 This still requires a live WordPress multisite runtime.
+
+App-derived sandboxes inherit the app's shared plugins/uploads policy unless
+the create options override it explicitly.
 
 ### `Rudel::backup_app( string $app_id, string $name )`
 

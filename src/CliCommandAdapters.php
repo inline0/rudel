@@ -432,6 +432,13 @@ class CliCommandAdapters {
 		}
 
 		$options = self::policy_changes( $assoc_args );
+		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
+			$options['shared_plugins'] = self::flag( $assoc_args, 'shared-plugins' );
+		}
+
+		if ( array_key_exists( 'shared-uploads', $assoc_args ) ) {
+			$options['shared_uploads'] = self::flag( $assoc_args, 'shared-uploads' );
+		}
 
 		return self::php_plan(
 			Rudel::class . '::create_sandbox_from_app',
@@ -877,6 +884,14 @@ class CliCommandAdapters {
 			self::policy_changes( $assoc_args )
 		);
 
+		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
+			$options['shared_plugins'] = self::flag( $assoc_args, 'shared-plugins' );
+		}
+
+		if ( array_key_exists( 'shared-uploads', $assoc_args ) ) {
+			$options['shared_uploads'] = self::flag( $assoc_args, 'shared-uploads' );
+		}
+
 		if ( null !== $clone_from ) {
 			$options['clone_from'] = $clone_from;
 		}
@@ -892,8 +907,7 @@ class CliCommandAdapters {
 	 */
 	private static function app_create_options( array $assoc_args ): array {
 		$clone_all = self::flag( $assoc_args, 'clone-all' );
-
-		return array_merge(
+		$options   = array_merge(
 			array(
 				'clone_from'    => self::optional_assoc( $assoc_args, 'clone-from' ),
 				'clone_db'      => $clone_all || self::flag( $assoc_args, 'clone-db' ),
@@ -904,5 +918,15 @@ class CliCommandAdapters {
 			self::git_tracking_changes( $assoc_args ),
 			self::policy_changes( $assoc_args )
 		);
+
+		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
+			$options['shared_plugins'] = self::flag( $assoc_args, 'shared-plugins' );
+		}
+
+		if ( array_key_exists( 'shared-uploads', $assoc_args ) ) {
+			$options['shared_uploads'] = self::flag( $assoc_args, 'shared-uploads' );
+		}
+
+		return $options;
 	}
 }

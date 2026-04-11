@@ -33,6 +33,8 @@ class EnvironmentRepositoryTest extends RudelTestCase
                 'tracked_git_remote' => 'https://example.test/client-fix.git',
                 'tracked_git_branch' => 'release',
                 'tracked_git_dir' => 'themes/client-fix',
+                'shared_plugins' => true,
+                'shared_uploads' => true,
             ],
             'sandbox'
         );
@@ -42,6 +44,8 @@ class EnvironmentRepositoryTest extends RudelTestCase
         $this->assertSame('https://example.test/client-fix.git', $updated->tracked_git_remote);
         $this->assertSame('release', $updated->tracked_git_branch);
         $this->assertSame('themes/client-fix', $updated->tracked_git_dir);
+        $this->assertTrue($updated->shared_plugins);
+        $this->assertTrue($updated->shared_uploads);
     }
 
     public function testSaveRollsBackWhenWorktreePersistenceFails(): void

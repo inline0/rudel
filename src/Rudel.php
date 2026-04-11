@@ -441,13 +441,17 @@ class Rudel {
 	 * @param array  $options Sandbox create options plus optional 'name' and 'type'.
 	 * @return array{environment: Environment, git: array{remote: string, branch: string, base_branch: string|null, repo_name: string, content_type: string, checkout_dir: string, error: string|null}}
 	 *
-	 * @throws \RuntimeException If sandbox creation fails before the Git bootstrap step can run.
+	 * @throws \InvalidArgumentException If the requested content layout conflicts with the Git checkout type.
 	 */
 	public static function create_from_git( string $remote_url, array $options = array() ): array {
 		self::require_wordpress_runtime( 'Rudel::create_from_git()' );
 		$name         = isset( $options['name'] ) ? (string) $options['name'] : basename( preg_replace( '/\.git$/', '', $remote_url ) );
 		$content_type = isset( $options['type'] ) ? (string) $options['type'] : 'theme';
 		unset( $options['name'], $options['type'] );
+
+		if ( 'plugin' === $content_type && ! empty( $options['shared_plugins'] ) ) {
+			throw new \InvalidArgumentException( 'Shared plugins cannot be combined with plugin Git checkouts.' );
+		}
 
 		$sandbox = self::create( $name, $options );
 		$branch  = $sandbox->get_git_branch();

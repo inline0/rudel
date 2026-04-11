@@ -646,6 +646,15 @@ class AppManager {
 			throw new \InvalidArgumentException( 'Tracked Git branch and directory require a Git remote.' );
 		}
 
+		$shared_plugins = array_key_exists( 'shared_plugins', $normalized )
+			? ! empty( $normalized['shared_plugins'] )
+			: ( $app ? $app->shared_plugins : false );
+		$tracked_git_dir = array_key_exists( 'tracked_git_dir', $normalized )
+			? ( is_scalar( $normalized['tracked_git_dir'] ) ? (string) $normalized['tracked_git_dir'] : null )
+			: ( $app ? $app->tracked_git_dir : null );
+
+		$this->validate_shared_git_tracking( $shared_plugins, $tracked_git_dir );
+
 		return $normalized;
 	}
 
@@ -688,6 +697,8 @@ class AppManager {
 			return $app;
 		}
 
+		$this->validate_shared_git_tracking( $app->shared_plugins, $source->get_git_dir() );
+
 		return $this->manager->update( $app->id, $changes );
 	}
 
@@ -721,7 +732,23 @@ class AppManager {
 			return $sandbox;
 		}
 
+		$this->validate_shared_git_tracking( $sandbox->shared_plugins, $app->get_git_dir() );
+
 		return $this->sandbox_manager->update( $sandbox->id, $changes );
+	}
+
+	/**
+	 * Reject tracked plugin directories when plugins are shared live from the host.
+	 *
+	 * @param bool        $shared_plugins Whether plugins are shared with the host.
+	 * @param string|null $tracked_git_dir Optional tracked wp-content subdirectory.
+	 * @return void
+	 * @throws \InvalidArgumentException When shared plugins are combined with plugin-tracked Git directories.
+	 */
+	private function validate_shared_git_tracking( bool $shared_plugins, ?string $tracked_git_dir ): void {
+		if ( EnvironmentContentLayout::conflicts_with_shared_plugins( $shared_plugins, $tracked_git_dir ) ) {
+			throw new \InvalidArgumentException( 'Shared plugins cannot be combined with plugin-tracked Git directories.' );
+		}
 	}
 
 	/**

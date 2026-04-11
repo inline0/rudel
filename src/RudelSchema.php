@@ -84,6 +84,8 @@ class RudelSchema {
 				tracked_git_remote VARCHAR(191) NULL,
 				tracked_git_branch VARCHAR(191) NULL,
 				tracked_git_dir VARCHAR(191) NULL,
+				shared_plugins TINYINT(1) NOT NULL DEFAULT 0,
+				shared_uploads TINYINT(1) NOT NULL DEFAULT 0,
 				created_at VARCHAR(32) NOT NULL,
 				updated_at VARCHAR(32) NOT NULL,
 				PRIMARY KEY (id),
@@ -169,6 +171,8 @@ class RudelSchema {
 		self::ensure_column( $store, $environments, 'tracked_git_remote', 'VARCHAR(191) NULL' );
 		self::ensure_column( $store, $environments, 'tracked_git_branch', 'VARCHAR(191) NULL' );
 		self::ensure_column( $store, $environments, 'tracked_git_dir', 'VARCHAR(191) NULL' );
+		self::ensure_column( $store, $environments, 'shared_plugins', 'TINYINT(1) NOT NULL DEFAULT 0' );
+		self::ensure_column( $store, $environments, 'shared_uploads', 'TINYINT(1) NOT NULL DEFAULT 0' );
 		self::backfill_column( $store, $environments, 'tracked_git_remote', 'tracked_github_repo' );
 		self::backfill_column( $store, $environments, 'tracked_git_branch', 'tracked_github_branch' );
 		self::backfill_column( $store, $environments, 'tracked_git_dir', 'tracked_github_dir' );

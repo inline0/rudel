@@ -122,8 +122,7 @@ class SnapshotManager {
 			);
 			// phpcs:enable
 
-			$content_cloner = new ContentCloner();
-			$content_cloner->copy_directory( $this->environment->get_wp_content_path(), $point_path . '/wp-content' );
+			EnvironmentContentLayout::copy_owned_wp_content( $this->environment, $point_path . '/wp-content' );
 
 			$meta = array(
 				'name'              => $name,
@@ -259,6 +258,7 @@ class SnapshotManager {
 			}
 
 			$this->write_runtime_files( $environment_content );
+			EnvironmentContentLayout::materialize_for_environment( $this->environment );
 
 			$this->environment->update_meta_batch(
 				array(
@@ -436,6 +436,11 @@ class SnapshotManager {
 	 * @return bool True on success.
 	 */
 	private function delete_directory( string $dir ): bool {
+		if ( is_link( $dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during recovery point cleanup.
+			return unlink( $dir );
+		}
+
 		if ( ! is_dir( $dir ) ) {
 			return false;
 		}
@@ -446,12 +451,18 @@ class SnapshotManager {
 		);
 
 		foreach ( $iterator as $item ) {
+			$item_path = $item->getPathname();
+			if ( $item->isLink() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during recovery point cleanup.
+				unlink( $item_path );
+				continue;
+			}
 			if ( $item->isDir() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removing empty directory during recovery point cleanup.
-				rmdir( $item->getPathname() );
+				rmdir( $item_path );
 			} else {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing file during recovery point cleanup.
-				unlink( $item->getPathname() );
+				unlink( $item_path );
 			}
 		}
 

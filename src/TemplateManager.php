@@ -60,8 +60,7 @@ class TemplateManager {
 			throw new \RuntimeException( sprintf( 'Failed to create template directory: %s', $template_path ) );
 		}
 
-		$content_cloner = new ContentCloner();
-		$content_cloner->copy_directory( $sandbox->get_wp_content_path(), $template_path . '/wp-content' );
+		EnvironmentContentLayout::copy_owned_wp_content( $sandbox, $template_path . '/wp-content' );
 
 		$meta = array(
 			'name'              => $name,
@@ -189,6 +188,11 @@ class TemplateManager {
 	 * @return bool True on success.
 	 */
 	private function delete_directory( string $dir ): bool {
+		if ( is_link( $dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during template cleanup.
+			return unlink( $dir );
+		}
+
 		if ( ! is_dir( $dir ) ) {
 			return false;
 		}
@@ -199,16 +203,22 @@ class TemplateManager {
 		);
 
 		foreach ( $iterator as $item ) {
+			$item_path = $item->getPathname();
 			if ( ! $item->isWritable() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Handling read-only files during template cleanup.
-				chmod( $item->getPathname(), 0644 );
+				chmod( $item_path, 0644 );
+			}
+			if ( $item->isLink() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during template cleanup.
+				unlink( $item_path );
+				continue;
 			}
 			if ( $item->isDir() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Recursive directory removal during template delete.
-				rmdir( $item->getPathname() );
+				rmdir( $item_path );
 			} else {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- File deletion during template cleanup.
-				unlink( $item->getPathname() );
+				unlink( $item_path );
 			}
 		}
 
