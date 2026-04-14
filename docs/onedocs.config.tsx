@@ -68,7 +68,7 @@ export default defineConfig({
       {
         title: "Agent Ready",
         description:
-          "Built for AI coding agents with scoped WP-CLI, error logging, and CLAUDE.md per environment.",
+          "Built for isolated WordPress environments with scoped WP-CLI and error logging.",
         icon: <Bot className={iconClass} />,
       },
     ],

@@ -244,7 +244,6 @@ class EnvironmentManager {
 				$user_tables['usermeta_table']
 			);
 			$this->write_wp_cli_yml( $path, $target_url );
-			$this->write_claude_md( $id, $name, $path );
 
 			if ( $clone_from ) {
 				$source_environment = $this->resolve_clone_source_environment( $clone_from );
@@ -953,30 +952,6 @@ class EnvironmentManager {
 		file_put_contents( $path . '/wp-cli.yml', $content );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.
 		chmod( $path . '/wp-cli.yml', 0444 );
-	}
-
-	/**
-	 * Write the per-environment CLAUDE.md.
-	 *
-	 * @param string $id   Environment identifier.
-	 * @param string $name Human-readable name.
-	 * @param string $path Absolute path to the environment directory.
-	 * @return void
-	 */
-	private function write_claude_md( string $id, string $name, string $path ): void {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
-		$template = file_get_contents( $this->plugin_dir . 'templates/CLAUDE.md.tpl' );
-		$content  = strtr(
-			$template,
-			array(
-				'{{sandbox_id}}'   => $id,
-				'{{sandbox_name}}' => $name,
-			)
-		);
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing environment CLAUDE.md.
-		file_put_contents( $path . '/CLAUDE.md', $content );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.
-		chmod( $path . '/CLAUDE.md', 0444 );
 	}
 
 	/**
