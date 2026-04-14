@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.8.5 - 2026-04-14
+
+- Removed the generated per-environment `CLAUDE.md` file so Rudel stays focused on actual app and sandbox lifecycle concerns.
+- Kept the repo-level maintainer `CLAUDE.md` intact while removing the environment template and its last docs references.
+
 ## v0.8.4 - 2026-04-11
 
 - Added opt-in shared `plugins` and `uploads` layouts while keeping the default fully isolated environment model unchanged.
