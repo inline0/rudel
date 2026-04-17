@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.6 - 2026-04-17
 
 - Replaced the slow per-file PHP clone path for non-git content with batched archive-based copying so app and sandbox creation stay fast without weakening clone semantics.
 - Added a `PharData` fallback for hosts that disable `proc_open`, while keeping the recursive PHP copier only as the last resort.
