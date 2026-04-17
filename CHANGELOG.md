@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.7 - 2026-04-17
 
 - Added `content_exclude` for explicitly named top-level `wp-content` entries so downstream runtimes can skip copying globally supplied plugin, theme, or upload directories without weakening Rudel's broader clone contract.
 - Hardened environment cleanup so failed creates can remove nested read-only directories reliably instead of failing during teardown.
