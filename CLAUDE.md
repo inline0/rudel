@@ -14,6 +14,7 @@ composer test:unit
 composer test:integration
 composer test:security
 
+bash tests/e2e/benchmark-wp-env.sh
 bash tests/e2e/run-all.sh
 bash tests/run-all.sh
 npm --prefix docs run build
@@ -97,3 +98,9 @@ Define these before Rudel boots when you need non-default paths or naming:
 6. Keep CLI help, docs, tests, and `CliCommandMap` aligned with the shipped command surface.
 7. `tests/e2e/test-wp-env.sh` is the live proof of the multisite lifecycle contract. Keep it current.
 8. Prefer positive assertions of the current contract over legacy-removal assertions in tests.
+9. Clone semantics stay broad. If performance regresses, optimize the copy implementation first.
+10. The current copy stack is:
+    - native batched tar copy
+    - `PharData` batched fallback when `proc_open` is unavailable
+    - recursive PHP copy only as the last resort
+11. Use `bash tests/e2e/benchmark-wp-env.sh` as the reproducible performance baseline before changing clone behavior.

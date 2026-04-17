@@ -46,30 +46,48 @@ class GitIntegration {
 			return $results;
 		}
 
+		$git_entries   = array();
+		$plain_entries = array();
+
 		foreach ( $entries as $dir ) {
 			if ( '.' === $dir || '..' === $dir ) {
 				continue;
 			}
 
 			$source_path = $source_dir . '/' . $dir;
-			$target_path = $target_dir . '/' . $dir;
 
 			if ( ! is_dir( $source_path ) ) {
 				continue;
 			}
 
 			if ( $this->is_git_repo( $source_path ) ) {
-				$branch        = 'rudel/' . $environment_id;
-				$metadata_name = $this->worktree_metadata_name( $environment_id, basename( $target_dir ), $dir );
-				if ( $this->create_worktree( $source_path, $target_path, $branch, $metadata_name ) ) {
-					$results['worktrees'][] = array(
-						'name'          => $dir,
-						'branch'        => $branch,
-						'repo'          => $target_path,
-						'metadata_name' => $metadata_name,
-					);
-					continue;
-				}
+				$git_entries[] = $dir;
+				continue;
+			}
+
+			$plain_entries[] = $dir;
+		}
+
+		if ( ! empty( $plain_entries ) ) {
+			$cloner = new ContentCloner();
+			$cloner->copy_named_directories( $source_dir, $target_dir, $plain_entries );
+			$results['copied'] = array_values( array_merge( $results['copied'], $plain_entries ) );
+		}
+
+		foreach ( $git_entries as $dir ) {
+			$source_path   = $source_dir . '/' . $dir;
+			$target_path   = $target_dir . '/' . $dir;
+			$branch        = 'rudel/' . $environment_id;
+			$metadata_name = $this->worktree_metadata_name( $environment_id, basename( $target_dir ), $dir );
+
+			if ( $this->create_worktree( $source_path, $target_path, $branch, $metadata_name ) ) {
+				$results['worktrees'][] = array(
+					'name'          => $dir,
+					'branch'        => $branch,
+					'repo'          => $target_path,
+					'metadata_name' => $metadata_name,
+				);
+				continue;
 			}
 
 			$cloner = new ContentCloner();

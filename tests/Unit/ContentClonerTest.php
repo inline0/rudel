@@ -89,6 +89,45 @@ class ContentClonerTest extends RudelTestCase
         }
     }
 
+    public function testCopyNamedDirectoriesCopiesOnlyRequestedDirectories(): void
+    {
+        $sourceRoot = $this->hostWpContent . '/batch-source';
+        mkdir($sourceRoot . '/alpha', 0755, true);
+        mkdir($sourceRoot . '/beta', 0755, true);
+        mkdir($sourceRoot . '/gamma', 0755, true);
+        file_put_contents($sourceRoot . '/alpha/a.txt', 'alpha');
+        file_put_contents($sourceRoot . '/beta/b.txt', 'beta');
+        file_put_contents($sourceRoot . '/gamma/c.txt', 'gamma');
+
+        $targetRoot = $this->tmpDir . '/batch-target';
+        $this->cloner->copy_named_directories($sourceRoot, $targetRoot, ['alpha', 'gamma']);
+
+        $this->assertFileExists($targetRoot . '/alpha/a.txt');
+        $this->assertFileDoesNotExist($targetRoot . '/beta/b.txt');
+        $this->assertFileExists($targetRoot . '/gamma/c.txt');
+    }
+
+    public function testCopyNamedDirectoriesSkipsTransientEntriesDuringBatchCopy(): void
+    {
+        $sourceRoot = $this->hostWpContent . '/batch-transient-source';
+        mkdir($sourceRoot . '/alpha/.coverage', 0755, true);
+        mkdir($sourceRoot . '/alpha/node_modules', 0755, true);
+        mkdir($sourceRoot . '/alpha/.git', 0755, true);
+        mkdir($sourceRoot . '/alpha/theme', 0755, true);
+        file_put_contents($sourceRoot . '/alpha/theme/style.css', 'theme css');
+        file_put_contents($sourceRoot . '/alpha/.coverage/trace.php', '<?php');
+        file_put_contents($sourceRoot . '/alpha/node_modules/module.js', 'console.log(1);');
+        file_put_contents($sourceRoot . '/alpha/.git/config', '[core]');
+
+        $targetRoot = $this->tmpDir . '/batch-transient-target';
+        $this->cloner->copy_named_directories($sourceRoot, $targetRoot, ['alpha']);
+
+        $this->assertFileExists($targetRoot . '/alpha/theme/style.css');
+        $this->assertDirectoryDoesNotExist($targetRoot . '/alpha/.coverage');
+        $this->assertDirectoryDoesNotExist($targetRoot . '/alpha/node_modules');
+        $this->assertDirectoryDoesNotExist($targetRoot . '/alpha/.git');
+    }
+
     public function testCopyDirectorySkipsNestedTargetSubtree(): void
     {
         $source = $this->hostWpContent . '/recursive-source';
@@ -121,6 +160,40 @@ class ContentClonerTest extends RudelTestCase
         $this->assertDirectoryDoesNotExist($target . '/.coverage');
         $this->assertFileDoesNotExist($target . '/broken-link');
         $this->assertFileDoesNotExist($target . '/node_modules');
+    }
+
+    public function testCopyDirectoryWithPharCopiesFilesWhenInvokedDirectly(): void
+    {
+        $source = $this->hostWpContent . '/phar-source';
+        mkdir($source . '/subdir', 0755, true);
+        file_put_contents($source . '/root.txt', 'root');
+        file_put_contents($source . '/subdir/nested.txt', 'nested');
+
+        $target = $this->tmpDir . '/phar-target';
+        mkdir($target, 0755, true);
+
+        $method = new \ReflectionMethod($this->cloner, 'copy_directory_with_phar');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke($this->cloner, $source, $target));
+        $this->assertFileExists($target . '/root.txt');
+        $this->assertFileExists($target . '/subdir/nested.txt');
+    }
+
+    public function testCopyDirectoryWithPharReturnsFalseWhenSourceContainsSymlink(): void
+    {
+        $source = $this->hostWpContent . '/phar-symlink-source';
+        mkdir($source, 0755, true);
+        file_put_contents($source . '/root.txt', 'root');
+        symlink($source . '/root.txt', $source . '/linked-root.txt');
+
+        $target = $this->tmpDir . '/phar-symlink-target';
+        mkdir($target, 0755, true);
+
+        $method = new \ReflectionMethod($this->cloner, 'copy_directory_with_phar');
+        $method->setAccessible(true);
+
+        $this->assertFalse($method->invoke($this->cloner, $source, $target));
     }
 
     // clone_content() -- selective cloning

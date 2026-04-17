@@ -198,6 +198,37 @@ npm --prefix docs run build
 bash tests/run-all.sh
 ```
 
+## Clone Performance
+
+Rudel keeps clone semantics broad: a new app or sandbox still gets a real
+multisite site plus its own cloned `wp-content`. The performance work is in the
+copy implementation, not by weakening that contract.
+
+Current local baseline from the reproducible benchmark:
+
+```bash
+bash tests/e2e/benchmark-wp-env.sh
+```
+
+Example result:
+
+```json
+{
+  "app_create_ms": 1784,
+  "sandbox_create_ms": 2060,
+  "local_git_sandbox_create_ms": 1883
+}
+```
+
+The copy stack is intentionally tiered:
+
+- native batched tar copy when process execution is available
+- batched `PharData` archive fallback for hosts that disable `proc_open`
+- recursive PHP copy only as the last-resort fallback
+
+If clone performance regresses, measure it with `tests/e2e/benchmark-wp-env.sh`
+before changing clone semantics or narrowing what gets copied.
+
 ## Standalone Core Access
 
 If you need Rudel's registry outside WordPress, initialize it with a direct DB

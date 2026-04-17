@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Replaced the slow per-file PHP clone path for non-git content with batched archive-based copying so app and sandbox creation stay fast without weakening clone semantics.
+- Added a `PharData` fallback for hosts that disable `proc_open`, while keeping the recursive PHP copier only as the last resort.
+- Documented the reproducible `tests/e2e/benchmark-wp-env.sh` performance baseline and the current local timing floor for app and sandbox creation.
+
 ## v0.8.5 - 2026-04-14
 
 - Removed the generated per-environment `CLAUDE.md` file so Rudel stays focused on actual app and sandbox lifecycle concerns.

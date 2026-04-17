@@ -209,6 +209,38 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertFileExists($target . '/plain-theme/style.css');
     }
 
+    public function testCloneWithWorktreesCopiesMultiplePlainDirectoriesAlongsideGitWorktrees(): void
+    {
+        $source = $this->tmpDir . '/themes-batch-src';
+        mkdir($source, 0755, true);
+
+        $gitTheme = $source . '/git-theme';
+        mkdir($gitTheme, 0755, true);
+        $repo = Pitmaster::init($gitTheme);
+        $repo->config()->set('user.email', 't@t.com');
+        $repo->config()->set('user.name', 'T');
+        file_put_contents($gitTheme . '/style.css', 'body {}');
+        $repo->add('style.css');
+        $repo->commit('init');
+
+        mkdir($source . '/plain-theme-a/assets', 0755, true);
+        mkdir($source . '/plain-theme-b/templates', 0755, true);
+        file_put_contents($source . '/plain-theme-a/assets/app.css', 'body{}');
+        file_put_contents($source . '/plain-theme-b/templates/index.html', '<main />');
+
+        $target = $this->tmpDir . '/themes-batch-dst';
+        mkdir($target, 0755, true);
+
+        $results = $this->git->clone_with_worktrees($source, $target, 'batch-sandbox');
+
+        $this->assertCount(1, $results['worktrees']);
+        $this->assertContains('plain-theme-a', $results['copied']);
+        $this->assertContains('plain-theme-b', $results['copied']);
+        $this->assertFileExists($target . '/plain-theme-a/assets/app.css');
+        $this->assertFileExists($target . '/plain-theme-b/templates/index.html');
+        $this->assertFileExists($target . '/git-theme/style.css');
+    }
+
     public function testCreateWorktreeSupportsDistinctMetadataNamesForMatchingCheckoutBasenames(): void
     {
         $repo = $this->createGitRepo('collision-repo');
