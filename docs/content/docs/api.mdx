@@ -187,10 +187,25 @@ Relevant create options include:
 - `clone_themes`
 - `clone_plugins`
 - `clone_uploads`
+- `content_exclude`
 - `clone_from`
 - `shared_plugins`
 - `shared_uploads`
 - `template`
+
+`content_exclude` is for the narrow case where one top-level `wp-content`
+entry is already supplied outside the environment by another runtime layer.
+For example, a downstream product can keep `clone_plugins=true` while
+explicitly skipping one globally injected plugin:
+
+```php
+[
+    'clone_plugins'   => true,
+    'content_exclude' => [
+        'plugins' => [ 'runtime-core' ],
+    ],
+]
+```
 
 ### `Rudel::update( string $id, array $changes )`
 

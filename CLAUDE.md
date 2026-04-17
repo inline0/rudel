@@ -103,4 +103,7 @@ Define these before Rudel boots when you need non-default paths or naming:
     - native batched tar copy
     - `PharData` batched fallback when `proc_open` is unavailable
     - recursive PHP copy only as the last resort
-11. Use `bash tests/e2e/benchmark-wp-env.sh` as the reproducible performance baseline before changing clone behavior.
+11. `content_exclude` is only for explicitly named top-level `wp-content` entries that another runtime layer already guarantees. It is not a generic shortcut for shrinking clones.
+12. Keep Rudel product-neutral. Do not mention downstream product names in docs, comments, examples, changelogs, or release notes.
+13. If a downstream runtime injects one global plugin or other top-level `wp-content` entry, exclude only that entry and keep the rest of the clone broad.
+14. Use `bash tests/e2e/benchmark-wp-env.sh` as the reproducible performance baseline before changing clone behavior.

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added `content_exclude` for explicitly named top-level `wp-content` entries so downstream runtimes can skip copying globally supplied plugin, theme, or upload directories without weakening Rudel's broader clone contract.
+- Hardened environment cleanup so failed creates can remove nested read-only directories reliably instead of failing during teardown.
+- Documented the measured case where excluding one globally injected plugin copy path removed roughly `937 MB` of redundant plugin data from app clones and dropped local create times from roughly `22–32s` to roughly `2–4s`.
+
 ## v0.8.6 - 2026-04-17
 
 - Replaced the slow per-file PHP clone path for non-git content with batched archive-based copying so app and sandbox creation stay fast without weakening clone semantics.

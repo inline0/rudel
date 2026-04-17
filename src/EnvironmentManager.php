@@ -157,6 +157,7 @@ class EnvironmentManager {
 			$clone_themes   = ! empty( $options['clone_themes'] );
 			$clone_plugins  = ! empty( $options['clone_plugins'] );
 			$clone_uploads  = ! empty( $options['clone_uploads'] );
+			$content_exclude = $this->normalize_content_exclusions( $options['content_exclude'] ?? array() );
 			$shared_plugins_explicit = array_key_exists( 'shared_plugins', $options );
 			$shared_uploads_explicit = array_key_exists( 'shared_uploads', $options );
 			$shared_plugins          = ! empty( $options['shared_plugins'] );
@@ -277,7 +278,8 @@ class EnvironmentManager {
 					array(
 						'plugins' => $shared_plugins,
 						'uploads' => $shared_uploads,
-					)
+					),
+					$content_exclude
 				);
 				$clone_lineage = array(
 					'source_environment_id'   => $source_environment->id,
@@ -323,9 +325,10 @@ class EnvironmentManager {
 				$content_results = $content_cloner->clone_content(
 					$path . '/wp-content',
 					array(
-						'themes'  => $clone_themes,
-						'plugins' => $clone_plugins && ! $shared_plugins,
-						'uploads' => $clone_uploads && ! $shared_uploads,
+						'themes'          => $clone_themes,
+						'plugins'         => $clone_plugins && ! $shared_plugins,
+						'uploads'         => $clone_uploads && ! $shared_uploads,
+						'exclude_entries' => $content_exclude,
 					),
 					$id
 				);
@@ -1038,6 +1041,40 @@ class EnvironmentManager {
 	}
 
 	/**
+	 * Normalize requested top-level content exclusions for cloned wp-content roots.
+	 *
+	 * @param mixed $content_exclude Raw exclusion map keyed by directory group.
+	 * @return array<string, string[]>
+	 */
+	private function normalize_content_exclusions( $content_exclude ): array {
+		if ( ! is_array( $content_exclude ) ) {
+			return array();
+		}
+
+		$normalized = array();
+
+		foreach ( array( 'themes', 'plugins', 'uploads' ) as $group ) {
+			$entries = $content_exclude[ $group ] ?? array();
+			if ( ! is_array( $entries ) ) {
+				continue;
+			}
+
+			$normalized_entries = array_values(
+				array_filter(
+					array_map( 'strval', $entries ),
+					static fn( string $entry ): bool => '' !== $entry
+				)
+			);
+
+			if ( ! empty( $normalized_entries ) ) {
+				$normalized[ $group ] = $normalized_entries;
+			}
+		}
+
+		return $normalized;
+	}
+
+	/**
 	 * Apply requested site options into one environment database.
 	 *
 	 * @param string                     $id Environment identifier.
@@ -1152,11 +1189,12 @@ class EnvironmentManager {
 	/**
 	 * Clone one subdomain-multisite environment into another subdomain-multisite site.
 	 *
-	 * @param Environment         $source Source environment.
-	 * @param string              $target_id Target environment slug.
-	 * @param string              $target_path Target environment path.
-	 * @param int                 $target_blog_id Target multisite blog ID.
-	 * @param array<string, bool> $shared_content Shared top-level wp-content directories keyed by directory name.
+	 * @param Environment             $source Source environment.
+	 * @param string                  $target_id Target environment slug.
+	 * @param string                  $target_path Target environment path.
+	 * @param int                     $target_blog_id Target multisite blog ID.
+	 * @param array<string, bool>     $shared_content Shared top-level wp-content directories keyed by directory name.
+	 * @param array<string, string[]> $content_exclude Top-level wp-content entries to skip while cloning.
 	 * @return array<string, mixed>
 	 */
 	private function clone_from_subsite_environment(
@@ -1164,7 +1202,8 @@ class EnvironmentManager {
 		string $target_id,
 		string $target_path,
 		int $target_blog_id,
-		array $shared_content = array()
+		array $shared_content = array(),
+		array $content_exclude = array()
 	): array {
 		global $wpdb;
 
@@ -1178,7 +1217,7 @@ class EnvironmentManager {
 		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
 		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
 
-		$content_clone = $this->clone_environment_content( $source, $target_id, $target_path, $shared_content );
+		$content_clone = $this->clone_environment_content( $source, $target_id, $target_path, $shared_content, $content_exclude );
 
 		return Hooks::filter(
 			'rudel_environment_clone_source',
@@ -1215,10 +1254,11 @@ class EnvironmentManager {
 	/**
 	 * Clone wp-content from another environment while preserving git worktrees for code directories.
 	 *
-	 * @param Environment         $source Source environment.
-	 * @param string              $target_id New environment identifier.
-	 * @param string              $target_path New environment path.
-	 * @param array<string, bool> $shared_content Shared top-level wp-content directories keyed by directory name.
+	 * @param Environment             $source Source environment.
+	 * @param string                  $target_id New environment identifier.
+	 * @param string                  $target_path New environment path.
+	 * @param array<string, bool>     $shared_content Shared top-level wp-content directories keyed by directory name.
+	 * @param array<string, string[]> $content_exclude Top-level wp-content entries to skip while cloning.
 	 * @return array{
 	 *     git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string,metadata_name:string}>,
 	 *     themes_cloned: bool,
@@ -1226,7 +1266,7 @@ class EnvironmentManager {
 	 *     uploads_cloned: bool
 	 * }
 	 */
-	private function clone_environment_content( Environment $source, string $target_id, string $target_path, array $shared_content = array() ): array {
+	private function clone_environment_content( Environment $source, string $target_id, string $target_path, array $shared_content = array(), array $content_exclude = array() ): array {
 		$source_content = $source->get_wp_content_path();
 		$target_content = $target_path . '/wp-content';
 		$content_cloner = new ContentCloner();
@@ -1259,7 +1299,7 @@ class EnvironmentManager {
 					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating top-level content directory before git worktree clone.
 					mkdir( $target_pathname, 0755, true );
 
-					$results = $git->clone_with_worktrees( $source_path, $target_pathname, $target_id );
+					$results = $git->clone_with_worktrees( $source_path, $target_pathname, $target_id, $content_exclude[ $name ] ?? array() );
 					if ( 'themes' === $name ) {
 						$themes_cloned = true;
 					} elseif ( 'plugins' === $name ) {
@@ -1353,14 +1393,23 @@ class EnvironmentManager {
 
 		$iterator = new \RecursiveIteratorIterator(
 			new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS ),
-			\RecursiveIteratorIterator::CHILD_FIRST
+			\RecursiveIteratorIterator::CHILD_FIRST,
+			\RecursiveIteratorIterator::CATCH_GET_CHILD
 		);
 
 		foreach ( $iterator as $item ) {
 			$item_path = $item->getPathname();
+			if ( ! file_exists( $item_path ) && ! is_link( $item_path ) ) {
+				continue;
+			}
+			$parent_path = dirname( $item_path );
+			if ( is_dir( $parent_path ) && ! is_writable( $parent_path ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Restoring write access on the parent directory before cleanup.
+				chmod( $parent_path, 0755 );
+			}
 			if ( ! $item->isWritable() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Handling read-only generated files.
-				chmod( $item_path, 0644 );
+				chmod( $item_path, $item->isDir() ? 0755 : 0644 );
 			}
 			if ( $item->isLink() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during environment cleanup.
@@ -1369,11 +1418,21 @@ class EnvironmentManager {
 			}
 			if ( $item->isDir() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Direct recursive directory removal.
-				rmdir( $item_path );
-			} else {
+				if ( is_dir( $item_path ) ) {
+					rmdir( $item_path );
+				}
+			} elseif ( file_exists( $item_path ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Direct file deletion during directory cleanup.
 				unlink( $item_path );
 			}
+		}
+
+		if ( ! is_dir( $dir ) ) {
+			return true;
+		}
+		if ( ! is_writable( $dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Restoring write access on the root cleanup directory.
+			chmod( $dir, 0755 );
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removing now-empty directory.

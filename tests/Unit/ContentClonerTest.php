@@ -246,6 +246,31 @@ class ContentClonerTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCloneContentSkipsExcludedTopLevelEntries(): void
+    {
+        define('WP_CONTENT_DIR', $this->hostWpContent);
+
+        mkdir($this->hostWpContent . '/plugins/runtime-core', 0755, true);
+        mkdir($this->hostWpContent . '/plugins/akismet', 0755, true);
+        file_put_contents($this->hostWpContent . '/plugins/runtime-core/runtime-core.php', '<?php');
+        file_put_contents($this->hostWpContent . '/plugins/akismet/akismet.php', '<?php');
+
+        $result = $this->cloner->clone_content($this->sandboxWpContent, [
+            'themes' => false,
+            'plugins' => true,
+            'uploads' => false,
+            'exclude_entries' => [
+                'plugins' => ['runtime-core'],
+            ],
+        ]);
+
+        $this->assertSame('copied', $result['plugins']);
+        $this->assertFileDoesNotExist($this->sandboxWpContent . '/plugins/runtime-core/runtime-core.php');
+        $this->assertFileExists($this->sandboxWpContent . '/plugins/akismet/akismet.php');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCloneContentCopiesUploadsOnly(): void
     {
         define('WP_CONTENT_DIR', $this->hostWpContent);

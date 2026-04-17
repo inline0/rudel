@@ -50,6 +50,12 @@ environment. Rudel also supports an opt-in shared mode for `plugins` and
 `wp-content` root, but those two top-level directories become links back to
 the host `wp-content` directories. Themes stay local.
 
+There is one narrower performance escape hatch as well: `content_exclude`.
+That lets a caller skip explicitly named top-level entries inside `themes`,
+`plugins`, or `uploads` when another runtime layer already guarantees those
+entries externally. The intended case is a globally injected runtime plugin,
+not a general-purpose way to shrink clones.
+
 That shared mode is a deliberate tradeoff, not a hidden fallback:
 
 - `shared_plugins` means plugin code is live-shared with the host

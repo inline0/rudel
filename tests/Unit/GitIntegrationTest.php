@@ -241,17 +241,39 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertFileExists($target . '/git-theme/style.css');
     }
 
+    public function testCloneWithWorktreesSkipsExcludedTopLevelDirectories(): void
+    {
+        $source = $this->tmpDir . '/plugins-src';
+        mkdir($source, 0755, true);
+
+        mkdir($source . '/runtime-core', 0755, true);
+        mkdir($source . '/akismet', 0755, true);
+        file_put_contents($source . '/runtime-core/runtime-core.php', '<?php');
+        file_put_contents($source . '/akismet/akismet.php', '<?php');
+
+        $target = $this->tmpDir . '/plugins-dst';
+        mkdir($target, 0755, true);
+
+        $results = $this->git->clone_with_worktrees($source, $target, 'exclude-sandbox', ['runtime-core']);
+
+        $this->assertEmpty($results['worktrees']);
+        $this->assertContains('akismet', $results['copied']);
+        $this->assertNotContains('runtime-core', $results['copied']);
+        $this->assertDirectoryDoesNotExist($target . '/runtime-core');
+        $this->assertFileExists($target . '/akismet/akismet.php');
+    }
+
     public function testCreateWorktreeSupportsDistinctMetadataNamesForMatchingCheckoutBasenames(): void
     {
         $repo = $this->createGitRepo('collision-repo');
-        $firstTarget = $this->tmpDir . '/app/wp-content/themes/divine-child';
-        $secondTarget = $this->tmpDir . '/sandbox/wp-content/themes/divine-child';
+        $firstTarget = $this->tmpDir . '/app/wp-content/themes/site-child';
+        $secondTarget = $this->tmpDir . '/sandbox/wp-content/themes/site-child';
 
         $this->assertTrue(
-            $this->git->create_worktree($repo, $firstTarget, 'rudel/app-demo', 'rudel-app-demo-themes-divine-child-a1b2c3d4')
+            $this->git->create_worktree($repo, $firstTarget, 'rudel/app-demo', 'rudel-app-demo-themes-site-child-a1b2c3d4')
         );
         $this->assertTrue(
-            $this->git->create_worktree($repo, $secondTarget, 'rudel/sandbox-demo', 'rudel-sandbox-demo-themes-divine-child-d4c3b2a1')
+            $this->git->create_worktree($repo, $secondTarget, 'rudel/sandbox-demo', 'rudel-sandbox-demo-themes-site-child-d4c3b2a1')
         );
 
         $linkedWorktreeNames = array_values(
@@ -263,8 +285,8 @@ class GitIntegrationTest extends RudelTestCase
             )
         );
 
-        $this->assertContains('rudel-app-demo-themes-divine-child-a1b2c3d4', $linkedWorktreeNames);
-        $this->assertContains('rudel-sandbox-demo-themes-divine-child-d4c3b2a1', $linkedWorktreeNames);
+        $this->assertContains('rudel-app-demo-themes-site-child-a1b2c3d4', $linkedWorktreeNames);
+        $this->assertContains('rudel-sandbox-demo-themes-site-child-d4c3b2a1', $linkedWorktreeNames);
         $this->assertFileExists($firstTarget . '/file.txt');
         $this->assertFileExists($secondTarget . '/file.txt');
     }

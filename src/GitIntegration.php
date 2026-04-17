@@ -23,15 +23,16 @@ class GitIntegration {
 	/**
 	 * Scan a directory for git repos and create worktrees in the target.
 	 *
-	 * @param string $source_dir Source directory (e.g. host wp-content/themes).
-	 * @param string $target_dir Target directory (e.g. sandbox wp-content/themes).
-	 * @param string $environment_id Environment ID used for branch naming and worktree metadata naming.
+	 * @param string   $source_dir Source directory (e.g. host wp-content/themes).
+	 * @param string   $target_dir Target directory (e.g. sandbox wp-content/themes).
+	 * @param string   $environment_id Environment ID used for branch naming and worktree metadata naming.
+	 * @param string[] $exclude_entries Top-level directory names to skip while cloning.
 	 * @return array{
 	 *     worktrees: array<int, array{name:string, branch:string, repo:string, metadata_name:string}>,
 	 *     copied: string[]
 	 * }
 	 */
-	public function clone_with_worktrees( string $source_dir, string $target_dir, string $environment_id ): array {
+	public function clone_with_worktrees( string $source_dir, string $target_dir, string $environment_id, array $exclude_entries = array() ): array {
 		$results = array(
 			'worktrees' => array(),
 			'copied'    => array(),
@@ -51,6 +52,9 @@ class GitIntegration {
 
 		foreach ( $entries as $dir ) {
 			if ( '.' === $dir || '..' === $dir ) {
+				continue;
+			}
+			if ( in_array( $dir, $exclude_entries, true ) ) {
 				continue;
 			}
 

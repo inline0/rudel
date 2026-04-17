@@ -19,10 +19,10 @@ class ConnectionTest extends TestCase {
 	}
 
 	public function test_table_with_custom_prefix(): void {
-		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', 'divine_' );
+		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', 'tenant_' );
 
-		$this->assertSame( 'divine_rudel_apps', $conn->table( 'rudel_apps' ) );
-		$this->assertSame( 'divine_rudel_worktrees', $conn->table( 'rudel_worktrees' ) );
+		$this->assertSame( 'tenant_rudel_apps', $conn->table( 'rudel_apps' ) );
+		$this->assertSame( 'tenant_rudel_worktrees', $conn->table( 'rudel_worktrees' ) );
 	}
 
 	public function test_table_with_empty_prefix(): void {

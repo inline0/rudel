@@ -9,6 +9,32 @@ use Rudel\Tests\RudelTestCase;
 
 class EnvironmentManagerMultisiteTest extends RudelTestCase
 {
+    public function testDeleteDirectoryRemovesReadOnlyNestedDirectories(): void
+    {
+        $root = $this->tmpDir . '/cleanup-tree';
+        mkdir($root . '/nested/child', 0755, true);
+        file_put_contents($root . '/nested/child/example.txt', 'cleanup');
+
+        chmod($root . '/nested/child/example.txt', 0444);
+        chmod($root . '/nested/child', 0555);
+        chmod($root . '/nested', 0555);
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/sandboxes',
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $method = new \ReflectionMethod($manager, 'delete_directory');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($manager, $root);
+
+        $this->assertTrue($result);
+        $this->assertDirectoryDoesNotExist($root);
+    }
+
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
     public function testCreateWritesMultisiteRuntimeArtifacts(): void
@@ -113,6 +139,41 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
             $wordpressRoot . '/wp-content/uploads',
             readlink($environment->path . '/wp-content/uploads')
         );
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testCreateCanExcludeTopLevelPluginDirectoriesFromHostClone(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content/plugins/runtime-core', 0755, true);
+        mkdir($wordpressRoot . '/wp-content/plugins/akismet', 0755, true);
+        file_put_contents($wordpressRoot . '/wp-content/plugins/runtime-core/runtime-core.php', '<?php');
+        file_put_contents($wordpressRoot . '/wp-content/plugins/akismet/akismet.php', '<?php');
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/apps',
+            $this->tmpDir . '/sandboxes',
+            'app',
+            $this->runtimeStore()
+        );
+
+        $app = $manager->create('Demo App', [
+            'type' => 'app',
+            'domains' => ['demo.example.test'],
+            'clone_plugins' => true,
+            'content_exclude' => [
+                'plugins' => ['runtime-core'],
+            ],
+        ]);
+
+        $this->assertDirectoryDoesNotExist($app->path . '/wp-content/plugins/runtime-core');
+        $this->assertFileExists($app->path . '/wp-content/plugins/akismet/akismet.php');
     }
 
     #[RunInSeparateProcess]

@@ -204,6 +204,25 @@ Rudel keeps clone semantics broad: a new app or sandbox still gets a real
 multisite site plus its own cloned `wp-content`. The performance work is in the
 copy implementation, not by weakening that contract.
 
+There is one explicit exception path for downstream products that inject a
+runtime entry globally outside the environment: `content_exclude`. That lets
+the caller skip explicitly named top-level entries in `themes`, `plugins`, or
+`uploads` while leaving the rest of the clone broad.
+
+Example:
+
+```php
+Rudel::create(
+    'alpha',
+    [
+        'clone_plugins'   => true,
+        'content_exclude' => [
+            'plugins' => [ 'runtime-core' ],
+        ],
+    ]
+);
+```
+
 Current local baseline from the reproducible benchmark:
 
 ```bash
@@ -225,6 +244,13 @@ The copy stack is intentionally tiered:
 - native batched tar copy when process execution is available
 - batched `PharData` archive fallback for hosts that disable `proc_open`
 - recursive PHP copy only as the last-resort fallback
+
+One real downstream case mattered here: copying one globally bootstrapped
+runtime plugin directory added roughly `937 MB` of redundant plugin data to
+every app clone. Excluding only that one top-level plugin entry dropped the
+measured create time on the same lane from roughly `22–32s` to roughly `2–4s`
+without changing the broader clone contract for database state, themes,
+uploads, or the rest of `wp-content`.
 
 If clone performance regresses, measure it with `tests/e2e/benchmark-wp-env.sh`
 before changing clone semantics or narrowing what gets copied.

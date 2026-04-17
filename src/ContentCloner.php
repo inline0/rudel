@@ -42,6 +42,8 @@ class ContentCloner {
 				continue;
 			}
 
+			$exclude_entries = $this->normalize_top_level_exclusions( $options['exclude_entries'][ $dir ] ?? array() );
+
 			// Start from a clean target so scaffolding does not interfere with worktrees or nested copies.
 			if ( is_dir( $target ) ) {
 				$this->delete_directory( $target );
@@ -50,14 +52,18 @@ class ContentCloner {
 			// Only code directories benefit from worktrees; uploads must stay plain files because they are runtime data.
 			if ( $use_git && 'uploads' !== $dir ) {
 				$git             = new GitIntegration();
-				$git_results     = $git->clone_with_worktrees( $source, $target, $sandbox_id );
+				$git_results     = $git->clone_with_worktrees( $source, $target, $sandbox_id, $exclude_entries );
 				$results[ $dir ] = array(
 					'status'    => 'copied',
 					'worktrees' => $git_results['worktrees'],
 					'copied'    => $git_results['copied'],
 				);
 			} else {
-				$this->copy_directory( $source, $target );
+				if ( ! empty( $exclude_entries ) ) {
+					$this->copy_directory_contents( $source, $target, $exclude_entries );
+				} else {
+					$this->copy_directory( $source, $target );
+				}
 				$results[ $dir ] = 'copied';
 			}
 		}
@@ -383,11 +389,7 @@ class ContentCloner {
 				}
 
 				$this->copy_directory_recursive( $source_path, $target_path, $excluded_path );
-			} else {
-				if ( ! is_file( $source_path ) || ! is_readable( $source_path ) ) {
-					continue;
-				}
-
+			} elseif ( is_file( $source_path ) && is_readable( $source_path ) ) {
 				$target_dir = dirname( $target_path );
 				if ( ! is_dir( $target_dir ) ) {
 					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating parent directory for copied file.
@@ -397,6 +399,60 @@ class ContentCloner {
 				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Source files can disappear mid-clone in active dev trees.
 				@copy( $source_path, $target_path );
 			}
+		}
+	}
+
+	/**
+	 * Copy the immediate contents of one directory, skipping selected top-level entries.
+	 *
+	 * @param string   $source          Absolute source directory path.
+	 * @param string   $target          Absolute target directory path.
+	 * @param string[] $exclude_entries Top-level entry names to skip.
+	 * @throws \UnexpectedValueException When traversing an existing source directory fails.
+	 * @return void
+	 */
+	private function copy_directory_contents( string $source, string $target, array $exclude_entries ): void {
+		if ( ! is_dir( $target ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for sandbox content cloning.
+			mkdir( $target, 0755, true );
+		}
+
+		try {
+			$iterator = new \FilesystemIterator( $source, \FilesystemIterator::SKIP_DOTS );
+		} catch ( \UnexpectedValueException $exception ) {
+			if ( ! is_dir( $source ) ) {
+				return;
+			}
+
+			throw $exception;
+		}
+
+		foreach ( $iterator as $item ) {
+			$name = $item->getFilename();
+			if ( in_array( $name, $exclude_entries, true ) || $this->should_skip_item( $name ) ) {
+				continue;
+			}
+
+			$source_path = $item->getPathname();
+			$target_path = $target . '/' . $name;
+
+			if ( $item->isLink() ) {
+				$this->copy_symlink_target( $source_path, $target_path );
+				continue;
+			}
+
+			if ( $item->isDir() ) {
+				$this->copy_directory( $source_path, $target_path );
+				continue;
+			}
+
+			if ( ! is_file( $source_path ) || ! is_readable( $source_path ) ) {
+				continue;
+			}
+
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying file to sandbox.
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Source files can disappear mid-clone in active dev trees.
+			@copy( $source_path, $target_path );
 		}
 	}
 
@@ -442,6 +498,25 @@ class ContentCloner {
 	 */
 	private function should_skip_item( string $filename ): bool {
 		return in_array( $filename, array( '.git', '.coverage', 'node_modules' ), true );
+	}
+
+	/**
+	 * Normalize a top-level exclusion list for one cloned directory.
+	 *
+	 * @param mixed $entries Raw exclusion list.
+	 * @return string[]
+	 */
+	private function normalize_top_level_exclusions( $entries ): array {
+		if ( ! is_array( $entries ) ) {
+			return array();
+		}
+
+		return array_values(
+			array_filter(
+				array_map( 'strval', $entries ),
+				static fn( string $entry ): bool => '' !== $entry
+			)
+		);
 	}
 
 	/**
