@@ -367,9 +367,6 @@ class EnvironmentManager {
 
 			$this->apply_site_options( $id, $path, $blog_id, $site_options );
 
-			$this->write_runtime_mu_plugin( $path );
-			$this->write_environment_db_dropin( $path );
-
 			$runtime_environment = new Environment(
 				id: $id,
 				name: $name,
@@ -386,6 +383,20 @@ class EnvironmentManager {
 				shared_plugins: $shared_plugins,
 				shared_uploads: $shared_uploads,
 				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
+			);
+
+			$this->write_runtime_mu_plugin( $path );
+			$this->write_environment_db_dropin(
+				$path,
+				array(
+					'environment'    => $runtime_environment,
+					'path'           => $path,
+					'blog_id'        => $blog_id,
+					'type'           => $target_type,
+					'table_prefix'   => $runtime_environment->get_table_prefix(),
+					'users_table'    => $runtime_environment->get_users_table(),
+					'usermeta_table' => $runtime_environment->get_usermeta_table(),
+				)
 			);
 
 			if ( $source_environment instanceof Environment ) {
@@ -600,7 +611,18 @@ class EnvironmentManager {
 		try {
 			$result = $this->state_replacer->replace( $source, $target );
 			$this->write_runtime_mu_plugin( $target->path );
-			$this->write_environment_db_dropin( $target->path );
+			$this->write_environment_db_dropin(
+				$target->path,
+				array(
+					'environment'    => $target,
+					'path'           => $target->path,
+					'blog_id'        => $target->blog_id,
+					'type'           => $target->type,
+					'table_prefix'   => $target->get_table_prefix(),
+					'users_table'    => $target->get_users_table(),
+					'usermeta_table' => $target->get_usermeta_table(),
+				)
+			);
 
 			Hooks::action( 'rudel_after_environment_replace_state', $result, $context );
 
@@ -993,16 +1015,18 @@ class EnvironmentManager {
 	/**
 	 * Write the per-environment db.php drop-in that maps isolated user tables.
 	 *
-	 * @param string $path Absolute path to the environment directory.
+	 * @param string               $path Absolute path to the environment directory.
+	 * @param array<string, mixed> $context Context about the target environment.
 	 * @return void
 	 */
-	private function write_environment_db_dropin( string $path ): void {
+	private function write_environment_db_dropin( string $path, array $context = array() ): void {
 		if ( ! is_dir( $path . '/wp-content' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Ensuring wp-content exists before writing the db.php drop-in.
 			mkdir( $path . '/wp-content', 0755, true );
 		}
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$template = file_get_contents( $this->plugin_dir . 'templates/db.php.tpl' );
+		$template = Hooks::filter( 'rudel_environment_db_dropin_contents', $template, $context );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing environment db.php drop-in.
 		file_put_contents( $path . '/wp-content/db.php', $template );
 	}

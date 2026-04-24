@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.8 - 2026-04-24
+
+- Added a documented `rudel_environment_db_dropin_contents` filter so downstream runtimes can extend generated per-environment `db.php` drop-ins without forking Rudel internals.
+- Applied that filter during both fresh environment creation and snapshot restore so hosted runtimes can keep DB guard policy attached consistently across Rudel lifecycle flows.
+- Added unit coverage for the new hook contract and the generated `db.php` filter path.
+
 ## v0.8.7 - 2026-04-17
 
 - Added `content_exclude` for explicitly named top-level `wp-content` entries so downstream runtimes can skip copying globally supplied plugin, theme, or upload directories without weakening Rudel's broader clone contract.

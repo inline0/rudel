@@ -401,6 +401,19 @@ class SnapshotManager {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$db_template = file_get_contents( $plugin_dir . 'templates/db.php.tpl' );
+		$db_template = Hooks::filter(
+			'rudel_environment_db_dropin_contents',
+			$db_template,
+			array(
+				'environment'    => $this->environment,
+				'path'           => $this->environment->path,
+				'blog_id'        => $this->environment->blog_id,
+				'type'           => $this->environment->type,
+				'table_prefix'   => $this->environment->get_table_prefix(),
+				'users_table'    => $this->environment->get_users_table(),
+				'usermeta_table' => $this->environment->get_usermeta_table(),
+			)
+		);
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Rewriting the env-local db.php drop-in after restore.
 		file_put_contents( $environment_content . '/db.php', $db_template );
 	}

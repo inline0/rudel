@@ -80,4 +80,47 @@ class SnapshotManagerTest extends RudelTestCase
         $this->assertFileDoesNotExist($environment->path . '/wp-content/plugins/local-only.php');
         $this->assertFileDoesNotExist($environment->path . '/wp-content/uploads/local-only.txt');
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testRestoreFiltersEnvironmentDbDropinContents(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        $this->createFakeSandbox('restore-site', 'Restore Site', [
+            'blog_id' => 2,
+            'multisite' => true,
+        ]);
+
+        $environment = $this->environmentRepository('sandbox')->get('restore-site');
+        $this->assertNotNull($environment);
+
+        file_put_contents($environment->path . '/wp-content/db.php', "<?php\n// original");
+
+        add_filter(
+            'rudel_environment_db_dropin_contents',
+            static function (string $contents, array $context): string {
+                return $contents . "\n// restored blog_id=" . (string) ($context['blog_id'] ?? '');
+            },
+            10,
+            2
+        );
+
+        (new SnapshotManager($environment))->create('baseline');
+
+        file_put_contents($environment->path . '/wp-content/db.php', "<?php\n// replaced");
+
+        (new SnapshotManager($environment))->restore('baseline');
+
+        $dbDropin = file_get_contents($environment->path . '/wp-content/db.php');
+        $this->assertIsString($dbDropin);
+        $this->assertStringContainsString("define( 'CUSTOM_USER_TABLE', RUDEL_USERS_TABLE );", $dbDropin);
+        $this->assertStringContainsString('// restored blog_id=2', $dbDropin);
+    }
 }

@@ -97,6 +97,46 @@ class EnvironmentManagerMultisiteTest extends RudelTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
+    public function testCreateFiltersEnvironmentDbDropinContents(): void
+    {
+        $wordpressRoot = $this->tmpDir . '/wordpress';
+        mkdir($wordpressRoot . '/wp-content', 0755, true);
+
+        define('ABSPATH', $wordpressRoot . '/');
+        define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
+        define('WP_HOME', 'http://example.test');
+        define('DOMAIN_CURRENT_SITE', 'example.test');
+
+        add_filter(
+            'rudel_environment_db_dropin_contents',
+            static function (string $contents, array $context): string {
+                return $contents
+                    . "\n// context blog_id=" . (string) ($context['blog_id'] ?? '')
+                    . '; type=' . (string) ($context['type'] ?? '')
+                    . '; users=' . (string) ($context['users_table'] ?? '');
+            },
+            10,
+            2
+        );
+
+        $manager = new EnvironmentManager(
+            $this->tmpDir . '/sandboxes',
+            $this->tmpDir . '/apps',
+            'sandbox',
+            $this->runtimeStore()
+        );
+
+        $environment = $manager->create('Filtered Site');
+
+        $dbDropin = file_get_contents($environment->path . '/wp-content/db.php');
+        $this->assertIsString($dbDropin);
+        $this->assertStringContainsString('// context blog_id=' . $environment->blog_id, $dbDropin);
+        $this->assertStringContainsString('; type=sandbox', $dbDropin);
+        $this->assertStringContainsString('; users=' . $environment->get_users_table(), $dbDropin);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCreateCanSharePluginsAndUploadsWithTheHostContentTree(): void
     {
         $wordpressRoot = $this->tmpDir . '/wordpress';
