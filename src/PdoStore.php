@@ -42,7 +42,7 @@ class PdoStore implements DatabaseStore {
 	 * {@inheritDoc}
 	 */
 	public function cache_key(): string {
-		return 'pdo:' . $this->prefix() . ':' . RuntimeTableConfig::signature();
+		return 'pdo:' . $this->prefix() . ':' . $this->connection->table_prefix() . ':' . RuntimeTableConfig::signature();
 	}
 
 	/**
@@ -65,7 +65,7 @@ class PdoStore implements DatabaseStore {
 	 * @param string $suffix Logical table suffix.
 	 */
 	public function table( string $suffix ): string {
-		return $this->prefix() . RuntimeTableConfig::table( $suffix );
+		return $this->connection->table( RuntimeTableConfig::table( $suffix ) );
 	}
 
 	/**

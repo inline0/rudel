@@ -24,11 +24,12 @@ class Connection {
 	/**
 	 * Initialize dependencies.
 	 *
-	 * @param string $host Database host.
-	 * @param string $dbname Database name.
-	 * @param string $user Database user.
-	 * @param string $password Database password.
-	 * @param string $prefix WordPress base table prefix.
+	 * @param string      $host Database host.
+	 * @param string      $dbname Database name.
+	 * @param string      $user Database user.
+	 * @param string      $password Database password.
+	 * @param string      $prefix WordPress base table prefix.
+	 * @param string|null $table_prefix Rudel table prefix after the WordPress prefix.
 	 */
 	public function __construct(
 		private readonly string $host,
@@ -36,6 +37,7 @@ class Connection {
 		private readonly string $user,
 		private readonly string $password,
 		private readonly string $prefix = 'wp_',
+		private readonly ?string $table_prefix = null,
 	) {}
 
 	/**
@@ -70,13 +72,45 @@ class Connection {
 	}
 
 	/**
+	 * Rudel table prefix used after the WordPress prefix.
+	 *
+	 * @return string
+	 */
+	public function table_prefix(): string {
+		if ( null === $this->table_prefix ) {
+			return RuntimeTableConfig::prefix();
+		}
+
+		return RuntimeTableConfig::normalize_prefix( $this->table_prefix );
+	}
+
+	/**
 	 * Fully prefixed table name.
 	 *
 	 * @param string $name Unprefixed table name.
 	 * @return string
 	 */
 	public function table( string $name ): string {
-		return $this->prefix . $name;
+		return $this->prefix . $this->resolve_table_name( $name );
+	}
+
+	/**
+	 * Resolve a Rudel base table name through the connection-level prefix.
+	 *
+	 * @param string $name Base table name.
+	 * @return string
+	 */
+	private function resolve_table_name( string $name ): string {
+		if ( null === $this->table_prefix ) {
+			return $name;
+		}
+
+		$default_prefix = RuntimeTableConfig::prefix();
+		if ( '' !== $default_prefix && str_starts_with( $name, $default_prefix ) ) {
+			$name = substr( $name, strlen( $default_prefix ) );
+		}
+
+		return $this->table_prefix() . $name;
 	}
 
 	/**

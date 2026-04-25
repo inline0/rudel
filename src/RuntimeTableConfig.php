@@ -40,7 +40,17 @@ class RuntimeTableConfig {
 			return self::DEFAULT_PREFIX;
 		}
 
-		$prefix = trim( (string) constant( 'RUDEL_RUNTIME_TABLE_PREFIX' ) );
+		return self::normalize_prefix( (string) constant( 'RUDEL_RUNTIME_TABLE_PREFIX' ) );
+	}
+
+	/**
+	 * Normalize one runtime table prefix.
+	 *
+	 * @param string $prefix Table-name prefix.
+	 * @return string
+	 */
+	public static function normalize_prefix( string $prefix ): string {
+		$prefix = trim( $prefix );
 		if ( '' === $prefix ) {
 			return '';
 		}

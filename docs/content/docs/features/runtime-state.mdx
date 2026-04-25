@@ -65,6 +65,24 @@ Most installs should leave the default table names alone. Advanced embedded setu
 
 Define them before Rudel installs or bootstraps the runtime tables. After tables already exist, changing the names is a migration concern rather than a configuration tweak.
 
+Standalone connections can also set a per-connection Rudel table prefix:
+
+```php
+$conn = new \Rudel\Connection(
+    host: '127.0.0.1:3306',
+    dbname: 'wordpress',
+    user: 'root',
+    password: 'secret',
+    prefix: 'wp_',
+    table_prefix: 'divine_rudel_',
+);
+```
+
+That keeps the WordPress database prefix untouched and changes only the Rudel
+segment, so `environments` becomes `wp_divine_rudel_environments`. Explicit
+runtime table constants still affect the base table names before the connection
+prefix is applied.
+
 ## Service boundaries
 
 Runtime reads and writes should go through Rudel repositories and services:

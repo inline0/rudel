@@ -65,6 +65,24 @@ $sandboxes = Rudel::all();
 $status = Rudel::status();
 ```
 
+For embedded products that share one WordPress database but need separate Rudel
+registries, pass a connection-level table prefix:
+
+```php
+$conn = new Connection(
+    host: '127.0.0.1:3306',
+    dbname: 'wordpress',
+    user: 'root',
+    password: 'secret',
+    prefix: 'wp_',
+    table_prefix: 'divine_rudel_',
+);
+```
+
+That leaves the WordPress database prefix alone and changes only the Rudel table
+segment. With the example above, `environments` resolves to
+`wp_divine_rudel_environments`.
+
 ## Mental Model
 
 The simplest way to think about this split is:

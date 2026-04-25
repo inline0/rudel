@@ -62,6 +62,23 @@ Rudel::init(
 );
 ```
 
+The optional `table_prefix` argument changes the Rudel portion of standalone
+runtime table names per connection:
+
+```php
+$conn = new Connection(
+    host: '127.0.0.1:3306',
+    dbname: 'wordpress',
+    user: 'root',
+    password: 'secret',
+    prefix: 'wp_',
+    table_prefix: 'divine_rudel_',
+);
+```
+
+That resolves tables such as `environments` to
+`wp_divine_rudel_environments`.
+
 ### `Rudel::ensure_schema()`
 
 Ensure the Rudel runtime tables exist for the active store.

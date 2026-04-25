@@ -290,6 +290,24 @@ That standalone path is for the DB-backed core. It does not replace the
 WordPress adapter layer. Operations that create, destroy, or rewire multisite
 sites still require a live WordPress multisite runtime.
 
+For embedded control planes that share one WordPress database, pass a
+connection-level Rudel table prefix:
+
+```php
+$conn = new Connection(
+    host: '127.0.0.1:3306',
+    dbname: 'wordpress',
+    user: 'root',
+    password: 'secret',
+    prefix: 'wp_',
+    table_prefix: 'divine_rudel_',
+);
+```
+
+That keeps the WordPress database prefix intact and changes only the Rudel
+portion of the runtime table names, for example
+`wp_divine_rudel_environments`.
+
 ## Documentation
 
 Full documentation lives at [rudel.dev](https://rudel.dev).
