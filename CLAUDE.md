@@ -107,4 +107,4 @@ Define these before Rudel boots when you need non-default paths or naming:
 12. Keep Rudel product-neutral. Do not mention downstream product names in docs, comments, examples, changelogs, or release notes.
 13. If a downstream runtime injects one global plugin or other top-level `wp-content` entry, exclude only that entry and keep the rest of the clone broad.
 14. Use `bash tests/e2e/benchmark-wp-env.sh` as the reproducible performance baseline before changing clone behavior.
-15. GitHub release bodies mirror the matching `CHANGELOG.md` version entry as concise bullets. Keep release titles/tags as `vX.Y.Z` and do not add compare links or long-form duplicate notes.
+15. `CHANGELOG.md` is the source of truth for release notes. GitHub release bodies must be exactly `See CHANGELOG.md for the full release notes.` with no compare links or duplicated summaries.
