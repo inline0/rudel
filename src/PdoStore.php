@@ -42,7 +42,7 @@ class PdoStore implements DatabaseStore {
 	 * {@inheritDoc}
 	 */
 	public function cache_key(): string {
-		return 'pdo:' . $this->prefix() . ':' . $this->connection->table_prefix() . ':' . RuntimeTableConfig::signature();
+		return $this->connection->driver() . ':' . $this->prefix() . ':' . $this->connection->table_prefix() . ':' . RuntimeTableConfig::signature();
 	}
 
 	/**

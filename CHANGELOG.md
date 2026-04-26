@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.8.9 - 2026-04-26
+
+- Added mysqli-backed direct DB access for standalone Rudel `Connection` usage without `pdo_mysql`.
+- Kept WordPress runtime storage on `$wpdb` while allowing external consumers to choose `auto`, `mysqli`, or `pdo` with `RUDEL_DB_DRIVER`.
+
 ## v0.8.8 - 2026-04-24
 
 - Added a documented `rudel_environment_db_dropin_contents` filter so downstream runtimes can extend generated per-environment `db.php` drop-ins without forking Rudel internals.

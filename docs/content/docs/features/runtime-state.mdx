@@ -78,6 +78,9 @@ $conn = new \Rudel\Connection(
 );
 ```
 
+Direct standalone connections choose `pdo_mysql` or `mysqli` automatically. Set
+`RUDEL_DB_DRIVER` to `mysqli` or `pdo` to force one driver.
+
 That keeps the WordPress database prefix untouched and changes only the Rudel
 segment, so `environments` becomes `wp_divine_rudel_environments`. Explicit
 runtime table constants still affect the base table names before the connection

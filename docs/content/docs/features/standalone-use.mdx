@@ -34,6 +34,10 @@ That means these operations still require a live WordPress multisite runtime:
 
 ## Initialization
 
+Direct connections choose `pdo_mysql` or `mysqli` automatically. Set
+`RUDEL_DB_DRIVER` to `mysqli` or `pdo` when an embedded runtime needs to force a
+specific direct DB driver. WordPress runtime storage continues to use `$wpdb`.
+
 ```php
 use Rudel\Connection;
 use Rudel\Rudel;

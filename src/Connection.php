@@ -10,7 +10,7 @@ namespace Rudel;
 use PDO;
 
 /**
- * Direct PDO database connection for Rudel core access outside WordPress.
+ * Database connection for Rudel core access outside WordPress.
  */
 class Connection {
 
@@ -30,6 +30,7 @@ class Connection {
 	 * @param string      $password Database password.
 	 * @param string      $prefix WordPress base table prefix.
 	 * @param string|null $table_prefix Rudel table prefix after the WordPress prefix.
+	 * @param string|null $driver Optional driver override: auto, mysqli, or pdo.
 	 */
 	public function __construct(
 		private readonly string $host,
@@ -38,6 +39,7 @@ class Connection {
 		private readonly string $password,
 		private readonly string $prefix = 'wp_',
 		private readonly ?string $table_prefix = null,
+		private readonly ?string $driver = null,
 	) {}
 
 	/**
@@ -47,19 +49,97 @@ class Connection {
 	 */
 	public function pdo(): PDO {
 		if ( null === $this->pdo ) {
-			$this->pdo = new PDO(
-				$this->build_dsn(),
-				$this->user,
-				$this->password,
-				array(
-					PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-					PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-					PDO::ATTR_EMULATE_PREPARES   => false,
-				)
-			);
+			$this->pdo = $this->create_pdo();
 		}
 
 		return $this->pdo;
+	}
+
+	/**
+	 * Active DB driver that will be used by this connection.
+	 *
+	 * @return string
+	 */
+	public function driver(): string {
+		return $this->resolve_driver();
+	}
+
+	/**
+	 * Whether this runtime has at least one supported direct DB driver.
+	 *
+	 * @return bool
+	 */
+	public static function has_available_driver(): bool {
+		return extension_loaded( 'pdo_mysql' ) || MysqliPdo::available();
+	}
+
+	/**
+	 * Build the PDO-compatible transport.
+	 *
+	 * @return PDO
+	 */
+	private function create_pdo(): PDO {
+		$driver = $this->resolve_driver();
+		if ( 'mysqli' === $driver ) {
+			return new MysqliPdo( $this->host, $this->dbname, $this->user, $this->password );
+		}
+
+		return new PDO(
+			$this->build_dsn(),
+			$this->user,
+			$this->password,
+			array(
+				PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+				PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+				PDO::ATTR_EMULATE_PREPARES   => false,
+			)
+		);
+	}
+
+	/**
+	 * Resolve the requested direct DB driver.
+	 *
+	 * @return string
+	 * @throws \RuntimeException When the requested DB driver is unavailable.
+	 * @throws \InvalidArgumentException When the requested DB driver is not supported.
+	 */
+	private function resolve_driver(): string {
+		$driver = strtolower( trim( (string) ( $this->driver ?? ( defined( 'RUDEL_DB_DRIVER' ) ? constant( 'RUDEL_DB_DRIVER' ) : 'auto' ) ) ) );
+		if ( '' === $driver ) {
+			$driver = 'auto';
+		}
+
+		if ( 'auto' === $driver ) {
+			if ( defined( 'ABSPATH' ) && MysqliPdo::available() ) {
+				return 'mysqli';
+			}
+
+			if ( extension_loaded( 'pdo_mysql' ) ) {
+				return 'pdo';
+			}
+
+			if ( MysqliPdo::available() ) {
+				return 'mysqli';
+			}
+
+			throw new \RuntimeException( 'Rudel direct DB access requires either mysqli or pdo_mysql.' );
+		}
+
+		if ( 'pdo' === $driver ) {
+			if ( ! extension_loaded( 'pdo_mysql' ) ) {
+				throw new \RuntimeException( 'Rudel DB driver pdo requires the pdo_mysql PHP extension.' );
+			}
+			return 'pdo';
+		}
+
+		if ( 'mysqli' === $driver ) {
+			if ( ! MysqliPdo::available() ) {
+				throw new \RuntimeException( 'Rudel DB driver mysqli requires the mysqli PHP extension.' );
+			}
+			return 'mysqli';
+		}
+
+		throw new \InvalidArgumentException( sprintf( 'Unsupported Rudel DB driver "%s".', $driver ) );
 	}
 
 	/**

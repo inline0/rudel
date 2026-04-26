@@ -258,7 +258,8 @@ before changing clone semantics or narrowing what gets copied.
 ## Standalone Core Access
 
 If you need Rudel's registry outside WordPress, initialize it with a direct DB
-connection:
+connection. Rudel chooses `pdo_mysql` or `mysqli` automatically for direct
+connections, and WordPress runtime storage continues to use `$wpdb`.
 
 ```php
 use Rudel\Connection;
@@ -289,6 +290,9 @@ $sandboxes = Rudel::all();
 That standalone path is for the DB-backed core. It does not replace the
 WordPress adapter layer. Operations that create, destroy, or rewire multisite
 sites still require a live WordPress multisite runtime.
+
+Set `RUDEL_DB_DRIVER` to `mysqli` or `pdo` when an embedded runtime needs to
+force a specific direct DB driver.
 
 For embedded control planes that share one WordPress database, pass a
 connection-level Rudel table prefix:

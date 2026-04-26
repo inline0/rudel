@@ -70,4 +70,37 @@ class ConnectionTest extends TestCase {
 
 		$this->assertSame( 'wp_tenant_runtime_anything', $conn->table( 'anything' ) );
 	}
+
+	public function test_auto_driver_uses_best_available_direct_driver(): void {
+		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', 'wp_' );
+
+		$expected = extension_loaded( 'pdo_mysql' ) ? 'pdo' : 'mysqli';
+
+		$this->assertSame( $expected, $conn->driver() );
+	}
+
+	public function test_driver_can_be_forced_to_mysqli(): void {
+		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', 'wp_', null, 'mysqli' );
+
+		$this->assertSame( 'mysqli', $conn->driver() );
+	}
+
+	public function test_driver_can_be_forced_to_pdo_when_available(): void {
+		if ( ! extension_loaded( 'pdo_mysql' ) ) {
+			$this->markTestSkipped( 'pdo_mysql is not available.' );
+		}
+
+		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', 'wp_', null, 'pdo' );
+
+		$this->assertSame( 'pdo', $conn->driver() );
+	}
+
+	public function test_invalid_driver_fails(): void {
+		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', 'wp_', null, 'sqlite' );
+
+		$this->expectException( \InvalidArgumentException::class );
+		$this->expectExceptionMessage( 'Unsupported Rudel DB driver "sqlite".' );
+
+		$conn->driver();
+	}
 }

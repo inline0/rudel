@@ -76,6 +76,9 @@ $conn = new Connection(
 );
 ```
 
+Direct standalone connections choose `pdo_mysql` or `mysqli` automatically. Set
+`RUDEL_DB_DRIVER` to `mysqli` or `pdo` to force one driver.
+
 That resolves tables such as `environments` to
 `wp_divine_rudel_environments`.
 

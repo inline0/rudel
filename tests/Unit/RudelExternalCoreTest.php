@@ -63,6 +63,15 @@ class RudelExternalCoreTest extends TestCase {
 		$this->assertSame( 'wp_divine_rudel_app_deployments', $store->table( 'app_deployments' ) );
 	}
 
+	public function test_init_accepts_mysqli_connection_driver(): void {
+		Rudel::init( new Connection( 'localhost', 'rudel', 'root', 'secret', 'wp_', 'divine_rudel', 'mysqli' ) );
+
+		$store = RudelDatabase::current_store();
+
+		$this->assertInstanceOf( PdoStore::class, $store );
+		$this->assertStringStartsWith( 'mysqli:wp_:divine_rudel_:', $store->cache_key() );
+	}
+
 	public function test_set_store_reuses_explicit_standalone_store(): void {
 		$store = new class implements DatabaseStore {
 			public function cache_key(): string {
