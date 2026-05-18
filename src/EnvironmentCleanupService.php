@@ -40,16 +40,18 @@ class EnvironmentCleanupService {
 	/**
 	 * Clean up expired or stale environments.
 	 *
-	 * @param array $options Options: dry_run, max_age_days, max_idle_days.
+	 * @param array<string, mixed> $options Options: dry_run, max_age_days, max_idle_days.
 	 * @return array{removed: string[], skipped: string[], errors: string[], reasons: array<string, string>}
 	 */
 	public function cleanup( array $options = array() ): array {
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $options */
 		$options = Hooks::filter( 'rudel_environment_cleanup_options', $options, $this->repository );
 		Hooks::action( 'rudel_before_environment_cleanup', $options );
 
 		$dry_run       = ! empty( $options['dry_run'] );
-		$max_age_days  = $options['max_age_days'] ?? 0;
-		$max_idle_days = $options['max_idle_days'] ?? 0;
+		$max_age_days  = isset( $options['max_age_days'] ) && is_numeric( $options['max_age_days'] ) ? (int) $options['max_age_days'] : 0;
+		$max_idle_days = isset( $options['max_idle_days'] ) && is_numeric( $options['max_idle_days'] ) ? (int) $options['max_idle_days'] : 0;
 		$config        = new RudelConfig();
 
 		if ( 0 === $max_age_days ) {
@@ -93,7 +95,7 @@ class EnvironmentCleanupService {
 				continue;
 			}
 
-			$reason = EnvironmentPolicy::cleanup_reason( $environment, $now, $max_age_days, $max_idle_days );
+			$reason = EnvironmentPolicy::cleanup_reason( $environment, $now, (int) $max_age_days, (int) $max_idle_days );
 			if ( null === $reason ) {
 				$result['skipped'][] = $environment->id;
 				continue;
@@ -121,10 +123,12 @@ class EnvironmentCleanupService {
 	/**
 	 * Clean up environments whose Git branches have already landed.
 	 *
-	 * @param array $options Options: dry_run.
+	 * @param array<string, mixed> $options Options: dry_run.
 	 * @return array{removed: string[], skipped: string[], errors: string[], reasons: array<string, string>}
 	 */
 	public function cleanup_merged( array $options = array() ): array {
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $options */
 		$options = Hooks::filter( 'rudel_environment_cleanup_merged_options', $options, $this->repository );
 		Hooks::action( 'rudel_before_environment_cleanup_merged', $options );
 
@@ -144,9 +148,12 @@ class EnvironmentCleanupService {
 				continue;
 			}
 
-			$branch     = $environment->get_git_branch();
-			$git_remote = $environment->get_git_remote();
-			$worktrees  = $environment->clone_source['git_worktrees'] ?? array();
+			$branch        = $environment->get_git_branch();
+			$git_remote    = $environment->get_git_remote();
+			$raw_worktrees = $environment->clone_source['git_worktrees'] ?? array();
+			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+			/** @var array<int, array<string, string>> $worktrees */
+			$worktrees  = is_array( $raw_worktrees ) ? $raw_worktrees : array();
 			$has_git    = ! empty( $worktrees );
 			$has_remote = ! empty( $git_remote );
 
@@ -160,9 +167,11 @@ class EnvironmentCleanupService {
 			if ( $has_git ) {
 				$is_merged_locally = true;
 				foreach ( $worktrees as $worktree ) {
-					$repo_control   = $git->common_git_dir( $worktree['repo'] ) ?? $worktree['repo'];
+					$wt_repo        = is_string( $worktree['repo'] ?? null ) ? $worktree['repo'] : '';
+					$repo_control   = $git->common_git_dir( $wt_repo ) ?? $wt_repo;
 					$default_branch = $git->get_default_branch( $repo_control );
-					if ( ! $git->is_branch_merged( $repo_control, $worktree['branch'], $default_branch ) ) {
+					$wt_branch      = is_string( $worktree['branch'] ?? null ) ? $worktree['branch'] : '';
+					if ( ! $git->is_branch_merged( $repo_control, $wt_branch, $default_branch ) ) {
 						$is_merged_locally = false;
 						break;
 					}
@@ -183,15 +192,20 @@ class EnvironmentCleanupService {
 			}
 
 			foreach ( $worktrees as $worktree ) {
-				$repo_control  = $git->common_git_dir( $worktree['repo'] ) ?? $worktree['repo'];
-				$worktree_path = $environment->get_wp_content_path() . '/' . $worktree['type'] . '/' . $worktree['name'];
+				$wt_repo       = is_string( $worktree['repo'] ?? null ) ? $worktree['repo'] : '';
+				$wt_type       = is_string( $worktree['type'] ?? null ) ? $worktree['type'] : '';
+				$wt_name       = is_string( $worktree['name'] ?? null ) ? $worktree['name'] : '';
+				$wt_branch     = is_string( $worktree['branch'] ?? null ) ? $worktree['branch'] : '';
+				$repo_control  = $git->common_git_dir( $wt_repo ) ?? $wt_repo;
+				$worktree_path = $environment->get_wp_content_path() . '/' . $wt_type . '/' . $wt_name;
 				$metadata_name = isset( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : null;
-				$git->remove_worktree( $repo_control, $worktree_path, '' !== (string) $metadata_name ? $metadata_name : null );
-				$git->delete_branch( $repo_control, $worktree['branch'] );
+				$git->remove_worktree( $repo_control, $worktree_path, is_string( $metadata_name ) && '' !== $metadata_name ? $metadata_name : null );
+				$git->delete_branch( $repo_control, $wt_branch );
 			}
 
 			if ( $has_remote && $has_git ) {
-				$first_repo = $worktrees[ array_key_first( $worktrees ) ]['repo'] ?? null;
+				$first_key  = array_key_first( $worktrees );
+				$first_repo = null !== $first_key && isset( $worktrees[ $first_key ]['repo'] ) ? $worktrees[ $first_key ]['repo'] : null;
 				if ( is_string( $first_repo ) && '' !== $first_repo ) {
 					$repo_control = $git->common_git_dir( $first_repo ) ?? $first_repo;
 					$git->delete_remote_branch( $repo_control, $branch );

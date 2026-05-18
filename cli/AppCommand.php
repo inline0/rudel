@@ -95,16 +95,16 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--expires-at=<timestamp>]
 	 * : Set an explicit expiry timestamp.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @throws \RuntimeException If creation fails.
 	 * @when after_wp_load
 	 */
 	public function create( $args, $assoc_args ): void {
-		$domain = $assoc_args['domain'];
-		$name   = $assoc_args['name'] ?? str_replace( '.', '-', $domain );
+		$domain = is_string( $assoc_args['domain'] ?? null ) ? $assoc_args['domain'] : '';
+		$name   = is_string( $assoc_args['name'] ?? null ) ? $assoc_args['name'] : str_replace( '.', '-', $domain );
 
 		$clone_all = \WP_CLI\Utils\get_flag_value( $assoc_args, 'clone-all', false );
 		$options   = array_merge(
@@ -161,8 +161,8 @@ class AppCommand extends \WP_CLI_Command {
 	 *   - count
 	 * ---
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand list
@@ -176,22 +176,20 @@ class AppCommand extends \WP_CLI_Command {
 			return;
 		}
 
-		$items = array_map(
-			function ( $app ) {
-				return array(
-					'id'        => $app->id,
-					'name'      => $app->name,
-					'owner'     => $app->owner ?? '',
-					'protected' => $this->format_protection( $app->is_protected() ),
-					'domains'   => implode( ', ', $app->domains ?? array() ),
-					'status'    => $app->status,
-					'created'   => $app->created_at,
-				);
-			},
-			$apps
-		);
+		$items = array();
+		foreach ( $apps as $app ) {
+			$items[] = array(
+				'id'        => $app->id,
+				'name'      => $app->name,
+				'owner'     => $app->owner ?? '',
+				'protected' => $this->format_protection( $app->is_protected() ),
+				'domains'   => implode( ', ', $app->domains ?? array() ),
+				'status'    => $app->status,
+				'created'   => $app->created_at,
+			);
+		}
 
-		$format = $assoc_args['format'] ?? 'table';
+		$format = is_string( $assoc_args['format'] ?? null ) ? $assoc_args['format'] : 'table';
 		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'domains', 'status', 'created' ) );
 	}
 
@@ -213,8 +211,8 @@ class AppCommand extends \WP_CLI_Command {
 	 *   - yaml
 	 * ---
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -233,7 +231,7 @@ class AppCommand extends \WP_CLI_Command {
 		$data['backups']     = count( $this->manager->backups( $id ) );
 		$data['deployments'] = count( $this->manager->deployments( $id ) );
 
-		$format = $assoc_args['format'] ?? 'table';
+		$format = is_string( $assoc_args['format'] ?? null ) ? $assoc_args['format'] : 'table';
 
 		if ( 'table' === $format ) {
 			$items = array();
@@ -263,8 +261,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--force]
 	 * : Skip confirmation prompt.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -336,8 +334,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--clear-git]
 	 * : Remove tracked Git metadata.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -402,8 +400,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--expires-at=<timestamp>]
 	 * : Set an explicit expiry timestamp.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand create-sandbox
@@ -417,7 +415,7 @@ class AppCommand extends \WP_CLI_Command {
 			WP_CLI::error( "App not found: {$id}" );
 		}
 
-		$name    = $assoc_args['name'] ?? "{$app->name} Sandbox";
+		$name    = is_string( $assoc_args['name'] ?? null ) ? $assoc_args['name'] : "{$app->name} Sandbox";
 		$options = $this->build_policy_changes( $assoc_args );
 		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
 			$options['shared_plugins'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-plugins', false );
@@ -451,15 +449,15 @@ class AppCommand extends \WP_CLI_Command {
 	 * --name=<name>
 	 * : Backup name.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function backup( $args, $assoc_args ): void {
 		$id   = $args[0];
-		$name = $assoc_args['name'];
+		$name = is_string( $assoc_args['name'] ?? null ) ? $assoc_args['name'] : '';
 
 		try {
 			$backup = $this->manager->backup( $id, $name );
@@ -467,7 +465,8 @@ class AppCommand extends \WP_CLI_Command {
 			WP_CLI::error( $e->getMessage() );
 		}
 
-		WP_CLI::success( "App backup created: {$backup['name']}" );
+		$backup_name = is_string( $backup['name'] ?? null ) ? $backup['name'] : $name;
+		WP_CLI::success( "App backup created: {$backup_name}" );
 	}
 
 	/**
@@ -490,8 +489,8 @@ class AppCommand extends \WP_CLI_Command {
 	 *   - count
 	 * ---
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand backups
@@ -506,8 +505,8 @@ class AppCommand extends \WP_CLI_Command {
 			return;
 		}
 
-		$format = $assoc_args['format'] ?? 'table';
-		WP_CLI\Utils\format_items( $format, $backups, array_keys( $backups[0] ) );
+		$format = is_string( $assoc_args['format'] ?? null ) ? $assoc_args['format'] : 'table';
+		WP_CLI\Utils\format_items( $format, array_values( $backups ), array_keys( $backups[0] ) );
 	}
 
 	/**
@@ -530,8 +529,8 @@ class AppCommand extends \WP_CLI_Command {
 	 *   - count
 	 * ---
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand deployments
@@ -546,22 +545,27 @@ class AppCommand extends \WP_CLI_Command {
 			return;
 		}
 
-		$items = array_map(
-			static function ( array $deployment ): array {
-				$deployment['app_domains']     = implode( ', ', $deployment['app_domains'] ?? array() );
-				$deployment['git_remote']      = $deployment['git_remote'] ?? '';
-				$deployment['git_branch']      = $deployment['git_branch'] ?? '';
-				$deployment['git_base_branch'] = $deployment['git_base_branch'] ?? '';
-				$deployment['git_dir']         = $deployment['git_dir'] ?? '';
-				$deployment['label']           = $deployment['label'] ?? '';
-				$deployment['notes']           = $deployment['notes'] ?? '';
-				$deployment['backup_name']     = $deployment['backup_name'] ?? '';
-				return $deployment;
-			},
-			$deployments
-		);
+		$items = array();
+		foreach ( $deployments as $deployment ) {
+			$raw_domains                   = isset( $deployment['app_domains'] ) && is_array( $deployment['app_domains'] ) ? $deployment['app_domains'] : array();
+			$string_domains                = array_map(
+				static function ( $d ): string {
+					return is_string( $d ) ? $d : '';
+				},
+				$raw_domains
+			);
+			$deployment['app_domains']     = implode( ', ', $string_domains );
+			$deployment['git_remote']      = $deployment['git_remote'] ?? '';
+			$deployment['git_branch']      = $deployment['git_branch'] ?? '';
+			$deployment['git_base_branch'] = $deployment['git_base_branch'] ?? '';
+			$deployment['git_dir']         = $deployment['git_dir'] ?? '';
+			$deployment['label']           = $deployment['label'] ?? '';
+			$deployment['notes']           = $deployment['notes'] ?? '';
+			$deployment['backup_name']     = $deployment['backup_name'] ?? '';
+			$items[]                       = $deployment;
+		}
 
-		$format = $assoc_args['format'] ?? 'table';
+		$format = is_string( $assoc_args['format'] ?? null ) ? $assoc_args['format'] : 'table';
 		WP_CLI\Utils\format_items( $format, $items, array_keys( $items[0] ) );
 	}
 
@@ -579,15 +583,15 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--force]
 	 * : Skip confirmation prompt.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function restore( $args, $assoc_args ): void {
 		$id          = $args[0];
-		$backup_name = $assoc_args['backup'];
+		$backup_name = is_string( $assoc_args['backup'] ?? null ) ? $assoc_args['backup'] : '';
 		$app         = $this->manager->get( $id );
 
 		if ( ! $app ) {
@@ -635,22 +639,22 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--force]
 	 * : Skip confirmation prompt.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function deploy( $args, $assoc_args ): void {
 		$id         = $args[0];
-		$sandbox_id = $assoc_args['from'];
+		$sandbox_id = is_string( $assoc_args['from'] ?? null ) ? $assoc_args['from'] : '';
 		$app        = $this->manager->get( $id );
 
 		if ( ! $app ) {
 			WP_CLI::error( "App not found: {$id}" );
 		}
 
-		$backup_name = $assoc_args['backup'] ?? null;
+		$backup_name = isset( $assoc_args['backup'] ) && is_string( $assoc_args['backup'] ) ? $assoc_args['backup'] : null;
 		$options     = array(
 			'label' => $assoc_args['label'] ?? null,
 			'notes' => $assoc_args['notes'] ?? null,
@@ -671,7 +675,7 @@ class AppCommand extends \WP_CLI_Command {
 
 				$items[] = array(
 					'Field' => $key,
-					'Value' => (string) $value,
+					'Value' => is_scalar( $value ) ? (string) $value : '',
 				);
 			}
 
@@ -698,12 +702,19 @@ class AppCommand extends \WP_CLI_Command {
 			WP_CLI::error( $e->getMessage() );
 		}
 
+		$result_sandbox_id = is_string( $result['sandbox_id'] ?? null ) ? $result['sandbox_id'] : $sandbox_id;
+		$result_backup     = is_array( $result['backup'] ?? null ) ? $result['backup'] : array();
+		$result_backup_nm  = is_string( $result_backup['name'] ?? null ) ? $result_backup['name'] : '';
+		$result_tables     = isset( $result['tables_copied'] ) && is_scalar( $result['tables_copied'] ) ? (string) $result['tables_copied'] : '';
+		$result_deploy     = is_array( $result['deployment'] ?? null ) ? $result['deployment'] : array();
+		$result_deploy_id  = is_string( $result_deploy['id'] ?? null ) ? $result_deploy['id'] : '';
+
 		WP_CLI::success( "Sandbox deployed to app: {$id}" );
 		WP_CLI::log( '' );
-		WP_CLI::log( "  Sandbox: {$result['sandbox_id']}" );
-		WP_CLI::log( "  Backup:  {$result['backup']['name']}" );
-		WP_CLI::log( "  Tables:  {$result['tables_copied']}" );
-		WP_CLI::log( "  Deploy:  {$result['deployment']['id']}" );
+		WP_CLI::log( "  Sandbox: {$result_sandbox_id}" );
+		WP_CLI::log( "  Backup:  {$result_backup_nm}" );
+		WP_CLI::log( "  Tables:  {$result_tables}" );
+		WP_CLI::log( "  Deploy:  {$result_deploy_id}" );
 	}
 
 	/**
@@ -720,15 +731,15 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--force]
 	 * : Skip confirmation prompt.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function rollback( $args, $assoc_args ): void {
 		$id            = $args[0];
-		$deployment_id = $assoc_args['deployment'];
+		$deployment_id = is_string( $assoc_args['deployment'] ?? null ) ? $assoc_args['deployment'] : '';
 		$app           = $this->manager->get( $id );
 
 		if ( ! $app ) {
@@ -747,10 +758,13 @@ class AppCommand extends \WP_CLI_Command {
 			WP_CLI::error( $e->getMessage() );
 		}
 
+		$result_deployment_id = is_string( $result['deployment_id'] ?? null ) ? $result['deployment_id'] : $deployment_id;
+		$result_backup_name   = is_string( $result['backup_name'] ?? null ) ? $result['backup_name'] : '';
+
 		WP_CLI::success( "App rolled back: {$id}" );
 		WP_CLI::log( '' );
-		WP_CLI::log( "  Deployment: {$result['deployment_id']}" );
-		WP_CLI::log( "  Backup:     {$result['backup_name']}" );
+		WP_CLI::log( "  Deployment: {$result_deployment_id}" );
+		WP_CLI::log( "  Backup:     {$result_backup_name}" );
 	}
 
 	/**
@@ -764,8 +778,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * --domain=<domain>
 	 * : Domain to add.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand domain-add
@@ -773,7 +787,7 @@ class AppCommand extends \WP_CLI_Command {
 	 */
 	public function domain_add( $args, $assoc_args ): void {
 		$id     = $args[0];
-		$domain = $assoc_args['domain'];
+		$domain = is_string( $assoc_args['domain'] ?? null ) ? $assoc_args['domain'] : '';
 
 		try {
 			$this->manager->add_domain( $id, $domain );
@@ -795,8 +809,8 @@ class AppCommand extends \WP_CLI_Command {
 	 * --domain=<domain>
 	 * : Domain to remove.
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand domain-remove
@@ -804,7 +818,7 @@ class AppCommand extends \WP_CLI_Command {
 	 */
 	public function domain_remove( $args, $assoc_args ): void {
 		$id     = $args[0];
-		$domain = $assoc_args['domain'];
+		$domain = is_string( $assoc_args['domain'] ?? null ) ? $assoc_args['domain'] : '';
 
 		try {
 			$this->manager->remove_domain( $id, $domain );
@@ -818,7 +832,7 @@ class AppCommand extends \WP_CLI_Command {
 	/**
 	 * Build tracked Git metadata changes from CLI arguments.
 	 *
-	 * @param array $assoc_args CLI associative arguments.
+	 * @param array<string, mixed> $assoc_args CLI associative arguments.
 	 * @return array<string, mixed>
 	 */
 	private function build_git_tracking_changes( array $assoc_args ): array {

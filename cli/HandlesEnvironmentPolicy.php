@@ -15,7 +15,7 @@ trait HandlesEnvironmentPolicy {
 	/**
 	 * Build metadata changes from CLI arguments.
 	 *
-	 * @param array $assoc_args CLI associative arguments.
+	 * @param array<string, mixed> $assoc_args CLI associative arguments.
 	 * @return array<string, mixed>
 	 */
 	private function build_policy_changes( array $assoc_args ): array {

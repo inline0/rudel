@@ -40,22 +40,22 @@ class PushCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel push my-sandbox-a1b2 --git=https://example.test/theme.git --dir=themes/my-theme --message="Add header template"
 	 *     Success: Pushed to rudel/my-sandbox-a1b2 (abc1234)
 	 *
-	 * @param array $args Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function __invoke( $args, $assoc_args ): void {
 		$sandbox = $this->require_environment( $args[0] );
-		$remote  = $assoc_args['git'] ?? $sandbox->get_git_remote();
+		$remote  = is_string( $assoc_args['git'] ?? null ) ? $assoc_args['git'] : $sandbox->get_git_remote();
 
 		if ( ! $remote ) {
 			WP_CLI::error( 'Git remote required. Pass --git=<remote> (only needed on first push).' );
 		}
 
-		$message   = $assoc_args['message'] ?? 'Update from Rudel sandbox';
-		$subdir    = $assoc_args['dir'] ?? $sandbox->get_git_dir() ?? '';
+		$message   = is_string( $assoc_args['message'] ?? null ) ? $assoc_args['message'] : 'Update from Rudel sandbox';
+		$subdir    = is_string( $assoc_args['dir'] ?? null ) ? $assoc_args['dir'] : ( $sandbox->get_git_dir() ?? '' );
 		$branch    = $sandbox->get_git_branch();
 		$local_dir = $sandbox->get_runtime_content_path( $subdir );
 

@@ -42,6 +42,8 @@ class EnvironmentStateReplacer {
 	 * @param Environment $source Source environment.
 	 * @param Environment $target Target environment.
 	 * @return int Number of copied tables.
+	 *
+	 * @throws \RuntimeException If the global $wpdb is not available.
 	 */
 	private function replace_mysql_environment_state( Environment $source, Environment $target ): int {
 		$mysql_cloner  = new MySQLCloner();
@@ -49,14 +51,20 @@ class EnvironmentStateReplacer {
 		$target_prefix = $target->get_table_prefix();
 		$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
 		$tables = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ) );
+		if ( ! is_object( $GLOBALS['wpdb'] ) ) {
+			throw new \RuntimeException( 'Global $wpdb is not available.' );
+		}
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb_instance */
+		$wpdb_instance = $GLOBALS['wpdb'];
 		$mysql_cloner->rewrite_urls(
-			$GLOBALS['wpdb'],
+			$wpdb_instance,
 			$target_prefix,
 			$this->environment_site_url( $source ),
 			$this->environment_site_url( $target )
 		);
 		$mysql_cloner->rewrite_table_prefix_in_data(
-			$GLOBALS['wpdb'],
+			$wpdb_instance,
 			$target_prefix,
 			$source_prefix,
 			$target_prefix
@@ -167,8 +175,8 @@ class EnvironmentStateReplacer {
 				continue;
 			}
 
-			$type = isset( $item['type'] ) ? trim( (string) $item['type'] ) : '';
-			$name = isset( $item['name'] ) ? trim( (string) $item['name'] ) : '';
+			$type = isset( $item['type'] ) && is_string( $item['type'] ) ? trim( $item['type'] ) : '';
+			$name = isset( $item['name'] ) && is_string( $item['name'] ) ? trim( $item['name'] ) : '';
 
 			if ( '' === $type || '' === $name ) {
 				continue;
@@ -206,6 +214,9 @@ class EnvironmentStateReplacer {
 			if ( is_dir( $target_dir ) ) {
 				$entries = new \FilesystemIterator( $target_dir, \FilesystemIterator::SKIP_DOTS );
 				foreach ( $entries as $entry ) {
+					if ( ! ( $entry instanceof \SplFileInfo ) ) {
+						continue;
+					}
 					$this->delete_path( $entry->getPathname() );
 				}
 			}
@@ -258,6 +269,9 @@ class EnvironmentStateReplacer {
 
 		$source_entries = new \FilesystemIterator( $source_dir, \FilesystemIterator::SKIP_DOTS );
 		foreach ( $source_entries as $entry ) {
+			if ( ! ( $entry instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$name = $entry->getFilename();
 			if ( $preserve_git && '.git' === $name ) {
 				continue;
@@ -283,6 +297,9 @@ class EnvironmentStateReplacer {
 
 		$target_entries = new \FilesystemIterator( $target_dir, \FilesystemIterator::SKIP_DOTS );
 		foreach ( $target_entries as $entry ) {
+			if ( ! ( $entry instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$name = $entry->getFilename();
 			if ( $preserve_git && '.git' === $name ) {
 				continue;
@@ -374,6 +391,9 @@ class EnvironmentStateReplacer {
 		);
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$item_path = $item->getPathname();
 			if ( $item->isLink() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during environment replacement.

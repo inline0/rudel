@@ -98,7 +98,8 @@ class SubsiteCloner {
 		}
 
 		if ( function_exists( 'get_current_user_id' ) ) {
-			$current_user_id = (int) get_current_user_id();
+			$current_user_id_result = get_current_user_id();
+			$current_user_id        = is_numeric( $current_user_id_result ) ? (int) $current_user_id_result : 0;
 			if ( $current_user_id > 0 ) {
 				return $current_user_id;
 			}
@@ -106,14 +107,19 @@ class SubsiteCloner {
 
 		if ( function_exists( 'get_super_admins' ) && function_exists( 'get_user_by' ) ) {
 			$super_admins = get_super_admins();
-			foreach ( $super_admins as $login ) {
-				if ( ! is_string( $login ) || '' === $login ) {
-					continue;
-				}
+			if ( is_array( $super_admins ) ) {
+				foreach ( $super_admins as $login ) {
+					if ( ! is_string( $login ) || '' === $login ) {
+						continue;
+					}
 
-				$user = get_user_by( 'login', $login );
-				if ( is_object( $user ) && isset( $user->ID ) && (int) $user->ID > 0 ) {
-					return (int) $user->ID;
+					$user = get_user_by( 'login', $login );
+					if ( is_object( $user ) && isset( $user->ID ) ) {
+						$user_id = is_numeric( $user->ID ) ? (int) $user->ID : 0;
+						if ( $user_id > 0 ) {
+							return $user_id;
+						}
+					}
 				}
 			}
 		}
@@ -132,7 +138,7 @@ class SubsiteCloner {
 	 * @throws \RuntimeException When the site domain cannot be updated.
 	 */
 	public function update_subsite_domain( int $blog_id, string $domain, string $path = '/' ): void {
-		$domain = strtolower( trim( preg_replace( '/:\d+$/', '', $domain ) ) );
+		$domain = strtolower( trim( (string) preg_replace( '/:\d+$/', '', $domain ) ) );
 		$path   = '' === $path ? '/' : $path;
 		if ( ! str_starts_with( $path, '/' ) ) {
 			$path = '/' . $path;
@@ -183,8 +189,8 @@ class SubsiteCloner {
 	public function get_subsite_url( int $blog_id ): string {
 		$details = get_blog_details( $blog_id );
 		if ( $details ) {
-			$site_domain = isset( $details->domain ) ? (string) $details->domain : '';
-			$site_path   = isset( $details->path ) ? (string) $details->path : '/';
+			$site_domain = isset( $details->domain ) && is_string( $details->domain ) ? $details->domain : '';
+			$site_path   = isset( $details->path ) && is_string( $details->path ) ? $details->path : '/';
 
 			if ( '' !== $site_domain ) {
 				if ( '' === $site_path ) {
@@ -203,7 +209,7 @@ class SubsiteCloner {
 				return $site_url . rtrim( $site_path, '/' ) . '/';
 			}
 
-			if ( ! empty( $details->siteurl ) ) {
+			if ( ! empty( $details->siteurl ) && is_string( $details->siteurl ) ) {
 				return rtrim( $details->siteurl, '/' ) . '/';
 			}
 		}
@@ -216,12 +222,20 @@ class SubsiteCloner {
 	 *
 	 * @param int $blog_id Target sub-site blog ID.
 	 * @return array{tables_cloned: int, rows_cloned: int} Clone statistics.
+	 *
+	 * @throws \RuntimeException If the global $wpdb is not available.
 	 */
 	public function clone_host_db_to_subsite( int $blog_id ): array {
 		global $wpdb;
 
-		$source_prefix = $wpdb->base_prefix;
-		$target_prefix = $wpdb->base_prefix . $blog_id . '_';
+		if ( ! is_object( $wpdb ) ) {
+			throw new \RuntimeException( 'Global $wpdb is not available.' );
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
+		$source_prefix = (string) $wpdb->base_prefix;
+		$target_prefix = $source_prefix . $blog_id . '_';
 
 		$mysql_cloner = new MySQLCloner();
 
@@ -249,7 +263,8 @@ class SubsiteCloner {
 			$wpdb->query( "TRUNCATE TABLE `{$target_table}`" );
 			$wpdb->query( "INSERT INTO `{$target_table}` SELECT * FROM `{$source_table}`" );
 
-			$rows        = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$target_table}`" );
+			$count       = $wpdb->get_var( "SELECT COUNT(*) FROM `{$target_table}`" );
+			$rows        = is_numeric( $count ) ? (int) $count : 0;
 			$total_rows += $rows;
 			++$table_count;
 		}
@@ -285,7 +300,8 @@ class SubsiteCloner {
 		}
 
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
-			$host = preg_replace( '/:\d+$/', '', (string) DOMAIN_CURRENT_SITE );
+			$domain_str = is_string( DOMAIN_CURRENT_SITE ) ? DOMAIN_CURRENT_SITE : '';
+			$host       = preg_replace( '/:\d+$/', '', $domain_str );
 			if ( is_string( $host ) && '' !== $host ) {
 				return $host;
 			}
@@ -293,7 +309,8 @@ class SubsiteCloner {
 			return 'localhost';
 		}
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Pre-validated in bootstrap context.
-		$host = preg_replace( '/:\d+$/', '', (string) ( $_SERVER['HTTP_HOST'] ?? 'localhost' ) );
+		$http_host = isset( $_SERVER['HTTP_HOST'] ) && is_string( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : 'localhost';
+		$host      = preg_replace( '/:\d+$/', '', $http_host );
 		if ( is_string( $host ) && '' !== $host ) {
 			return $host;
 		}
@@ -311,8 +328,9 @@ class SubsiteCloner {
 	 */
 	private function get_current_network_domain(): string {
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
-			$domain = preg_replace( '/:\d+$/', '', trim( (string) DOMAIN_CURRENT_SITE ) );
-			if ( '' !== $domain ) {
+			$domain_str = is_string( DOMAIN_CURRENT_SITE ) ? DOMAIN_CURRENT_SITE : '';
+			$domain     = preg_replace( '/:\d+$/', '', trim( $domain_str ) );
+			if ( is_string( $domain ) && '' !== $domain ) {
 				return $domain;
 			}
 		}
@@ -358,7 +376,7 @@ class SubsiteCloner {
 		if ( defined( 'WP_HOME' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime host derivation without relying on later WP URL helpers.
 			$parts = parse_url( (string) WP_HOME );
-			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
+			if ( is_array( $parts ) && isset( $parts['port'] ) && is_numeric( $parts['port'] ) ) {
 				$port = (int) $parts['port'];
 			}
 		}

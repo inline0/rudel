@@ -40,8 +40,8 @@ class AppRepository {
 	/**
 	 * Register one app environment and its domains.
 	 *
-	 * @param Environment $environment App environment.
-	 * @param array       $domains Normalized domains.
+	 * @param Environment        $environment App environment.
+	 * @param array<int, string> $domains Normalized domains.
 	 * @return Environment
 	 *
 	 * @throws \RuntimeException When the insert fails or the app cannot be reloaded.
@@ -92,7 +92,7 @@ class AppRepository {
 
 		$apps = array();
 		foreach ( $rows as $row ) {
-			$environment_id = isset( $row['environment_id'] ) ? (int) $row['environment_id'] : 0;
+			$environment_id = isset( $row['environment_id'] ) && is_numeric( $row['environment_id'] ) ? (int) $row['environment_id'] : 0;
 			if ( $environment_id <= 0 ) {
 				continue;
 			}
@@ -118,7 +118,8 @@ class AppRepository {
 			return null;
 		}
 
-		return $this->environments->get_by_record_id( (int) $row['environment_id'] );
+		$env_id = isset( $row['environment_id'] ) && is_numeric( $row['environment_id'] ) ? (int) $row['environment_id'] : 0;
+		return $this->environments->get_by_record_id( $env_id );
 	}
 
 	/**
@@ -137,14 +138,15 @@ class AppRepository {
 			return null;
 		}
 
-		return $this->get( (int) $row['app_id'] );
+		$app_id = isset( $row['app_id'] ) && is_numeric( $row['app_id'] ) ? (int) $row['app_id'] : 0;
+		return $this->get( $app_id );
 	}
 
 	/**
 	 * Replace all mapped domains for one app.
 	 *
-	 * @param int   $app_id App DB ID.
-	 * @param array $domains Normalized domains.
+	 * @param int                $app_id App DB ID.
+	 * @param array<int, string> $domains Normalized domains.
 	 * @return void
 	 *
 	 * @throws \Throwable When a transactional domain update fails and must be rolled back.
@@ -178,7 +180,7 @@ class AppRepository {
 			return false;
 		}
 
-		$app_id = (int) $row['id'];
+		$app_id = isset( $row['id'] ) && is_numeric( $row['id'] ) ? (int) $row['id'] : 0;
 		$this->store->begin();
 
 		try {
@@ -243,7 +245,7 @@ class AppRepository {
 		return array_values(
 			array_filter(
 				array_map(
-					static fn( array $row ): ?string => isset( $row['domain'] ) ? (string) $row['domain'] : null,
+					static fn( array $row ): ?string => isset( $row['domain'] ) && is_scalar( $row['domain'] ) ? (string) $row['domain'] : null,
 					$rows
 				)
 			)
@@ -253,7 +255,7 @@ class AppRepository {
 	/**
 	 * Normalize a set of domains.
 	 *
-	 * @param array $domains Raw domains.
+	 * @param array<int, mixed> $domains Raw domains.
 	 * @return array<int, string>
 	 */
 	private function normalize_domains( array $domains ): array {

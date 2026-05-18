@@ -181,12 +181,13 @@ class EnvironmentRepository {
 
 		try {
 			if ( is_array( $existing ) ) {
+				$existing_id = isset( $existing['id'] ) && is_numeric( $existing['id'] ) ? (int) $existing['id'] : 0;
 				$this->store->update(
 					$this->table(),
 					$payload,
-					array( 'id' => (int) $existing['id'] )
+					array( 'id' => $existing_id )
 				);
-				$record_id = (int) $existing['id'];
+				$record_id = $existing_id;
 			} else {
 				$record_id = $this->store->insert( $this->table(), $payload );
 			}
@@ -209,9 +210,9 @@ class EnvironmentRepository {
 	/**
 	 * Update fields on one environment and return the refreshed record.
 	 *
-	 * @param string      $slug Environment slug.
-	 * @param array       $changes Field changes.
-	 * @param string|null $type Optional exact type filter.
+	 * @param string               $slug Environment slug.
+	 * @param array<string, mixed> $changes Field changes.
+	 * @param string|null          $type Optional exact type filter.
 	 * @return Environment
 	 *
 	 * @throws \RuntimeException When the update fails or the environment cannot be reloaded.
@@ -226,10 +227,12 @@ class EnvironmentRepository {
 		$payload = $this->normalize_changes( $changes, $row );
 		$this->store->begin();
 
+		$row_id = isset( $row['id'] ) && is_numeric( $row['id'] ) ? (int) $row['id'] : 0;
+
 		try {
 			if ( array_key_exists( '__worktrees', $payload ) ) {
 				$this->replace_worktrees(
-					(int) $row['id'],
+					$row_id,
 					is_array( $payload['__worktrees'] ) ? $payload['__worktrees'] : array()
 				);
 				unset( $payload['__worktrees'] );
@@ -237,10 +240,10 @@ class EnvironmentRepository {
 
 			if ( ! empty( $payload ) ) {
 				$payload['updated_at'] = gmdate( 'c' );
-				$this->store->update( $this->table(), $payload, array( 'id' => (int) $row['id'] ) );
+				$this->store->update( $this->table(), $payload, array( 'id' => $row_id ) );
 			}
 
-			$updated = $this->get_by_record_id( (int) $row['id'] );
+			$updated = $this->get_by_record_id( $row_id );
 			if ( ! $updated ) {
 				throw new \RuntimeException( sprintf( 'Environment not found after update: %s', $slug ) );
 			}
@@ -270,9 +273,11 @@ class EnvironmentRepository {
 
 		$this->store->begin();
 
+		$delete_id = isset( $row['id'] ) && is_numeric( $row['id'] ) ? (int) $row['id'] : 0;
+
 		try {
-			$this->worktrees->replace_for_environment( (int) $row['id'], array() );
-			$this->store->delete( $this->table(), array( 'id' => (int) $row['id'] ) );
+			$this->worktrees->replace_for_environment( $delete_id, array() );
+			$this->store->delete( $this->table(), array( 'id' => $delete_id ) );
 			$this->store->commit();
 			return true;
 		} catch ( \Throwable $e ) {
@@ -316,13 +321,14 @@ class EnvironmentRepository {
 	 * @return Environment|null
 	 */
 	private function hydrate( array $row ): ?Environment {
-		$path = isset( $row['path'] ) ? (string) $row['path'] : '';
+		$path = isset( $row['path'] ) && is_scalar( $row['path'] ) ? (string) $row['path'] : '';
 		if ( '' === $path ) {
 			return null;
 		}
 
-		$domains   = $this->domains_for_row( $row );
-		$worktrees = $this->worktrees->list_for_environment( (int) $row['id'] );
+		$hydrate_id = isset( $row['id'] ) && is_numeric( $row['id'] ) ? (int) $row['id'] : 0;
+		$domains    = $this->domains_for_row( $row );
+		$worktrees  = $this->worktrees->list_for_environment( $hydrate_id );
 
 		return Environment::from_record( $row, $domains, $worktrees );
 	}
@@ -502,7 +508,7 @@ class EnvironmentRepository {
 	 * @return array<int, string>|null
 	 */
 	private function domains_for_row( array $row ): ?array {
-		$app_id = isset( $row['app_id'] ) ? (int) $row['app_id'] : 0;
+		$app_id = isset( $row['app_id'] ) && is_numeric( $row['app_id'] ) ? (int) $row['app_id'] : 0;
 		if ( $app_id <= 0 ) {
 			return null;
 		}
@@ -519,7 +525,7 @@ class EnvironmentRepository {
 		return array_values(
 			array_filter(
 				array_map(
-					static fn( array $domain_row ): ?string => isset( $domain_row['domain'] ) ? (string) $domain_row['domain'] : null,
+					static fn( array $domain_row ): ?string => isset( $domain_row['domain'] ) && is_scalar( $domain_row['domain'] ) ? (string) $domain_row['domain'] : null,
 					$rows
 				)
 			)
@@ -534,7 +540,7 @@ class EnvironmentRepository {
 	 * @return void
 	 */
 	private function replace_worktrees( int $record_id, $worktrees ): void {
-		$items = is_array( $worktrees ) ? $worktrees : array();
+		$items = is_array( $worktrees ) ? array_values( $worktrees ) : array();
 		$this->worktrees->replace_for_environment( $record_id, $items );
 	}
 

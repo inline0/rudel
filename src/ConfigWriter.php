@@ -124,7 +124,9 @@ class ConfigWriter {
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local wp-config.php.
-		return str_contains( file_get_contents( $config_path ), self::MARKER );
+		$contents = file_get_contents( $config_path );
+
+		return false !== $contents && str_contains( $contents, self::MARKER );
 	}
 
 	/**

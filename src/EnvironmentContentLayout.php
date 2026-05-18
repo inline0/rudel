@@ -128,6 +128,9 @@ class EnvironmentContentLayout {
 
 		$entries = new \FilesystemIterator( $source_content, \FilesystemIterator::SKIP_DOTS );
 		foreach ( $entries as $entry ) {
+			if ( ! ( $entry instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$name = $entry->getFilename();
 			if ( isset( $shared[ $name ] ) ) {
 				continue;
@@ -257,6 +260,9 @@ class EnvironmentContentLayout {
 		);
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$item_path = $item->getPathname();
 
 			if ( $item->isLink() || $item->isFile() ) {

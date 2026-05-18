@@ -15,36 +15,36 @@ class Environment {
 	/**
 	 * Initialize dependencies.
 	 *
-	 * @param string      $id           Sandbox identifier.
-	 * @param string      $name         Human-readable name.
-	 * @param string      $path         Absolute filesystem path.
-	 * @param string      $created_at   ISO 8601 creation timestamp.
-	 * @param string      $template     Template used to create this sandbox.
-	 * @param string      $status       Current status (active, paused).
-	 * @param array|null  $clone_source Clone source metadata, or null if not cloned.
-	 * @param bool        $multisite    Whether this sandbox was cloned from a multisite host.
-	 * @param string      $engine       Database engine. Rudel uses 'subsite'.
-	 * @param int|null    $blog_id      Multisite blog ID (subsite engine only).
-	 * @param string      $type                     Environment type: 'sandbox' or 'app'.
-	 * @param array|null  $domains                  Domain names mapped to this environment (app mode).
-	 * @param string|null $owner                    Optional owner for stewardship and cleanup policy.
-	 * @param array       $labels                   Arbitrary labels for grouping and policy.
-	 * @param string|null $purpose                  Optional description of why the environment exists.
-	 * @param bool        $is_protected             Whether automated cleanup must skip this environment.
-	 * @param string|null $expires_at               ISO 8601 expiry timestamp, or null if none.
-	 * @param string|null $last_used_at             ISO 8601 last activity timestamp.
-	 * @param string|null $source_environment_id    Source environment ID when cloned from another environment.
-	 * @param string|null $source_environment_type  Source environment type when cloned from another environment.
-	 * @param string|null $last_deployed_from_id    Last sandbox/app deployed into this environment.
-	 * @param string|null $last_deployed_from_type  Type of the environment last deployed into this environment.
-	 * @param string|null $last_deployed_at         ISO 8601 timestamp of the last deploy into this environment.
-	 * @param string|null $tracked_git_remote       Git remote this environment tracks as its deployed code source.
-	 * @param string|null $tracked_git_branch       Branch this environment treats as its stable mainline.
-	 * @param string|null $tracked_git_dir          Optional wp-content subdirectory associated with the tracked repository.
-	 * @param bool        $shared_plugins           Whether plugins are shared live from the host wp-content directory.
-	 * @param bool        $shared_uploads           Whether uploads are shared live from the host wp-content directory.
-	 * @param int|null    $record_id                DB record ID for the environment row.
-	 * @param int|null    $app_record_id            DB record ID for the related app row, when present.
+	 * @param string                    $id           Sandbox identifier.
+	 * @param string                    $name         Human-readable name.
+	 * @param string                    $path         Absolute filesystem path.
+	 * @param string                    $created_at   ISO 8601 creation timestamp.
+	 * @param string                    $template     Template used to create this sandbox.
+	 * @param string                    $status       Current status (active, paused).
+	 * @param array<string, mixed>|null $clone_source Clone source metadata, or null if not cloned.
+	 * @param bool                      $multisite    Whether this sandbox was cloned from a multisite host.
+	 * @param string                    $engine       Database engine. Rudel uses 'subsite'.
+	 * @param int|null                  $blog_id      Multisite blog ID (subsite engine only).
+	 * @param string                    $type                     Environment type: 'sandbox' or 'app'.
+	 * @param array<int, string>|null   $domains     Domain names mapped to this environment (app mode).
+	 * @param string|null               $owner                    Optional owner for stewardship and cleanup policy.
+	 * @param array<int, string>        $labels            Arbitrary labels for grouping and policy.
+	 * @param string|null               $purpose                  Optional description of why the environment exists.
+	 * @param bool                      $is_protected             Whether automated cleanup must skip this environment.
+	 * @param string|null               $expires_at               ISO 8601 expiry timestamp, or null if none.
+	 * @param string|null               $last_used_at             ISO 8601 last activity timestamp.
+	 * @param string|null               $source_environment_id    Source environment ID when cloned from another environment.
+	 * @param string|null               $source_environment_type  Source environment type when cloned from another environment.
+	 * @param string|null               $last_deployed_from_id    Last sandbox/app deployed into this environment.
+	 * @param string|null               $last_deployed_from_type  Type of the environment last deployed into this environment.
+	 * @param string|null               $last_deployed_at         ISO 8601 timestamp of the last deploy into this environment.
+	 * @param string|null               $tracked_git_remote       Git remote this environment tracks as its deployed code source.
+	 * @param string|null               $tracked_git_branch       Branch this environment treats as its stable mainline.
+	 * @param string|null               $tracked_git_dir          Optional wp-content subdirectory associated with the tracked repository.
+	 * @param bool                      $shared_plugins           Whether plugins are shared live from the host wp-content directory.
+	 * @param bool                      $shared_uploads           Whether uploads are shared live from the host wp-content directory.
+	 * @param int|null                  $record_id                DB record ID for the environment row.
+	 * @param int|null                  $app_record_id            DB record ID for the related app row, when present.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -109,24 +109,36 @@ class Environment {
 	 * @return self
 	 */
 	public static function from_record( array $record, ?array $domains = null, array $worktrees = array() ): self {
-		$clone_source = self::json_array_or_null( $record['clone_source'] ?? null );
+		$raw_clone = self::json_array_or_null( $record['clone_source'] ?? null );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for clone_source.
+		/** @var array<string, mixed>|null $clone_source */
+		$clone_source = $raw_clone;
 		if ( ! empty( $worktrees ) ) {
 			$clone_source                  = is_array( $clone_source ) ? $clone_source : array();
 			$clone_source['git_worktrees'] = $worktrees;
 		}
 
+		$slug       = $record['slug'] ?? '';
+		$rec_name   = $record['name'] ?? '';
+		$rec_path   = $record['path'] ?? '';
+		$rec_cat    = $record['created_at'] ?? '';
+		$rec_tpl    = $record['template'] ?? 'blank';
+		$rec_status = $record['status'] ?? 'active';
+		$rec_engine = $record['engine'] ?? 'subsite';
+		$rec_type   = $record['type'] ?? 'sandbox';
+
 		return new self(
-			id: (string) ( $record['slug'] ?? '' ),
-			name: (string) ( $record['name'] ?? '' ),
-			path: (string) ( $record['path'] ?? '' ),
-			created_at: (string) ( $record['created_at'] ?? '' ),
-			template: (string) ( $record['template'] ?? 'blank' ),
-			status: (string) ( $record['status'] ?? 'active' ),
+			id: is_scalar( $slug ) ? (string) $slug : '',
+			name: is_scalar( $rec_name ) ? (string) $rec_name : '',
+			path: is_scalar( $rec_path ) ? (string) $rec_path : '',
+			created_at: is_scalar( $rec_cat ) ? (string) $rec_cat : '',
+			template: is_scalar( $rec_tpl ) ? (string) $rec_tpl : 'blank',
+			status: is_scalar( $rec_status ) ? (string) $rec_status : 'active',
 			clone_source: $clone_source,
 			multisite: ! empty( $record['multisite'] ),
-			engine: (string) ( $record['engine'] ?? 'subsite' ),
-			blog_id: isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
-			type: (string) ( $record['type'] ?? 'sandbox' ),
+			engine: is_scalar( $rec_engine ) ? (string) $rec_engine : 'subsite',
+			blog_id: isset( $record['blog_id'] ) && is_numeric( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
+			type: is_scalar( $rec_type ) ? (string) $rec_type : 'sandbox',
 			domains: ! empty( $domains ) ? array_values( $domains ) : null,
 			owner: self::string_or_null( $record['owner'] ?? null ),
 			labels: self::normalize_labels( self::json_array_or_null( $record['labels'] ?? null ) ?? array() ),
@@ -144,8 +156,8 @@ class Environment {
 			tracked_git_dir: self::string_or_null( $record['tracked_git_dir'] ?? null ),
 			shared_plugins: ! empty( $record['shared_plugins'] ),
 			shared_uploads: ! empty( $record['shared_uploads'] ),
-			record_id: isset( $record['id'] ) ? (int) $record['id'] : null,
-			app_record_id: isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
+			record_id: isset( $record['id'] ) && is_numeric( $record['id'] ) ? (int) $record['id'] : null,
+			app_record_id: isset( $record['app_id'] ) && is_numeric( $record['app_id'] ) ? (int) $record['app_id'] : null,
 		);
 	}
 
@@ -184,7 +196,7 @@ class Environment {
 	public function get_table_prefix(): string {
 		if ( $this->is_subsite() && null !== $this->blog_id ) {
 			global $wpdb;
-			if ( isset( $wpdb ) && $wpdb ) {
+			if ( isset( $wpdb ) && is_object( $wpdb ) && isset( $wpdb->base_prefix ) && is_string( $wpdb->base_prefix ) ) {
 				return $wpdb->base_prefix . $this->blog_id . '_';
 			}
 		}
@@ -284,8 +296,11 @@ class Environment {
 			new \RecursiveDirectoryIterator( $this->path, \FilesystemIterator::SKIP_DOTS )
 		);
 		foreach ( $iterator as $file ) {
+			if ( ! ( $file instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			if ( $file->isFile() ) {
-				$size += $file->getSize();
+				$size += (int) $file->getSize();
 			}
 		}
 		return $size;
@@ -297,7 +312,7 @@ class Environment {
 	 * @return string Canonical environment URL.
 	 */
 	public function get_url(): string {
-		if ( $this->is_app() && ! empty( $this->domains ) ) {
+		if ( $this->is_app() && ! empty( $this->domains ) && is_string( $this->domains[0] ) ) {
 			return self::domain_url( $this->domains[0] );
 		}
 
@@ -336,8 +351,10 @@ class Environment {
 		if ( null !== $blog_id && function_exists( 'get_blog_details' ) ) {
 			$details = get_blog_details( $blog_id );
 			if ( $details ) {
-				$site_domain = isset( $details->domain ) ? (string) $details->domain : '';
-				$site_path   = isset( $details->path ) ? (string) $details->path : '/';
+				$raw_domain  = isset( $details->domain ) ? $details->domain : '';
+				$site_domain = is_scalar( $raw_domain ) ? (string) $raw_domain : '';
+				$raw_path    = isset( $details->path ) ? $details->path : '/';
+				$site_path   = is_scalar( $raw_path ) ? (string) $raw_path : '/';
 
 				if ( '' !== $site_domain ) {
 					if ( '' === $site_path ) {
@@ -356,7 +373,7 @@ class Environment {
 					return trailingslashit( $site_url . $site_path );
 				}
 
-				if ( ! empty( $details->siteurl ) ) {
+				if ( ! empty( $details->siteurl ) && is_scalar( $details->siteurl ) ) {
 					return trailingslashit( (string) $details->siteurl );
 				}
 			}
@@ -406,13 +423,13 @@ class Environment {
 		if ( defined( 'WP_HOME' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation before full WP helpers are guaranteed.
 			$parts = parse_url( (string) WP_HOME );
-			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
+			if ( is_array( $parts ) && isset( $parts['port'] ) && is_numeric( $parts['port'] ) ) {
 				$port = (int) $parts['port'];
 			}
 		} elseif ( function_exists( 'home_url' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation from the active site URL.
 			$parts = parse_url( home_url( '/' ) );
-			if ( is_array( $parts ) && isset( $parts['port'] ) ) {
+			if ( is_array( $parts ) && isset( $parts['port'] ) && is_numeric( $parts['port'] ) ) {
 				$port = (int) $parts['port'];
 			}
 		}
@@ -453,9 +470,12 @@ class Environment {
 		}
 
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
-			$network_host = preg_replace( '/:\d+$/', '', (string) DOMAIN_CURRENT_SITE );
-			if ( is_string( $network_host ) && '' !== $network_host ) {
-				$host = $network_host;
+			$domain_site = constant( 'DOMAIN_CURRENT_SITE' );
+			if ( is_string( $domain_site ) ) {
+				$network_host = preg_replace( '/:\d+$/', '', $domain_site );
+				if ( is_string( $network_host ) && '' !== $network_host ) {
+					$host = $network_host;
+				}
 			}
 		}
 
@@ -477,7 +497,8 @@ class Environment {
 	 * @return string|null Remote URL, or null.
 	 */
 	public function get_git_remote(): ?string {
-		return $this->clone_source['git_remote'] ?? $this->tracked_git_remote;
+		$remote = $this->clone_source['git_remote'] ?? $this->tracked_git_remote;
+		return is_string( $remote ) ? $remote : null;
 	}
 
 	/**
@@ -486,7 +507,8 @@ class Environment {
 	 * @return string|null Relative directory path, or null for all of wp-content.
 	 */
 	public function get_git_dir(): ?string {
-		return $this->clone_source['git_dir'] ?? $this->tracked_git_dir;
+		$dir = $this->clone_source['git_dir'] ?? $this->tracked_git_dir;
+		return is_string( $dir ) ? $dir : null;
 	}
 
 	/**
@@ -495,7 +517,8 @@ class Environment {
 	 * @return string|null Branch name, or null when the repository default branch should be used.
 	 */
 	public function get_git_base_branch(): ?string {
-		return $this->clone_source['git_base_branch'] ?? $this->tracked_git_branch;
+		$branch = $this->clone_source['git_base_branch'] ?? $this->tracked_git_branch;
+		return is_string( $branch ) ? $branch : null;
 	}
 
 	/**
@@ -725,9 +748,10 @@ class Environment {
 	 * @return string Generated ID in slug-hash format.
 	 */
 	public static function generate_id( string $name ): string {
-		$slug = strtolower( trim( preg_replace( '/[^a-zA-Z0-9]+/', '-', $name ), '-' ) );
-		$slug = substr( $slug, 0, 48 );
-		$hash = substr( md5( uniqid( $name, true ) ), 0, 4 );
+		$replaced = preg_replace( '/[^a-zA-Z0-9]+/', '-', $name );
+		$slug     = strtolower( trim( is_string( $replaced ) ? $replaced : $name, '-' ) );
+		$slug     = substr( $slug, 0, 48 );
+		$hash     = substr( md5( uniqid( $name, true ) ), 0, 4 );
 		if ( '' === $slug ) {
 			return 'sandbox-' . $hash;
 		}

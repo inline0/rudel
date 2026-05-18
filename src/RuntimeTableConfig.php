@@ -40,7 +40,9 @@ class RuntimeTableConfig {
 			return self::DEFAULT_PREFIX;
 		}
 
-		return self::normalize_prefix( (string) constant( 'RUDEL_RUNTIME_TABLE_PREFIX' ) );
+		$prefix_value = constant( 'RUDEL_RUNTIME_TABLE_PREFIX' );
+
+		return self::normalize_prefix( is_string( $prefix_value ) ? $prefix_value : '' );
 	}
 
 	/**
@@ -67,7 +69,8 @@ class RuntimeTableConfig {
 	public static function table( string $suffix ): string {
 		$constant = self::TABLE_CONSTANTS[ $suffix ] ?? null;
 		if ( null !== $constant && defined( $constant ) ) {
-			$table = trim( (string) constant( $constant ) );
+			$constant_value = constant( $constant );
+			$table          = is_string( $constant_value ) ? trim( $constant_value ) : '';
 			if ( '' !== $table ) {
 				return $table;
 			}

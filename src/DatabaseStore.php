@@ -44,8 +44,8 @@ interface DatabaseStore {
 	/**
 	 * Run a mutating statement.
 	 *
-	 * @param string $sql SQL with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 * @return int Affected row count.
 	 */
 	public function execute( string $sql, array $params = array() ): int;
@@ -53,8 +53,8 @@ interface DatabaseStore {
 	/**
 	 * Fetch one row.
 	 *
-	 * @param string $sql SQL with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 * @return array<string, mixed>|null
 	 */
 	public function fetch_row( string $sql, array $params = array() ): ?array;
@@ -62,8 +62,8 @@ interface DatabaseStore {
 	/**
 	 * Fetch all rows.
 	 *
-	 * @param string $sql SQL with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 * @return array<int, array<string, mixed>>
 	 */
 	public function fetch_all( string $sql, array $params = array() ): array;
@@ -71,8 +71,8 @@ interface DatabaseStore {
 	/**
 	 * Fetch a single scalar value.
 	 *
-	 * @param string $sql SQL with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 * @return mixed
 	 */
 	public function fetch_var( string $sql, array $params = array() );

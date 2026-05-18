@@ -23,11 +23,12 @@ final class RuntimeJson {
 	 * @throws \RuntimeException When encoding fails.
 	 */
 	public static function encode( $value, int $flags = 0, int $depth = 512 ): string {
+		$safe_depth = max( 1, $depth );
 		if ( function_exists( 'wp_json_encode' ) ) {
-			$json = wp_json_encode( $value, $flags, $depth );
+			$json = wp_json_encode( $value, $flags, $safe_depth );
 		} else {
 			// Lifecycle scripts exercise managers without booting WordPress, so runtime repositories cannot assume wp_json_encode() exists.
-			$json = json_encode( $value, $flags, $depth ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Pure-PHP lifecycle paths do not load WordPress helpers.
+			$json = json_encode( $value, $flags, $safe_depth ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Pure-PHP lifecycle paths do not load WordPress helpers.
 		}
 
 		if ( false === $json ) {

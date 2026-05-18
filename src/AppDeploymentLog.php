@@ -39,8 +39,8 @@ class AppDeploymentLog {
 	/**
 	 * Record a deployment into the app.
 	 *
-	 * @param Environment $sandbox Source sandbox.
-	 * @param array       $data Optional deployment metadata overrides.
+	 * @param Environment          $sandbox Source sandbox.
+	 * @param array<string, mixed> $data Optional deployment metadata overrides.
 	 * @return array<string, mixed>
 	 */
 	public function record( Environment $sandbox, array $data = array() ): array {

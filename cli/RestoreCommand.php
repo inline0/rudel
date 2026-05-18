@@ -34,15 +34,15 @@ class RestoreCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel restore my-sandbox-a1b2 --snapshot=before-update --force
 	 *     Success: Sandbox restored from snapshot: before-update
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function __invoke( $args, $assoc_args ): void {
 		$sandbox       = $this->require_environment( $args[0] );
-		$snapshot_name = $assoc_args['snapshot'];
+		$snapshot_name = is_string( $assoc_args['snapshot'] ?? null ) ? $assoc_args['snapshot'] : '';
 		$force         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false );
 
 		if ( ! $force ) {

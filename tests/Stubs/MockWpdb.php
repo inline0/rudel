@@ -10,7 +10,7 @@
 
 // phpcs:disable WordPress.NamingConventions, Squiz.Classes.ClassFileName, Squiz.Commenting, WordPress.DB
 
-class MockWpdb
+class MockWpdb extends \wpdb
 {
 	    public string $prefix = 'wp_';
 	    public string $base_prefix = 'wp_';

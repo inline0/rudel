@@ -230,18 +230,18 @@ class RudelSchema {
 		);
 
 		foreach ( $rows as $row ) {
-			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
+			$id = isset( $row['id'] ) && is_numeric( $row['id'] ) ? (int) $row['id'] : 0;
 			if ( $id <= 0 ) {
 				continue;
 			}
 
 			$target_value = $row[ $target ] ?? null;
 			$source_value = $row[ $source ] ?? null;
-			if ( null !== $target_value && '' !== trim( (string) $target_value ) ) {
+			if ( null !== $target_value && is_scalar( $target_value ) && '' !== trim( (string) $target_value ) ) {
 				continue;
 			}
 
-			if ( null === $source_value || '' === trim( (string) $source_value ) ) {
+			if ( null === $source_value || ! is_scalar( $source_value ) || '' === trim( (string) $source_value ) ) {
 				continue;
 			}
 

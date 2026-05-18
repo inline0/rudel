@@ -43,9 +43,9 @@ class MySQLCloner {
 	/**
 	 * Clone host MySQL tables to a new prefix within the same database.
 	 *
-	 * @param string $target_prefix Table prefix for the sandbox.
-	 * @param string $sandbox_url   Full URL for the sandbox (for URL rewriting).
-	 * @param array  $options       Optional settings: 'chunk_size' => int.
+	 * @param string               $target_prefix Table prefix for the sandbox.
+	 * @param string               $sandbox_url   Full URL for the sandbox (for URL rewriting).
+	 * @param array<string, mixed> $options       Optional settings: 'chunk_size' => int.
 	 * @return array{tables_cloned: int, rows_cloned: int, is_multisite: bool} Clone statistics.
 	 *
 	 * @throws \RuntimeException If cloning fails.
@@ -57,12 +57,14 @@ class MySQLCloner {
 	): array {
 		global $wpdb;
 
-		if ( ! isset( $wpdb ) || ! $wpdb ) {
+		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) ) {
 			throw new \RuntimeException( 'Global $wpdb is not available. Database cloning requires a running WordPress environment.' );
 		}
 
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
 		$chunk_size    = $options['chunk_size'] ?? self::DEFAULT_CHUNK_SIZE;
-		$source_prefix = $wpdb->prefix;
+		$source_prefix = (string) $wpdb->prefix;
 		$host_url      = $this->get_host_url();
 		$tables        = $this->discover_tables( $wpdb, $source_prefix );
 
@@ -121,7 +123,8 @@ class MySQLCloner {
 	 */
 	private function count_rows( $wpdb, string $table ): int {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic table name from validated SHOW TABLES results.
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" );
+		$count = $wpdb->get_var( "SELECT COUNT(*) FROM `{$table}`" );
+		return is_numeric( $count ) ? (int) $count : 0;
 	}
 
 	/**
@@ -148,6 +151,12 @@ class MySQLCloner {
 
 		global $wpdb;
 
+		if ( ! is_object( $wpdb ) ) {
+			return 0;
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
 		$tables = $this->discover_tables( $wpdb, $prefix, $exclude_prefixes );
 		$count  = 0;
 
@@ -180,6 +189,12 @@ class MySQLCloner {
 	): int {
 		global $wpdb;
 
+		if ( ! is_object( $wpdb ) ) {
+			return 0;
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
 		$tables = $this->discover_tables( $wpdb, $source_prefix, $exclude_prefixes );
 		$count  = 0;
 
@@ -221,14 +236,21 @@ class MySQLCloner {
 			return $this->discover_cache[ $cache_key ];
 		}
 
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for get_col result.
+		/** @var array<int, string> $string_results */
+		$string_results = array_map(
+			static fn( $value ): string => is_string( $value ) ? $value : '',
+			$results
+		);
+
 		if ( empty( $exclude_prefixes ) ) {
-			$this->discover_cache[ $cache_key ] = $results;
+			$this->discover_cache[ $cache_key ] = $string_results;
 			return $this->discover_cache[ $cache_key ];
 		}
 
 		$this->discover_cache[ $cache_key ] = array_values(
 			array_filter(
-				$results,
+				$string_results,
 				static function ( string $table ) use ( $exclude_prefixes ): bool {
 					foreach ( $exclude_prefixes as $exclude_prefix ) {
 						if ( '' !== $exclude_prefix && str_starts_with( $table, $exclude_prefix ) ) {
@@ -484,15 +506,20 @@ class MySQLCloner {
 		}
 
 		foreach ( $rows as $row ) {
-			$value     = $row[ $column ];
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$raw_value = $row[ $column ] ?? '';
+			$value     = is_string( $raw_value ) ? $raw_value : ( is_scalar( $raw_value ) ? (string) $raw_value : '' );
 			$new_value = $this->search_replace_value( $value, $host_url, $sandbox_url );
 
 			if ( $new_value !== $value ) {
+				$raw_pk = $row[ $pk ] ?? '';
 				$wpdb->query(
 					$wpdb->prepare(
 						"UPDATE `{$table}` SET `{$column}` = %s WHERE `{$pk}` = %s",
 						$new_value,
-						$row[ $pk ]
+						is_string( $raw_pk ) ? $raw_pk : ( is_scalar( $raw_pk ) ? (string) $raw_pk : '' )
 					)
 				);
 			}

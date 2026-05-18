@@ -48,8 +48,11 @@ class RudelDatabase {
 		}
 
 		if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ) {
-			$store = new WpdbStore( $GLOBALS['wpdb'] );
-			$key   = $store->cache_key();
+			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+			/** @var \wpdb $wpdb_ref */
+			$wpdb_ref = $GLOBALS['wpdb'];
+			$store    = new WpdbStore( $wpdb_ref );
+			$key      = $store->cache_key();
 
 			if ( ! isset( self::$stores[ $key ] ) ) {
 				self::$stores[ $key ] = $store;

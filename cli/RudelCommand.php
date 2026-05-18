@@ -104,17 +104,17 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel create --clone-all
 	 *     Success: Sandbox created: sandbox-e5f6
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function create( $args, $assoc_args ): void {
-		$git_remote = $assoc_args['git'] ?? null;
+		$git_remote = isset( $assoc_args['git'] ) && is_string( $assoc_args['git'] ) ? $assoc_args['git'] : null;
 		$name       = $this->resolve_create_name( $assoc_args, $git_remote );
 		$options    = $this->build_create_options( $assoc_args );
-		$clone_from = $options['clone_from'] ?? null;
+		$clone_from = isset( $options['clone_from'] ) && is_string( $options['clone_from'] ) ? $options['clone_from'] : null;
 		$has_clone  = $options['clone_db'] || $options['clone_themes'] || $options['clone_plugins'] || $options['clone_uploads'];
 
 		$this->log_create_plan( $name, $options, $clone_from, $has_clone );
@@ -146,7 +146,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 				WP_CLI::log( '' );
 				WP_CLI::log( '  Git remote: ' . $git_remote );
 				WP_CLI::log( '  Branch:     ' . $sandbox->get_git_branch() );
-				WP_CLI::log( '  Checkout:   ' . $type_dir . '/' . basename( preg_replace( '/\.git$/', '', $git_remote ) ) );
+				WP_CLI::log( '  Checkout:   ' . $type_dir . '/' . basename( (string) preg_replace( '/\.git$/', '', $git_remote ) ) );
 			}
 		}
 
@@ -175,8 +175,8 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel list
 	 *     $ wp rudel list --format=json
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand list
@@ -190,25 +190,23 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			return;
 		}
 
-		$items = array_map(
-			function ( Environment $sandbox ): array {
-				return array(
-					'id'        => $sandbox->id,
-					'name'      => $sandbox->name,
-					'owner'     => $sandbox->owner ?? '',
-					'protected' => $this->format_protection( $sandbox->is_protected() ),
-					'expires'   => $sandbox->expires_at ?? '',
-					'status'    => $sandbox->status,
-					'template'  => $sandbox->template,
-					'created'   => $sandbox->created_at,
-					'size'      => $this->format_size( $sandbox->get_size() ),
-					'path'      => $sandbox->path,
-				);
-			},
-			$sandboxes
-		);
+		$items = array();
+		foreach ( $sandboxes as $sandbox ) {
+			$items[] = array(
+				'id'        => $sandbox->id,
+				'name'      => $sandbox->name,
+				'owner'     => $sandbox->owner ?? '',
+				'protected' => $this->format_protection( $sandbox->is_protected() ),
+				'expires'   => $sandbox->expires_at ?? '',
+				'status'    => $sandbox->status,
+				'template'  => $sandbox->template,
+				'created'   => $sandbox->created_at,
+				'size'      => $this->format_size( $sandbox->get_size() ),
+				'path'      => $sandbox->path,
+			);
+		}
 
-		$format = $assoc_args['format'] ?? 'table';
+		$format = is_string( $assoc_args['format'] ?? null ) ? $assoc_args['format'] : 'table';
 		WP_CLI\Utils\format_items( $format, $items, array( 'id', 'name', 'owner', 'protected', 'expires', 'status', 'template', 'created', 'size' ) );
 	}
 
@@ -234,8 +232,8 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 *
 	 *     $ wp rudel info my-sandbox-a1b2
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -251,7 +249,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		$data['url']        = $sandbox->get_url();
 		$data['wp_content'] = $sandbox->get_runtime_wp_content_path();
 
-		$format = $assoc_args['format'] ?? 'table';
+		$format = is_string( $assoc_args['format'] ?? null ) ? $assoc_args['format'] : 'table';
 		if ( 'table' === $format ) {
 			$items = array();
 			foreach ( $data as $key => $value ) {
@@ -286,8 +284,8 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel destroy my-sandbox-a1b2 --force
 	 *     Success: Sandbox destroyed: my-sandbox-a1b2
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -341,8 +339,8 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * [--clear-expiry]
 	 * : Remove any explicit expiry.
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -375,8 +373,8 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 *
 	 *     $ wp rudel status
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -483,16 +481,16 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	/**
 	 * Resolve the create name from CLI arguments.
 	 *
-	 * @param array       $assoc_args Command arguments.
-	 * @param string|null $git_remote Git remote URL.
+	 * @param array<string, mixed> $assoc_args Command arguments.
+	 * @param string|null          $git_remote Git remote URL.
 	 * @return string
 	 */
 	private function resolve_create_name( array $assoc_args, ?string $git_remote ): string {
-		if ( ! empty( $assoc_args['name'] ) ) {
+		if ( ! empty( $assoc_args['name'] ) && is_string( $assoc_args['name'] ) ) {
 			return $assoc_args['name'];
 		}
 		if ( $git_remote ) {
-			return basename( preg_replace( '/\.git$/', '', $git_remote ) );
+			return basename( (string) preg_replace( '/\.git$/', '', $git_remote ) );
 		}
 		return 'sandbox';
 	}
@@ -500,7 +498,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	/**
 	 * Build normalized create options for the environment manager.
 	 *
-	 * @param array $assoc_args Command arguments.
+	 * @param array<string, mixed> $assoc_args Command arguments.
 	 * @return array<string, mixed>
 	 */
 	private function build_create_options( array $assoc_args ): array {
@@ -535,10 +533,10 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	/**
 	 * Log what kind of sandbox create operation is about to run.
 	 *
-	 * @param string      $name       Sandbox name.
-	 * @param array       $options    Normalized create options.
-	 * @param string|null $clone_from Source sandbox ID when cloning from another environment.
-	 * @param bool        $has_clone  Whether any host clone flags are enabled.
+	 * @param string               $name       Sandbox name.
+	 * @param array<string, mixed> $options    Normalized create options.
+	 * @param string|null          $clone_from Source sandbox ID when cloning from another environment.
+	 * @param bool                 $has_clone  Whether any host clone flags are enabled.
 	 * @return void
 	 */
 	private function log_create_plan( string $name, array $options, ?string $clone_from, bool $has_clone ): void {
@@ -577,7 +575,9 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		WP_CLI::log( '' );
 		WP_CLI::log( '  Clone summary:' );
 		if ( ! empty( $clone_source['db_cloned'] ) ) {
-			WP_CLI::log( "    Database: {$clone_source['tables_cloned']} tables, {$clone_source['rows_cloned']} rows" );
+			$tables_cloned = isset( $clone_source['tables_cloned'] ) && is_scalar( $clone_source['tables_cloned'] ) ? (string) $clone_source['tables_cloned'] : '0';
+			$rows_cloned   = isset( $clone_source['rows_cloned'] ) && is_scalar( $clone_source['rows_cloned'] ) ? (string) $clone_source['rows_cloned'] : '0';
+			WP_CLI::log( '    Database: ' . $tables_cloned . ' tables, ' . $rows_cloned . ' rows' );
 		}
 		if ( ! empty( $clone_source['themes_cloned'] ) ) {
 			WP_CLI::log( '    Themes: copied' );
