@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.0 - 2026-05-19
+
+- Raised PHPStan from level 5 to level 10 across all analysed source files.
+- Added precise array type annotations, null and type narrowing guards, and `instanceof` checks to satisfy the strictest static analysis level without suppression comments or baseline entries.
+- Updated test stubs and mock infrastructure to match the stricter property types introduced by the analysis fixes.
+
 ## v0.8.9 - 2026-04-26
 
 - Added mysqli-backed direct DB access for standalone Rudel `Connection` usage without `pdo_mysql`.
