@@ -77,10 +77,10 @@ class AppOperationsService {
 	/**
 	 * Build a stable deploy plan without mutating app state.
 	 *
-	 * @param Environment $app App environment.
-	 * @param Environment $sandbox Source sandbox.
-	 * @param string|null $backup_name Optional backup name.
-	 * @param array       $options Optional deployment metadata.
+	 * @param Environment          $app App environment.
+	 * @param Environment          $sandbox Source sandbox.
+	 * @param string|null          $backup_name Optional backup name.
+	 * @param array<string, mixed> $options Optional deployment metadata.
 	 * @return array<string, mixed>
 	 */
 	public function plan_deploy( Environment $app, Environment $sandbox, ?string $backup_name = null, array $options = array() ): array {
@@ -108,7 +108,15 @@ class AppOperationsService {
 			'dry_run'            => ! empty( $options['dry_run'] ),
 		);
 
-		return Hooks::filter( 'rudel_app_deploy_plan', $plan, $app, $sandbox );
+		$filtered = Hooks::filter( 'rudel_app_deploy_plan', $plan, $app, $sandbox );
+
+		if ( ! is_array( $filtered ) ) {
+			return $plan;
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $filtered */
+		return $filtered;
 	}
 
 	/**
@@ -142,10 +150,10 @@ class AppOperationsService {
 	/**
 	 * Deploy a sandbox into an app or return a dry-run plan.
 	 *
-	 * @param Environment $app App environment.
-	 * @param Environment $sandbox Source sandbox.
-	 * @param string|null $backup_name Optional backup name.
-	 * @param array       $options Optional deployment metadata.
+	 * @param Environment          $app App environment.
+	 * @param Environment          $sandbox Source sandbox.
+	 * @param string|null          $backup_name Optional backup name.
+	 * @param array<string, mixed> $options Optional deployment metadata.
 	 * @return array<string, mixed>
 	 *
 	 * @throws \Throwable If deployment fails after hooks begin or validation rejects the pair.
@@ -170,9 +178,10 @@ class AppOperationsService {
 		$backup = null;
 
 		try {
-			$backup      = $this->backup_manager( $app )->create( $plan['backup_name'] );
-			$state       = $this->app_manager->replace_environment_state( $sandbox, $app );
-			$deployed_at = gmdate( 'c' );
+			$plan_backup_name = is_string( $plan['backup_name'] ) ? $plan['backup_name'] : '';
+			$backup           = $this->backup_manager( $app )->create( $plan_backup_name );
+			$state            = $this->app_manager->replace_environment_state( $sandbox, $app );
+			$deployed_at      = gmdate( 'c' );
 			$this->app_manager->update(
 				$app->id,
 				array(
@@ -210,7 +219,8 @@ class AppOperationsService {
 			return $result;
 		} catch ( \Throwable $e ) {
 			if ( is_array( $backup ) ) {
-				$this->restore_failed_deploy( $app, $backup['name'] ?? null );
+				$failed_backup_name = isset( $backup['name'] ) && is_string( $backup['name'] ) ? $backup['name'] : null;
+				$this->restore_failed_deploy( $app, $failed_backup_name );
 			}
 			Hooks::action( 'rudel_app_deploy_failed', $context, $e );
 			throw $e;
@@ -222,9 +232,9 @@ class AppOperationsService {
 	/**
 	 * Roll an app back to the backup referenced by a deployment record.
 	 *
-	 * @param Environment $app App environment.
-	 * @param string      $deployment_id Deployment identifier.
-	 * @param array       $options Optional rollback settings.
+	 * @param Environment          $app App environment.
+	 * @param string               $deployment_id Deployment identifier.
+	 * @param array<string, mixed> $options Optional rollback settings.
 	 * @return array<string, mixed>
 	 *
 	 * @throws \RuntimeException If the deployment cannot be resolved to a rollback backup.
@@ -270,13 +280,13 @@ class AppOperationsService {
 	/**
 	 * Prune backups and deployment history for a single app.
 	 *
-	 * @param Environment $app App environment.
-	 * @param array       $options Retention options.
+	 * @param Environment          $app App environment.
+	 * @param array<string, mixed> $options Retention options.
 	 * @return array{app_id: string, backups_removed: string[], deployments_removed: string[]}
 	 */
 	public function prune( Environment $app, array $options = array() ): array {
-		$keep_backups     = isset( $options['keep_backups'] ) ? (int) $options['keep_backups'] : 0;
-		$keep_deployments = isset( $options['keep_deployments'] ) ? (int) $options['keep_deployments'] : 0;
+		$keep_backups     = isset( $options['keep_backups'] ) && is_numeric( $options['keep_backups'] ) ? (int) $options['keep_backups'] : 0;
+		$keep_deployments = isset( $options['keep_deployments'] ) && is_numeric( $options['keep_deployments'] ) ? (int) $options['keep_deployments'] : 0;
 		$result           = array(
 			'app_id'              => $app->id,
 			'backups_removed'     => array(),
@@ -317,8 +327,9 @@ class AppOperationsService {
 
 		foreach ( $apps as $app ) {
 			try {
-				$latest_backup = $this->latest_backup( $app );
-				$latest_time   = is_array( $latest_backup ) ? strtotime( (string) ( $latest_backup['created_at'] ?? '' ) ) : false;
+				$latest_backup  = $this->latest_backup( $app );
+				$created_at_raw = is_array( $latest_backup ) && isset( $latest_backup['created_at'] ) && is_scalar( $latest_backup['created_at'] ) ? (string) $latest_backup['created_at'] : '';
+				$latest_time    = is_array( $latest_backup ) ? strtotime( $created_at_raw ) : false;
 
 				if ( false !== $latest_time && ( $now - $latest_time ) < $min_spacing ) {
 					$result['skipped'][] = $app->id;
@@ -327,7 +338,7 @@ class AppOperationsService {
 
 				$backup_name                   = $this->auto_name( 'scheduled' );
 				$backup                        = $this->backup( $app, $backup_name );
-				$result['created'][ $app->id ] = $backup['name'];
+				$result['created'][ $app->id ] = is_string( $backup['name'] ) ? $backup['name'] : $backup_name;
 			} catch ( \Throwable $e ) {
 				$result['errors'][ $app->id ] = $e->getMessage();
 			}

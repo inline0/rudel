@@ -16,9 +16,9 @@ class ContentCloner {
 	/**
 	 * Clone wp-content subdirectories from the host to the sandbox.
 	 *
-	 * @param string $sandbox_wp_content Absolute path to the sandbox wp-content directory.
-	 * @param array  $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
-	 * @param string $sandbox_id         Optional environment ID for git worktree branch and metadata naming.
+	 * @param string               $sandbox_wp_content Absolute path to the sandbox wp-content directory.
+	 * @param array<string, mixed> $options            Which directories to clone: 'themes', 'plugins', 'uploads' (bool each).
+	 * @param string               $sandbox_id         Optional environment ID for git worktree branch and metadata naming.
 	 * @return array<string, mixed> Status per directory.
 	 */
 	public function clone_content( string $sandbox_wp_content, array $options = array(), string $sandbox_id = '' ): array {
@@ -42,7 +42,8 @@ class ContentCloner {
 				continue;
 			}
 
-			$exclude_entries = $this->normalize_top_level_exclusions( $options['exclude_entries'][ $dir ] ?? array() );
+			$raw_exclusions  = isset( $options['exclude_entries'] ) && is_array( $options['exclude_entries'] ) ? ( $options['exclude_entries'][ $dir ] ?? array() ) : array();
+			$exclude_entries = $this->normalize_top_level_exclusions( $raw_exclusions );
 
 			// Start from a clean target so scaffolding does not interfere with worktrees or nested copies.
 			if ( is_dir( $target ) ) {
@@ -355,6 +356,9 @@ class ContentCloner {
 		}
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			if ( $this->should_skip_item( $item->getFilename() ) ) {
 				continue;
 			}
@@ -428,6 +432,9 @@ class ContentCloner {
 		}
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$name = $item->getFilename();
 			if ( in_array( $name, $exclude_entries, true ) || $this->should_skip_item( $name ) ) {
 				continue;
@@ -513,7 +520,10 @@ class ContentCloner {
 
 		return array_values(
 			array_filter(
-				array_map( 'strval', $entries ),
+				array_map(
+					static fn( $entry ): string => is_string( $entry ) ? $entry : ( is_scalar( $entry ) ? (string) $entry : '' ),
+					$entries
+				),
 				static fn( string $entry ): bool => '' !== $entry
 			)
 		);
@@ -562,6 +572,9 @@ class ContentCloner {
 			}
 
 			foreach ( $iterator as $item ) {
+				if ( ! ( $item instanceof \SplFileInfo ) ) {
+					continue;
+				}
 				if ( ! $this->add_path_to_archive( $archive, $item->getPathname(), $archive_path . '/' . $item->getFilename() ) ) {
 					return false;
 				}
@@ -593,6 +606,9 @@ class ContentCloner {
 		}
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			if ( ! $this->add_path_to_archive( $archive, $item->getPathname(), $item->getFilename() ) ) {
 				return false;
 			}
@@ -639,6 +655,9 @@ class ContentCloner {
 		);
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$item_path = $item->getPathname();
 			if ( $item->isLink() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry before recloning content.

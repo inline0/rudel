@@ -77,8 +77,8 @@ class TemplateCommand extends \WP_CLI_Command {
 	 *     $ wp rudel template list
 	 *     $ wp rudel template list --format=json
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @subcommand list
@@ -92,8 +92,8 @@ class TemplateCommand extends \WP_CLI_Command {
 			return;
 		}
 
-		$format = $assoc_args['format'] ?? 'table';
-		WP_CLI\Utils\format_items( $format, $templates, array( 'name', 'description', 'source_sandbox_id', 'created_at' ) );
+		$format = is_string( $assoc_args['format'] ?? null ) ? $assoc_args['format'] : 'table';
+		WP_CLI\Utils\format_items( $format, array_values( $templates ), array( 'name', 'description', 'source_sandbox_id', 'created_at' ) );
 	}
 
 	/**
@@ -115,8 +115,8 @@ class TemplateCommand extends \WP_CLI_Command {
 	 *     $ wp rudel template save my-sandbox-a1b2 --name=starter
 	 *     Success: Template saved: starter
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -129,8 +129,8 @@ class TemplateCommand extends \WP_CLI_Command {
 			WP_CLI::error( "Sandbox not found: {$id}" );
 		}
 
-		$name        = $assoc_args['name'];
-		$description = $assoc_args['description'] ?? '';
+		$name        = is_string( $assoc_args['name'] ?? null ) ? $assoc_args['name'] : '';
+		$description = is_string( $assoc_args['description'] ?? null ) ? $assoc_args['description'] : '';
 
 		try {
 			$meta = $this->template_manager->save( $sandbox, $name, $description );
@@ -138,7 +138,8 @@ class TemplateCommand extends \WP_CLI_Command {
 			WP_CLI::error( $e->getMessage() );
 		}
 
-		WP_CLI::success( "Template saved: {$meta['name']}" );
+		$meta_name = is_string( $meta['name'] ?? null ) ? $meta['name'] : $name;
+		WP_CLI::success( "Template saved: {$meta_name}" );
 	}
 
 	/**
@@ -157,8 +158,8 @@ class TemplateCommand extends \WP_CLI_Command {
 	 *     $ wp rudel template delete starter --force
 	 *     Success: Template deleted: starter
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load

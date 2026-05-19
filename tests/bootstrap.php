@@ -7,6 +7,25 @@
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+if ( ! class_exists( 'wpdb' ) ) {
+	// Minimal wpdb stub so MockWpdb can extend it outside WordPress.
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound
+	class wpdb {
+		public string $prefix      = 'wp_';
+		public string $base_prefix = 'wp_';
+		public int $insert_id      = 0;
+		public string $last_error  = '';
+
+		public function __construct(
+			string $dbuser = '',
+			string $dbpassword = '',
+			string $dbname = '',
+			string $dbhost = ''
+		) {}
+	}
+}
+
 require_once __DIR__ . '/Stubs/MockWpdb.php';
 
 // WordPress constants used by production code.

@@ -84,17 +84,23 @@ class AppManager {
 	/**
 	 * Create a new app.
 	 *
-	 * @param string $name Human-readable name.
-	 * @param array  $domains Array of domain names for this app.
-	 * @param array  $options Optional settings (clone flags and clone source).
+	 * @param string               $name Human-readable name.
+	 * @param array<int, string>   $domains Array of domain names for this app.
+	 * @param array<string, mixed> $options Optional settings (clone flags and clone source).
 	 * @return Environment The newly created app environment.
 	 *
 	 * @throws \InvalidArgumentException If domains are invalid, conflicting, or app options are invalid.
 	 * @throws \Throwable If app creation fails after lifecycle hooks begin.
 	 */
 	public function create( string $name, array $domains, array $options = array() ): Environment {
-		$domains = Hooks::filter( 'rudel_app_domains', $domains, $name, $this );
-		$options = Hooks::filter( 'rudel_app_create_options', $options, $name, $domains, $this );
+		$filtered_domains = Hooks::filter( 'rudel_app_domains', $domains, $name, $this );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<int, string> $domains */
+		$domains          = is_array( $filtered_domains ) ? $filtered_domains : $domains;
+		$filtered_options = Hooks::filter( 'rudel_app_create_options', $options, $name, $domains, $this );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $options */
+		$options = is_array( $filtered_options ) ? $filtered_options : $options;
 		$options = $this->normalize_git_tracking_changes( $options );
 
 		if ( empty( $domains ) ) {
@@ -162,15 +168,18 @@ class AppManager {
 	/**
 	 * Update app metadata and return the refreshed app.
 	 *
-	 * @param string $id      App identifier.
-	 * @param array  $changes Metadata changes.
+	 * @param string               $id      App identifier.
+	 * @param array<string, mixed> $changes Metadata changes.
 	 * @return Environment
 	 *
 	 * @throws \Throwable If the update fails after lifecycle hooks begin.
 	 */
 	public function update( string $id, array $changes ): Environment {
-		$app     = $this->require_app( $id );
-		$changes = Hooks::filter( 'rudel_app_update_changes', $changes, $app, $this );
+		$app              = $this->require_app( $id );
+		$filtered_changes = Hooks::filter( 'rudel_app_update_changes', $changes, $app, $this );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $changes */
+		$changes = is_array( $filtered_changes ) ? $filtered_changes : $changes;
 		$changes = $this->normalize_git_tracking_changes( $changes, $app );
 		$context = array(
 			'app'     => $app,
@@ -224,9 +233,9 @@ class AppManager {
 	/**
 	 * Create a sandbox from an app.
 	 *
-	 * @param string $app_id App identifier.
-	 * @param string $name Sandbox name.
-	 * @param array  $options Optional sandbox settings.
+	 * @param string               $app_id App identifier.
+	 * @param string               $name Sandbox name.
+	 * @param array<string, mixed> $options Optional sandbox settings.
 	 * @return Environment
 	 *
 	 * @throws \Throwable If sandbox creation fails after lifecycle hooks begin.
@@ -234,7 +243,10 @@ class AppManager {
 	public function create_sandbox( string $app_id, string $name, array $options = array() ): Environment {
 		$app = $this->require_app( $app_id );
 
-		$options               = Hooks::filter( 'rudel_app_create_sandbox_options', $options, $app, $name, $this );
+		$filtered_options = Hooks::filter( 'rudel_app_create_sandbox_options', $options, $app, $name, $this );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $options */
+		$options               = is_array( $filtered_options ) ? $filtered_options : $options;
 		$options['clone_from'] = $app->id;
 		$options['app_id']     = $app->app_record_id;
 		unset( $options['type'], $options['domains'], $options['skip_limits'] );
@@ -316,16 +328,19 @@ class AppManager {
 	/**
 	 * Build a deploy plan for an app without mutating state.
 	 *
-	 * @param string      $app_id App identifier.
-	 * @param string      $sandbox_id Sandbox identifier.
-	 * @param string|null $backup_name Optional backup name.
-	 * @param array       $options Optional deployment metadata.
+	 * @param string               $app_id App identifier.
+	 * @param string               $sandbox_id Sandbox identifier.
+	 * @param string|null          $backup_name Optional backup name.
+	 * @param array<string, mixed> $options Optional deployment metadata.
 	 * @return array<string, mixed>
 	 */
 	public function plan_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
-		$app     = $this->require_app( $app_id );
-		$sandbox = $this->operations->require_sandbox( $sandbox_id );
-		$options = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
+		$app              = $this->require_app( $app_id );
+		$sandbox          = $this->operations->require_sandbox( $sandbox_id );
+		$filtered_options = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $options */
+		$options = is_array( $filtered_options ) ? $filtered_options : $options;
 
 		return $this->operations->plan_deploy( $app, $sandbox, $backup_name, $options );
 	}
@@ -360,10 +375,10 @@ class AppManager {
 	/**
 	 * Deploy a sandbox into an app after creating an app backup.
 	 *
-	 * @param string      $app_id App identifier.
-	 * @param string      $sandbox_id Sandbox identifier.
-	 * @param string|null $backup_name Optional backup name.
-	 * @param array       $options Optional deployment metadata such as label or notes.
+	 * @param string               $app_id App identifier.
+	 * @param string               $sandbox_id Sandbox identifier.
+	 * @param string|null          $backup_name Optional backup name.
+	 * @param array<string, mixed> $options Optional deployment metadata such as label or notes.
 	 * @return array<string, mixed>
 	 *
 	 * @throws \InvalidArgumentException If deploy requirements are invalid.
@@ -374,7 +389,10 @@ class AppManager {
 		$app     = $this->require_app( $app_id );
 		$sandbox = $this->operations->require_sandbox( $sandbox_id );
 
-		$options = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
+		$filtered_options = Hooks::filter( 'rudel_app_deploy_options', $options, $app, $sandbox, $this );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $options */
+		$options = is_array( $filtered_options ) ? $filtered_options : $options;
 
 		return $this->operations->deploy( $app, $sandbox, $backup_name, $options );
 	}
@@ -382,9 +400,9 @@ class AppManager {
 	/**
 	 * Roll an app back to the backup captured by a deployment record.
 	 *
-	 * @param string $app_id App identifier.
-	 * @param string $deployment_id Deployment identifier.
-	 * @param array  $options Optional rollback settings.
+	 * @param string               $app_id App identifier.
+	 * @param string               $deployment_id Deployment identifier.
+	 * @param array<string, mixed> $options Optional rollback settings.
 	 * @return array<string, mixed>
 	 */
 	public function rollback( string $app_id, string $deployment_id, array $options = array() ): array {
@@ -396,8 +414,8 @@ class AppManager {
 	/**
 	 * Prune backups and deployment history for one app.
 	 *
-	 * @param string $app_id App identifier.
-	 * @param array  $options Retention options.
+	 * @param string               $app_id App identifier.
+	 * @param array<string, mixed> $options Retention options.
 	 * @return array{app_id: string, backups_removed: string[], deployments_removed: string[]}
 	 */
 	public function prune_history( string $app_id, array $options = array() ): array {
@@ -409,7 +427,7 @@ class AppManager {
 	/**
 	 * Prune backups and deployment history across all apps.
 	 *
-	 * @param array $options Retention options.
+	 * @param array<string, mixed> $options Retention options.
 	 * @return array<int, array{app_id: string, backups_removed: string[], deployments_removed: string[]}>
 	 */
 	public function prune_all_history( array $options = array() ): array {
@@ -575,12 +593,14 @@ class AppManager {
 	/**
 	 * Normalize tracked Git metadata for app create/update flows.
 	 *
-	 * @param array            $changes Raw change set.
-	 * @param Environment|null $app Existing app for update validation.
+	 * @param array<string, mixed> $changes Raw change set.
+	 * @param Environment|null     $app Existing app for update validation.
 	 * @return array<string, mixed>
 	 * @throws \InvalidArgumentException If tracked Git metadata is inconsistent.
 	 */
 	private function normalize_git_tracking_changes( array $changes, ?Environment $app = null ): array {
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $normalized */
 		$normalized = $changes;
 		$clear_git  = ! empty( $normalized['clear_git'] );
 
@@ -646,7 +666,7 @@ class AppManager {
 			throw new \InvalidArgumentException( 'Tracked Git branch and directory require a Git remote.' );
 		}
 
-		$shared_plugins = array_key_exists( 'shared_plugins', $normalized )
+		$shared_plugins  = array_key_exists( 'shared_plugins', $normalized )
 			? ! empty( $normalized['shared_plugins'] )
 			: ( $app ? $app->shared_plugins : false );
 		$tracked_git_dir = array_key_exists( 'tracked_git_dir', $normalized )
@@ -661,8 +681,8 @@ class AppManager {
 	/**
 	 * Carry tracked Git metadata forward when an app is cloned from another environment.
 	 *
-	 * @param Environment $app Newly created app.
-	 * @param array       $options App creation options.
+	 * @param Environment          $app Newly created app.
+	 * @param array<string, mixed> $options App creation options.
 	 * @return Environment
 	 */
 	private function inherit_git_tracking_from_source( Environment $app, array $options ): Environment {
@@ -705,9 +725,9 @@ class AppManager {
 	/**
 	 * Carry tracked Git metadata forward when a sandbox is created from an app.
 	 *
-	 * @param Environment $sandbox Newly created sandbox.
-	 * @param Environment $app Source app.
-	 * @param array       $options Sandbox creation options.
+	 * @param Environment          $sandbox Newly created sandbox.
+	 * @param Environment          $app Source app.
+	 * @param array<string, mixed> $options Sandbox creation options.
 	 * @return Environment
 	 */
 	private function inherit_git_tracking_from_app_sandbox( Environment $sandbox, Environment $app, array $options ): Environment {

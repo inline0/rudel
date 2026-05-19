@@ -104,7 +104,8 @@ class Connection {
 	 * @throws \InvalidArgumentException When the requested DB driver is not supported.
 	 */
 	private function resolve_driver(): string {
-		$driver = strtolower( trim( (string) ( $this->driver ?? ( defined( 'RUDEL_DB_DRIVER' ) ? constant( 'RUDEL_DB_DRIVER' ) : 'auto' ) ) ) );
+		$driver_raw = $this->driver ?? ( defined( 'RUDEL_DB_DRIVER' ) ? constant( 'RUDEL_DB_DRIVER' ) : 'auto' );
+		$driver     = strtolower( trim( is_string( $driver_raw ) ? $driver_raw : 'auto' ) );
 		if ( '' === $driver ) {
 			$driver = 'auto';
 		}

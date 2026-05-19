@@ -36,7 +36,7 @@ class BootstrapRuntimeStore {
 	 *
 	 * @var \wpdb|null
 	 */
-	private ?object $wpdb = null;
+	private ?\wpdb $wpdb = null;
 
 	/**
 	 * Direct MySQL connection for pre-WordPress lookups.
@@ -55,7 +55,7 @@ class BootstrapRuntimeStore {
 		$config_path = defined( 'RUDEL_WP_CONFIG_PATH' ) && is_string( RUDEL_WP_CONFIG_PATH ) ? RUDEL_WP_CONFIG_PATH : null;
 		$config      = $this->parse_config_file( $config_path );
 
-		if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ) {
+		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \wpdb ) {
 			$this->wpdb = $GLOBALS['wpdb'];
 		}
 
@@ -114,8 +114,8 @@ class BootstrapRuntimeStore {
 	/**
 	 * Run one environment lookup.
 	 *
-	 * @param string $sql SQL with one ? placeholder.
-	 * @param array  $params Bound params.
+	 * @param string              $sql SQL with one ? placeholder.
+	 * @param array<int, string> $params Bound params.
 	 * @return array<string, mixed>|null
 	 */
 	private function fetch_environment( string $sql, array $params ): ?array {
@@ -133,8 +133,8 @@ class BootstrapRuntimeStore {
 	/**
 	 * Fetch one row from an already-loaded WordPress DB object.
 	 *
-	 * @param string $sql SQL query.
-	 * @param array  $params Bound params.
+	 * @param string              $sql SQL query.
+	 * @param array<int, string> $params Bound params.
 	 * @return array<string, mixed>|null
 	 */
 	private function fetch_wpdb_row( string $sql, array $params ): ?array {
@@ -144,15 +144,19 @@ class BootstrapRuntimeStore {
 	/**
 	 * Fetch one row through a direct mysqli connection.
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound params.
+	 * @param string              $sql SQL query with ? placeholders.
+	 * @param array<int, string> $params Bound params.
 	 * @return array<string, mixed>|null
 	 */
 	private function fetch_mysqli_row( string $sql, array $params ): ?array {
+		if ( null === $this->mysqli ) {
+			return null;
+		}
+
 		$query = $this->prepare_mysqli_query( $sql, $params );
 
 		$result = mysqli_query( $this->mysqli, $query );
-		if ( false === $result ) {
+		if ( ! $result instanceof \mysqli_result ) {
 			return null;
 		}
 
@@ -180,7 +184,7 @@ class BootstrapRuntimeStore {
 		$host         = $parsed_host['host'];
 		$port         = $parsed_host['port'];
 		$socket       = $parsed_host['socket'];
-		$client_flags = defined( 'MYSQL_CLIENT_FLAGS' ) ? MYSQL_CLIENT_FLAGS : 0;
+		$client_flags = defined( 'MYSQL_CLIENT_FLAGS' ) && is_int( MYSQL_CLIENT_FLAGS ) ? MYSQL_CLIENT_FLAGS : 0;
 
 		mysqli_report( MYSQLI_REPORT_OFF );
 		$mysqli = mysqli_init();
@@ -245,12 +249,12 @@ class BootstrapRuntimeStore {
 	/**
 	 * Prepare a lookup query for mysqli without relying on wpdb.
 	 *
-	 * @param string $sql SQL with ? placeholders.
-	 * @param array  $params Bound params.
+	 * @param string              $sql SQL with ? placeholders.
+	 * @param array<int, string> $params Bound params.
 	 * @return string
 	 */
 	private function prepare_mysqli_query( string $sql, array $params ): string {
-		if ( empty( $params ) ) {
+		if ( empty( $params ) || null === $this->mysqli ) {
 			return $sql;
 		}
 
@@ -258,8 +262,9 @@ class BootstrapRuntimeStore {
 		$query    = array_shift( $segments );
 
 		foreach ( $params as $index => $value ) {
+			$escaped_value = is_scalar( $value ) ? (string) $value : '';
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Pre-WP bootstrap cannot prepare through wpdb, so values are escaped manually before interpolation into Rudel-owned lookup SQL.
-			$query .= "'" . mysqli_real_escape_string( $this->mysqli, (string) $value ) . "'" . ( $segments[ $index ] ?? '' );
+			$query .= "'" . mysqli_real_escape_string( $this->mysqli, $escaped_value ) . "'" . ( $segments[ $index ] ?? '' );
 		}
 
 		return $query;

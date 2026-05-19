@@ -229,6 +229,13 @@ class EnvironmentUserIsolationService {
 	private function copy_table( string $source_table, string $target_table, bool $replace_existing = false ): void {
 		global $wpdb;
 
+		if ( ! is_object( $wpdb ) ) {
+			return;
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
+
 		$source_table = $this->validated_table_name( $source_table );
 		$target_table = $this->validated_table_name( $target_table );
 
@@ -253,6 +260,13 @@ class EnvironmentUserIsolationService {
 	 */
 	private function rewrite_usermeta_blog_prefix( string $table, string $source_blog_prefix, string $target_blog_prefix ): void {
 		global $wpdb;
+
+		if ( ! is_object( $wpdb ) ) {
+			return;
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
 
 		$table              = $this->validated_table_name( $table );
 		$source_blog_prefix = $this->validated_prefix( $source_blog_prefix );
@@ -282,6 +296,14 @@ class EnvironmentUserIsolationService {
 	private function drop_tables( array $tables ): void {
 		global $wpdb;
 
+		if ( ! is_object( $wpdb ) ) {
+			return;
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $db */
+		$db = $wpdb;
+
 		foreach ( $tables as $table ) {
 			if ( '' === $table ) {
 				continue;
@@ -289,7 +311,7 @@ class EnvironmentUserIsolationService {
 
 			$table = $this->validated_table_name( $table );
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Derived Rudel table names are validated before interpolation.
-			$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
+			$db->query( "DROP TABLE IF EXISTS `{$table}`" );
 		}
 	}
 
@@ -302,6 +324,12 @@ class EnvironmentUserIsolationService {
 	private function table_exists( string $table ): bool {
 		global $wpdb;
 
+		if ( ! is_object( $wpdb ) ) {
+			return false;
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
 		$table = $this->validated_table_name( $table );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time metadata query.
 		$result = $wpdb->get_var(
@@ -319,7 +347,13 @@ class EnvironmentUserIsolationService {
 	private function host_users_table(): string {
 		global $wpdb;
 
-		return $wpdb->base_prefix . 'users';
+		if ( ! is_object( $wpdb ) ) {
+			return 'wp_users';
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
+		return (string) $wpdb->base_prefix . 'users';
 	}
 
 	/**
@@ -330,7 +364,13 @@ class EnvironmentUserIsolationService {
 	private function host_usermeta_table(): string {
 		global $wpdb;
 
-		return $wpdb->base_prefix . 'usermeta';
+		if ( ! is_object( $wpdb ) ) {
+			return 'wp_usermeta';
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
+		return (string) $wpdb->base_prefix . 'usermeta';
 	}
 
 	/**
@@ -341,7 +381,13 @@ class EnvironmentUserIsolationService {
 	private function host_blog_prefix(): string {
 		global $wpdb;
 
-		return $wpdb->base_prefix;
+		if ( ! is_object( $wpdb ) ) {
+			return 'wp_';
+		}
+
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
+		/** @var \wpdb $wpdb */
+		return (string) $wpdb->base_prefix;
 	}
 
 	/**

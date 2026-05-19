@@ -373,12 +373,14 @@ class GitIntegration {
 		$dirty  = false;
 
 		if ( null === $config->get( 'user.name' ) ) {
-			$config->set( 'user.name', defined( 'RUDEL_GIT_AUTHOR_NAME' ) ? (string) RUDEL_GIT_AUTHOR_NAME : 'Rudel' );
+			$author_name = defined( 'RUDEL_GIT_AUTHOR_NAME' ) && is_string( RUDEL_GIT_AUTHOR_NAME ) ? RUDEL_GIT_AUTHOR_NAME : 'Rudel';
+			$config->set( 'user.name', $author_name );
 			$dirty = true;
 		}
 
 		if ( null === $config->get( 'user.email' ) ) {
-			$config->set( 'user.email', defined( 'RUDEL_GIT_AUTHOR_EMAIL' ) ? (string) RUDEL_GIT_AUTHOR_EMAIL : 'rudel@localhost' );
+			$author_email = defined( 'RUDEL_GIT_AUTHOR_EMAIL' ) && is_string( RUDEL_GIT_AUTHOR_EMAIL ) ? RUDEL_GIT_AUTHOR_EMAIL : 'rudel@localhost';
+			$config->set( 'user.email', $author_email );
 			$dirty = true;
 		}
 

@@ -34,7 +34,7 @@ class TemplateManager {
 	 * @param Environment $sandbox     The sandbox to save.
 	 * @param string      $name        Template name.
 	 * @param string      $description Optional description.
-	 * @return array Template metadata.
+	 * @return array<string, mixed> Template metadata.
 	 *
 	 * @throws \InvalidArgumentException If the name is invalid or already exists.
 	 * @throws \RuntimeException If template creation fails.
@@ -83,7 +83,7 @@ class TemplateManager {
 	/**
 	 * List all templates.
 	 *
-	 * @return array[] Array of template metadata arrays.
+	 * @return array<int, array<string, mixed>> Array of template metadata arrays.
 	 */
 	public function list_templates(): array {
 		if ( ! is_dir( $this->templates_dir ) ) {
@@ -104,9 +104,16 @@ class TemplateManager {
 			}
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template metadata.
-			$data = json_decode( file_get_contents( $meta_file ), true );
+			$raw_contents = file_get_contents( $meta_file );
+			if ( ! is_string( $raw_contents ) ) {
+				continue;
+			}
+			$data = json_decode( $raw_contents, true );
 			if ( is_array( $data ) ) {
-				$templates[] = $data;
+				// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for json_decode result.
+				/** @var array<string, mixed> $typed_data */
+				$typed_data  = $data;
+				$templates[] = $typed_data;
 			}
 		}
 
@@ -203,6 +210,9 @@ class TemplateManager {
 		);
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$item_path = $item->getPathname();
 			if ( ! $item->isWritable() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Handling read-only files during template cleanup.

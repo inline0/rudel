@@ -15,7 +15,7 @@ class WpdbStore implements DatabaseStore {
 	 *
 	 * @var \wpdb
 	 */
-	private object $wpdb;
+	private \wpdb $wpdb;
 
 	/**
 	 * WordPress base table prefix.
@@ -35,10 +35,15 @@ class WpdbStore implements DatabaseStore {
 	 * Initialize dependencies.
 	 *
 	 * @param \wpdb|null $wpdb Optional database object override.
+	 * @throws \RuntimeException When the resolved database object is not a wpdb instance.
 	 */
 	public function __construct( ?object $wpdb = null ) {
 		if ( null === $wpdb ) {
 			$wpdb = $this->resolve_wpdb();
+		}
+
+		if ( ! $wpdb instanceof \wpdb ) {
+			throw new \RuntimeException( 'WpdbStore requires a wpdb instance.' );
 		}
 
 		$this->wpdb   = $wpdb;
@@ -78,8 +83,8 @@ class WpdbStore implements DatabaseStore {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 */
 	public function execute( string $sql, array $params = array() ): int {
 		$query = $this->prepare_query( $sql, $params );
@@ -91,36 +96,45 @@ class WpdbStore implements DatabaseStore {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
+	 * @return array<string, mixed>|null
 	 */
 	public function fetch_row( string $sql, array $params = array() ): ?array {
 		$query  = $this->prepare_query( $sql, $params );
 		$output = defined( 'ARRAY_A' ) ? \ARRAY_A : 'ARRAY_A';
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared -- Prepared by WpdbStore.
 		$row = $this->wpdb->get_row( $query, $output );
-		return is_array( $row ) ? $row : null;
+		if ( ! is_array( $row ) ) {
+			return null;
+		}
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $row */
+		return $row;
 	}
 
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
+	 * @return array<int, array<string, mixed>>
 	 */
 	public function fetch_all( string $sql, array $params = array() ): array {
 		$query  = $this->prepare_query( $sql, $params );
 		$output = defined( 'ARRAY_A' ) ? \ARRAY_A : 'ARRAY_A';
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared -- Prepared by WpdbStore.
 		$rows = $this->wpdb->get_results( $query, $output );
-		return is_array( $rows ) ? $rows : array();
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<int, array<string, mixed>> $rows */
+		return $rows;
 	}
 
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 */
 	public function fetch_var( string $sql, array $params = array() ) {
 		$query = $this->prepare_query( $sql, $params );
@@ -222,10 +236,10 @@ class WpdbStore implements DatabaseStore {
 	 *
 	 * @throws \RuntimeException When WordPress has not created $wpdb yet.
 	 */
-	private function resolve_wpdb(): object {
+	private function resolve_wpdb(): \wpdb {
 		global $wpdb;
 
-		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) ) {
+		if ( ! $wpdb instanceof \wpdb ) {
 			throw new \RuntimeException( 'WordPress database object is not available.' );
 		}
 
@@ -235,8 +249,8 @@ class WpdbStore implements DatabaseStore {
 	/**
 	 * Convert ? placeholders to wpdb placeholders.
 	 *
-	 * @param string $sql SQL with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 * @return string
 	 *
 	 * @throws \RuntimeException When wpdb cannot prepare the query.
@@ -256,13 +270,7 @@ class WpdbStore implements DatabaseStore {
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Placeholder conversion handled above.
-		$prepared = $this->wpdb->prepare( $query, $values );
-
-		if ( null === $prepared ) {
-			throw new \RuntimeException( 'Failed to prepare Rudel runtime query.' );
-		}
-
-		return $prepared;
+		return $this->wpdb->prepare( $query, $values );
 	}
 
 	/**

@@ -41,8 +41,8 @@ class LogsCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel logs my-sandbox-a1b2 --follow
 	 *     $ wp rudel logs my-sandbox-a1b2 --clear
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -76,10 +76,11 @@ class LogsCommand extends AbstractEnvironmentCommand {
 			return;
 		}
 
-		$lines = (int) ( $assoc_args['lines'] ?? 50 );
+		$lines_raw = $assoc_args['lines'] ?? 50;
+		$lines     = is_numeric( $lines_raw ) ? (int) $lines_raw : 50;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading log file.
 		$content = file_get_contents( $log_path );
-		if ( '' === $content ) {
+		if ( false === $content || '' === $content ) {
 			WP_CLI::log( 'Log file is empty.' );
 			return;
 		}

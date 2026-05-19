@@ -31,8 +31,8 @@ class EnvironmentWorktreeRepository {
 	/**
 	 * Replace all worktrees for one environment.
 	 *
-	 * @param int   $environment_id Environment record ID.
-	 * @param array $worktrees Worktree rows.
+	 * @param int               $environment_id Environment record ID.
+	 * @param array<int, mixed> $worktrees Worktree rows.
 	 * @return void
 	 */
 	public function replace_for_environment( int $environment_id, array $worktrees ): void {
@@ -47,11 +47,11 @@ class EnvironmentWorktreeRepository {
 				continue;
 			}
 
-			$name          = isset( $worktree['name'] ) ? trim( (string) $worktree['name'] ) : '';
-			$content_type  = isset( $worktree['type'] ) ? trim( (string) $worktree['type'] ) : '';
-			$branch        = isset( $worktree['branch'] ) ? trim( (string) $worktree['branch'] ) : '';
-			$repo_path     = isset( $worktree['repo'] ) ? trim( (string) $worktree['repo'] ) : '';
-			$metadata_name = isset( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : $name;
+			$name          = isset( $worktree['name'] ) && is_scalar( $worktree['name'] ) ? trim( (string) $worktree['name'] ) : '';
+			$content_type  = isset( $worktree['type'] ) && is_scalar( $worktree['type'] ) ? trim( (string) $worktree['type'] ) : '';
+			$branch        = isset( $worktree['branch'] ) && is_scalar( $worktree['branch'] ) ? trim( (string) $worktree['branch'] ) : '';
+			$repo_path     = isset( $worktree['repo'] ) && is_scalar( $worktree['repo'] ) ? trim( (string) $worktree['repo'] ) : '';
+			$metadata_name = isset( $worktree['metadata_name'] ) && is_scalar( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : $name;
 
 			if ( '' === $name || '' === $content_type || '' === $branch || '' === $repo_path ) {
 				continue;
@@ -87,13 +87,13 @@ class EnvironmentWorktreeRepository {
 
 		return array_map(
 			static fn( array $row ): array => array(
-				'type'          => (string) $row['content_type'],
-				'name'          => (string) $row['name'],
+				'type'          => isset( $row['content_type'] ) && is_scalar( $row['content_type'] ) ? (string) $row['content_type'] : '',
+				'name'          => isset( $row['name'] ) && is_scalar( $row['name'] ) ? (string) $row['name'] : '',
 				'metadata_name' => isset( $row['metadata_name'] ) && is_scalar( $row['metadata_name'] ) && '' !== trim( (string) $row['metadata_name'] )
 					? trim( (string) $row['metadata_name'] )
-					: (string) $row['name'],
-				'branch'        => (string) $row['branch'],
-				'repo'          => (string) $row['repo_path'],
+					: ( isset( $row['name'] ) && is_scalar( $row['name'] ) ? (string) $row['name'] : '' ),
+				'branch'        => isset( $row['branch'] ) && is_scalar( $row['branch'] ) ? (string) $row['branch'] : '',
+				'repo'          => isset( $row['repo_path'] ) && is_scalar( $row['repo_path'] ) ? (string) $row['repo_path'] : '',
 			),
 			$rows
 		);

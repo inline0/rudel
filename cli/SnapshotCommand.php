@@ -31,15 +31,15 @@ class SnapshotCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel snapshot my-sandbox-a1b2 --name=before-update
 	 *     Success: Snapshot created: before-update
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
 	 */
 	public function __invoke( $args, $assoc_args ): void {
 		$sandbox = $this->require_environment( $args[0] );
-		$name    = $assoc_args['name'];
+		$name    = is_string( $assoc_args['name'] ?? null ) ? $assoc_args['name'] : '';
 
 		try {
 			$meta = $this->snapshot_manager( $sandbox )->create( $name );
@@ -47,7 +47,8 @@ class SnapshotCommand extends AbstractEnvironmentCommand {
 			WP_CLI::error( $e->getMessage() );
 		}
 
-		WP_CLI::success( "Snapshot created: {$meta['name']}" );
+		$meta_name = is_string( $meta['name'] ?? null ) ? $meta['name'] : $name;
+		WP_CLI::success( "Snapshot created: {$meta_name}" );
 	}
 
 	/**

@@ -71,8 +71,8 @@ class PdoStore implements DatabaseStore {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 */
 	public function execute( string $sql, array $params = array() ): int {
 		$statement = $this->prepare_and_execute( $sql, $params );
@@ -82,30 +82,42 @@ class PdoStore implements DatabaseStore {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
+	 * @return array<string, mixed>|null
 	 */
 	public function fetch_row( string $sql, array $params = array() ): ?array {
 		$row = $this->prepare_and_execute( $sql, $params )->fetch( PDO::FETCH_ASSOC );
-		return is_array( $row ) ? $row : null;
+		if ( ! is_array( $row ) ) {
+			return null;
+		}
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $row */
+		return $row;
 	}
 
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
+	 * @return array<int, array<string, mixed>>
 	 */
 	public function fetch_all( string $sql, array $params = array() ): array {
 		$rows = $this->prepare_and_execute( $sql, $params )->fetchAll( PDO::FETCH_ASSOC );
-		return is_array( $rows ) ? $rows : array();
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<int, array<string, mixed>> $rows */
+		return $rows;
 	}
 
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 */
 	public function fetch_var( string $sql, array $params = array() ) {
 		return $this->prepare_and_execute( $sql, $params )->fetchColumn();
@@ -241,8 +253,8 @@ class PdoStore implements DatabaseStore {
 	/**
 	 * Prepare and execute one SQL statement.
 	 *
-	 * @param string $sql SQL query with ? placeholders.
-	 * @param array  $params Bound parameters.
+	 * @param string            $sql SQL query with ? placeholders.
+	 * @param array<int, mixed> $params Bound parameters.
 	 * @return PDOStatement
 	 */
 	private function prepare_and_execute( string $sql, array $params ): PDOStatement {

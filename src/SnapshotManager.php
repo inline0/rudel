@@ -50,15 +50,15 @@ class SnapshotManager {
 	/**
 	 * Initialize dependencies.
 	 *
-	 * @param Environment $environment Environment to manage recovery points for.
-	 * @param array       $options Optional settings for naming and storage.
+	 * @param Environment          $environment Environment to manage recovery points for.
+	 * @param array<string, mixed> $options Optional settings for naming and storage.
 	 */
 	public function __construct( Environment $environment, array $options = array() ) {
 		$this->environment   = $environment;
-		$this->kind          = $options['kind'] ?? 'snapshot';
-		$this->storage_dir   = $options['storage_dir'] ?? ( 'backup' === $this->kind ? 'backups' : 'snapshots' );
-		$this->metadata_file = $options['metadata_file'] ?? ( 'backup' === $this->kind ? 'backup.json' : 'snapshot.json' );
-		$this->owner_id_key  = $options['owner_id_key'] ?? ( $environment->is_app() ? 'app_id' : 'sandbox_id' );
+		$this->kind          = isset( $options['kind'] ) && is_string( $options['kind'] ) ? $options['kind'] : 'snapshot';
+		$this->storage_dir   = isset( $options['storage_dir'] ) && is_string( $options['storage_dir'] ) ? $options['storage_dir'] : ( 'backup' === $this->kind ? 'backups' : 'snapshots' );
+		$this->metadata_file = isset( $options['metadata_file'] ) && is_string( $options['metadata_file'] ) ? $options['metadata_file'] : ( 'backup' === $this->kind ? 'backup.json' : 'snapshot.json' );
+		$this->owner_id_key  = isset( $options['owner_id_key'] ) && is_string( $options['owner_id_key'] ) ? $options['owner_id_key'] : ( $environment->is_app() ? 'app_id' : 'sandbox_id' );
 	}
 
 	/**
@@ -177,22 +177,33 @@ class SnapshotManager {
 			}
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local recovery point metadata.
-			$data = json_decode( file_get_contents( $meta_file ), true );
+			$raw_contents = file_get_contents( $meta_file );
+			if ( ! is_string( $raw_contents ) ) {
+				continue;
+			}
+			$data = json_decode( $raw_contents, true );
 			if ( is_array( $data ) ) {
-				$snapshots[] = $data;
+				// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for json_decode result.
+				/** @var array<string, mixed> $typed_data */
+				$typed_data  = $data;
+				$snapshots[] = $typed_data;
 			}
 		}
 
 		usort(
 			$snapshots,
 			static function ( array $left, array $right ): int {
-				$left_time  = strtotime( (string) ( $left['created_at'] ?? '' ) );
-				$right_time = strtotime( (string) ( $right['created_at'] ?? '' ) );
-				$left_time  = false !== $left_time ? $left_time : 0;
-				$right_time = false !== $right_time ? $right_time : 0;
+				$left_created  = isset( $left['created_at'] ) && is_string( $left['created_at'] ) ? $left['created_at'] : '';
+				$right_created = isset( $right['created_at'] ) && is_string( $right['created_at'] ) ? $right['created_at'] : '';
+				$left_time     = strtotime( $left_created );
+				$right_time    = strtotime( $right_created );
+				$left_time     = false !== $left_time ? $left_time : 0;
+				$right_time    = false !== $right_time ? $right_time : 0;
 
 				if ( $left_time === $right_time ) {
-					return strcmp( (string) ( $right['name'] ?? '' ), (string) ( $left['name'] ?? '' ) );
+					$right_name = isset( $right['name'] ) && is_string( $right['name'] ) ? $right['name'] : '';
+					$left_name  = isset( $left['name'] ) && is_string( $left['name'] ) ? $left['name'] : '';
+					return strcmp( $right_name, $left_name );
 				}
 
 				return $right_time <=> $left_time;
@@ -235,15 +246,19 @@ class SnapshotManager {
 			$db_meta_file = $point_path . '/db_snapshot.json';
 			if ( file_exists( $db_meta_file ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading recovery point metadata.
-				$db_meta = json_decode( file_get_contents( $db_meta_file ), true );
-				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
+				$db_meta_contents = file_get_contents( $db_meta_file );
+				$db_meta          = is_string( $db_meta_contents ) ? json_decode( $db_meta_contents, true ) : null;
+				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) && is_string( $db_meta['table_prefix'] ) ) {
 					$mysql_cloner  = new MySQLCloner();
 					$target_prefix = $this->environment->get_table_prefix();
 					$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
 					$mysql_cloner->copy_tables( $db_meta['table_prefix'], $target_prefix );
+					// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for snapshot metadata.
+					/** @var array<string, mixed> $user_tables */
+					$user_tables = is_array( $db_meta['user_tables'] ?? null ) ? $db_meta['user_tables'] : array();
 					( new EnvironmentUserIsolationService() )->restore_snapshot(
 						$this->environment,
-						is_array( $db_meta['user_tables'] ?? null ) ? $db_meta['user_tables'] : array()
+						$user_tables
 					);
 				}
 			}
@@ -299,12 +314,16 @@ class SnapshotManager {
 			$db_meta_file = $point_path . '/db_snapshot.json';
 			if ( file_exists( $db_meta_file ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading recovery point metadata.
-				$db_meta = json_decode( file_get_contents( $db_meta_file ), true );
-				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) ) {
+				$db_meta_contents = file_get_contents( $db_meta_file );
+				$db_meta          = is_string( $db_meta_contents ) ? json_decode( $db_meta_contents, true ) : null;
+				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) && is_string( $db_meta['table_prefix'] ) ) {
 					$mysql_cloner = new MySQLCloner();
 					$mysql_cloner->drop_tables( $db_meta['table_prefix'] );
+					// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for snapshot metadata.
+					/** @var array<string, mixed> $user_tables_to_drop */
+					$user_tables_to_drop = is_array( $db_meta['user_tables'] ?? null ) ? $db_meta['user_tables'] : array();
 					( new EnvironmentUserIsolationService() )->drop_snapshot(
-						is_array( $db_meta['user_tables'] ?? null ) ? $db_meta['user_tables'] : array()
+						$user_tables_to_drop
 					);
 				}
 			}
@@ -431,10 +450,10 @@ class SnapshotManager {
 	/**
 	 * Emit both generic and kind-specific lifecycle hooks.
 	 *
-	 * @param string $phase Lifecycle phase: before, after, failed.
-	 * @param string $operation Lifecycle operation: create, restore, delete.
-	 * @param array  $context Hook context.
-	 * @param mixed  ...$args Additional hook arguments.
+	 * @param string               $phase Lifecycle phase: before, after, failed.
+	 * @param string               $operation Lifecycle operation: create, restore, delete.
+	 * @param array<string, mixed> $context Hook context.
+	 * @param mixed                ...$args Additional hook arguments.
 	 * @return void
 	 */
 	private function emit_action( string $phase, string $operation, array $context, ...$args ): void {
@@ -464,6 +483,9 @@ class SnapshotManager {
 		);
 
 		foreach ( $iterator as $item ) {
+			if ( ! ( $item instanceof \SplFileInfo ) ) {
+				continue;
+			}
 			$item_path = $item->getPathname();
 			if ( $item->isLink() ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing symlinked shared-content entry during recovery point cleanup.

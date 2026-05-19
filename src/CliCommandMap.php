@@ -62,12 +62,17 @@ class CliCommandMap {
 		}
 
 		$adapter = $definition['adapter'];
-		$plan    = call_user_func( $adapter, $args, $assoc_args );
+		if ( ! is_callable( $adapter ) ) {
+			throw new \RuntimeException( sprintf( 'CLI adapter is not callable: %s', is_string( $adapter ) ? $adapter : '(unknown)' ) );
+		}
+		$plan = call_user_func( $adapter, $args, $assoc_args );
 		if ( ! is_array( $plan ) ) {
-			throw new \RuntimeException( sprintf( 'CLI adapter did not return a plan: %s', $adapter ) );
+			throw new \RuntimeException( sprintf( 'CLI adapter did not return a plan: %s', is_string( $adapter ) ? $adapter : '(unknown)' ) );
 		}
 
-		return array_merge(
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $merged */
+		$merged = array_merge(
 			$definition,
 			array(
 				'transport'            => 'php',
@@ -77,6 +82,8 @@ class CliCommandMap {
 			),
 			$plan
 		);
+
+		return $merged;
 	}
 
 	/**
@@ -85,6 +92,8 @@ class CliCommandMap {
 	 * @return array<string, array<string, mixed>>
 	 */
 	private static function definition_index(): array {
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, array<string, mixed>>|null $definitions */
 		static $definitions = null;
 
 		if ( null !== $definitions ) {
@@ -94,8 +103,11 @@ class CliCommandMap {
 		$definitions = array();
 
 		foreach ( self::raw_definitions() as $definition ) {
-			$definition['wp_cli_command']                             = 'wp ' . Rudel::cli_command() . ' ' . self::path_key( $definition['cli_path'] );
-			$definitions[ self::path_key( $definition['cli_path'] ) ] = $definition;
+			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+			/** @var array<int, string> $cli_path */
+			$cli_path                                   = $definition['cli_path'];
+			$definition['wp_cli_command']               = 'wp ' . Rudel::cli_command() . ' ' . self::path_key( $cli_path );
+			$definitions[ self::path_key( $cli_path ) ] = $definition;
 		}
 
 		return $definitions;

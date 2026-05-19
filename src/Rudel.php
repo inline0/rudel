@@ -236,17 +236,19 @@ class Rudel {
 		$port   = null;
 
 		if ( defined( 'WP_HOME' ) ) {
+			$wp_home_val = constant( 'WP_HOME' );
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation without full WP helpers.
-			$parts = parse_url( (string) WP_HOME );
+			$parts = parse_url( is_string( $wp_home_val ) ? $wp_home_val : '' );
 			if ( is_array( $parts ) ) {
 				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
 				$host   = isset( $parts['host'] ) ? (string) $parts['host'] : $host;
-				$port   = isset( $parts['port'] ) ? (int) $parts['port'] : null;
+				$port   = isset( $parts['port'] ) && is_numeric( $parts['port'] ) ? (int) $parts['port'] : null;
 			}
 		}
 
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
-			$network_host = preg_replace( '/:\d+$/', '', (string) DOMAIN_CURRENT_SITE );
+			$domain_site  = constant( 'DOMAIN_CURRENT_SITE' );
+			$network_host = is_string( $domain_site ) ? preg_replace( '/:\d+$/', '', $domain_site ) : null;
 			if ( is_string( $network_host ) && '' !== $network_host ) {
 				$host = $network_host;
 			}
@@ -420,8 +422,8 @@ class Rudel {
 	/**
 	 * Create a new sandbox.
 	 *
-	 * @param string $name    Human-readable name.
-	 * @param array  $options Optional settings (engine, template, clone flags).
+	 * @param string               $name    Human-readable name.
+	 * @param array<string, mixed> $options Optional settings (engine, template, clone flags).
 	 * @return Environment The newly created sandbox.
 	 *
 	 * @throws \RuntimeException If creation fails.
@@ -437,16 +439,18 @@ class Rudel {
 	 * The CLI treats sandbox creation as successful even if the remote clone fails,
 	 * so this method returns both the sandbox and any Git error instead of rolling the sandbox back.
 	 *
-	 * @param string $remote_url Git remote URL.
-	 * @param array  $options Sandbox create options plus optional 'name' and 'type'.
+	 * @param string               $remote_url Git remote URL.
+	 * @param array<string, mixed> $options Sandbox create options plus optional 'name' and 'type'.
 	 * @return array{environment: Environment, git: array{remote: string, branch: string, base_branch: string|null, repo_name: string, content_type: string, checkout_dir: string, error: string|null}}
 	 *
 	 * @throws \InvalidArgumentException If the requested content layout conflicts with the Git checkout type.
 	 */
 	public static function create_from_git( string $remote_url, array $options = array() ): array {
 		self::require_wordpress_runtime( 'Rudel::create_from_git()' );
-		$name         = isset( $options['name'] ) ? (string) $options['name'] : basename( preg_replace( '/\.git$/', '', $remote_url ) );
-		$content_type = isset( $options['type'] ) ? (string) $options['type'] : 'theme';
+		$name_opt     = isset( $options['name'] ) && is_scalar( $options['name'] ) ? (string) $options['name'] : null;
+		$cleaned_url  = preg_replace( '/\.git$/', '', $remote_url );
+		$name         = null !== $name_opt ? $name_opt : basename( is_string( $cleaned_url ) ? $cleaned_url : $remote_url );
+		$content_type = isset( $options['type'] ) && is_scalar( $options['type'] ) ? (string) $options['type'] : 'theme';
 		unset( $options['name'], $options['type'] );
 
 		if ( 'plugin' === $content_type && ! empty( $options['shared_plugins'] ) ) {
@@ -463,7 +467,7 @@ class Rudel {
 				'remote'       => $remote_url,
 				'branch'       => $branch,
 				'base_branch'  => null,
-				'repo_name'    => basename( preg_replace( '/\.git$/', '', $remote_url ) ),
+				'repo_name'    => basename( is_string( $cleaned_url ) ? $cleaned_url : $remote_url ),
 				'content_type' => $content_type,
 				'checkout_dir' => '',
 				'error'        => null,
@@ -509,8 +513,8 @@ class Rudel {
 	/**
 	 * Update sandbox metadata.
 	 *
-	 * @param string $id      Sandbox identifier.
-	 * @param array  $changes Metadata changes.
+	 * @param string               $id      Sandbox identifier.
+	 * @param array<string, mixed> $changes Metadata changes.
 	 * @return Environment
 	 */
 	public static function update( string $id, array $changes ): Environment {
@@ -520,7 +524,7 @@ class Rudel {
 	/**
 	 * Clean up expired sandboxes.
 	 *
-	 * @param array $options Options: 'dry_run' (bool), 'max_age_days' (int override), 'max_idle_days' (int override).
+	 * @param array<string, mixed> $options Options: 'dry_run' (bool), 'max_age_days' (int override), 'max_idle_days' (int override).
 	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
 	 */
 	public static function cleanup( array $options = array() ): array {
@@ -531,7 +535,7 @@ class Rudel {
 	/**
 	 * Clean up sandboxes whose git branches have been merged.
 	 *
-	 * @param array $options Options: 'dry_run' (bool).
+	 * @param array<string, mixed> $options Options: 'dry_run' (bool).
 	 * @return array{removed: string[], skipped: string[], errors: string[]} Cleanup results.
 	 */
 	public static function cleanup_merged( array $options = array() ): array {
@@ -570,9 +574,9 @@ class Rudel {
 	/**
 	 * Create a new app.
 	 *
-	 * @param string $name    Human-readable name.
-	 * @param array  $domains Domain names for the app.
-	 * @param array  $options Optional settings (engine, clone flags).
+	 * @param string               $name    Human-readable name.
+	 * @param array<int, string>   $domains Domain names for the app.
+	 * @param array<string, mixed> $options Optional settings (engine, clone flags).
 	 * @return Environment The newly created app.
 	 */
 	public static function create_app( string $name, array $domains, array $options = array() ): Environment {
@@ -583,8 +587,8 @@ class Rudel {
 	/**
 	 * Update app metadata.
 	 *
-	 * @param string $id      App identifier.
-	 * @param array  $changes Metadata changes.
+	 * @param string               $id      App identifier.
+	 * @param array<string, mixed> $changes Metadata changes.
 	 * @return Environment
 	 */
 	public static function update_app( string $id, array $changes ): Environment {
@@ -594,9 +598,9 @@ class Rudel {
 	/**
 	 * Create a sandbox from an app.
 	 *
-	 * @param string $app_id App identifier.
-	 * @param string $name Sandbox name.
-	 * @param array  $options Optional sandbox settings.
+	 * @param string               $app_id App identifier.
+	 * @param string               $name Sandbox name.
+	 * @param array<string, mixed> $options Optional sandbox settings.
 	 * @return Environment
 	 */
 	public static function create_sandbox_from_app( string $app_id, string $name, array $options = array() ): Environment {
@@ -673,10 +677,10 @@ class Rudel {
 	/**
 	 * Build a dry-run deploy plan from a sandbox into an app.
 	 *
-	 * @param string      $app_id App identifier.
-	 * @param string      $sandbox_id Sandbox identifier.
-	 * @param string|null $backup_name Optional backup name.
-	 * @param array       $options Optional deployment metadata.
+	 * @param string               $app_id App identifier.
+	 * @param string               $sandbox_id Sandbox identifier.
+	 * @param string|null          $backup_name Optional backup name.
+	 * @param array<string, mixed> $options Optional deployment metadata.
 	 * @return array<string, mixed>
 	 */
 	public static function plan_app_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
@@ -697,10 +701,10 @@ class Rudel {
 	/**
 	 * Deploy a sandbox into an app.
 	 *
-	 * @param string      $app_id App identifier.
-	 * @param string      $sandbox_id Sandbox identifier.
-	 * @param string|null $backup_name Optional backup name.
-	 * @param array       $options Optional deployment metadata such as label or notes.
+	 * @param string               $app_id App identifier.
+	 * @param string               $sandbox_id Sandbox identifier.
+	 * @param string|null          $backup_name Optional backup name.
+	 * @param array<string, mixed> $options Optional deployment metadata such as label or notes.
 	 * @return array<string, mixed>
 	 */
 	public static function deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
@@ -710,9 +714,9 @@ class Rudel {
 	/**
 	 * Roll an app back to the backup captured by a deployment record.
 	 *
-	 * @param string $app_id App identifier.
-	 * @param string $deployment_id Deployment identifier.
-	 * @param array  $options Optional rollback settings.
+	 * @param string               $app_id App identifier.
+	 * @param string               $deployment_id Deployment identifier.
+	 * @param array<string, mixed> $options Optional rollback settings.
 	 * @return array<string, mixed>
 	 */
 	public static function rollback_app_deployment( string $app_id, string $deployment_id, array $options = array() ): array {
@@ -722,8 +726,8 @@ class Rudel {
 	/**
 	 * Prune backups and deployment history for one app.
 	 *
-	 * @param string $app_id App identifier.
-	 * @param array  $options Retention options.
+	 * @param string               $app_id App identifier.
+	 * @param array<string, mixed> $options Retention options.
 	 * @return array{app_id: string, backups_removed: string[], deployments_removed: string[]}
 	 */
 	public static function prune_app_history( string $app_id, array $options = array() ): array {
@@ -838,7 +842,7 @@ class Rudel {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading one sandbox-local debug log.
 		$content = file_get_contents( $log_path );
-		if ( '' === $content ) {
+		if ( false === $content || '' === $content ) {
 			return array(
 				'path'        => $log_path,
 				'exists'      => true,
@@ -893,7 +897,7 @@ class Rudel {
 	 *
 	 * @param string $sandbox_id Sandbox identifier.
 	 * @param string $name       Snapshot name.
-	 * @return array Snapshot metadata.
+	 * @return array<string, mixed> Snapshot metadata.
 	 *
 	 * @throws \RuntimeException If the sandbox is not found or snapshot fails.
 	 */
@@ -928,7 +932,7 @@ class Rudel {
 	 * List snapshots for a sandbox.
 	 *
 	 * @param string $sandbox_id Sandbox identifier.
-	 * @return array[] Array of snapshot metadata arrays.
+	 * @return array<int, array<string, mixed>> Array of snapshot metadata arrays.
 	 *
 	 * @throws \RuntimeException If the sandbox is not found.
 	 */
@@ -958,6 +962,8 @@ class Rudel {
 		}
 
 		$template_manager = new TemplateManager();
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> */
 		return $template_manager->save( $sandbox, $name, $description );
 	}
 
@@ -968,6 +974,8 @@ class Rudel {
 	 */
 	public static function templates(): array {
 		$template_manager = new TemplateManager();
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<int, array<string, mixed>> */
 		return $template_manager->list_templates();
 	}
 
@@ -988,6 +996,8 @@ class Rudel {
 	 * @return array<string, array<string, array<int, string>|array<string, string>>>
 	 */
 	public static function run_scheduled_cleanup(): array {
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, array<string, array<int, string>|array<string, string>>> */
 		return Automation::run();
 	}
 

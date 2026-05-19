@@ -15,10 +15,10 @@ class EnvironmentPolicy {
 	/**
 	 * Build metadata for a newly created environment.
 	 *
-	 * @param array            $input      Raw metadata input.
-	 * @param string           $type       Environment type.
-	 * @param string           $created_at Creation timestamp.
-	 * @param RudelConfig|null $config     Optional config instance for default policy values.
+	 * @param array<string, mixed> $input  Raw metadata input.
+	 * @param string               $type       Environment type.
+	 * @param string               $created_at Creation timestamp.
+	 * @param RudelConfig|null     $config     Optional config instance for default policy values.
 	 * @return array<string, mixed>
 	 */
 	public static function metadata_for_create(
@@ -30,12 +30,12 @@ class EnvironmentPolicy {
 		$config            = $config ?? new RudelConfig();
 		$default_ttl_days  = 'sandbox' === $type ? $config->get( 'default_ttl_days' ) : 0;
 		$metadata          = array(
-			'owner'        => null,
-			'labels'       => array(),
-			'purpose'      => null,
-			'protected'    => false,
-			'expires_at'   => null,
-			'last_used_at' => $created_at,
+			'owner'          => null,
+			'labels'         => array(),
+			'purpose'        => null,
+			'protected'      => false,
+			'expires_at'     => null,
+			'last_used_at'   => $created_at,
 			'shared_plugins' => false,
 			'shared_uploads' => false,
 		);
@@ -43,7 +43,13 @@ class EnvironmentPolicy {
 
 		$has_expiry = array_key_exists( 'expires_at', $normalized_create );
 		if ( ! $has_expiry && $default_ttl_days > 0 ) {
-			$metadata['expires_at'] = gmdate( 'c', strtotime( '+' . $default_ttl_days . ' days', strtotime( $created_at ) ) );
+			$created_ts = strtotime( $created_at );
+			if ( false !== $created_ts ) {
+				$expiry_ts = strtotime( '+' . $default_ttl_days . ' days', $created_ts );
+				if ( false !== $expiry_ts ) {
+					$metadata['expires_at'] = gmdate( 'c', $expiry_ts );
+				}
+			}
 		}
 
 		return array_merge( $metadata, $normalized_create );
@@ -52,9 +58,9 @@ class EnvironmentPolicy {
 	/**
 	 * Normalize partial metadata changes for an existing or pending environment.
 	 *
-	 * @param array       $changes Raw change set.
-	 * @param string      $type    Environment type.
-	 * @param string|null $now     Optional timestamp used for TTL conversion.
+	 * @param array<string, mixed> $changes Raw change set.
+	 * @param string               $type    Environment type.
+	 * @param string|null          $now     Optional timestamp used for TTL conversion.
 	 * @return array<string, mixed>
 	 * @throws \InvalidArgumentException If metadata values are invalid.
 	 */
@@ -86,8 +92,14 @@ class EnvironmentPolicy {
 		if ( $clear_expiry ) {
 			$normalized['expires_at'] = null;
 		} elseif ( array_key_exists( 'ttl_days', $changes ) ) {
-			$ttl_days                 = self::normalize_positive_integer( $changes['ttl_days'], 'ttl_days' );
-			$normalized['expires_at'] = gmdate( 'c', strtotime( '+' . $ttl_days . ' days', strtotime( $now ) ) );
+			$ttl_days = self::normalize_positive_integer( $changes['ttl_days'], 'ttl_days' );
+			$now_ts   = strtotime( $now );
+			if ( false !== $now_ts ) {
+				$ttl_ts = strtotime( '+' . $ttl_days . ' days', $now_ts );
+				if ( false !== $ttl_ts ) {
+					$normalized['expires_at'] = gmdate( 'c', $ttl_ts );
+				}
+			}
 		} elseif ( array_key_exists( 'expires_at', $changes ) ) {
 			$normalized['expires_at'] = self::normalize_timestamp( $changes['expires_at'], 'expires_at' );
 		}
@@ -290,6 +302,8 @@ class EnvironmentPolicy {
 			throw new \InvalidArgumentException( 'clone_source must be an array or null.' );
 		}
 
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $value */
 		return $value;
 	}
 

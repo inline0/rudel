@@ -238,7 +238,7 @@ class RudelConfig {
 		$normalized = self::DEFAULTS;
 
 		foreach ( array_keys( self::DEFAULTS ) as $key ) {
-			if ( isset( $data[ $key ] ) ) {
+			if ( isset( $data[ $key ] ) && is_numeric( $data[ $key ] ) ) {
 				$normalized[ $key ] = (int) $data[ $key ];
 			}
 		}

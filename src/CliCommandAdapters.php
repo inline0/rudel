@@ -381,7 +381,7 @@ class CliCommandAdapters {
 				'confirmation_message' => sprintf(
 					"This will permanently destroy app '%s' (%s).",
 					$app->name,
-					implode( ', ', $app->domains ?? array() )
+					implode( ', ', array_map( 'strval', $app->domains ?? array() ) )
 				),
 			)
 		);
@@ -715,7 +715,9 @@ class CliCommandAdapters {
 			return null;
 		}
 
-		return (string) $assoc_args[ $name ];
+		$value = $assoc_args[ $name ];
+
+		return is_scalar( $value ) ? (string) $value : null;
 	}
 
 	/**
@@ -731,7 +733,9 @@ class CliCommandAdapters {
 			return $default;
 		}
 
-		return (int) $assoc_args[ $name ];
+		$value = $assoc_args[ $name ];
+
+		return is_numeric( $value ) ? (int) $value : $default;
 	}
 
 	/**
@@ -755,7 +759,7 @@ class CliCommandAdapters {
 			return true;
 		}
 
-		return ! in_array( strtolower( (string) $value ), array( '', '0', 'false', 'no', 'off' ), true );
+		return ! is_scalar( $value ) || ! in_array( strtolower( (string) $value ), array( '', '0', 'false', 'no', 'off' ), true );
 	}
 
 	/**
@@ -858,7 +862,8 @@ class CliCommandAdapters {
 		}
 
 		if ( null !== $git_remote && '' !== $git_remote ) {
-			return basename( preg_replace( '/\.git$/', '', $git_remote ) );
+			$cleaned = preg_replace( '/\.git$/', '', $git_remote );
+			return basename( is_string( $cleaned ) ? $cleaned : $git_remote );
 		}
 
 		return 'sandbox';

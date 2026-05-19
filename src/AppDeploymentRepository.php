@@ -31,9 +31,9 @@ class AppDeploymentRepository {
 	/**
 	 * Record a deployment.
 	 *
-	 * @param Environment $app App environment.
-	 * @param Environment $sandbox Source environment.
-	 * @param array       $data Deployment metadata.
+	 * @param Environment          $app App environment.
+	 * @param Environment          $sandbox Source environment.
+	 * @param array<string, mixed> $data Deployment metadata.
 	 * @return array<string, mixed>
 	 *
 	 * @throws \RuntimeException When the insert fails or the deployment cannot be reloaded.
@@ -55,7 +55,7 @@ class AppDeploymentRepository {
 			'sandbox_name'            => $sandbox->name,
 			'source_environment_type' => $sandbox->type,
 			'backup_name'             => $data['backup_name'] ?? null,
-			'tables_copied'           => isset( $data['tables_copied'] ) ? (int) $data['tables_copied'] : null,
+			'tables_copied'           => isset( $data['tables_copied'] ) && is_numeric( $data['tables_copied'] ) ? (int) $data['tables_copied'] : null,
 			'label'                   => $this->normalize_optional_string( $data['label'] ?? null ),
 			'notes'                   => $this->normalize_optional_string( $data['notes'] ?? null ),
 			'git_remote'              => $data['git_remote'] ?? ( $sandbox->get_git_remote() ?? $app->get_git_remote() ),
@@ -170,25 +170,25 @@ class AppDeploymentRepository {
 		}
 
 		$record = array(
-			'id'                      => (string) $row['deployment_key'],
-			'deployed_at'             => (string) $row['deployed_at'],
-			'app_id'                  => (string) $row['app_slug'],
-			'app_name'                => (string) $row['app_name'],
+			'id'                      => isset( $row['deployment_key'] ) && is_scalar( $row['deployment_key'] ) ? (string) $row['deployment_key'] : '',
+			'deployed_at'             => isset( $row['deployed_at'] ) && is_scalar( $row['deployed_at'] ) ? (string) $row['deployed_at'] : '',
+			'app_id'                  => isset( $row['app_slug'] ) && is_scalar( $row['app_slug'] ) ? (string) $row['app_slug'] : '',
+			'app_name'                => isset( $row['app_name'] ) && is_scalar( $row['app_name'] ) ? (string) $row['app_name'] : '',
 			'app_domains'             => $domains,
-			'sandbox_id'              => (string) $row['sandbox_slug'],
-			'sandbox_name'            => (string) $row['sandbox_name'],
-			'source_environment_type' => (string) $row['source_environment_type'],
+			'sandbox_id'              => isset( $row['sandbox_slug'] ) && is_scalar( $row['sandbox_slug'] ) ? (string) $row['sandbox_slug'] : '',
+			'sandbox_name'            => isset( $row['sandbox_name'] ) && is_scalar( $row['sandbox_name'] ) ? (string) $row['sandbox_name'] : '',
+			'source_environment_type' => isset( $row['source_environment_type'] ) && is_scalar( $row['source_environment_type'] ) ? (string) $row['source_environment_type'] : '',
 			'backup_name'             => $row['backup_name'],
-			'tables_copied'           => isset( $row['tables_copied'] ) ? (int) $row['tables_copied'] : null,
+			'tables_copied'           => isset( $row['tables_copied'] ) && is_numeric( $row['tables_copied'] ) ? (int) $row['tables_copied'] : null,
 			'label'                   => $row['label'],
 			'notes'                   => $row['notes'],
 		);
 
-		if ( ! empty( $row['git_remote'] ) ) {
+		if ( ! empty( $row['git_remote'] ) && is_scalar( $row['git_remote'] ) ) {
 			$record['git_remote']      = (string) $row['git_remote'];
-			$record['git_branch']      = (string) $row['git_branch'];
-			$record['git_base_branch'] = (string) $row['git_base_branch'];
-			$record['git_dir']         = (string) $row['git_dir'];
+			$record['git_branch']      = isset( $row['git_branch'] ) && is_scalar( $row['git_branch'] ) ? (string) $row['git_branch'] : '';
+			$record['git_base_branch'] = isset( $row['git_base_branch'] ) && is_scalar( $row['git_base_branch'] ) ? (string) $row['git_base_branch'] : '';
+			$record['git_dir']         = isset( $row['git_dir'] ) && is_scalar( $row['git_dir'] ) ? (string) $row['git_dir'] : '';
 		}
 
 		return $record;

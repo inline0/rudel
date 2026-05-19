@@ -9,7 +9,7 @@ class WpdbStoreTest extends TestCase
 {
 	public function testInsertRaisesRuntimeExceptionWhenWpdbFails(): void
 	{
-		$wpdb = new class () {
+		$wpdb = new class () extends \wpdb {
 			public string $prefix = 'wp_';
 			public string $base_prefix = 'wp_';
 			public int $insert_id = 0;
@@ -50,7 +50,7 @@ class WpdbStoreTest extends TestCase
 
 	public function testUpdateRaisesRuntimeExceptionWhenWpdbFails(): void
 	{
-		$wpdb = new class () {
+		$wpdb = new class () extends \wpdb {
 			public string $prefix = 'wp_';
 			public string $base_prefix = 'wp_';
 			public int $insert_id = 0;
@@ -91,7 +91,7 @@ class WpdbStoreTest extends TestCase
 
 	public function testDeleteRaisesRuntimeExceptionWhenWpdbFails(): void
 	{
-		$wpdb = new class () {
+		$wpdb = new class () extends \wpdb {
 			public string $prefix = 'wp_';
 			public string $base_prefix = 'wp_';
 			public int $insert_id = 0;
@@ -132,7 +132,7 @@ class WpdbStoreTest extends TestCase
 
 	public function testNestedTransactionsOnlyCommitOrRollbackAtTheOutermostBoundary(): void
 	{
-		$wpdb = new class () {
+		$wpdb = new class () extends \wpdb {
 			public string $prefix = 'wp_';
 			public string $base_prefix = 'wp_';
 			public int $insert_id = 0;

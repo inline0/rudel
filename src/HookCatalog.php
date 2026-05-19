@@ -317,7 +317,7 @@ class HookCatalog {
 				'type' => 'filter',
 				'args' => array( '$options', '$repository' ),
 			),
-			'rudel_environment_db_dropin_contents'    => array(
+			'rudel_environment_db_dropin_contents'     => array(
 				'type' => 'filter',
 				'args' => array( '$contents', '$context' ),
 			),

@@ -42,8 +42,8 @@ class CleanupCommand extends AbstractEnvironmentCommand {
 	 *     $ wp rudel cleanup --merged --dry-run
 	 *     Would remove 1 sandbox(es) with merged branches.
 	 *
-	 * @param array $args       Positional arguments.
-	 * @param array $assoc_args Associative arguments.
+	 * @param list<string>         $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
 	 * @return void
 	 *
 	 * @when after_wp_load
@@ -56,14 +56,18 @@ class CleanupCommand extends AbstractEnvironmentCommand {
 			$result = $this->manager->cleanup_merged( array( 'dry_run' => $dry_run ) );
 			$label  = 'with merged branches';
 		} else {
-			$result = $this->manager->cleanup(
+			$max_age_raw   = $assoc_args['max-age-days'] ?? 0;
+			$max_age_days  = is_numeric( $max_age_raw ) ? (int) $max_age_raw : 0;
+			$max_idle_raw  = $assoc_args['max-idle-days'] ?? 0;
+			$max_idle_days = is_numeric( $max_idle_raw ) ? (int) $max_idle_raw : 0;
+			$result        = $this->manager->cleanup(
 				array(
 					'dry_run'       => $dry_run,
-					'max_age_days'  => (int) ( $assoc_args['max-age-days'] ?? 0 ),
-					'max_idle_days' => (int) ( $assoc_args['max-idle-days'] ?? 0 ),
+					'max_age_days'  => $max_age_days,
+					'max_idle_days' => $max_idle_days,
 				)
 			);
-			$label  = '';
+			$label         = '';
 		}
 
 		$count = count( $result['removed'] );

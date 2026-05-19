@@ -51,10 +51,12 @@ class OperationLock {
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_fopen,WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Using a local advisory lock file.
-		$this->handle = fopen( $this->path, 'c+' );
-		if ( ! is_resource( $this->handle ) ) {
+		$handle = fopen( $this->path, 'c+' );
+		if ( ! is_resource( $handle ) ) {
 			throw new \RuntimeException( sprintf( 'Failed to open lock file: %s', $this->path ) );
 		}
+
+		$this->handle = $handle;
 
 		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- flock returns false when another process already owns the lock.
 		if ( ! @flock( $this->handle, LOCK_EX | LOCK_NB ) ) {

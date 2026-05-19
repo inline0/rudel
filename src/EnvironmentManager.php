@@ -111,8 +111,8 @@ class EnvironmentManager {
 	/**
 	 * Create a new environment.
 	 *
-	 * @param string $name    Human-readable name.
-	 * @param array  $options Optional settings (template, etc.).
+	 * @param string               $name    Human-readable name.
+	 * @param array<string, mixed> $options Optional settings (template, etc.).
 	 * @return Environment The newly created environment.
 	 *
 	 * @throws \RuntimeException If the directory already exists or creation fails.
@@ -120,7 +120,10 @@ class EnvironmentManager {
 	 * @throws \Throwable If any step after directory creation fails (directory is cleaned up).
 	 */
 	public function create( string $name, array $options = array() ): Environment {
-		$options = Hooks::filter( 'rudel_environment_create_options', $options, $name, $this );
+		$filtered_options = Hooks::filter( 'rudel_environment_create_options', $options, $name, $this );
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> $options */
+		$options = is_array( $filtered_options ) ? $filtered_options : $options;
 		$context = array(
 			'name'                       => $name,
 			'options'                    => $options,
@@ -152,19 +155,24 @@ class EnvironmentManager {
 				throw new \RuntimeException( sprintf( 'Environment directory already exists: %s', $path ) );
 			}
 
-			$clone_from     = $options['clone_from'] ?? null;
-			$clone_db       = ! empty( $options['clone_db'] );
-			$clone_themes   = ! empty( $options['clone_themes'] );
-			$clone_plugins  = ! empty( $options['clone_plugins'] );
-			$clone_uploads  = ! empty( $options['clone_uploads'] );
-			$content_exclude = $this->normalize_content_exclusions( $options['content_exclude'] ?? array() );
+			$raw_clone_from          = $options['clone_from'] ?? null;
+			$clone_from              = is_string( $raw_clone_from ) ? $raw_clone_from : null;
+			$clone_db                = ! empty( $options['clone_db'] );
+			$clone_themes            = ! empty( $options['clone_themes'] );
+			$clone_plugins           = ! empty( $options['clone_plugins'] );
+			$clone_uploads           = ! empty( $options['clone_uploads'] );
+			$content_exclude         = $this->normalize_content_exclusions( $options['content_exclude'] ?? array() );
 			$shared_plugins_explicit = array_key_exists( 'shared_plugins', $options );
 			$shared_uploads_explicit = array_key_exists( 'shared_uploads', $options );
 			$shared_plugins          = ! empty( $options['shared_plugins'] );
 			$shared_uploads          = ! empty( $options['shared_uploads'] );
-			$has_clone      = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
-			$target_type    = $options['type'] ?? 'sandbox';
-			$target_domains = $options['domains'] ?? null;
+			$has_clone               = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
+			$raw_type                = $options['type'] ?? 'sandbox';
+			$target_type             = is_string( $raw_type ) ? $raw_type : 'sandbox';
+			$raw_domains             = $options['domains'] ?? null;
+			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+			/** @var array<int, string>|null $target_domains */
+			$target_domains = is_array( $raw_domains ) ? $raw_domains : null;
 
 			if ( $clone_from && $has_clone ) {
 				throw new \InvalidArgumentException( 'Cannot combine --clone-from with --clone-db, --clone-themes, --clone-plugins, or --clone-uploads.' );
@@ -205,13 +213,14 @@ class EnvironmentManager {
 			$clone_source       = null;
 			$clone_lineage      = array();
 			$is_multisite       = true;
-			$template           = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
+			$raw_template       = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
+			$template           = is_string( $raw_template ) ? $raw_template : 'blank';
 			$is_from_template   = ! in_array( $template, array( 'blank', 'clone' ), true )
 				&& ! $clone_from && ! $has_clone
 				&& $this->template_exists( $template );
 			$subsite_cloner     = new SubsiteCloner();
 			$source_environment = null;
-			$admin_user_id      = $subsite_cloner->resolve_admin_user_id( isset( $options['admin_user_id'] ) ? (int) $options['admin_user_id'] : null );
+			$admin_user_id      = $subsite_cloner->resolve_admin_user_id( isset( $options['admin_user_id'] ) && is_numeric( $options['admin_user_id'] ) ? (int) $options['admin_user_id'] : null );
 			$blog_id            = $subsite_cloner->create_subsite( $id, $name, $admin_user_id );
 			$user_tables        = $this->user_isolation->metadata_for_blog( $blog_id );
 			$target_url         = $this->get_target_environment_url( $id, $blog_id, $target_type, $target_domains );
@@ -335,28 +344,34 @@ class EnvironmentManager {
 
 				$git_worktrees = array();
 				foreach ( $content_results as $dir => $result ) {
+					$dir_key = is_string( $dir ) ? $dir : '';
 					if ( $this->content_clone_succeeded( $result ) ) {
-						if ( 'themes' === $dir ) {
+						if ( 'themes' === $dir_key ) {
 							$themes_cloned = true;
-						} elseif ( 'plugins' === $dir ) {
+						} elseif ( 'plugins' === $dir_key ) {
 							$plugins_cloned = true;
-						} elseif ( 'uploads' === $dir ) {
+						} elseif ( 'uploads' === $dir_key ) {
 							$uploads_cloned = true;
 						}
 					}
 
-					if ( is_array( $result ) && ! empty( $result['worktrees'] ) ) {
+					if ( is_array( $result ) && ! empty( $result['worktrees'] ) && is_array( $result['worktrees'] ) ) {
 						foreach ( $result['worktrees'] as $worktree ) {
 							if ( ! is_array( $worktree ) ) {
 								continue;
 							}
 
+							$wt_name   = $worktree['name'] ?? '';
+							$wt_branch = $worktree['branch'] ?? '';
+							$wt_repo   = $worktree['repo'] ?? '';
+							$wt_meta   = $worktree['metadata_name'] ?? '';
+
 							$git_worktrees[] = array(
-								'type'          => $dir,
-								'name'          => (string) ( $worktree['name'] ?? '' ),
-								'branch'        => (string) ( $worktree['branch'] ?? '' ),
-								'repo'          => (string) ( $worktree['repo'] ?? '' ),
-								'metadata_name' => (string) ( $worktree['metadata_name'] ?? '' ),
+								'type'          => $dir_key,
+								'name'          => is_scalar( $wt_name ) ? (string) $wt_name : '',
+								'branch'        => is_scalar( $wt_branch ) ? (string) $wt_branch : '',
+								'repo'          => is_scalar( $wt_repo ) ? (string) $wt_repo : '',
+								'metadata_name' => is_scalar( $wt_meta ) ? (string) $wt_meta : '',
 							);
 						}
 					}
@@ -382,7 +397,7 @@ class EnvironmentManager {
 				domains: $target_domains,
 				shared_plugins: $shared_plugins,
 				shared_uploads: $shared_uploads,
-				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
+				app_record_id: isset( $options['app_id'] ) && is_numeric( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
 
 			$this->write_runtime_mu_plugin( $path );
@@ -415,12 +430,32 @@ class EnvironmentManager {
 				$clone_source['git_worktrees'] = $git_worktrees;
 			}
 
-			$policy_meta = EnvironmentPolicy::metadata_for_create(
-				array_merge( $options, $clone_lineage ),
+			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+			/** @var array<string, mixed> $merged_options */
+			$merged_options = array_merge( $options, $clone_lineage );
+			$policy_meta    = EnvironmentPolicy::metadata_for_create(
+				$merged_options,
 				$target_type,
 				$created_at,
 				$config
 			);
+
+			$pm_owner = $policy_meta['owner'] ?? null;
+			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+			/** @var array<int, string> $pm_labels */
+			$pm_labels    = $policy_meta['labels'] ?? array();
+			$pm_purpose   = $policy_meta['purpose'] ?? null;
+			$pm_protected = $policy_meta['protected'] ?? false;
+			$pm_expires   = $policy_meta['expires_at'] ?? null;
+			$pm_last_used = $policy_meta['last_used_at'] ?? null;
+			$pm_src_id    = $policy_meta['source_environment_id'] ?? null;
+			$pm_src_type  = $policy_meta['source_environment_type'] ?? null;
+			$pm_dep_id    = $policy_meta['last_deployed_from_id'] ?? null;
+			$pm_dep_type  = $policy_meta['last_deployed_from_type'] ?? null;
+			$pm_dep_at    = $policy_meta['last_deployed_at'] ?? null;
+			$pm_git_rem   = $policy_meta['tracked_git_remote'] ?? null;
+			$pm_git_br    = $policy_meta['tracked_git_branch'] ?? null;
+			$pm_git_dir   = $policy_meta['tracked_git_dir'] ?? null;
 
 			$environment = new Environment(
 				id: $id,
@@ -435,23 +470,23 @@ class EnvironmentManager {
 				blog_id: $blog_id,
 				type: $target_type,
 				domains: $target_domains,
-				owner: $policy_meta['owner'],
-				labels: $policy_meta['labels'],
-				purpose: $policy_meta['purpose'],
-				is_protected: $policy_meta['protected'],
-				expires_at: $policy_meta['expires_at'],
-				last_used_at: $policy_meta['last_used_at'],
-				source_environment_id: $policy_meta['source_environment_id'] ?? null,
-				source_environment_type: $policy_meta['source_environment_type'] ?? null,
-				last_deployed_from_id: $policy_meta['last_deployed_from_id'] ?? null,
-				last_deployed_from_type: $policy_meta['last_deployed_from_type'] ?? null,
-				last_deployed_at: $policy_meta['last_deployed_at'] ?? null,
-				tracked_git_remote: $policy_meta['tracked_git_remote'] ?? null,
-				tracked_git_branch: $policy_meta['tracked_git_branch'] ?? null,
-				tracked_git_dir: $policy_meta['tracked_git_dir'] ?? null,
+				owner: is_string( $pm_owner ) ? $pm_owner : null,
+				labels: is_array( $pm_labels ) ? $pm_labels : array(),
+				purpose: is_string( $pm_purpose ) ? $pm_purpose : null,
+				is_protected: (bool) $pm_protected,
+				expires_at: is_string( $pm_expires ) ? $pm_expires : null,
+				last_used_at: is_string( $pm_last_used ) ? $pm_last_used : null,
+				source_environment_id: is_string( $pm_src_id ) ? $pm_src_id : null,
+				source_environment_type: is_string( $pm_src_type ) ? $pm_src_type : null,
+				last_deployed_from_id: is_string( $pm_dep_id ) ? $pm_dep_id : null,
+				last_deployed_from_type: is_string( $pm_dep_type ) ? $pm_dep_type : null,
+				last_deployed_at: is_string( $pm_dep_at ) ? $pm_dep_at : null,
+				tracked_git_remote: is_string( $pm_git_rem ) ? $pm_git_rem : null,
+				tracked_git_branch: is_string( $pm_git_br ) ? $pm_git_br : null,
+				tracked_git_dir: is_string( $pm_git_dir ) ? $pm_git_dir : null,
 				shared_plugins: ! empty( $policy_meta['shared_plugins'] ),
 				shared_uploads: ! empty( $policy_meta['shared_uploads'] ),
-				app_record_id: isset( $options['app_id'] ) ? (int) $options['app_id'] : null,
+				app_record_id: isset( $options['app_id'] ) && is_numeric( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
 			$environment = $this->repository->save( $environment );
 
@@ -460,6 +495,7 @@ class EnvironmentManager {
 			return $environment;
 		} catch ( \Throwable $e ) {
 			if ( $blog_id ) {
+				$fail_type          = $options['type'] ?? 'sandbox';
 				$failed_environment = new Environment(
 					id: (string) $id,
 					name: $name,
@@ -470,7 +506,7 @@ class EnvironmentManager {
 					multisite: true,
 					engine: $engine,
 					blog_id: $blog_id,
-					type: $options['type'] ?? 'sandbox',
+					type: is_string( $fail_type ) ? $fail_type : 'sandbox',
 					shared_plugins: ! empty( $options['shared_plugins'] ),
 					shared_uploads: ! empty( $options['shared_uploads'] ),
 				);
@@ -509,8 +545,8 @@ class EnvironmentManager {
 	/**
 	 * Update environment metadata and return the refreshed environment.
 	 *
-	 * @param string $id      Environment identifier.
-	 * @param array  $changes Metadata changes.
+	 * @param string               $id      Environment identifier.
+	 * @param array<string, mixed> $changes Metadata changes.
 	 * @return Environment
 	 *
 	 * @throws \RuntimeException If the environment is not found.
@@ -645,7 +681,7 @@ class EnvironmentManager {
 	/**
 	 * Clean up expired environments.
 	 *
-	 * @param array $options Options: 'dry_run' (bool), 'max_age_days' (int override), 'max_idle_days' (int override).
+	 * @param array<string, mixed> $options Options: 'dry_run' (bool), 'max_age_days' (int override), 'max_idle_days' (int override).
 	 * @return array{removed: string[], skipped: string[], errors: string[], reasons?: array<string, string>} Cleanup results.
 	 */
 	public function cleanup( array $options = array() ): array {
@@ -655,7 +691,7 @@ class EnvironmentManager {
 	/**
 	 * Clean up environments whose git branches have been merged.
 	 *
-	 * @param array $options Options: 'dry_run' (bool).
+	 * @param array<string, mixed> $options Options: 'dry_run' (bool).
 	 * @return array{removed: string[], skipped: string[], errors: string[], reasons?: array<string, string>} Cleanup results.
 	 */
 	public function cleanup_merged( array $options = array() ): array {
@@ -673,17 +709,19 @@ class EnvironmentManager {
 		$port   = null;
 
 		if ( defined( 'WP_HOME' ) ) {
+			$wp_home_val = constant( 'WP_HOME' );
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation without requiring full WP helpers.
-			$parts = parse_url( (string) WP_HOME );
+			$parts = parse_url( is_string( $wp_home_val ) ? $wp_home_val : '' );
 			if ( is_array( $parts ) ) {
-				$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : $scheme;
-				$host   = isset( $parts['host'] ) ? (string) $parts['host'] : $host;
-				$port   = isset( $parts['port'] ) ? (int) $parts['port'] : null;
+				$scheme = isset( $parts['scheme'] ) && is_string( $parts['scheme'] ) ? $parts['scheme'] : $scheme;
+				$host   = isset( $parts['host'] ) && is_string( $parts['host'] ) ? $parts['host'] : $host;
+				$port   = isset( $parts['port'] ) && is_numeric( $parts['port'] ) ? (int) $parts['port'] : null;
 			}
 		}
 
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {
-			$network_host = preg_replace( '/:\d+$/', '', (string) DOMAIN_CURRENT_SITE );
+			$domain_site  = constant( 'DOMAIN_CURRENT_SITE' );
+			$network_host = is_string( $domain_site ) ? preg_replace( '/:\d+$/', '', $domain_site ) : null;
 			if ( is_string( $network_host ) && '' !== $network_host ) {
 				$host = $network_host;
 			}
@@ -716,10 +754,10 @@ class EnvironmentManager {
 				continue;
 			}
 
-			$repo   = isset( $worktree['repo'] ) ? trim( (string) $worktree['repo'] ) : '';
-			$type   = isset( $worktree['type'] ) ? trim( (string) $worktree['type'] ) : '';
-			$name   = isset( $worktree['name'] ) ? trim( (string) $worktree['name'] ) : '';
-			$branch = isset( $worktree['branch'] ) ? trim( (string) $worktree['branch'] ) : '';
+			$repo   = isset( $worktree['repo'] ) && is_scalar( $worktree['repo'] ) ? trim( (string) $worktree['repo'] ) : '';
+			$type   = isset( $worktree['type'] ) && is_scalar( $worktree['type'] ) ? trim( (string) $worktree['type'] ) : '';
+			$name   = isset( $worktree['name'] ) && is_scalar( $worktree['name'] ) ? trim( (string) $worktree['name'] ) : '';
+			$branch = isset( $worktree['branch'] ) && is_scalar( $worktree['branch'] ) ? trim( (string) $worktree['branch'] ) : '';
 
 			if ( '' === $repo || '' === $type || '' === $name ) {
 				continue;
@@ -727,9 +765,9 @@ class EnvironmentManager {
 
 			$repo_control  = $git->common_git_dir( $repo ) ?? $repo;
 			$worktree_path = $environment->get_wp_content_path() . '/' . $type . '/' . $name;
-			$metadata_name = isset( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : null;
+			$raw_meta_name = isset( $worktree['metadata_name'] ) && is_scalar( $worktree['metadata_name'] ) ? trim( (string) $worktree['metadata_name'] ) : null;
 
-			$git->remove_worktree( $repo_control, $worktree_path, '' !== (string) $metadata_name ? $metadata_name : null );
+			$git->remove_worktree( $repo_control, $worktree_path, is_string( $raw_meta_name ) && '' !== $raw_meta_name ? $raw_meta_name : null );
 
 			if ( '' !== $branch ) {
 				$git->delete_branch( $repo_control, $branch );
@@ -740,12 +778,12 @@ class EnvironmentManager {
 	/**
 	 * Build clone metadata for a new environment.
 	 *
-	 * @param string $host_url       Source host URL.
-	 * @param bool   $db_cloned      Whether the database was cloned.
-	 * @param bool   $themes_cloned  Whether themes were cloned.
-	 * @param bool   $plugins_cloned Whether plugins were cloned.
-	 * @param bool   $uploads_cloned Whether uploads were cloned.
-	 * @param array  $extra          Additional metadata to merge into the clone record.
+	 * @param string               $host_url       Source host URL.
+	 * @param bool                 $db_cloned      Whether the database was cloned.
+	 * @param bool                 $themes_cloned  Whether themes were cloned.
+	 * @param bool                 $plugins_cloned Whether plugins were cloned.
+	 * @param bool                 $uploads_cloned Whether uploads were cloned.
+	 * @param array<string, mixed> $extra          Additional metadata to merge into the clone record.
 	 * @return array<string, mixed> Clone metadata payload.
 	 */
 	private function build_clone_source(
@@ -756,19 +794,20 @@ class EnvironmentManager {
 		bool $uploads_cloned,
 		array $extra = array()
 	): array {
-		return Hooks::filter(
-			'rudel_environment_clone_source',
-			array_merge(
-				array(
-					'host_url'       => $host_url,
-					'cloned_at'      => gmdate( 'c' ),
-					'db_cloned'      => $db_cloned,
-					'themes_cloned'  => $themes_cloned,
-					'plugins_cloned' => $plugins_cloned,
-					'uploads_cloned' => $uploads_cloned,
-				),
-				$extra
+		$default  = array_merge(
+			array(
+				'host_url'       => $host_url,
+				'cloned_at'      => gmdate( 'c' ),
+				'db_cloned'      => $db_cloned,
+				'themes_cloned'  => $themes_cloned,
+				'plugins_cloned' => $plugins_cloned,
+				'uploads_cloned' => $uploads_cloned,
 			),
+			$extra
+		);
+		$filtered = Hooks::filter(
+			'rudel_environment_clone_source',
+			$default,
 			$host_url,
 			$db_cloned,
 			$themes_cloned,
@@ -776,6 +815,9 @@ class EnvironmentManager {
 			$uploads_cloned,
 			$extra
 		);
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> */
+		return is_array( $filtered ) ? $filtered : $default;
 	}
 
 	/**
@@ -939,6 +981,9 @@ class EnvironmentManager {
 	): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$template = file_get_contents( $this->plugin_dir . 'templates/environment-bootstrap.php.tpl' );
+		if ( false === $template ) {
+			$template = '';
+		}
 
 		$content        = strtr(
 			$template,
@@ -1085,7 +1130,7 @@ class EnvironmentManager {
 
 			$normalized_entries = array_values(
 				array_filter(
-					array_map( 'strval', $entries ),
+					array_map( static fn( $entry ) => is_scalar( $entry ) ? (string) $entry : '', $entries ),
 					static fn( string $entry ): bool => '' !== $entry
 				)
 			);
@@ -1127,7 +1172,7 @@ class EnvironmentManager {
 	private function apply_mysql_site_options( string $id, $blog_id, array $site_options ): void {
 		global $wpdb;
 
-		if ( ! isset( $wpdb ) || ! $wpdb ) {
+		if ( ! $wpdb instanceof \wpdb ) {
 			throw new \RuntimeException( 'Applying MySQL-backed site options requires a running WordPress database connection.' );
 		}
 
@@ -1220,6 +1265,7 @@ class EnvironmentManager {
 	 * @param array<string, bool>     $shared_content Shared top-level wp-content directories keyed by directory name.
 	 * @param array<string, string[]> $content_exclude Top-level wp-content entries to skip while cloning.
 	 * @return array<string, mixed>
+	 * @throws \RuntimeException When the host WordPress database connection is unavailable.
 	 */
 	private function clone_from_subsite_environment(
 		Environment $source,
@@ -1230,6 +1276,10 @@ class EnvironmentManager {
 		array $content_exclude = array()
 	): array {
 		global $wpdb;
+
+		if ( ! isset( $wpdb ) || ! ( $wpdb instanceof \wpdb ) ) {
+			throw new \RuntimeException( 'Cloning a subsite environment requires a running WordPress database connection.' );
+		}
 
 		$source_prefix = $source->get_table_prefix();
 		$target_prefix = $wpdb->base_prefix . $target_blog_id . '_';
@@ -1243,22 +1293,23 @@ class EnvironmentManager {
 
 		$content_clone = $this->clone_environment_content( $source, $target_id, $target_path, $shared_content, $content_exclude );
 
-		return Hooks::filter(
+		$default_result = array(
+			'host_url'              => $source_url,
+			'cloned_at'             => gmdate( 'c' ),
+			'db_cloned'             => true,
+			'themes_cloned'         => ! empty( $content_clone['themes_cloned'] ),
+			'plugins_cloned'        => ! empty( $content_clone['plugins_cloned'] ),
+			'uploads_cloned'        => ! empty( $content_clone['uploads_cloned'] ),
+			'tables_cloned'         => $tables,
+			'multisite'             => true,
+			'target_url'            => $target_url,
+			'git_worktrees'         => $content_clone['git_worktrees'],
+			'source_environment_id' => $source->id,
+			'source_type'           => $source->type,
+		);
+		$filtered       = Hooks::filter(
 			'rudel_environment_clone_source',
-			array(
-				'host_url'              => $source_url,
-				'cloned_at'             => gmdate( 'c' ),
-				'db_cloned'             => true,
-				'themes_cloned'         => ! empty( $content_clone['themes_cloned'] ),
-				'plugins_cloned'        => ! empty( $content_clone['plugins_cloned'] ),
-				'uploads_cloned'        => ! empty( $content_clone['uploads_cloned'] ),
-				'tables_cloned'         => $tables,
-				'multisite'             => true,
-				'target_url'            => $target_url,
-				'git_worktrees'         => $content_clone['git_worktrees'],
-				'source_environment_id' => $source->id,
-				'source_type'           => $source->type,
-			),
+			$default_result,
 			$source_url,
 			true,
 			! empty( $content_clone['themes_cloned'] ),
@@ -1273,6 +1324,9 @@ class EnvironmentManager {
 				'source_type'           => $source->type,
 			)
 		);
+		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+		/** @var array<string, mixed> */
+		return is_array( $filtered ) ? $filtered : $default_result;
 	}
 
 	/**
@@ -1308,6 +1362,9 @@ class EnvironmentManager {
 		$iterator = new \FilesystemIterator( $source_content, \FilesystemIterator::SKIP_DOTS );
 
 		foreach ( $iterator as $entry ) {
+			if ( ! $entry instanceof \SplFileInfo ) {
+				continue;
+			}
 			$name            = $entry->getFilename();
 			$source_path     = $entry->getPathname();
 			$target_pathname = $target_content . '/' . $name;
@@ -1422,6 +1479,9 @@ class EnvironmentManager {
 		);
 
 		foreach ( $iterator as $item ) {
+			if ( ! $item instanceof \SplFileInfo ) {
+				continue;
+			}
 			$item_path = $item->getPathname();
 			if ( ! file_exists( $item_path ) && ! is_link( $item_path ) ) {
 				continue;
