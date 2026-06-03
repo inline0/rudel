@@ -1,48 +1,32 @@
 ---
 title: Hooks
-description: The documented Rudel action and filter contract.
+description: Rudel lifecycle hooks for extensions.
 ---
 
-# Hooks
+Rudel exposes hooks around sandbox lifecycle events.
 
-Rudel publishes its documented lifecycle hooks through `Rudel::hooks()` and `Rudel\HookCatalog::all()`.
+Common hook groups include:
 
-The point of the hook catalog is not just to list names. It is to make Rudel predictable as an extension surface. When you are building operator tooling, policy enforcement, or downstream automation, you should not need to reverse-engineer which actions fire and what arguments they receive.
+- sandbox create, update, destroy
+- snapshot and restore
+- cleanup and expiry reporting
+- Git push and worktree operations
 
-## Main categories
-
-The catalog covers the main lifecycle edges in the system:
-
-- environment create, update, destroy, replace-state, cleanup, and push
-- app create, update, destroy, create-sandbox, backup, restore, deploy, rollback, and domain changes
-- recovery-point create, restore, and delete
-- automation cleanup, app backups, retention, and expiry reporting
-
-## Inspect the catalog
+## Example
 
 ```php
-use Rudel\Rudel;
-
-$hooks = Rudel::hooks();
-```
-
-Each entry includes the hook type and argument shape. That makes the catalog useful both as documentation and as a runtime inspection tool when you need to confirm exactly what an extension point receives.
-
-## Example: change deploy metadata
-
-```php
-add_filter(
-    'rudel_app_deploy_options',
-    function ( array $options, \Rudel\Environment $app, \Rudel\Environment $sandbox ): array {
-        if ( empty( $options['label'] ) ) {
-            $options['label'] = 'Unlabeled deploy';
-        }
-
-        return $options;
-    },
-    10,
-    3
+add_action(
+    'rudel_after_environment_create',
+    function ( \Rudel\Environment $environment ): void {
+        error_log( 'Created Rudel environment ' . $environment->id );
+    }
 );
 ```
 
-That pattern is typical of Rudel hooks. The hook receives real domain objects and plain arrays, which keeps the extension surface readable without forcing custom wrappers for every lifecycle event.
+Hook payloads use Rudel models and arrays. Prefer the documented public API over reaching into command classes.
+
+## Filters
+
+Filters are intended for policy adjustment, not for replacing Rudel's storage model.
+
+Runtime identity, table prefixes, and worktree metadata remain DB-backed Rudel state.

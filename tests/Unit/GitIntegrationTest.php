@@ -225,7 +225,7 @@ class GitIntegrationTest extends RudelTestCase
 
         mkdir($source . '/plain-theme-a/assets', 0755, true);
         mkdir($source . '/plain-theme-b/templates', 0755, true);
-        file_put_contents($source . '/plain-theme-a/assets/app.css', 'body{}');
+        file_put_contents($source . '/plain-theme-a/assets/site.css', 'body{}');
         file_put_contents($source . '/plain-theme-b/templates/index.html', '<main />');
 
         $target = $this->tmpDir . '/themes-batch-dst';
@@ -236,7 +236,7 @@ class GitIntegrationTest extends RudelTestCase
         $this->assertCount(1, $results['worktrees']);
         $this->assertContains('plain-theme-a', $results['copied']);
         $this->assertContains('plain-theme-b', $results['copied']);
-        $this->assertFileExists($target . '/plain-theme-a/assets/app.css');
+        $this->assertFileExists($target . '/plain-theme-a/assets/site.css');
         $this->assertFileExists($target . '/plain-theme-b/templates/index.html');
         $this->assertFileExists($target . '/git-theme/style.css');
     }
@@ -266,11 +266,11 @@ class GitIntegrationTest extends RudelTestCase
     public function testCreateWorktreeSupportsDistinctMetadataNamesForMatchingCheckoutBasenames(): void
     {
         $repo = $this->createGitRepo('collision-repo');
-        $firstTarget = $this->tmpDir . '/app/wp-content/themes/site-child';
+        $firstTarget = $this->tmpDir . '/environment-a/wp-content/themes/site-child';
         $secondTarget = $this->tmpDir . '/sandbox/wp-content/themes/site-child';
 
         $this->assertTrue(
-            $this->git->create_worktree($repo, $firstTarget, 'rudel/app-demo', 'rudel-app-demo-themes-site-child-a1b2c3d4')
+            $this->git->create_worktree($repo, $firstTarget, 'rudel/environment-demo', 'rudel-environment-demo-themes-site-child-a1b2c3d4')
         );
         $this->assertTrue(
             $this->git->create_worktree($repo, $secondTarget, 'rudel/sandbox-demo', 'rudel-sandbox-demo-themes-site-child-d4c3b2a1')
@@ -285,7 +285,7 @@ class GitIntegrationTest extends RudelTestCase
             )
         );
 
-        $this->assertContains('rudel-app-demo-themes-site-child-a1b2c3d4', $linkedWorktreeNames);
+        $this->assertContains('rudel-environment-demo-themes-site-child-a1b2c3d4', $linkedWorktreeNames);
         $this->assertContains('rudel-sandbox-demo-themes-site-child-d4c3b2a1', $linkedWorktreeNames);
         $this->assertFileExists($firstTarget . '/file.txt');
         $this->assertFileExists($secondTarget . '/file.txt');

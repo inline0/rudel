@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.10.0 - 2026-06-03
+
+- Completed the hard cut to sandbox-only request overlays by removing the app environment model, app CLI, app APIs, app repositories, app deployment history, app domain routing, and app runtime tables.
+- Kept Rudel on the non-multisite overlay contract: selected requests use cloned WordPress tables and copied active themes while WordPress core, plugin files, uploads, and users remain shared by default.
+- Updated bootstrap/runtime hydration so only sandbox environment records are resolved by the early request overlay.
+- Refactored active docs, README, and maintainer guidance around the current sandbox-only model, including runtime state, CLI, API, isolation, cleanup, automation, snapshots, templates, Git, and standalone metadata access.
+- Removed app-era unit and E2E coverage and tightened tests around the shipped sandbox command surface.
+
 ## v0.9.0 - 2026-05-19
 
 - Raised PHPStan from level 5 to level 10 across all analysed source files.

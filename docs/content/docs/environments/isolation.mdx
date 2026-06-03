@@ -1,53 +1,15 @@
 ---
 title: Isolation
-description: How Rudel isolates request-selected overlay environments.
+description: What Rudel isolates and what remains shared.
 ---
 
-# Isolation
+Rudel is a request-selected overlay system. A selected request uses sandbox database tables and sandbox theme files while still running through the host WordPress installation.
 
-Rudel isolation is request-scoped.
+## Isolated per sandbox
 
-When no environment is selected, the host WordPress site runs normally. When an environment is selected, Rudel switches WordPress to that environment's table prefix and active theme root before WordPress finishes booting.
+### WordPress tables
 
-## Isolated
-
-Each environment has isolated:
-
-- WordPress site tables through a generated table prefix
-- site options loaded from those tables
-- posts, post meta, terms, comments, and other cloned WordPress table state
-- selected active theme files copied into the environment directory
-- theme Git worktrees when Rudel creates them
-- snapshots, backups, deploy history, and lifecycle metadata
-- cache salt and debug log scope for selected requests
-
-## Shared
-
-The following remain shared with the host in the current model:
-
-- WordPress core
-- plugins
-- uploads
-- users and usermeta
-- the host process and PHP runtime
-- Rudel runtime registry tables
-
-That sharing is intentional. Rudel's current isolation target is DB state plus active theme code. Plugin, upload, and user isolation can be added later as explicit new runtime layers, but they are not part of the current contract.
-
-## Theme overlays
-
-The selected theme is copied to:
-
-```text
-wp-content/rudel-environments/{environment_id}/themes/{theme_slug}
-wp-content/rudel-apps/{app_id}/themes/{theme_slug}
-```
-
-For selected requests, Rudel filters `template`, `stylesheet`, `theme_root`, and `theme_root_uri` so WordPress loads the copied theme. If the selected theme is a child theme, Rudel stores the child as `stylesheet`, derives the parent as `template`, and copies both theme directories into the environment theme root. Rudel does not redefine `WP_CONTENT_DIR`.
-
-## Database overlays
-
-Environment tables use generated prefixes such as:
+Each sandbox gets a generated table prefix:
 
 ```text
 wp_a4nmv7_options
@@ -55,18 +17,45 @@ wp_a4nmv7_posts
 wp_a4nmv7_postmeta
 ```
 
-Rudel metadata tables stay in the host prefix:
+Rudel switches the active WordPress table prefix before WordPress finishes booting.
+
+### Active theme files
+
+The selected active theme is copied into the sandbox directory:
+
+```text
+wp-content/rudel-environments/{environment_id}/themes/{theme_slug}
+```
+
+If the active theme is a child theme, Rudel also copies the parent theme so the template relationship stays valid.
+
+### Request context
+
+HTTP requests can enter a sandbox through:
+
+- `X-Rudel-Environment`
+- `rudel_environment`
+
+WP-CLI commands can enter a sandbox through:
+
+- `RUDEL_ENVIRONMENT`
+
+## Shared by default
+
+- WordPress core
+- plugin files
+- uploaded media files
+- users
+
+This is the current isolation boundary. It keeps sandbox creation fast and avoids replacing `WP_CONTENT_DIR` globally.
+
+## Runtime metadata
+
+Rudel runtime metadata stays in host WordPress MySQL tables:
 
 ```text
 wp_rudel_environments
-wp_rudel_apps
-wp_rudel_app_domains
 wp_rudel_worktrees
-wp_rudel_app_deployments
 ```
 
-Those registry tables are never cloned into environments.
-
-## Email
-
-Sandboxes block outbound email by default because they are disposable change environments. Apps allow normal email delivery by default because they are durable runtime targets.
+These tables are Rudel's source of truth. Environment directories contain managed files and artifacts, not runtime registry state.

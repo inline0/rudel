@@ -45,7 +45,7 @@ class EnvironmentRepository {
 	 *
 	 * @param DatabaseStore $store Runtime store.
 	 * @param string        $environments_dir Primary directory.
-	 * @param string|null   $managed_type Managed type, usually sandbox or app.
+	 * @param string|null   $managed_type Managed type, usually sandbox.
 	 */
 	public function __construct(
 		DatabaseStore $store,
@@ -143,25 +143,6 @@ class EnvironmentRepository {
 		);
 
 		return is_array( $row ) ? $this->hydrate( $row ) : null;
-	}
-
-	/**
-	 * List sandboxes belonging to one app.
-	 *
-	 * @param int $app_id App record ID.
-	 * @return Environment[]
-	 */
-	public function list_by_app_id( int $app_id ): array {
-		$rows = $this->store->fetch_all(
-			'SELECT * FROM ' . $this->table() . ' WHERE app_id = ? AND type = ? ORDER BY created_at DESC, slug DESC',
-			array( $app_id, 'sandbox' )
-		);
-
-		return array_values(
-			array_filter(
-				array_map( fn( array $row ): ?Environment => $this->hydrate( $row ), $rows )
-			)
-		);
 	}
 
 	/**
@@ -327,10 +308,9 @@ class EnvironmentRepository {
 		}
 
 		$hydrate_id = isset( $row['id'] ) && is_numeric( $row['id'] ) ? (int) $row['id'] : 0;
-		$domains    = $this->domains_for_row( $row );
 		$worktrees  = $this->worktrees->list_for_environment( $hydrate_id );
 
-		return Environment::from_record( $row, $domains, $worktrees );
+		return Environment::from_record( $row, $worktrees );
 	}
 
 	/**
@@ -366,7 +346,6 @@ class EnvironmentRepository {
 		}
 
 		return array(
-			'app_id'                  => $environment->app_record_id,
 			'slug'                    => $environment->id,
 			'name'                    => $environment->name,
 			'path'                    => rtrim( $environment->path, '/' ),
@@ -454,9 +433,6 @@ class EnvironmentRepository {
 				case 'protected':
 					$payload['is_protected'] = $value ? 1 : 0;
 					break;
-				case 'app_id':
-					$payload['app_id'] = $value;
-					break;
 				case 'clone_source':
 					$worktrees = array();
 					if ( is_array( $value ) && ! empty( $value['git_worktrees'] ) && is_array( $value['git_worktrees'] ) ) {
@@ -507,37 +483,6 @@ class EnvironmentRepository {
 		}
 
 		return $payload;
-	}
-
-	/**
-	 * List app domains for one row.
-	 *
-	 * @param array<string, mixed> $row Environment row.
-	 * @return array<int, string>|null
-	 */
-	private function domains_for_row( array $row ): ?array {
-		$app_id = isset( $row['app_id'] ) && is_numeric( $row['app_id'] ) ? (int) $row['app_id'] : 0;
-		if ( $app_id <= 0 ) {
-			return null;
-		}
-
-		$rows = $this->store->fetch_all(
-			'SELECT domain FROM ' . $this->store->table( 'app_domains' ) . ' WHERE app_id = ? ORDER BY is_primary DESC, domain ASC',
-			array( $app_id )
-		);
-
-		if ( empty( $rows ) ) {
-			return null;
-		}
-
-		return array_values(
-			array_filter(
-				array_map(
-					static fn( array $domain_row ): ?string => isset( $domain_row['domain'] ) && is_scalar( $domain_row['domain'] ) ? (string) $domain_row['domain'] : null,
-					$rows
-				)
-			)
-		);
 	}
 
 	/**

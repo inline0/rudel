@@ -508,21 +508,6 @@ class MockWpdb extends \wpdb
                 }
             }
 
-            if (str_ends_with($table, '_apps')) {
-                if (
-                    (($row['environment_id'] ?? null) === ($data['environment_id'] ?? null)) ||
-                    (($row['slug'] ?? null) === ($data['slug'] ?? null))
-                ) {
-                    return 'Duplicate app row';
-                }
-            }
-
-            if (str_ends_with($table, '_app_domains')) {
-                if (($row['domain'] ?? null) === ($data['domain'] ?? null)) {
-                    return 'Duplicate app domain';
-                }
-            }
-
             if (str_ends_with($table, '_worktrees')) {
                 if (
                     (($row['environment_id'] ?? null) === ($data['environment_id'] ?? null)) &&
@@ -533,12 +518,7 @@ class MockWpdb extends \wpdb
                 }
             }
 
-            if (str_ends_with($table, '_app_deployments')) {
-                if (($row['deployment_key'] ?? null) === ($data['deployment_key'] ?? null)) {
-                    return 'Duplicate deployment row';
-                }
-            }
-        }
+		}
 
         return null;
     }
@@ -578,10 +558,6 @@ class MockWpdb extends \wpdb
     private function selectRows(string $query): array
     {
         $query = trim($query);
-
-        if (str_contains($query, 'INNER JOIN')) {
-            return $this->selectJoinedRows($query);
-        }
 
         if (! preg_match('/^SELECT\s+(.+?)\s+FROM\s+`?(\w+)`?(?:\s+WHERE\s+(.+?))?(?:\s+ORDER BY\s+(.+?))?(?:\s+LIMIT\s+(\d+))?$/is', $query, $m)) {
             return [];
@@ -628,55 +604,6 @@ class MockWpdb extends \wpdb
             },
             $rows
         ));
-    }
-
-    private function selectJoinedRows(string $query): array
-    {
-        if (! preg_match("/WHERE\\s+d\\.domain\\s*=\\s*'([^']+)'/i", $query, $m)) {
-            return [];
-        }
-
-        if (! preg_match('/FROM\s+`?(\w+)`?\s+d\s+INNER JOIN\s+`?(\w+)`?\s+a\s+ON\s+a\.id\s*=\s*d\.app_id\s+INNER JOIN\s+`?(\w+)`?\s+e\s+ON\s+e\.id\s*=\s*a\.environment_id/i', $query, $tables)) {
-            return [];
-        }
-
-        $domainTable = $tables[1];
-        $appsTable = $tables[2];
-        $envTable = $tables[3];
-        $domain = stripslashes($m[1]);
-
-        foreach ($this->tables[$domainTable]['rows'] ?? [] as $domainRow) {
-            if (($domainRow['domain'] ?? null) !== $domain) {
-                continue;
-            }
-
-            $appId = $domainRow['app_id'] ?? null;
-            foreach ($this->tables[$appsTable]['rows'] ?? [] as $appRow) {
-                if (($appRow['id'] ?? null) !== $appId) {
-                    continue;
-                }
-
-                $environmentId = $appRow['environment_id'] ?? null;
-                foreach ($this->tables[$envTable]['rows'] ?? [] as $environmentRow) {
-                    if (($environmentRow['id'] ?? null) === $environmentId) {
-                        return [[
-                            'id' => $environmentRow['id'] ?? null,
-                            'app_id' => $environmentRow['app_id'] ?? null,
-                            'slug' => $environmentRow['slug'] ?? null,
-                            'path' => $environmentRow['path'] ?? null,
-                            'type' => $environmentRow['type'] ?? null,
-                            'engine' => $environmentRow['engine'] ?? null,
-                            'multisite' => $environmentRow['multisite'] ?? null,
-                            'blog_id' => $environmentRow['blog_id'] ?? null,
-                            'table_prefix' => $environmentRow['table_prefix'] ?? null,
-                            'theme_slug' => $environmentRow['theme_slug'] ?? null,
-                        ]];
-                    }
-                }
-            }
-        }
-
-        return [];
     }
 
     private function parseWhereClause(string $where): array

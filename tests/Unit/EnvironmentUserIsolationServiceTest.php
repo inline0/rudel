@@ -47,7 +47,7 @@ class EnvironmentUserIsolationServiceTest extends RudelTestCase
             multisite: true,
             engine: 'subsite',
             blog_id: 2,
-            type: 'app'
+            type: 'sandbox'
         );
         $target = new Environment(
             id: 'target-site',
@@ -69,9 +69,9 @@ class EnvironmentUserIsolationServiceTest extends RudelTestCase
         $sourceUsersTable = (string) $source->get_users_table();
         $sourceUsermetaTable = (string) $source->get_usermeta_table();
 
-        $GLOBALS['wpdb']->getTableRows($sourceUsersTable)[0]['user_login'] = 'app-admin';
+        $GLOBALS['wpdb']->getTableRows($sourceUsersTable)[0]['user_login'] = 'source-admin';
         $rows = $GLOBALS['wpdb']->getTableRows($sourceUsersTable);
-        $rows[0]['user_login'] = 'app-admin';
+        $rows[0]['user_login'] = 'source-admin';
         $GLOBALS['wpdb']->addTable($sourceUsersTable, 'CREATE TABLE `'.$sourceUsersTable.'` (`ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_login` varchar(60), `user_pass` varchar(255), `user_email` varchar(100), PRIMARY KEY (`ID`))', $rows);
 
         $service->clone_from_environment($source, $target);
@@ -82,7 +82,7 @@ class EnvironmentUserIsolationServiceTest extends RudelTestCase
         $targetLogins = array_column($targetRows, 'user_login');
         $targetMetaKeys = array_column($GLOBALS['wpdb']->getTableRows($targetUsermetaTable), 'meta_key');
 
-        $this->assertContains('app-admin', $targetLogins);
+        $this->assertContains('source-admin', $targetLogins);
         $this->assertContains('wp_3_capabilities', $targetMetaKeys);
         $this->assertNotContains('wp_2_capabilities', $targetMetaKeys);
     }

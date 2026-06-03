@@ -21,14 +21,14 @@ class ConnectionTest extends TestCase {
 	public function test_table_with_custom_prefix(): void {
 		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', 'tenant_' );
 
-		$this->assertSame( 'tenant_rudel_apps', $conn->table( 'rudel_apps' ) );
+		$this->assertSame( 'tenant_rudel_environments', $conn->table( 'rudel_environments' ) );
 		$this->assertSame( 'tenant_rudel_worktrees', $conn->table( 'rudel_worktrees' ) );
 	}
 
 	public function test_table_with_empty_prefix(): void {
 		$conn = new Connection( 'localhost', 'testdb', 'root', 'pass', '' );
 
-		$this->assertSame( 'rudel_app_domains', $conn->table( 'rudel_app_domains' ) );
+		$this->assertSame( 'rudel_worktrees', $conn->table( 'rudel_worktrees' ) );
 	}
 
 	public function test_prefix_returns_configured_prefix(): void {
@@ -54,7 +54,6 @@ class ConnectionTest extends TestCase {
 
 		$this->assertSame( 'divine_rudel_', $conn->table_prefix() );
 		$this->assertSame( 'wp_divine_rudel_environments', $conn->table( 'rudel_environments' ) );
-		$this->assertSame( 'wp_divine_rudel_apps', $conn->table( 'rudel_apps' ) );
 		$this->assertSame( 'wp_divine_rudel_worktrees', $conn->table( 'rudel_worktrees' ) );
 	}
 

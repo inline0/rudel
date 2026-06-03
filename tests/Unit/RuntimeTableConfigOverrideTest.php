@@ -21,7 +21,6 @@ class RuntimeTableConfigOverrideTest extends TestCase
         $store = $this->newStore();
 
         $this->assertSame('wp_themeworkspace_environments', $store->table('environments'));
-        $this->assertSame('wp_themeworkspace_apps', $store->table('apps'));
         $this->assertSame('wp_themeworkspace_worktrees', $store->table('worktrees'));
     }
 
@@ -36,7 +35,7 @@ class RuntimeTableConfigOverrideTest extends TestCase
         $store = $this->newStore();
 
         $this->assertSame('wp_environments', $store->table('environments'));
-        $this->assertSame('wp_app_deployments', $store->table('app_deployments'));
+        $this->assertSame('wp_worktrees', $store->table('worktrees'));
     }
 
     #[RunInSeparateProcess]
@@ -45,13 +44,12 @@ class RuntimeTableConfigOverrideTest extends TestCase
     {
         define('RUDEL_RUNTIME_TABLE_PREFIX', 'themeworkspace');
         define('RUDEL_RUNTIME_TABLE_ENVIRONMENTS', 'client_environments');
-        define('RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS', 'client_deployments');
+        define('RUDEL_RUNTIME_TABLE_WORKTREES', 'client_worktrees');
 
         $store = $this->newStore();
 
         $this->assertSame('wp_client_environments', $store->table('environments'));
-        $this->assertSame('wp_themeworkspace_apps', $store->table('apps'));
-        $this->assertSame('wp_client_deployments', $store->table('app_deployments'));
+        $this->assertSame('wp_client_worktrees', $store->table('worktrees'));
     }
 
     #[RunInSeparateProcess]

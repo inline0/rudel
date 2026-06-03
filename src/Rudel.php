@@ -32,7 +32,7 @@ class Rudel {
 	/**
 	 * Optional standalone filesystem context.
 	 *
-	 * @var array{environments_dir?: string, apps_dir?: string}
+	 * @var array{environments_dir?: string}
 	 */
 	private static array $context = array();
 
@@ -42,13 +42,6 @@ class Rudel {
 	 * @var EnvironmentManager|null
 	 */
 	private static ?EnvironmentManager $manager_instance = null;
-
-	/**
-	 * Cached app manager.
-	 *
-	 * @var AppManager|null
-	 */
-	private static ?AppManager $app_manager_instance = null;
 
 	/**
 	 * Whether any isolated Rudel environment is active.
@@ -108,16 +101,7 @@ class Rudel {
 	 * @return bool
 	 */
 	public static function is_sandbox(): bool {
-		return self::is_environment() && ! self::is_app();
-	}
-
-	/**
-	 * Whether the current request is running inside an app.
-	 *
-	 * @return bool
-	 */
-	public static function is_app(): bool {
-		return self::is_environment() && self::bool_constant( 'RUDEL_IS_APP' );
+		return self::is_environment();
 	}
 
 	/**
@@ -127,15 +111,6 @@ class Rudel {
 	 */
 	public static function id(): ?string {
 		return self::is_sandbox() ? self::environment_id() : null;
-	}
-
-	/**
-	 * Current app ID, or null outside app context.
-	 *
-	 * @return string|null
-	 */
-	public static function app_id(): ?string {
-		return self::is_app() ? self::environment_id() : null;
 	}
 
 	/**
@@ -207,9 +182,7 @@ class Rudel {
 		}
 
 		try {
-			$environment = self::is_app()
-				? self::app_manager()->get( $environment_id )
-				: self::manager()->get( $environment_id );
+			$environment = self::manager()->get( $environment_id );
 			if ( $environment ) {
 				return $environment->get_url();
 			}
@@ -312,9 +285,7 @@ class Rudel {
 	public static function context(): array {
 		return array(
 			'is_sandbox'     => self::is_sandbox(),
-			'is_app'         => self::is_app(),
 			'id'             => self::id(),
-			'app_id'         => self::app_id(),
 			'path'           => self::path(),
 			'engine'         => self::engine(),
 			'table_prefix'   => self::table_prefix(),
@@ -330,18 +301,17 @@ class Rudel {
 	/**
 	 * Initialize Rudel core access outside WordPress.
 	 *
-	 * Standalone callers provide a direct DB connection plus optional filesystem context for environment/app directories.
+	 * Standalone callers provide a direct DB connection plus optional filesystem context for environment directories.
 	 * WordPress site lifecycle operations still need a live WordPress runtime.
 	 *
-	 * @param Connection                                          $connection Standalone DB connection.
-	 * @param array{environments_dir?: string, apps_dir?: string} $context Optional filesystem context.
+	 * @param Connection                       $connection Standalone DB connection.
+	 * @param array{environments_dir?: string} $context Optional filesystem context.
 	 * @return void
 	 */
 	public static function init( Connection $connection, array $context = array() ): void {
 		self::$store                = RudelDatabase::for_connection( $connection );
 		self::$context              = self::normalize_context( $context );
 		self::$manager_instance     = null;
-		self::$app_manager_instance = null;
 	}
 
 	/**
@@ -362,7 +332,6 @@ class Rudel {
 		self::$store                = null;
 		self::$context              = array();
 		self::$manager_instance     = null;
-		self::$app_manager_instance = null;
 		RudelDatabase::reset();
 	}
 
@@ -375,28 +344,10 @@ class Rudel {
 		if ( null === self::$manager_instance ) {
 			self::$manager_instance = new EnvironmentManager(
 				self::context_path( 'environments_dir' ),
-				self::context_path( 'apps_dir' ),
-				'sandbox',
 				self::$store
 			);
 		}
 		return self::$manager_instance;
-	}
-
-	/**
-	 * Reuse one app manager per request.
-	 *
-	 * @return AppManager
-	 */
-	private static function app_manager(): AppManager {
-		if ( null === self::$app_manager_instance ) {
-			self::$app_manager_instance = new AppManager(
-				self::context_path( 'apps_dir' ),
-				self::context_path( 'environments_dir' ),
-				self::$store
-			);
-		}
-		return self::$app_manager_instance;
 	}
 
 	/**
@@ -552,197 +503,6 @@ class Rudel {
 	}
 
 	/**
-	 * List all apps.
-	 *
-	 * @return Environment[] Array of app instances.
-	 */
-	public static function apps(): array {
-		return self::app_manager()->list();
-	}
-
-	/**
-	 * Get a single app by ID.
-	 *
-	 * @param string $id App identifier.
-	 * @return Environment|null App instance or null if not found.
-	 */
-	public static function app( string $id ): ?Environment {
-		return self::app_manager()->get( $id );
-	}
-
-	/**
-	 * Create a new app.
-	 *
-	 * @param string               $name    Human-readable name.
-	 * @param array<int, string>   $domains Domain names for the app.
-	 * @param array<string, mixed> $options Optional settings (engine, clone flags).
-	 * @return Environment The newly created app.
-	 */
-	public static function create_app( string $name, array $domains, array $options = array() ): Environment {
-		self::require_wordpress_runtime( 'Rudel::create_app()' );
-		return self::app_manager()->create( $name, $domains, $options );
-	}
-
-	/**
-	 * Update app metadata.
-	 *
-	 * @param string               $id      App identifier.
-	 * @param array<string, mixed> $changes Metadata changes.
-	 * @return Environment
-	 */
-	public static function update_app( string $id, array $changes ): Environment {
-		return self::app_manager()->update( $id, $changes );
-	}
-
-	/**
-	 * Create a sandbox from an app.
-	 *
-	 * @param string               $app_id App identifier.
-	 * @param string               $name Sandbox name.
-	 * @param array<string, mixed> $options Optional sandbox settings.
-	 * @return Environment
-	 */
-	public static function create_sandbox_from_app( string $app_id, string $name, array $options = array() ): Environment {
-		self::require_wordpress_runtime( 'Rudel::create_sandbox_from_app()' );
-		return self::app_manager()->create_sandbox( $app_id, $name, $options );
-	}
-
-	/**
-	 * Destroy an app by ID.
-	 *
-	 * @param string $id App identifier.
-	 * @return bool True on success.
-	 */
-	public static function destroy_app( string $id ): bool {
-		self::require_wordpress_runtime( 'Rudel::destroy_app()' );
-		return self::app_manager()->destroy( $id );
-	}
-
-	/**
-	 * Add one domain to an app.
-	 *
-	 * @param string $app_id App identifier.
-	 * @param string $domain Domain to add.
-	 * @return void
-	 */
-	public static function add_app_domain( string $app_id, string $domain ): void {
-		self::require_wordpress_runtime( 'Rudel::add_app_domain()' );
-		self::app_manager()->add_domain( $app_id, $domain );
-	}
-
-	/**
-	 * Remove one domain from an app.
-	 *
-	 * @param string $app_id App identifier.
-	 * @param string $domain Domain to remove.
-	 * @return void
-	 */
-	public static function remove_app_domain( string $app_id, string $domain ): void {
-		self::require_wordpress_runtime( 'Rudel::remove_app_domain()' );
-		self::app_manager()->remove_domain( $app_id, $domain );
-	}
-
-	/**
-	 * Create a backup of an app.
-	 *
-	 * @param string $app_id App identifier.
-	 * @param string $name Backup name.
-	 * @return array<string, mixed>
-	 */
-	public static function backup_app( string $app_id, string $name ): array {
-		return self::app_manager()->backup( $app_id, $name );
-	}
-
-	/**
-	 * List backups for an app.
-	 *
-	 * @param string $app_id App identifier.
-	 * @return array<int, array<string, mixed>>
-	 */
-	public static function app_backups( string $app_id ): array {
-		return self::app_manager()->backups( $app_id );
-	}
-
-	/**
-	 * List deployment records for an app.
-	 *
-	 * @param string $app_id App identifier.
-	 * @return array<int, array<string, mixed>>
-	 */
-	public static function app_deployments( string $app_id ): array {
-		return self::app_manager()->deployments( $app_id );
-	}
-
-	/**
-	 * Build a dry-run deploy plan from a sandbox into an app.
-	 *
-	 * @param string               $app_id App identifier.
-	 * @param string               $sandbox_id Sandbox identifier.
-	 * @param string|null          $backup_name Optional backup name.
-	 * @param array<string, mixed> $options Optional deployment metadata.
-	 * @return array<string, mixed>
-	 */
-	public static function plan_app_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
-		return self::app_manager()->plan_deploy( $app_id, $sandbox_id, $backup_name, $options );
-	}
-
-	/**
-	 * Restore an app from a backup.
-	 *
-	 * @param string $app_id App identifier.
-	 * @param string $name Backup name.
-	 * @return void
-	 */
-	public static function restore_app( string $app_id, string $name ): void {
-		self::app_manager()->restore( $app_id, $name );
-	}
-
-	/**
-	 * Deploy a sandbox into an app.
-	 *
-	 * @param string               $app_id App identifier.
-	 * @param string               $sandbox_id Sandbox identifier.
-	 * @param string|null          $backup_name Optional backup name.
-	 * @param array<string, mixed> $options Optional deployment metadata such as label or notes.
-	 * @return array<string, mixed>
-	 */
-	public static function deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = array() ): array {
-		return self::app_manager()->deploy( $app_id, $sandbox_id, $backup_name, $options );
-	}
-
-	/**
-	 * Roll an app back to the backup captured by a deployment record.
-	 *
-	 * @param string               $app_id App identifier.
-	 * @param string               $deployment_id Deployment identifier.
-	 * @param array<string, mixed> $options Optional rollback settings.
-	 * @return array<string, mixed>
-	 */
-	public static function rollback_app_deployment( string $app_id, string $deployment_id, array $options = array() ): array {
-		return self::app_manager()->rollback( $app_id, $deployment_id, $options );
-	}
-
-	/**
-	 * Prune backups and deployment history for one app.
-	 *
-	 * @param string               $app_id App identifier.
-	 * @param array<string, mixed> $options Retention options.
-	 * @return array{app_id: string, backups_removed: string[], deployments_removed: string[]}
-	 */
-	public static function prune_app_history( string $app_id, array $options = array() ): array {
-		return self::app_manager()->prune_history( $app_id, $options );
-	}
-
-	/**
-	 * Configured apps directory path.
-	 *
-	 * @return string Absolute path.
-	 */
-	public static function apps_dir(): string {
-		return self::app_manager()->get_apps_dir();
-	}
-
-	/**
 	 * Summarize runtime status in a machine-friendly shape.
 	 *
 	 * @return array<string, bool|int|string|null>
@@ -752,11 +512,8 @@ class Rudel {
 		$config        = new RudelConfig();
 		$automation_on = $config->get( 'auto_cleanup_enabled' ) > 0
 			|| $config->get( 'auto_cleanup_merged' ) > 0
-			|| $config->get( 'auto_app_backups_enabled' ) > 0
-			|| $config->get( 'auto_app_backup_retention_count' ) > 0
-			|| $config->get( 'auto_app_deployment_retention_count' ) > 0
 			|| $config->get( 'expiring_environment_notice_days' ) > 0;
-		$type          = self::is_app() ? 'app' : ( self::is_sandbox() ? 'sandbox' : 'none' );
+		$type          = self::is_sandbox() ? 'sandbox' : 'none';
 		$bootstrap_ok  = false;
 
 		try {
@@ -771,7 +528,6 @@ class Rudel {
 			'current_environment_type'            => $type,
 			'sandboxes_directory'                 => self::environments_dir(),
 			'active_sandboxes'                    => count( self::all() ),
-			'active_apps'                         => count( self::apps() ),
 			'config_storage'                      => 'wp_options',
 			'config_option'                       => $config->option_name(),
 			'default_ttl_days'                    => $config->get( 'default_ttl_days' ),
@@ -779,10 +535,6 @@ class Rudel {
 			'max_idle_days'                       => $config->get( 'max_idle_days' ),
 			'auto_cleanup'                        => $config->get( 'auto_cleanup_enabled' ) > 0,
 			'auto_cleanup_merged'                 => $config->get( 'auto_cleanup_merged' ) > 0,
-			'auto_app_backups'                    => $config->get( 'auto_app_backups_enabled' ) > 0,
-			'auto_app_backup_interval_hours'      => $config->get( 'auto_app_backup_interval_hours' ),
-			'auto_app_backup_retention_count'     => $config->get( 'auto_app_backup_retention_count' ),
-			'auto_app_deployment_retention_count' => $config->get( 'auto_app_deployment_retention_count' ),
 			'expiring_environment_notice_days'    => $config->get( 'expiring_environment_notice_days' ),
 			'automation_scheduled'                => $automation_on,
 			'wordpress_multisite'                 => function_exists( 'is_multisite' ) && is_multisite(),
@@ -802,11 +554,6 @@ class Rudel {
 
 		$id = self::environment_id();
 		if ( null === $id ) {
-			return;
-		}
-
-		if ( self::is_app() ) {
-			self::app_manager()->update( $id, array( 'last_used_at' => gmdate( 'c' ) ) );
 			return;
 		}
 
@@ -1117,15 +864,13 @@ class Rudel {
 	 * Normalize standalone context paths.
 	 *
 	 * @param array<string, mixed> $context Raw context.
-	 * @return array{environments_dir?: string, apps_dir?: string}
+	 * @return array{environments_dir?: string}
 	 */
 	private static function normalize_context( array $context ): array {
 		$normalized = array();
 
-		foreach ( array( 'environments_dir', 'apps_dir' ) as $key ) {
-			if ( isset( $context[ $key ] ) && is_string( $context[ $key ] ) && '' !== trim( $context[ $key ] ) ) {
-				$normalized[ $key ] = rtrim( trim( $context[ $key ] ), '/' );
-			}
+		if ( isset( $context['environments_dir'] ) && is_string( $context['environments_dir'] ) && '' !== trim( $context['environments_dir'] ) ) {
+			$normalized['environments_dir'] = rtrim( trim( $context['environments_dir'] ), '/' );
 		}
 
 		return $normalized;

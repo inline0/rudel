@@ -17,11 +17,11 @@ class RuntimeJsonTest extends RudelTestCase {
 
 	public function testEncodeReturnsJsonString(): void {
 		$this->assertSame(
-			'{"app":"alpha","flags":["db","themes"]}',
+			'{"environment":"alpha","flags":["db","themes"]}',
 			RuntimeJson::encode(
 				array(
-					'app'   => 'alpha',
-					'flags' => array( 'db', 'themes' ),
+					'environment' => 'alpha',
+					'flags'       => array( 'db', 'themes' ),
 				)
 			)
 		);

@@ -26,8 +26,8 @@ export async function HeroLeft() {
         isolation layer
       </h1>
       <p className="text-left max-w-xl leading-normal text-fd-muted-foreground sm:text-lg sm:leading-normal text-balance mt-4">
-        Isolated environments for sandboxes and multi-tenant apps. One
-        WordPress install, unlimited sites. Create, snapshot, and destroy in
+        Request-selected sandboxes for WordPress. One host install, isolated
+        table prefixes, copied active themes, and disposable workspaces in
         seconds.
       </p>
       <div className="mt-8 w-full">

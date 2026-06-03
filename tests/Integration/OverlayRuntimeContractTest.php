@@ -36,8 +36,6 @@ class OverlayRuntimeContractTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -61,8 +59,6 @@ class OverlayRuntimeContractTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 

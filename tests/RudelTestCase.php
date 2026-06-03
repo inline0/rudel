@@ -3,7 +3,6 @@
 namespace Rudel\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Rudel\AppRepository;
 use Rudel\DatabaseStore;
 use Rudel\Environment;
 use Rudel\EnvironmentUserIsolationService;
@@ -162,7 +161,6 @@ abstract class RudelTestCase extends TestCase
             engine: (string) ($meta['engine'] ?? 'overlay'),
             blog_id: isset($meta['blog_id']) ? (int) $meta['blog_id'] : null,
             type: (string) ($meta['type'] ?? 'sandbox'),
-            domains: isset($meta['domains']) && is_array($meta['domains']) ? array_values($meta['domains']) : null,
             owner: isset($meta['owner']) && is_scalar($meta['owner']) ? (string) $meta['owner'] : null,
             labels: isset($meta['labels']) && is_array($meta['labels']) ? array_values($meta['labels']) : [],
             purpose: isset($meta['purpose']) && is_scalar($meta['purpose']) ? (string) $meta['purpose'] : null,
@@ -188,11 +186,6 @@ abstract class RudelTestCase extends TestCase
 
         if ($saved->uses_isolated_users()) {
             (new EnvironmentUserIsolationService())->clone_from_host($saved);
-        }
-
-        if ('app' === $saved->type) {
-            $apps = new AppRepository($this->runtimeStore(), $this->environmentRepository('app'));
-            $apps->create($saved, isset($meta['domains']) && is_array($meta['domains']) ? $meta['domains'] : []);
         }
 
         return $path;

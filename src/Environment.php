@@ -25,8 +25,7 @@ class Environment {
 	 * @param bool                      $multisite    Legacy marker for older subsite-backed records.
 	 * @param string                    $engine       Runtime engine. Rudel uses 'overlay'.
 	 * @param int|null                  $blog_id      Legacy multisite blog ID when present on old records.
-	 * @param string                    $type                     Environment type: 'sandbox' or 'app'.
-	 * @param array<int, string>|null   $domains     Domain names mapped to this environment (app mode).
+	 * @param string                    $type                     Environment type. Rudel now creates sandbox environments only.
 	 * @param string|null               $owner                    Optional owner for stewardship and cleanup policy.
 	 * @param array<int, string>        $labels            Arbitrary labels for grouping and policy.
 	 * @param string|null               $purpose                  Optional description of why the environment exists.
@@ -35,7 +34,7 @@ class Environment {
 	 * @param string|null               $last_used_at             ISO 8601 last activity timestamp.
 	 * @param string|null               $source_environment_id    Source environment ID when cloned from another environment.
 	 * @param string|null               $source_environment_type  Source environment type when cloned from another environment.
-	 * @param string|null               $last_deployed_from_id    Last sandbox/app deployed into this environment.
+	 * @param string|null               $last_deployed_from_id    Last environment deployed into this environment.
 	 * @param string|null               $last_deployed_from_type  Type of the environment last deployed into this environment.
 	 * @param string|null               $last_deployed_at         ISO 8601 timestamp of the last deploy into this environment.
 	 * @param string|null               $tracked_git_remote       Git remote this environment tracks as its deployed code source.
@@ -46,7 +45,6 @@ class Environment {
 	 * @param string|null               $table_prefix             Environment-owned WordPress table prefix.
 	 * @param string|null               $theme_slug               Active theme slug for the overlay runtime.
 	 * @param int|null                  $record_id                DB record ID for the environment row.
-	 * @param int|null                  $app_record_id            DB record ID for the related app row, when present.
 	 */
 	public function __construct(
 		public readonly string $id,
@@ -60,7 +58,6 @@ class Environment {
 		public readonly string $engine = 'overlay',
 		public readonly ?int $blog_id = null,
 		public readonly string $type = 'sandbox',
-		public readonly ?array $domains = null,
 		public readonly ?string $owner = null,
 		public readonly array $labels = array(),
 		public readonly ?string $purpose = null,
@@ -80,7 +77,6 @@ class Environment {
 		public readonly ?string $table_prefix = null,
 		public readonly ?string $theme_slug = null,
 		public readonly ?int $record_id = null,
-		public readonly ?int $app_record_id = null,
 	) {}
 
 	/**
@@ -108,11 +104,10 @@ class Environment {
 	 * Hydrate one environment from a DB record.
 	 *
 	 * @param array<string, mixed>             $record DB record.
-	 * @param array<int, string>|null          $domains Normalized app domains.
 	 * @param array<int, array<string, mixed>> $worktrees Git worktree metadata.
 	 * @return self
 	 */
-	public static function from_record( array $record, ?array $domains = null, array $worktrees = array() ): self {
+	public static function from_record( array $record, array $worktrees = array() ): self {
 		$raw_clone = self::json_array_or_null( $record['clone_source'] ?? null );
 		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for clone_source.
 		/** @var array<string, mixed>|null $clone_source */
@@ -129,7 +124,6 @@ class Environment {
 		$rec_tpl    = $record['template'] ?? 'blank';
 		$rec_status = $record['status'] ?? 'active';
 		$rec_engine = $record['engine'] ?? 'overlay';
-		$rec_type   = $record['type'] ?? 'sandbox';
 
 		return new self(
 			id: is_scalar( $slug ) ? (string) $slug : '',
@@ -142,8 +136,7 @@ class Environment {
 			multisite: ! empty( $record['multisite'] ),
 			engine: is_scalar( $rec_engine ) ? (string) $rec_engine : 'overlay',
 			blog_id: isset( $record['blog_id'] ) && is_numeric( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
-			type: is_scalar( $rec_type ) ? (string) $rec_type : 'sandbox',
-			domains: ! empty( $domains ) ? array_values( $domains ) : null,
+			type: 'sandbox',
 			owner: self::string_or_null( $record['owner'] ?? null ),
 			labels: self::normalize_labels( self::json_array_or_null( $record['labels'] ?? null ) ?? array() ),
 			purpose: self::string_or_null( $record['purpose'] ?? null ),
@@ -163,7 +156,6 @@ class Environment {
 			table_prefix: self::string_or_null( $record['table_prefix'] ?? null ),
 			theme_slug: self::string_or_null( $record['theme_slug'] ?? null ),
 			record_id: isset( $record['id'] ) && is_numeric( $record['id'] ) ? (int) $record['id'] : null,
-			app_record_id: isset( $record['app_id'] ) && is_numeric( $record['app_id'] ) ? (int) $record['app_id'] : null,
 		);
 	}
 
@@ -183,15 +175,6 @@ class Environment {
 	 */
 	public function is_overlay(): bool {
 		return 'overlay' === $this->engine;
-	}
-
-	/**
-	 * Whether this environment is an app.
-	 *
-	 * @return bool True if app.
-	 */
-	public function is_app(): bool {
-		return 'app' === $this->type;
 	}
 
 	/**
@@ -326,10 +309,6 @@ class Environment {
 	 * @return string Canonical environment URL.
 	 */
 	public function get_url(): string {
-		if ( $this->is_app() && ! empty( $this->domains ) && is_string( $this->domains[0] ) ) {
-			return self::domain_url( $this->domains[0] );
-		}
-
 		if ( $this->is_overlay() ) {
 			return trailingslashit( self::host_url() );
 		}
@@ -339,23 +318,6 @@ class Environment {
 		}
 
 		return self::multisite_url_for( $this->id, null );
-	}
-
-	/**
-	 * Canonical app URL for one mapped domain.
-	 *
-	 * @param string $domain App domain.
-	 * @return string
-	 */
-	public static function domain_url( string $domain ): string {
-		$domain = trim( $domain );
-		$url    = self::network_scheme() . '://' . $domain;
-
-		if ( ! self::domain_includes_port( $domain ) ) {
-			$url .= self::network_port_suffix();
-		}
-
-		return trailingslashit( $url );
 	}
 
 	/**
@@ -622,21 +584,20 @@ class Environment {
 	 */
 	public function to_array(): array {
 		$data = array(
-			'record_id'     => $this->record_id,
-			'app_record_id' => $this->app_record_id,
-			'id'            => $this->id,
-			'name'          => $this->name,
-			'path'          => $this->path,
-			'created_at'    => $this->created_at,
-			'template'      => $this->template,
-			'status'        => $this->status,
-			'engine'        => $this->engine,
-			'type'          => $this->type,
-			'table_prefix'  => $this->get_table_prefix(),
-			'theme_slug'    => $this->theme_slug,
-			'protected'     => $this->is_protected,
-			'labels'        => $this->labels,
-			'last_used_at'  => $this->last_activity_at(),
+			'record_id'    => $this->record_id,
+			'id'           => $this->id,
+			'name'         => $this->name,
+			'path'         => $this->path,
+			'created_at'   => $this->created_at,
+			'template'     => $this->template,
+			'status'       => $this->status,
+			'engine'       => $this->engine,
+			'type'         => $this->type,
+			'table_prefix' => $this->get_table_prefix(),
+			'theme_slug'   => $this->theme_slug,
+			'protected'    => $this->is_protected,
+			'labels'       => $this->labels,
+			'last_used_at' => $this->last_activity_at(),
 		);
 
 		if ( null !== $this->clone_source ) {
@@ -655,10 +616,6 @@ class Environment {
 			$data['user_scope']     = 'isolated';
 			$data['users_table']    = $this->get_users_table();
 			$data['usermeta_table'] = $this->get_usermeta_table();
-		}
-
-		if ( null !== $this->domains && ! empty( $this->domains ) ) {
-			$data['domains'] = $this->domains;
 		}
 
 		if ( null !== $this->owner ) {

@@ -59,7 +59,6 @@ class RudelSchema {
 		return array(
 			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'environments' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-				app_id BIGINT UNSIGNED NULL,
 				slug VARCHAR(64) NOT NULL,
 				name VARCHAR(191) NOT NULL,
 				path VARCHAR(255) NOT NULL,
@@ -95,29 +94,7 @@ class RudelSchema {
 				UNIQUE KEY rudel_env_path (path),
 				UNIQUE KEY rudel_env_table_prefix (table_prefix),
 				KEY rudel_env_type (type),
-				KEY rudel_env_status (status),
-				KEY rudel_env_app (app_id)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'apps' ) . ' (
-				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-				environment_id BIGINT UNSIGNED NOT NULL,
-				slug VARCHAR(64) NOT NULL,
-				created_at VARCHAR(32) NOT NULL,
-				updated_at VARCHAR(32) NOT NULL,
-				PRIMARY KEY (id),
-				UNIQUE KEY rudel_app_environment (environment_id),
-				UNIQUE KEY rudel_app_slug (slug)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_domains' ) . ' (
-				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-				app_id BIGINT UNSIGNED NOT NULL,
-				domain VARCHAR(191) NOT NULL,
-				is_primary TINYINT(1) NOT NULL DEFAULT 0,
-				created_at VARCHAR(32) NOT NULL,
-				updated_at VARCHAR(32) NOT NULL,
-				PRIMARY KEY (id),
-				UNIQUE KEY rudel_app_domain (domain),
-				KEY rudel_app_domain_app (app_id)
+				KEY rudel_env_status (status)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
 			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'worktrees' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -132,33 +109,6 @@ class RudelSchema {
 				PRIMARY KEY (id),
 				UNIQUE KEY rudel_worktree_environment_name (environment_id, content_type, name),
 				KEY rudel_worktree_environment (environment_id)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
-			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'app_deployments' ) . ' (
-				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-				deployment_key VARCHAR(64) NOT NULL,
-				app_id BIGINT UNSIGNED NOT NULL,
-				environment_id BIGINT UNSIGNED NULL,
-				app_slug VARCHAR(64) NOT NULL,
-				app_name VARCHAR(191) NOT NULL,
-				app_domains LONGTEXT NULL,
-				sandbox_slug VARCHAR(64) NOT NULL,
-				sandbox_name VARCHAR(191) NOT NULL,
-				source_environment_type VARCHAR(20) NOT NULL,
-				backup_name VARCHAR(191) NULL,
-				tables_copied INT NULL,
-				label VARCHAR(191) NULL,
-				notes LONGTEXT NULL,
-				git_remote VARCHAR(191) NULL,
-				git_branch VARCHAR(191) NULL,
-				git_base_branch VARCHAR(191) NULL,
-				git_dir VARCHAR(191) NULL,
-				deployed_at VARCHAR(32) NOT NULL,
-				created_at VARCHAR(32) NOT NULL,
-				updated_at VARCHAR(32) NOT NULL,
-				PRIMARY KEY (id),
-				UNIQUE KEY rudel_app_deployment_key (deployment_key),
-				KEY rudel_app_deployment_app (app_id),
-				KEY rudel_app_deployment_environment (environment_id)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
 		);
 	}
@@ -185,16 +135,6 @@ class RudelSchema {
 		$worktrees = $store->table( 'worktrees' );
 		self::ensure_column( $store, $worktrees, 'metadata_name', 'VARCHAR(191) NULL' );
 		self::backfill_column( $store, $worktrees, 'metadata_name', 'name' );
-
-		$deployments = $store->table( 'app_deployments' );
-		self::ensure_column( $store, $deployments, 'git_remote', 'VARCHAR(191) NULL' );
-		self::ensure_column( $store, $deployments, 'git_branch', 'VARCHAR(191) NULL' );
-		self::ensure_column( $store, $deployments, 'git_base_branch', 'VARCHAR(191) NULL' );
-		self::ensure_column( $store, $deployments, 'git_dir', 'VARCHAR(191) NULL' );
-		self::backfill_column( $store, $deployments, 'git_remote', 'github_repo' );
-		self::backfill_column( $store, $deployments, 'git_branch', 'github_branch' );
-		self::backfill_column( $store, $deployments, 'git_base_branch', 'github_base_branch' );
-		self::backfill_column( $store, $deployments, 'git_dir', 'github_dir' );
 	}
 
 	/**

@@ -1,43 +1,32 @@
 ---
 title: Getting Started
-description: Install Rudel and create your first overlay environments.
+description: Install Rudel and create your first sandbox.
 ---
 
-# Getting Started
+## Install
 
-Rudel runs on a normal WordPress installation. It installs an early bootstrap into `wp-config.php`, creates host MySQL-backed runtime tables, and then resolves environments per request.
-
-## Prerequisites
-
-- WordPress 6.4 or later
-- PHP 8.2 or later
-- MySQL/MariaDB through the normal WordPress database connection
-- permission to update `wp-config.php`
-
-Multisite is not required.
-
-## Install Rudel
-
-### Via Composer
+Install Rudel with Composer and activate it like a normal WordPress plugin.
 
 ```bash
 composer require rudel/rudel
 wp plugin activate rudel
 ```
 
-### Via zip
-
-```bash
-wp plugin install rudel.zip --activate
-```
-
-## Verify the runtime install
+Check the runtime status:
 
 ```bash
 wp rudel status
 ```
 
-That confirms the bootstrap and runtime tables are available.
+## Install the bootstrap
+
+Rudel needs an early bootstrap line in `wp-config.php` so it can select a sandbox before WordPress finishes loading.
+
+```bash
+wp rudel bootstrap install
+```
+
+The bootstrap is idempotent. Running the command again does not duplicate the injected line.
 
 ## Create a sandbox
 
@@ -45,49 +34,25 @@ That confirms the bootstrap and runtime tables are available.
 wp rudel create --name=alpha --theme=twentytwentyfour
 ```
 
-That creates:
+Rudel creates a generated sandbox ID, clones the host WordPress tables into a sandbox-specific table prefix, copies the active theme into the sandbox directory, and stores the runtime record in the host WordPress database.
 
-- a Rudel environment row
-- cloned WordPress tables with a generated environment prefix
-- a copied active theme inside the environment directory
-- scoped metadata for snapshots, cleanup, Git, and lifecycle policy
-
-Run WP-CLI against that environment:
+## Use WP-CLI inside a sandbox
 
 ```bash
 RUDEL_ENVIRONMENT=alpha-1234 wp option get siteurl
 ```
 
-Route an HTTP request to it:
+## Route HTTP into a sandbox
 
 ```bash
 curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
 ```
 
-## Create an app
-
-Apps are durable overlays that can receive deploys and keep backups.
-
-```bash
-wp rudel app create --name=demo --domain=demo.example.test --theme=twentytwentyfour
-```
-
-Create a sandbox from that app:
-
-```bash
-wp rudel app create-sandbox demo-1234 --name=feature-a
-```
-
-Deploy the sandbox back into the app:
-
-```bash
-wp rudel app deploy demo-1234 feature-a-5678
-```
+You can also use the `rudel_environment` cookie for browser sessions.
 
 ## Next steps
 
 - [Creating Environments](/docs/environments/creating)
+- [Managing Environments](/docs/environments/managing)
 - [Isolation](/docs/environments/isolation)
 - [Runtime State](/docs/features/runtime-state)
-- [Apps](/docs/environments/apps)
-- [CLI](/docs/cli)

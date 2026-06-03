@@ -1,6 +1,6 @@
 # Rudel
 
-Request-selected WordPress overlay environments for sandboxes and apps.
+Request-selected WordPress overlay environments for sandboxes.
 
 ## Quick Reference
 
@@ -22,10 +22,10 @@ npm --prefix docs run build
 ## Current Architecture
 
 - Rudel runs on a normal WordPress installation. Multisite is not required.
-- Every Rudel sandbox and app is an overlay environment selected per request.
-- Runtime selection uses `X-Rudel-Environment`, `rudel_environment`, `RUDEL_ENVIRONMENT` for CLI, or mapped app domains.
+- Every Rudel environment is a sandbox overlay selected per request.
+- Runtime selection uses `X-Rudel-Environment`, `rudel_environment`, or `RUDEL_ENVIRONMENT` for CLI.
 - Environment site data uses cloned WordPress tables with generated prefixes such as `wp_a4nmv7_`.
-- Environment code isolation is currently active-theme isolation. The selected theme is copied into the environment directory and loaded through theme filters.
+- Environment code isolation is active-theme isolation. The selected theme is copied into the environment directory and loaded through theme filters.
 - Host WordPress core, plugins, uploads, and users are shared by default.
 - Runtime metadata lives in host WordPress MySQL tables, never JSON and never SQLite.
 
@@ -37,7 +37,7 @@ rudel/
 ├── bootstrap.php             # Early request overlay resolver loaded from wp-config.php
 ├── cli/                      # Split WP-CLI surface
 ├── src/                      # Runtime models, repositories, managers, services
-├── templates/                # Legacy/runtime templates where still needed
+├── templates/                # Runtime templates where still needed
 ├── docs/                     # Product docs site
 ├── tests/                    # Unit, integration, security, and E2E tests
 └── .github/workflows/
@@ -52,19 +52,15 @@ Define these before Rudel boots when non-default paths or names are needed:
 | `RUDEL_CLI_COMMAND` | `rudel` | Root WP-CLI command name |
 | `RUDEL_RUNTIME_TABLE_PREFIX` | `rudel_` | Shared runtime-table prefix after the WordPress DB prefix |
 | `RUDEL_RUNTIME_TABLE_ENVIRONMENTS` | `rudel_environments` | Explicit environments-table base name override |
-| `RUDEL_RUNTIME_TABLE_APPS` | `rudel_apps` | Explicit apps-table base name override |
-| `RUDEL_RUNTIME_TABLE_APP_DOMAINS` | `rudel_app_domains` | Explicit app-domains-table base name override |
 | `RUDEL_RUNTIME_TABLE_WORKTREES` | `rudel_worktrees` | Explicit worktrees-table base name override |
-| `RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS` | `rudel_app_deployments` | Explicit app-deployments-table base name override |
 | `RUDEL_ENVIRONMENTS_DIR` | `WP_CONTENT_DIR . '/rudel-environments'` | Base directory for sandbox environments |
-| `RUDEL_APPS_DIR` | `WP_CONTENT_DIR . '/rudel-apps'` | Base directory for app environments |
 
 ## Key Rules
 
 1. Rudel is overlay-first. Do not reintroduce multisite as a runtime requirement.
 2. CI is the source of truth for repo work. Keep coding standards, static analysis, PHPUnit, docs build, and E2E green.
 3. `bootstrap.php` stays self-contained: no autoloader, no WordPress functions, plain PHP only.
-4. Runtime state is DB-backed only. Apps, environments, domains, worktrees, deployments, and config belong in WordPress tables.
+4. Runtime state is DB-backed only. Environment records, worktrees, snapshots, policy metadata, and config belong in WordPress tables.
 5. Environment table prefixes must be unique and must not overwrite the host WordPress prefix itself.
 6. Selected requests must not redefine `WP_HOME`, `WP_SITEURL`, or `WP_CONTENT_DIR` globally.
 7. Theme isolation is the current filesystem isolation boundary. Plugins, uploads, and users remain shared unless a future version explicitly changes that model.

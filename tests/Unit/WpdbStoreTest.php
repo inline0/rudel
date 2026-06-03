@@ -13,7 +13,7 @@ class WpdbStoreTest extends TestCase
 			public string $prefix = 'wp_';
 			public string $base_prefix = 'wp_';
 			public int $insert_id = 0;
-			public string $last_error = 'Duplicate app domain';
+			public string $last_error = 'Duplicate environment slug';
 
 			public function insert(string $table, array $data)
 			{
@@ -43,9 +43,9 @@ class WpdbStoreTest extends TestCase
 		$store = new WpdbStore($wpdb);
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Duplicate app domain');
+		$this->expectExceptionMessage('Duplicate environment slug');
 
-		$store->insert('wp_rudel_app_domains', ['domain' => 'demo.example.test']);
+		$store->insert('wp_rudel_environments', ['slug' => 'demo-env']);
 	}
 
 	public function testUpdateRaisesRuntimeExceptionWhenWpdbFails(): void

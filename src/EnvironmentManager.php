@@ -20,13 +20,6 @@ class EnvironmentManager {
 	private string $environments_dir;
 
 	/**
-	 * Absolute path to the related environments directory for cross-type clones.
-	 *
-	 * @var string
-	 */
-	private string $alternate_environments_dir;
-
-	/**
 	 * Absolute path to the Rudel plugin directory.
 	 *
 	 * @var string
@@ -69,40 +62,20 @@ class EnvironmentManager {
 	private EnvironmentUserIsolationService $user_isolation;
 
 	/**
-	 * Managed environment type.
-	 *
-	 * @var string
-	 */
-	private string $managed_type;
-
-	/**
 	 * Initialize dependencies.
 	 *
 	 * @param string|null        $environments_dir Optional override for the environments directory.
-	 * @param string|null        $alternate_environments_dir Optional override for the related environments directory.
-	 * @param string             $managed_type Managed environment type.
 	 * @param DatabaseStore|null $store Optional runtime store override.
 	 */
 	public function __construct(
 		?string $environments_dir = null,
-		?string $alternate_environments_dir = null,
-		string $managed_type = 'sandbox',
 		?DatabaseStore $store = null
 	) {
 		$this->plugin_dir       = defined( 'RUDEL_PLUGIN_DIR' ) ? RUDEL_PLUGIN_DIR : dirname( __DIR__ ) . '/';
 		$this->environments_dir = $environments_dir ?? $this->get_default_environments_dir();
-		$this->managed_type     = $managed_type;
 
-		if ( null !== $alternate_environments_dir ) {
-			$this->alternate_environments_dir = $alternate_environments_dir;
-		} elseif ( $this->get_default_apps_dir() === $this->environments_dir ) {
-			$this->alternate_environments_dir = $this->get_default_environments_dir();
-		} else {
-			$this->alternate_environments_dir = $this->get_default_apps_dir();
-		}
-
-		$this->store           = $store ?? RudelDatabase::for_paths( $this->environments_dir, $this->alternate_environments_dir );
-		$this->repository      = new EnvironmentRepository( $this->store, $this->environments_dir, $this->managed_type );
+		$this->store           = $store ?? RudelDatabase::for_paths( $this->environments_dir );
+		$this->repository      = new EnvironmentRepository( $this->store, $this->environments_dir, 'sandbox' );
 		$this->cleanup_service = new EnvironmentCleanupService( $this->repository, array( $this, 'destroy' ) );
 		$this->state_replacer  = new EnvironmentStateReplacer();
 		$this->user_isolation  = new EnvironmentUserIsolationService();
@@ -124,10 +97,9 @@ class EnvironmentManager {
 		/** @var array<string, mixed> $options */
 		$options = is_array( $filtered_options ) ? $filtered_options : $options;
 		$context = array(
-			'name'                       => $name,
-			'options'                    => $options,
-			'environments_dir'           => $this->environments_dir,
-			'alternate_environments_dir' => $this->alternate_environments_dir,
+			'name'             => $name,
+			'options'          => $options,
+			'environments_dir' => $this->environments_dir,
 		);
 		Hooks::action( 'rudel_before_environment_create', $context );
 
@@ -153,18 +125,14 @@ class EnvironmentManager {
 			$clone_from     = is_string( $raw_clone_from ) ? $raw_clone_from : null;
 			$raw_type       = $options['type'] ?? 'sandbox';
 			$target_type    = is_string( $raw_type ) ? $raw_type : 'sandbox';
-			$raw_domains    = $options['domains'] ?? null;
-			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
-			/** @var array<int, string>|null $target_domains */
-			$target_domains = is_array( $raw_domains ) ? $raw_domains : null;
 
-			if ( ! in_array( $target_type, array( 'sandbox', 'app' ), true ) ) {
-				throw new \InvalidArgumentException( sprintf( 'Invalid environment type: %s. Must be "sandbox" or "app".', $target_type ) );
+			if ( 'sandbox' !== $target_type ) {
+				throw new \InvalidArgumentException( sprintf( 'Invalid environment type: %s. Rudel creates sandbox environments only.', $target_type ) );
 			}
 
 			$table_prefix = Environment::table_prefix_for_id( $id );
 			$theme_slug   = $this->resolve_overlay_theme_slug( $options );
-			$target_url   = $this->get_target_environment_url( $id, null, $target_type, $target_domains );
+			$target_url   = $this->get_target_environment_url( $id, null );
 			$template     = is_string( $options['template'] ?? null ) ? (string) $options['template'] : 'overlay';
 
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for environment scaffolding.
@@ -193,9 +161,6 @@ class EnvironmentManager {
 				$source_environment = $this->resolve_clone_source_environment( $clone_from );
 				if ( ! $source_environment ) {
 					throw new \RuntimeException( sprintf( 'Source environment not found: %s', $clone_from ) );
-				}
-				if ( ! isset( $options['app_id'] ) && null !== $source_environment->app_record_id && 'sandbox' === $target_type ) {
-					$options['app_id'] = $source_environment->app_record_id;
 				}
 
 				$theme_slug   = $theme_slug ?? $source_environment->theme_slug ?? $this->theme_slug_from_tracked_dir( $source_environment->tracked_git_dir );
@@ -289,7 +254,6 @@ class EnvironmentManager {
 				engine: 'overlay',
 				blog_id: null,
 				type: $target_type,
-				domains: $target_domains,
 				owner: is_string( $pm_owner ) ? $pm_owner : null,
 				labels: is_array( $pm_labels ) ? $pm_labels : array(),
 				purpose: is_string( $pm_purpose ) ? $pm_purpose : null,
@@ -308,7 +272,6 @@ class EnvironmentManager {
 				shared_uploads: true,
 				table_prefix: $table_prefix,
 				theme_slug: $theme_slug,
-				app_record_id: isset( $options['app_id'] ) && is_numeric( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
 			$environment = $this->repository->save( $environment );
 
@@ -651,7 +614,7 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Resolve an environment by checking both the current and related environment directories.
+	 * Resolve a source environment for clone workflows.
 	 *
 	 * @param string $id Environment ID.
 	 * @return Environment|null
@@ -825,25 +788,14 @@ class EnvironmentManager {
 	/**
 	 * Build the target runtime URL for a not-yet-saved environment.
 	 *
-	 * @param string                  $id Environment ID.
-	 * @param int|null                $blog_id Optional multisite blog ID for legacy subsite records.
-	 * @param string                  $type Environment type.
-	 * @param array<int, string>|null $domains Canonical domains when creating an app.
+	 * @param string   $id Environment ID.
+	 * @param int|null $blog_id Optional multisite blog ID for legacy subsite records.
 	 * @return string
 	 */
 	private function get_target_environment_url(
 		string $id,
-		?int $blog_id,
-		string $type = 'sandbox',
-		?array $domains = null
+		?int $blog_id
 	): string {
-		if ( 'app' === $type && is_array( $domains ) && ! empty( $domains ) ) {
-			$primary = reset( $domains );
-			if ( is_string( $primary ) && '' !== trim( $primary ) ) {
-				return rtrim( Environment::domain_url( $primary ), '/' );
-			}
-		}
-
 		if ( null !== $blog_id ) {
 			return rtrim( Environment::multisite_url_for( $id, $blog_id ), '/' );
 		}
@@ -902,22 +854,6 @@ class EnvironmentManager {
 		}
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
 		return $abspath . 'wp-content/rudel-environments';
-	}
-
-	/**
-	 * Determine the default apps directory.
-	 *
-	 * @return string Absolute path.
-	 */
-	private function get_default_apps_dir(): string {
-		if ( defined( 'RUDEL_APPS_DIR' ) ) {
-			return RUDEL_APPS_DIR;
-		}
-		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			return WP_CONTENT_DIR . '/rudel-apps';
-		}
-		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
-		return $abspath . 'wp-content/rudel-apps';
 	}
 
 	/**

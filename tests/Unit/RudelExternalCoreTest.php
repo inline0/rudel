@@ -21,13 +21,11 @@ class RudelExternalCoreTest extends TestCase {
 			new Connection( 'localhost', 'rudel', 'root', 'secret', 'wp_' ),
 			array(
 				'environments_dir' => '/srv/rudel/environments/',
-				'apps_dir'         => '/srv/rudel/apps/',
 			)
 		);
 
 		$this->assertInstanceOf( PdoStore::class, RudelDatabase::current_store() );
 		$this->assertSame( '/srv/rudel/environments', Rudel::environments_dir() );
-		$this->assertSame( '/srv/rudel/apps', Rudel::apps_dir() );
 	}
 
 	public function test_reset_clears_standalone_state(): void {
@@ -59,8 +57,7 @@ class RudelExternalCoreTest extends TestCase {
 
 		$this->assertInstanceOf( PdoStore::class, $store );
 		$this->assertSame( 'wp_divine_rudel_environments', $store->table( 'environments' ) );
-		$this->assertSame( 'wp_divine_rudel_apps', $store->table( 'apps' ) );
-		$this->assertSame( 'wp_divine_rudel_app_deployments', $store->table( 'app_deployments' ) );
+		$this->assertSame( 'wp_divine_rudel_worktrees', $store->table( 'worktrees' ) );
 	}
 
 	public function test_init_accepts_mysqli_connection_driver(): void {

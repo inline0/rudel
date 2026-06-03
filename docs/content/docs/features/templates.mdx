@@ -1,47 +1,16 @@
 ---
 title: Templates
-description: Save sandboxes as reusable starting points.
+description: Reuse a known sandbox shape.
 ---
 
-# Templates
-
-Templates let you save the environment-owned filesystem artifacts from a sandbox
-as a reusable reference. They are useful for copied theme files and workspace
-shape. Use snapshots or app backups when you need to preserve database state.
-
-## Saving a template
+Templates let you save a sandbox shape and use it as a repeatable starting point.
 
 ```bash
-wp rudel template save my-sandbox-a1b2 --name=starter
-```
-
-This copies the sandbox's environment-owned files into a named template. You can
-optionally add a description:
-
-```bash
-wp rudel template save my-sandbox-a1b2 --name=starter --description="WordPress with WooCommerce and Storefront theme"
-```
-
-## Managing templates
-
-List all available templates:
-
-```bash
+wp rudel template save alpha-1234 --name=checkout-baseline
 wp rudel template list
+wp rudel template delete checkout-baseline
 ```
 
-Delete a template you no longer need:
+Templates are useful when a task needs the same WordPress content and theme baseline repeatedly.
 
-```bash
-wp rudel template delete starter --force
-```
-
-## Typical workflows
-
-**Standardized filesystem shape.** Set up your preferred copied theme files once, then save the template as a reference.
-
-**Team onboarding.** Share a template so every developer can inspect the same workspace baseline.
-
-**Testing baselines.** Pair templates with snapshots when you need both filesystem and DB recovery points.
-
-**Client demos.** Keep named theme/workspace baselines for different client scenarios.
+Use snapshots when you need a recovery point for one existing sandbox. Use templates when you need to create future sandboxes from a known shape.

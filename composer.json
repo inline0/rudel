@@ -1,6 +1,6 @@
 {
     "name": "rudel/rudel",
-    "description": "Request-selected WordPress overlay environments for sandboxes and apps",
+    "description": "Request-selected WordPress overlay environments for sandboxes",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "repositories": [

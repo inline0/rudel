@@ -1,71 +1,50 @@
 ---
-title: Creating Environments
-description: Create sandboxes and apps with Rudel's overlay runtime.
+title: Creating
+description: Create Rudel sandboxes with cloned tables and copied active themes.
 ---
 
-# Creating Environments
-
-Creating an environment means creating a DB-backed overlay, not a WordPress multisite site.
-
-Rudel clones WordPress tables into an environment prefix, copies the selected active theme, records runtime metadata, and leaves host plugins/uploads/users shared.
-
-## Create a sandbox
+## Create from the host
 
 ```bash
 wp rudel create --name=alpha --theme=twentytwentyfour
 ```
 
-Common variations:
+Rudel clones the host WordPress tables into a generated sandbox prefix, copies the selected active theme into the sandbox directory, and records the sandbox in the host WordPress database.
+
+If `--theme` is omitted, Rudel uses the host site's active theme.
+
+## Create from another sandbox
 
 ```bash
-# clone from an existing environment
-wp rudel create --name=qa --clone-from=alpha-1234
-
-# seed from a template
-wp rudel create --name=starter --template=theme-starter
-
-# seed from a Git remote
-wp rudel create --git=https://example.test/example-theme.git
+wp rudel create --name=feature-b --clone-from=alpha-1234
 ```
 
-The host database is cloned by default into a new environment table prefix. The active theme is copied into the environment-owned theme root.
+The new sandbox receives cloned tables and managed theme files from the source sandbox.
 
-## Create an app
+## Lifecycle metadata
+
+Sandboxes can carry metadata for cleanup and ownership:
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test --theme=twentytwentyfour
+wp rudel create \
+  --name=feature-a \
+  --owner=dennis \
+  --labels=agent,qa \
+  --purpose="Test checkout changes" \
+  --ttl-days=7
 ```
 
-Apps use the same overlay runtime as sandboxes. They are durable targets with app domains, backups, deployment history, and app-derived sandbox workflows.
+Use `--protected` when automated cleanup must not remove the sandbox.
 
-If an app has one long-lived Git source, capture it at creation time:
+## Git-backed themes
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/demo-theme.git --branch=main --dir=themes/demo-theme
+wp rudel create \
+  --name=feature-a \
+  --theme=my-theme \
+  --git=https://example.test/my-theme.git \
+  --branch=main \
+  --dir=themes/my-theme
 ```
 
-App-derived sandboxes inherit tracked Git metadata automatically.
-
-## Runtime selection
-
-Use one of the request selectors to enter an environment:
-
-```bash
-curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
-RUDEL_ENVIRONMENT=alpha-1234 wp option get blogname
-```
-
-If no selector is present, WordPress boots as the host.
-
-## Policy metadata
-
-Sandboxes and apps both support stewardship metadata:
-
-- `--owner`
-- `--labels`
-- `--purpose`
-- `--protected`
-- `--ttl-days`
-- `--expires-at`
-
-Those values are stored in Rudel runtime records and used by cleanup, automation, reporting, and operator tooling.
+Rudel can create a tracked theme worktree through its PHP-native Git integration. The worktree metadata is stored in Rudel's runtime tables.

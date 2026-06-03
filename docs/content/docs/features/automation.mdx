@@ -1,99 +1,39 @@
 ---
 title: Automation
-description: Scheduled cleanup, app backups, retention, and expiry reporting.
+description: Scheduled cleanup and expiry reporting.
 ---
 
-# Automation
+Rudel's automation layer keeps disposable sandboxes from accumulating forever.
 
-Rudel's automation layer is the part that keeps a busy installation from turning into a graveyard of forgotten sandboxes and unbounded recovery data. The hourly WP-Cron runner can sweep stale sandboxes, create scheduled app backups, prune old recovery history, and surface environments that are close to expiry.
+Automation can:
 
-## What runs automatically
+- run cleanup policy
+- report expired sandboxes
+- report sandboxes close to expiry
 
-When any automation feature is enabled, Rudel schedules an hourly cron event and runs:
+## Configuration
 
-- standard cleanup
-- merged-branch cleanup
-- scheduled app backups
-- app backup retention pruning
-- app deployment-history pruning
-- expiring-environment reporting
+Automation settings live in Rudel's DB-backed config store.
 
-## Key config values
+| Key | Purpose | Default |
+|-----|---------|---------|
+| `auto_cleanup_enabled` | Run scheduled cleanup | `0` |
+| `auto_cleanup_merged` | Include merged Git branches | `0` |
+| `auto_cleanup_expired` | Include expired sandboxes | `1` |
+| `expiry_warning_days` | Warn when expiry is within N days | `2` |
 
-These settings are persisted in the host WordPress database through the `wp_options` row named `rudel_config`. They are runtime configuration, not checked-in project files.
+## WP-Cron
 
-| Key | Meaning | Default |
-|---|---|---|
-| `auto_cleanup_enabled` | Run standard sandbox cleanup automatically | `1` |
-| `auto_cleanup_merged` | Run merged-branch cleanup automatically | `0` |
-| `auto_app_backups_enabled` | Create scheduled app backups | `0` |
-| `auto_app_backup_interval_hours` | Minimum hours between scheduled backups for the same app | `24` |
-| `auto_app_backup_retention_count` | Keep only the newest N app backups | `0` |
-| `auto_app_deployment_retention_count` | Keep only the newest N deployment records per app | `0` |
-| `expiring_environment_notice_days` | Include environments expiring within N days in automation output | `0` |
+When enabled, Rudel schedules an hourly WP-Cron event.
 
-## Scheduled app backups
-
-If an app is a long-lived runtime target, it often deserves its own regular recovery points even when no sandbox deploy is happening.
-
-Enable that flow:
-
-```php
-$config = new \Rudel\RudelConfig();
-$config->set( 'auto_app_backups_enabled', 1 );
-$config->set( 'auto_app_backup_interval_hours', 24 );
-$config->save();
+```bash
+wp rudel automation enable
+wp rudel automation status
 ```
 
-Rudel will then create a scheduled backup for each app only when the most recent backup is older than the configured interval. That keeps the backup history useful without generating duplicate recovery points every hour.
+Use manual cleanup for deterministic local or CI runs:
 
-## Retention
-
-App recovery history can grow indefinitely if you never prune it. Retention settings let Rudel trim that state automatically:
-
-```php
-$config = new \Rudel\RudelConfig();
-$config->set( 'auto_app_backup_retention_count', 10 );
-$config->set( 'auto_app_deployment_retention_count', 25 );
-$config->save();
+```bash
+wp rudel cleanup --dry-run
+wp rudel cleanup --force
 ```
-
-Backups and deployment records are pruned per app, newest first. Retention is about keeping recovery history valuable, not about deleting state blindly.
-
-## Expiry reporting
-
-Some teams want cleanup to be aggressive. Others want a warning window first. `expiring_environment_notice_days` gives you that second option by surfacing upcoming expiries through the automation result and hook layer.
-
-```php
-$config = new \Rudel\RudelConfig();
-$config->set( 'expiring_environment_notice_days', 3 );
-$config->save();
-```
-
-That does not delete anything by itself. It simply reports what is close to expiry so your own code can notify owners, open tickets, or escalate the state somewhere else.
-
-## Running automation on demand
-
-From PHP:
-
-```php
-use Rudel\Rudel;
-
-$result = Rudel::run_automation();
-```
-
-`Rudel::run_automation()` is the accurate entry point here because it runs the full maintenance pipeline, not just one cleanup routine.
-
-## Hooks
-
-Automation is designed to be integrated rather than hidden. The main hooks are:
-
-- `rudel_before_automation_cleanup`
-- `rudel_after_automation_cleanup`
-- `rudel_before_automation_app_backups`
-- `rudel_after_automation_app_backups`
-- `rudel_before_automation_app_retention`
-- `rudel_after_automation_app_retention`
-- `rudel_after_automation_expiring_environments`
-
-See [Hooks](/docs/features/hooks) for the broader extension contract.

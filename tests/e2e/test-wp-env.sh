@@ -15,7 +15,6 @@ PASSED=0
 FAILED=0
 TOTAL=0
 SANDBOX_IDS=()
-APP_IDS=()
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -23,12 +22,6 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 cleanup() {
-	if (( ${#APP_IDS[@]} > 0 )); then
-		for app_id in "${APP_IDS[@]}"; do
-			wp_cli rudel app destroy "$app_id" --force >/dev/null 2>&1 || true
-		done
-	fi
-
 	if (( ${#SANDBOX_IDS[@]} > 0 )); then
 		for sandbox_id in "${SANDBOX_IDS[@]}"; do
 			wp_cli rudel destroy "$sandbox_id" --force >/dev/null 2>&1 || true
@@ -181,10 +174,6 @@ environment_json() {
 	wp_cli rudel info "$1" --format=json
 }
 
-app_json() {
-	wp_cli rudel app info "$1" --format=json
-}
-
 table_exists() {
 	local table="$1"
 
@@ -210,13 +199,6 @@ cookie_http_status() {
 	local body_file="$2"
 
 	curl -sS --cookie "rudel_environment=${environment_id}" "http://localhost:8000/" -o "$body_file" -w '%{http_code}'
-}
-
-app_http_status() {
-	local domain="$1"
-	local body_file="$2"
-
-	curl -sS --resolve "${domain}:8000:127.0.0.1" "http://${domain}:8000/" -o "$body_file" -w '%{http_code}'
 }
 
 prepare_single_site() {
@@ -449,116 +431,10 @@ else
 fi
 
 echo ""
-echo -e "${BOLD}App overlays and deploys${NC}"
-
-APP_DOMAIN="demo.example.test"
-APP_OUTPUT=$(wp_cli rudel app create --name=Demo --domain="$APP_DOMAIN" --theme=rudel-host-theme)
-APP_ID=$(parse_created_id "App created" "$APP_OUTPUT")
-if [[ -n "$APP_ID" ]]; then
-	APP_IDS+=("$APP_ID")
-	pass "Created app ${APP_ID}"
-else
-	fail "App creation failed" "$APP_OUTPUT"
-	exit 1
-fi
-
-APP_JSON=$(app_json "$APP_ID")
-APP_PATH=$(printf '%s' "$APP_JSON" | json_field path)
-APP_PREFIX=$(printf '%s' "$APP_JSON" | json_field table_prefix)
-if wp_shell "test -d '${APP_PATH}/themes/rudel-host-theme'" >/dev/null && table_exists "${APP_PREFIX}options"; then
-	pass "App has overlay tables and copied active theme"
-else
-	fail "App overlay assets are missing" "$APP_JSON"
-	exit 1
-fi
-
-wp_env_cli "$APP_ID" option update blogname "Demo App" >/dev/null
-
-APP_BODY="$(mktemp)"
-APP_STATUS=$(app_http_status "$APP_DOMAIN" "$APP_BODY")
-if [[ "$APP_STATUS" == "200" ]] && grep -q "Demo App" "$APP_BODY"; then
-	pass "Mapped app domain selects the app overlay"
-else
-	fail "Mapped app domain did not select the app overlay" "status=${APP_STATUS} body=$(cat "$APP_BODY")"
-	exit 1
-fi
-rm -f "$APP_BODY"
-
-FEATURE_OUTPUT=$(wp_cli rudel app create-sandbox "$APP_ID" --name="Feature Sandbox")
-FEATURE_ID=$(parse_created_id "Sandbox created from app" "$FEATURE_OUTPUT")
-if [[ -n "$FEATURE_ID" ]]; then
-	SANDBOX_IDS+=("$FEATURE_ID")
-	pass "Created app-derived sandbox ${FEATURE_ID}"
-else
-	fail "App-derived sandbox creation failed" "$FEATURE_OUTPUT"
-	exit 1
-fi
-
-FEATURE_BLOGNAME=$(wp_env_cli "$FEATURE_ID" option get blogname | tail -1)
-if [[ "$FEATURE_BLOGNAME" == "Demo App" ]]; then
-	pass "App-derived sandbox clones app DB state"
-else
-	fail "App-derived sandbox did not clone app DB state" "$FEATURE_BLOGNAME"
-	exit 1
-fi
-
-FEATURE_JSON=$(environment_json "$FEATURE_ID")
-FEATURE_PATH=$(printf '%s' "$FEATURE_JSON" | json_field path)
-FEATURE_PREFIX=$(printf '%s' "$FEATURE_JSON" | json_field table_prefix)
-if wp_shell "test -d '${FEATURE_PATH}/themes/rudel-host-theme'" >/dev/null && table_exists "${FEATURE_PREFIX}options"; then
-	pass "App-derived sandbox has its own overlay tables and copied active theme"
-else
-	fail "App-derived sandbox overlay assets are missing" "$FEATURE_JSON"
-	exit 1
-fi
-
-wp_env_cli "$FEATURE_ID" option update blogname "Feature Deploy" >/dev/null
-DEPLOY_PLAN=$(wp_cli rudel app deploy "$APP_ID" --from="$FEATURE_ID" --backup=before-deploy --dry-run)
-if echo "$DEPLOY_PLAN" | grep -q "$FEATURE_ID"; then
-	pass "App deploy dry-run produces a plan"
-else
-	fail "App deploy dry-run did not include the source sandbox" "$DEPLOY_PLAN"
-	exit 1
-fi
-
-DEPLOY_OUTPUT=$(wp_cli rudel app deploy "$APP_ID" --from="$FEATURE_ID" --backup=before-deploy --label="Feature Deploy" --notes="e2e deploy" --force)
-if echo "$DEPLOY_OUTPUT" | grep -q "Sandbox deployed to app"; then
-	pass "App deploy works"
-else
-	fail "App deploy failed" "$DEPLOY_OUTPUT"
-	exit 1
-fi
-
-APP_DEPLOYED_NAME=$(wp_env_cli "$APP_ID" option get blogname | tail -1)
-if [[ "$APP_DEPLOYED_NAME" == "Feature Deploy" ]]; then
-	pass "App deploy replaces app overlay DB state"
-else
-	fail "App deploy did not replace app overlay DB state" "$APP_DEPLOYED_NAME"
-	exit 1
-fi
-
-APP_DEPLOYMENTS=$(wp_cli rudel app deployments "$APP_ID" --format=json)
-if echo "$APP_DEPLOYMENTS" | grep -q '"deployed_at"'; then
-	pass "App deployment history is recorded"
-else
-	fail "App deployments list is empty" "$APP_DEPLOYMENTS"
-	exit 1
-fi
-
-wp_cli rudel app restore "$APP_ID" --backup=before-deploy --force >/dev/null
-APP_RESTORED_NAME=$(wp_env_cli "$APP_ID" option get blogname | tail -1)
-if [[ "$APP_RESTORED_NAME" == "Demo App" ]]; then
-	pass "App restore returns DB state to the saved backup"
-else
-	fail "App restore did not restore app DB state" "$APP_RESTORED_NAME"
-	exit 1
-fi
-
-echo ""
 echo -e "${BOLD}Destroy cleanup${NC}"
 
 wp_cli rudel destroy "$ALPHA_ID" --force >/dev/null
-SANDBOX_IDS=("${BETA_ID}" "${FEATURE_ID}")
+SANDBOX_IDS=("${BETA_ID}")
 if wp_shell "test ! -d '${ALPHA_PATH}'" >/dev/null && ! table_exists "${ALPHA_PREFIX}options"; then
 	pass "Destroy removes sandbox directory and generated DB tables"
 else

@@ -1,81 +1,51 @@
 ---
 title: Standalone Use
-description: Use Rudel's DB-backed registry outside WordPress.
+description: Read Rudel metadata outside a WordPress request.
 ---
 
-# Standalone Use
+Standalone mode lets external PHP code inspect Rudel's registry with a direct MySQL connection.
 
-Rudel can expose its DB-backed registry outside WordPress.
+It is intended for:
 
-Standalone mode is for metadata access. It lets external products talk to the same Rudel tables without booting a live WordPress request.
+- listing sandboxes
+- loading one sandbox by ID
+- inspecting worktree metadata
+- reading lifecycle metadata
 
-## What works outside WordPress
+It is not intended for:
 
-With a direct DB connection, Rudel can:
-
-- list apps and sandboxes
-- load one app or sandbox by ID
-- inspect app domains, worktrees, deployments, and lifecycle metadata
-- read and update DB-backed policy/config state
-- report known app and environment directories when passed as context
-
-## What stays inside WordPress
-
-These operations still require WordPress:
-
+- creating sandboxes
+- destroying sandboxes
 - cloning WordPress tables
-- creating apps or sandboxes
-- destroying apps or sandboxes
-- creating app-derived sandboxes
-- copying active themes from the host install
-- request/bootstrap behavior
+- installing the bootstrap
+- routing live requests
 
-Those operations depend on the live WordPress database connection, constants, options, and filesystem layout.
+Those operations require WordPress runtime services.
 
-## Initialization
+## Initialize
 
 ```php
-use Rudel\Connection;
 use Rudel\Rudel;
 
-$conn = new Connection(
-    host: '127.0.0.1:3306',
-    dbname: 'wordpress',
-    user: 'root',
-    password: 'secret',
-    prefix: 'wp_',
-);
-
-Rudel::init(
-    $conn,
-    [
+Rudel::init( [
+    'db' => [
+        'host'     => '127.0.0.1',
+        'database' => 'wordpress',
+        'username' => 'root',
+        'password' => 'root',
+        'prefix'   => 'wp_',
+    ],
+    'context' => [
         'environments_dir' => '/var/www/html/wp-content/rudel-environments',
-        'apps_dir' => '/var/www/html/wp-content/rudel-apps',
-    ]
-);
-
-Rudel::ensure_schema();
+    ],
+] );
 ```
 
-Then use DB-backed read/query APIs:
+## Read records
 
 ```php
-$apps = Rudel::apps();
-$sandboxes = Rudel::all();
-$status = Rudel::status();
+$environments = Rudel::environments();
+$environment  = Rudel::environment_by_id( 'alpha-1234' );
 ```
 
-For embedded products that share one WordPress database but need separate Rudel registries, pass a connection-level table prefix:
-
-```php
-$conn = new Connection(
-    host: '127.0.0.1:3306',
-    dbname: 'wordpress',
-    user: 'root',
-    password: 'secret',
-    prefix: 'wp_',
-    table_prefix: 'custom_rudel_',
-);
-```
-
-That leaves the WordPress database prefix alone and changes only the Rudel registry table segment.
+Standalone reads use the same repository layer as WordPress runtime reads.

@@ -134,12 +134,10 @@ class ThemeOverlay {
 	 *
 	 * @param string $environment_url Environment request URL.
 	 * @param string $environment_id Environment ID.
-	 * @param string $type Environment type.
 	 * @return string Theme root URL.
 	 */
-	public static function theme_root_uri_for( string $environment_url, string $environment_id, string $type = 'sandbox' ): string {
-		$base_dir = 'app' === $type ? 'rudel-apps' : 'rudel-environments';
-		return rtrim( $environment_url, '/' ) . '/wp-content/' . $base_dir . '/' . rawurlencode( $environment_id ) . '/themes';
+	public static function theme_root_uri_for( string $environment_url, string $environment_id ): string {
+		return rtrim( $environment_url, '/' ) . '/wp-content/rudel-environments/' . rawurlencode( $environment_id ) . '/themes';
 	}
 
 	/**

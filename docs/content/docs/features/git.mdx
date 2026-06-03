@@ -1,44 +1,33 @@
 ---
-title: Git Integration
-description: PHP-native Git workflows for Rudel themes and app sandboxes.
+title: Git
+description: PHP-native Git workflows for Rudel theme worktrees.
 ---
 
-# Git Integration
+Rudel can use PHP-native Git operations for tracked theme worktrees. It does not require the host `git` binary.
 
-Rudel uses Pitmaster for PHP-native Git clone, push, fetch, merge checks, and linked worktree lifecycle. It does not require the `git` binary on the host.
-
-## Tracked theme workflows
-
-The current overlay runtime isolates active themes. When an app tracks `themes/my-theme`, app-derived sandboxes inherit that metadata and Rudel can create a dedicated `rudel/{sandbox-id}` branch and linked worktree for the sandbox theme.
+Create a sandbox with a tracked theme source:
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/my-theme.git --branch=main --dir=themes/my-theme
-wp rudel app create-sandbox demo-1234 --name=feature-x
+wp rudel create \
+  --name=feature-x \
+  --theme=my-theme \
+  --git=https://example.test/my-theme.git \
+  --branch=main \
+  --dir=themes/my-theme
 ```
 
-The sandbox records the generated branch and worktree metadata in Rudel's runtime tables.
+Rudel stores worktree metadata in `wp_rudel_worktrees`.
 
-## Push
+## Push changes
 
 ```bash
-wp rudel push feature-x-a1b2 --message="Add header template"
+wp rudel push feature-x-1234 --message="Update checkout template"
 ```
 
-If the sandbox inherited tracked Git metadata from an app, the remote and directory are already known. You can still override them:
+The push command uses the sandbox's tracked worktree metadata unless you override it with command options.
 
-```bash
-wp rudel push feature-x-a1b2 --git=https://example.test/my-theme.git --dir=themes/my-theme --message="Add header template"
-```
+## Worktree identity
 
-## Cleanup
+Rudel gives each linked worktree an explicit metadata name. The identity is based on the environment and tracked repository context, not just the checkout directory basename.
 
-```bash
-wp rudel cleanup --merged --dry-run
-wp rudel cleanup --merged
-```
-
-Merged cleanup checks tracked branches and destroys sandboxes whose tracked work has already landed.
-
-## Scope
-
-Theme worktrees are first-class in the current overlay model. Plugin worktrees remain metadata-compatible, but plugins are shared with the host by default and are not isolated by the current runtime.
+That prevents collisions when multiple sandboxes use the same theme slug.

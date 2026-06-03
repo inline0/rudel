@@ -23,11 +23,8 @@ class RuntimeTableConfig {
 	 * @var array<string, string>
 	 */
 	private const TABLE_CONSTANTS = array(
-		'environments'    => 'RUDEL_RUNTIME_TABLE_ENVIRONMENTS',
-		'apps'            => 'RUDEL_RUNTIME_TABLE_APPS',
-		'app_domains'     => 'RUDEL_RUNTIME_TABLE_APP_DOMAINS',
-		'worktrees'       => 'RUDEL_RUNTIME_TABLE_WORKTREES',
-		'app_deployments' => 'RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS',
+		'environments' => 'RUDEL_RUNTIME_TABLE_ENVIRONMENTS',
+		'worktrees'    => 'RUDEL_RUNTIME_TABLE_WORKTREES',
 	);
 
 	/**

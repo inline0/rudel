@@ -33,8 +33,6 @@ class OverlayIsolationTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -58,8 +56,6 @@ class OverlayIsolationTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 

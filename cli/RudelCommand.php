@@ -382,13 +382,9 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	public function status( $args, $assoc_args ): void {
 		$writer         = new \Rudel\ConfigWriter();
 		$sandboxes      = $this->manager->list();
-		$apps           = ( new \Rudel\AppManager() )->list();
 		$config         = new RudelConfig();
 		$automation_on  = $config->get( 'auto_cleanup_enabled' ) > 0
 			|| $config->get( 'auto_cleanup_merged' ) > 0
-			|| $config->get( 'auto_app_backups_enabled' ) > 0
-			|| $config->get( 'auto_app_backup_retention_count' ) > 0
-			|| $config->get( 'auto_app_deployment_retention_count' ) > 0
 			|| $config->get( 'expiring_environment_notice_days' ) > 0;
 		$active_sandbox = Rudel::is_sandbox() ? Rudel::id() : 'none';
 
@@ -408,10 +404,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			array(
 				'Field' => 'Active sandboxes',
 				'Value' => (string) count( $sandboxes ),
-			),
-			array(
-				'Field' => 'Active apps',
-				'Value' => (string) count( $apps ),
 			),
 			array(
 				'Field' => 'Config storage',
@@ -436,22 +428,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			array(
 				'Field' => 'Auto cleanup merged',
 				'Value' => $config->get( 'auto_cleanup_merged' ) > 0 ? 'yes' : 'no',
-			),
-			array(
-				'Field' => 'Auto app backups',
-				'Value' => $config->get( 'auto_app_backups_enabled' ) > 0 ? 'yes' : 'no',
-			),
-			array(
-				'Field' => 'App backup interval',
-				'Value' => (string) $config->get( 'auto_app_backup_interval_hours' ) . 'h',
-			),
-			array(
-				'Field' => 'App backup retention',
-				'Value' => (string) $config->get( 'auto_app_backup_retention_count' ),
-			),
-			array(
-				'Field' => 'App deployment retention',
-				'Value' => (string) $config->get( 'auto_app_deployment_retention_count' ),
 			),
 			array(
 				'Field' => 'Expiry notice days',

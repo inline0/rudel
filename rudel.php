@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Rudel
- * Description: The WordPress isolation layer for sandboxes and multi-tenant apps.
- * Version: 0.9.0
+ * Description: The WordPress isolation layer for request-selected sandboxes.
+ * Version: 0.10.0
  * Author: Inline0
  * Author URI: https://inline0.com
  * License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RUDEL_VERSION', '0.9.0' );
+define( 'RUDEL_VERSION', '0.10.0' );
 define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -71,7 +71,6 @@ if ( ! defined( 'RUDEL_CLI_COMMAND' ) ) {
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND, Rudel\CLI\RudelCommand::class );
-	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' app', Rudel\CLI\AppCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' cleanup', Rudel\CLI\CleanupCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' logs', Rudel\CLI\LogsCommand::class );
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' push', Rudel\CLI\PushCommand::class );
@@ -83,7 +82,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 	define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
-	if ( ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) && ! defined( 'RUDEL_TABLE_PREFIX' ) && isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->prefix ) && is_string( $GLOBALS['wpdb']->prefix ) && '' !== $GLOBALS['wpdb']->prefix ) {
+	if ( Rudel\Rudel::is_sandbox() && ! defined( 'RUDEL_TABLE_PREFIX' ) && isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->prefix ) && is_string( $GLOBALS['wpdb']->prefix ) && '' !== $GLOBALS['wpdb']->prefix ) {
 		define( 'RUDEL_TABLE_PREFIX', $GLOBALS['wpdb']->prefix );
 	}
 
@@ -153,22 +152,19 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 		}
 	}
 
-	if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
+	if ( Rudel\Rudel::is_sandbox() ) {
 		Rudel\Rudel::touch_current_environment();
 
 		add_action(
 			'admin_bar_menu',
 			function ( $wp_admin_bar ) {
-				$is_app = Rudel\Rudel::is_app();
 				$wp_admin_bar->add_node(
 					array(
 						'id'    => 'rudel-environment',
-						'title' => '&#9632; ' . ( $is_app ? 'App' : 'Sandbox' ) . ': ' . ( $is_app ? Rudel\Rudel::app_id() : Rudel\Rudel::id() ),
-						'href'  => $is_app ? Rudel\Rudel::url() : Rudel\Rudel::exit_url(),
+						'title' => '&#9632; Sandbox: ' . Rudel\Rudel::id(),
+						'href'  => Rudel\Rudel::exit_url(),
 						'meta'  => array(
-							'title' => $is_app
-								? 'Current Rudel app environment'
-								: 'Click to exit sandbox and return to host',
+							'title' => 'Click to exit sandbox and return to host',
 						),
 					)
 				);
@@ -289,6 +285,5 @@ function rudel_overlay_owns_theme_slug( string $slug ): bool {
  * @return void
  */
 function rudel_admin_bar_styles() {
-	$color = Rudel\Rudel::is_app() ? '#2271b1' : '#d63638';
-	echo '<style>#wp-admin-bar-rudel-environment > a { background: ' . esc_attr( $color ) . ' !important; color: #fff !important; font-weight: 600 !important; }</style>';
+	echo '<style>#wp-admin-bar-rudel-environment > a { background: #d63638 !important; color: #fff !important; font-weight: 600 !important; }</style>';
 }

@@ -1,97 +1,38 @@
 ---
 title: Cleanup
-description: Automatic and manual cleanup of stale sandboxes.
+description: Remove stale Rudel sandboxes safely.
 ---
 
-# Cleanup
-
-Sandboxes are disposable by design. Cleanup is what keeps that promise operationally true instead of aspirational. Without it, a team ends up treating every sandbox like a long-lived pet site, which defeats the point of having a disposable environment system in the first place.
-
-Cleanup is one part of the broader [automation](/docs/features/automation) layer. That page covers scheduled app backups, retention, and expiry reporting as well.
-
-## Running cleanup
-
-Remove sandboxes matched by the configured cleanup policy:
-
-```bash
-wp rudel cleanup
-```
-
-To see what would be removed without actually deleting anything:
+Cleanup removes sandboxes that are no longer needed.
 
 ```bash
 wp rudel cleanup --dry-run
 ```
 
-You can override the configured max age for a single run:
+Use `--dry-run` first to see what would be removed.
 
 ```bash
-wp rudel cleanup --max-age-days=7 --dry-run
+wp rudel cleanup --force
 ```
 
-Idle cleanup can also be overridden per run:
+## Expired sandboxes
+
+Sandboxes with an `expires_at` timestamp in the past are cleanup candidates.
 
 ```bash
-wp rudel cleanup --max-idle-days=3 --dry-run
+wp rudel cleanup --expired --dry-run
 ```
 
-## Configuration
+## Merged sandboxes
 
-Cleanup behavior is controlled by Rudel's configuration record in the host WordPress database. Rudel stores these settings in the `wp_options` row named `rudel_config`:
-
-| Setting | Description | Default |
-|---|---|---|
-| `max_sandboxes` | Maximum number of active sandboxes | 0 (no limit) |
-| `max_age_days` | Sandboxes older than this are eligible for cleanup | 0 (disabled) |
-| `default_ttl_days` | Default expiry assigned to newly created sandboxes | 0 (disabled) |
-| `max_idle_days` | Sandboxes idle longer than this are eligible for cleanup | 0 (disabled) |
-| `max_disk_mb` | Maximum total disk usage for all sandboxes in MB | 0 (no limit) |
-| `auto_cleanup_enabled` | Run standard cleanup automatically via WP-Cron | 1 (enabled) |
-| `auto_cleanup_merged` | Run merged-branch cleanup automatically via WP-Cron | 0 (disabled) |
-
-The `max_age_days`, `max_idle_days`, and explicit per-sandbox `expires_at` metadata are enforced when you run `wp rudel cleanup`. Protected sandboxes are always skipped. The `max_sandboxes` and `max_disk_mb` limits are enforced at creation time, preventing new sandboxes from being created when the limit is reached.
-
-If no age, idle, or explicit expiry policy is active, cleanup returns immediately with no removals. Rudel does not invent deletion rules on your behalf.
-
-## Per-sandbox policy
-
-You can set lifecycle metadata when creating or updating a sandbox:
-
-```bash
-wp rudel create --name=qa-box --owner=dennis --labels=qa,client-a --ttl-days=7
-wp rudel update qa-box-a1b2 --protected
-wp rudel update qa-box-a1b2 --clear-expiry
-```
-
-The most useful policy fields are:
-
-- `owner`
-- `labels`
-- `purpose`
-- `protected`
-- `expires_at`
-- `last_used_at`
-
-Rudel updates `last_used_at` automatically when an environment is used, snapped, restored, backed up, or deployed. That keeps idle cleanup tied to actual activity instead of guesswork.
-
-## Scheduled cleanup
-
-Standard cleanup runs automatically on an hourly WP-Cron schedule when `auto_cleanup_enabled` is on. That makes policy-driven cleanup practical for disposable sandboxes: set TTLs or idle thresholds and let Rudel sweep them without relying on operator memory.
-
-## Merge-based cleanup
-
-If you use Rudel's [git integration](/docs/features/git), sandboxes can be cleaned up automatically when their tracked branches are merged. This is separate from age-based cleanup:
-
-```bash
-wp rudel cleanup --merged
-```
-
-This checks each sandbox that has local git worktrees or tracked Git branch metadata. If all of that sandbox's tracked branches have been merged into the base branch, the sandbox is destroyed and Rudel removes the corresponding branch state as part of cleanup.
-
-Preview first with `--dry-run`:
+When Git metadata indicates a sandbox branch has already been merged, Rudel can include it in cleanup.
 
 ```bash
 wp rudel cleanup --merged --dry-run
 ```
 
-This is the cleanest way to manage sandbox lifecycles when working with git-backed code flows: create a sandbox, do the work, merge the branch, and let cleanup remove the environment once that branch has clearly served its purpose.
+## Protected sandboxes
+
+Protected sandboxes are skipped unless the operator passes `--force`.
+
+Cleanup drops cloned tables, removes managed files, cleans worktree records, and deletes the Rudel environment record.

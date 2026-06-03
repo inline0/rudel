@@ -1,58 +1,41 @@
 ---
-title: Introduction
-description: Rudel manages request-selected WordPress overlay environments.
+title: Rudel
+description: Request-selected WordPress overlay environments for sandboxes.
 ---
 
-# Introduction
+Rudel creates disposable WordPress sandboxes inside one host WordPress installation.
 
-Rudel manages WordPress sandboxes and apps as request-selected overlay environments.
+Each sandbox is selected per request. The selected request uses cloned WordPress tables and a copied active theme while the host WordPress core, plugins, uploads, and users remain shared by default.
 
-One host WordPress installation stays in place. Rudel creates environment records, clones the host WordPress tables into environment-specific prefixes, copies the selected active theme into an environment-owned theme root, and resolves the active environment during bootstrap.
+## What Rudel isolates
 
-The runtime selection boundary is explicit:
+- database content through a generated table prefix
+- active theme files through a copied theme root
+- request context through trusted headers, cookies, or CLI environment variables
+- lifecycle metadata through host WordPress MySQL tables
 
-- no environment selector means WordPress boots as the host
-- `X-Rudel-Environment` selects an environment for HTTP requests
-- `rudel_environment` selects an environment by cookie
-- `RUDEL_ENVIRONMENT` selects an environment for WP-CLI
-- mapped app domains can select app environments
+## What Rudel does not isolate by default
 
-## Two environment types
+- WordPress core files
+- plugin files
+- uploaded media files
+- users
 
-**Sandboxes** are disposable environments for change work, QA, debugging, demos, migrations, and agent-driven tasks.
+That boundary is intentional. Rudel focuses on fast, request-selected sandboxes for agents, QA, experiments, and risky change work without requiring multisite or a second WordPress install.
 
-**Apps** are durable environments that keep domain metadata, backups, deploy history, worktrees, and long-lived lifecycle state.
+## Source of truth
 
-Both use the same overlay runtime. The difference is lifecycle intent, not a different WordPress substrate.
+Rudel runtime records live in the host WordPress database:
 
-## Runtime shape
+- `wp_rudel_environments`
+- `wp_rudel_worktrees`
 
-Rudel keeps three layers clear.
+There is no runtime JSON config and no SQLite metadata store.
 
-**WordPress host** is the shared process, core install, plugin directory, upload directory, and user table source.
+## Start here
 
-**Environment overlay** is the selected table prefix plus copied active theme. A selected environment gets table names like `wp_a4nmv7_options` and a theme root like `wp-content/rudel-environments/alpha-1234/themes`.
-
-**Rudel runtime records** are the operational source of truth. Rudel stores app identity, environment identity, domain mappings, worktrees, deployment history, and policy metadata in host WordPress MySQL tables.
-
-Rudel does not require multisite. Rudel does not use SQLite. Rudel does not use JSON as runtime configuration.
-
-## What Rudel adds
-
-- environment creation and destruction
-- app creation from the same overlay model
-- app-derived sandboxes
-- snapshots for sandboxes
-- backups, deploys, and rollback for apps
-- PHP-native Git workflows through Pitmaster
-- policy metadata such as owner, labels, protection, and expiry
-- DB-backed registry access inside and outside WordPress
-
-## Requirements
-
-- PHP 8.2 or later
-- WordPress 6.4 or later
-- the normal WordPress MySQL/MariaDB database
-- write access to `wp-config.php` during bootstrap installation
-
-[Getting Started](/docs/getting-started) walks through installation and the first environment creation flow.
+- [Getting Started](/docs/getting-started)
+- [CLI](/docs/cli)
+- [API](/docs/api)
+- [Runtime State](/docs/features/runtime-state)
+- [Isolation](/docs/environments/isolation)

@@ -8,7 +8,7 @@
 namespace Rudel;
 
 /**
- * Manages snapshots for sandboxes and backups for apps.
+ * Manages snapshots for sandbox environments.
  */
 class SnapshotManager {
 
@@ -58,7 +58,7 @@ class SnapshotManager {
 		$this->kind          = isset( $options['kind'] ) && is_string( $options['kind'] ) ? $options['kind'] : 'snapshot';
 		$this->storage_dir   = isset( $options['storage_dir'] ) && is_string( $options['storage_dir'] ) ? $options['storage_dir'] : ( 'backup' === $this->kind ? 'backups' : 'snapshots' );
 		$this->metadata_file = isset( $options['metadata_file'] ) && is_string( $options['metadata_file'] ) ? $options['metadata_file'] : ( 'backup' === $this->kind ? 'backup.json' : 'snapshot.json' );
-		$this->owner_id_key  = isset( $options['owner_id_key'] ) && is_string( $options['owner_id_key'] ) ? $options['owner_id_key'] : ( $environment->is_app() ? 'app_id' : 'sandbox_id' );
+		$this->owner_id_key  = isset( $options['owner_id_key'] ) && is_string( $options['owner_id_key'] ) ? $options['owner_id_key'] : 'sandbox_id';
 	}
 
 	/**

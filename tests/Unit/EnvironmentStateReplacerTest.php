@@ -67,8 +67,7 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             multisite: true,
             engine: 'subsite',
             blog_id: 3,
-            type: 'app',
-            domains: ['demo.example.test']
+            type: 'sandbox'
         );
 
         $result = (new EnvironmentStateReplacer())->replace($source, $target);
@@ -114,8 +113,8 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             'wp_3_options',
             'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
             [
-                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://app.example.test'],
-                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://app.example.test'],
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://target.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://target.example.test'],
             ]
         );
 
@@ -157,8 +156,7 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             multisite: true,
             engine: 'subsite',
             blog_id: 3,
-            type: 'app',
-            domains: ['demo.example.test']
+            type: 'sandbox'
         );
 
         (new EnvironmentStateReplacer())->replace($source, $target);
@@ -197,8 +195,8 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             'wp_3_options',
             'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
             [
-                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://app.example.test'],
-                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://app.example.test'],
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://target.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://target.example.test'],
             ]
         );
 
@@ -231,8 +229,7 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             multisite: true,
             engine: 'subsite',
             blog_id: 3,
-            type: 'app',
-            domains: ['demo.example.test']
+            type: 'sandbox'
         );
 
         (new EnvironmentStateReplacer())->replace($source, $target);
@@ -265,8 +262,8 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             'wp_3_options',
             'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
             [
-                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://app.example.test'],
-                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://app.example.test'],
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://target.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://target.example.test'],
             ]
         );
         $wpdb->addTable(
@@ -287,7 +284,7 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             'wp_rudel_env_3_users',
             'CREATE TABLE `wp_rudel_env_3_users` (`ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT, `user_login` varchar(60), PRIMARY KEY (`ID`))',
             [
-                ['ID' => 1, 'user_login' => 'app-admin'],
+                ['ID' => 1, 'user_login' => 'target-admin'],
             ]
         );
         $wpdb->addTable(
@@ -316,8 +313,7 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             multisite: true,
             engine: 'subsite',
             blog_id: 3,
-            type: 'app',
-            domains: ['demo.example.test']
+            type: 'sandbox'
         );
 
         (new EnvironmentStateReplacer())->replace($source, $target);
@@ -371,8 +367,8 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             'wp_3_options',
             'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
             [
-                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://app.example.test'],
-                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://app.example.test'],
+                ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'http://target.example.test'],
+                ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'http://target.example.test'],
             ]
         );
 
@@ -396,8 +392,7 @@ class EnvironmentStateReplacerTest extends RudelTestCase
             multisite: true,
             engine: 'subsite',
             blog_id: 3,
-            type: 'app',
-            domains: ['demo.example.test'],
+            type: 'sandbox',
             shared_plugins: true,
             shared_uploads: true
         );

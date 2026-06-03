@@ -28,7 +28,7 @@ class EnvironmentPolicy {
 		?RudelConfig $config = null
 	): array {
 		$config            = $config ?? new RudelConfig();
-		$default_ttl_days  = 'sandbox' === $type ? $config->get( 'default_ttl_days' ) : 0;
+		$default_ttl_days  = $config->get( 'default_ttl_days' );
 		$metadata          = array(
 			'owner'          => null,
 			'labels'         => array(),
@@ -482,7 +482,7 @@ class EnvironmentPolicy {
 			return null;
 		}
 
-		if ( ! in_array( $value, array( 'sandbox', 'app' ), true ) ) {
+		if ( 'sandbox' !== $value ) {
 			throw new \InvalidArgumentException( sprintf( 'Invalid %s: %s', $field, $value ) );
 		}
 

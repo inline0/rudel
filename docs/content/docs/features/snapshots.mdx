@@ -1,49 +1,31 @@
 ---
 title: Snapshots
-description: Recovery points for sandboxes and backups for apps.
+description: Recovery points for Rudel sandboxes.
 ---
 
-# Snapshots and Backups
-
-Rudel uses two recovery-point models because sandboxes and apps have different jobs.
-
-- sandboxes use **snapshots**
-- apps use **backups**
-
-That split is intentional. A sandbox is disposable and usually tied to active change work, so its recovery model should be fast and local to that workspace. An app is long-lived and operationally important, so its recovery model should fit deploys, restore drills, and longer-lived rollback needs.
-
-## Sandbox snapshots
-
-Create a snapshot:
+Snapshots capture a sandbox recovery point.
 
 ```bash
-wp rudel snapshot alpha-1234 --name=before-update
+wp rudel snapshot alpha-1234 --name=before-test
 ```
 
-Restore it:
+Restore a snapshot:
 
 ```bash
-wp rudel restore alpha-1234 --snapshot=before-update --force
+wp rudel restore alpha-1234 --snapshot=before-test --force
 ```
 
-Snapshots capture the sandbox's cloned WordPress tables and copied active
-theme files so you can roll back risky work quickly without promoting that
-recovery model into the long-lived app lifecycle.
+Snapshots are for sandbox recovery, not for runtime identity. The environment record remains the source of truth for the sandbox.
 
-## App backups
+## What snapshots capture
 
-Create a backup:
+- sandbox WordPress tables
+- managed active theme files
+- snapshot metadata
 
-```bash
-wp rudel app backup demo-1234 --name=baseline
-```
+## What snapshots do not capture
 
-Restore it:
-
-```bash
-wp rudel app restore demo-1234 --backup=baseline --force
-```
-
-App backups capture the app's cloned WordPress tables and copied active theme
-files. App deploys integrate with backups so recovery is built into the deploy
-workflow rather than added as an afterthought.
+- host WordPress core
+- shared plugin files
+- shared uploads
+- shared users

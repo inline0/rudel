@@ -61,7 +61,7 @@ class BootstrapRuntimeStoreTest extends RudelTestCase
     public function testTablePrefersExplicitPerTableOverrides(): void
     {
         define('RUDEL_RUNTIME_TABLE_PREFIX', 'themeworkspace');
-        define('RUDEL_RUNTIME_TABLE_APP_DOMAINS', 'client_app_domains');
+        define('RUDEL_RUNTIME_TABLE_WORKTREES', 'client_worktrees');
 
         $store = (new \ReflectionClass(BootstrapRuntimeStore::class))->newInstanceWithoutConstructor();
         $prefix = new \ReflectionProperty(BootstrapRuntimeStore::class, 'prefix');
@@ -71,7 +71,7 @@ class BootstrapRuntimeStoreTest extends RudelTestCase
         $method = new \ReflectionMethod(BootstrapRuntimeStore::class, 'table');
         $method->setAccessible(true);
 
-        $this->assertSame('wp_client_app_domains', $method->invoke($store, 'app_domains'));
-        $this->assertSame('wp_themeworkspace_apps', $method->invoke($store, 'apps'));
+        $this->assertSame('wp_client_worktrees', $method->invoke($store, 'worktrees'));
+        $this->assertSame('wp_themeworkspace_environments', $method->invoke($store, 'environments'));
     }
 }

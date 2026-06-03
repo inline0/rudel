@@ -104,7 +104,6 @@ Rudel registry tables remain separate and durable:
 
 ```text
 wp_rudel_environments
-wp_rudel_apps
 wp_rudel_worktrees
 ...
 ```

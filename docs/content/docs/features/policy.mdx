@@ -1,109 +1,50 @@
 ---
-title: Policy Metadata
-description: Stewardship, expiry, and lineage metadata for sandboxes and apps.
+title: Policy
+description: Stewardship, expiry, and lineage metadata for sandboxes.
 ---
 
-# Policy Metadata
+Rudel sandboxes can carry metadata that explains who owns them, why they exist, when they should expire, and where they came from.
 
-Rudel environments carry more than just IDs and paths. Sandboxes and apps can both store metadata that explains who owns them, why they exist, when they should expire, and how they relate to other environments.
-
-This is the layer that turns Rudel from a pile of disposable sites into an operable system. Once more than one person is creating environments, names alone stop being enough.
-
-## Core fields
-
-The most useful fields are:
-
-- `owner`
-- `labels`
-- `purpose`
-- `protected`
-- `expires_at`
-- `last_used_at`
-- `source_environment_id`
-- `source_environment_type`
-- `last_deployed_from_id`
-- `last_deployed_from_type`
-- `last_deployed_at`
-
-Tracked Git context also lives in metadata on apps:
-
-- `tracked_git_remote`
-- `tracked_git_branch`
-- `tracked_git_dir`
-
-That Git metadata is workflow context, not identity. It tells Rudel what code represents the app's deployed mainline so app-derived sandboxes and deploy records can inherit it without extra operator input every time.
-
-## Setting metadata at creation time
-
-Sandboxes:
+## Ownership
 
 ```bash
-wp rudel create --name="Client A QA" --owner=dennis --labels=qa,client-a --purpose="Final QA before launch" --ttl-days=7
+wp rudel create \
+  --name=qa-run \
+  --owner=dennis \
+  --labels=qa,checkout \
+  --purpose="Reproduce payment bug"
 ```
 
-Apps:
+Metadata is stored in the environment record and can be updated later:
 
 ```bash
-wp rudel app create --domain=client-a.com --owner=dennis --labels=customer,production --protected
+wp rudel update qa-run-1234 --owner=agent --labels=agent,checkout
 ```
 
-## Updating metadata later
-
-Sandboxes:
+## Expiry
 
 ```bash
-wp rudel update client-a-qa-a1b2 --owner=qa-team --labels=qa,blocked --expires-at=2026-04-15T10:00:00Z
+wp rudel create --name=temp-run --ttl-days=2
 ```
 
-Apps:
+or:
 
 ```bash
-wp rudel app update client-a-com-a1b2 --purpose="Stable deployed site" --unprotected --clear-expiry
+wp rudel update temp-run-1234 --expires-at=2026-06-10T12:00:00+00:00
 ```
 
-## Protection and expiry
+Expired sandboxes are eligible for cleanup unless they are protected.
 
-`protected` is the hard stop for automated removal. A protected sandbox or app can still be changed deliberately, but cleanup automation skips it.
+## Protection
 
-Expiry can be assigned in two ways:
+```bash
+wp rudel update qa-run-1234 --protected
+```
 
-- `--ttl-days=<days>` computes `expires_at` relative to creation or update time
-- `--expires-at=<timestamp>` sets the exact cutoff directly
-
-`last_used_at` is maintained automatically as environments are visited or restored. Cleanup policy can use that to distinguish old-but-active environments from ones that have gone stale.
+Protected sandboxes are skipped by cleanup and require explicit force when destroyed.
 
 ## Lineage
 
-Rudel records lineage when environments are created from one another and when apps receive deploys from sandboxes.
+When a sandbox is cloned from another sandbox, Rudel records source metadata in the new environment record.
 
-Examples:
-
-- a sandbox created from an app records `source_environment_id` and `source_environment_type`
-- an app deployed from a sandbox records `last_deployed_from_id`, `last_deployed_from_type`, and `last_deployed_at`
-
-That metadata is what lets cleanup, deploy history, and automation reason about environments without guessing from names alone.
-
-## API access
-
-The same fields are available through the PHP API:
-
-```php
-use Rudel\Rudel;
-
-$sandbox = Rudel::update( 'client-a-qa-a1b2', [
-    'owner'     => 'dennis',
-    'labels'    => [ 'qa', 'client-a' ],
-    'protected' => true,
-    'ttl_days'  => 7,
-] );
-```
-
-For apps:
-
-```php
-$app = Rudel::update_app( 'client-a-com-a1b2', [
-    'tracked_git_remote' => 'https://example.test/client-a-theme.git',
-    'tracked_git_branch' => 'main',
-    'tracked_git_dir'    => 'themes/client-a',
-] );
-```
+That lineage is informational. It helps operators understand how a sandbox was created, but it is not a second source of truth.

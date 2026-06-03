@@ -49,8 +49,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -71,8 +69,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -108,8 +104,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -128,8 +122,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -152,8 +144,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -174,8 +164,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 
@@ -208,8 +196,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 		$environment = $manager->create('Mutable Site', ['theme' => 'host-theme']);
@@ -238,8 +224,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		$manager = new EnvironmentManager(
 			$this->tmpDir . '/sandboxes',
-			$this->tmpDir . '/apps',
-			'sandbox',
 			$this->runtimeStore()
 		);
 		$environment = $manager->create('Disposable Site', ['theme' => 'host-theme']);
