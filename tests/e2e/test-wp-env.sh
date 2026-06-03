@@ -371,8 +371,19 @@ else
 	exit 1
 fi
 
-wp_env_cli "$ALPHA_ID" option update blogname "Alpha Site" >/dev/null
-wp_env_cli "$BETA_ID" option update blogname "Beta Site" >/dev/null
+if ! ALPHA_UPDATE_OUTPUT=$(wp_env_cli "$ALPHA_ID" option update blogname "Alpha Site"); then
+	ALPHA_DEBUG_OUTPUT=$(wp_env_cli "$ALPHA_ID" --debug=bootstrap option get blogname 2>&1 || true)
+	fail "Alpha CLI environment option update failed" "${ALPHA_UPDATE_OUTPUT}
+${ALPHA_DEBUG_OUTPUT}"
+	exit 1
+fi
+
+if ! BETA_UPDATE_OUTPUT=$(wp_env_cli "$BETA_ID" option update blogname "Beta Site"); then
+	BETA_DEBUG_OUTPUT=$(wp_env_cli "$BETA_ID" --debug=bootstrap option get blogname 2>&1 || true)
+	fail "Beta CLI environment option update failed" "${BETA_UPDATE_OUTPUT}
+${BETA_DEBUG_OUTPUT}"
+	exit 1
+fi
 
 ALPHA_BLOGNAME=$(wp_env_cli "$ALPHA_ID" option get blogname | tail -1)
 BETA_BLOGNAME=$(wp_env_cli "$BETA_ID" option get blogname | tail -1)
