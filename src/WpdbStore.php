@@ -47,7 +47,7 @@ class WpdbStore implements DatabaseStore {
 		}
 
 		$this->wpdb   = $wpdb;
-		$this->prefix = $this->wpdb->base_prefix;
+		$this->prefix = RuntimeTableConfig::wordpress_prefix( $this->wpdb );
 	}
 
 	/**

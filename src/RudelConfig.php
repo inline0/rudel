@@ -207,11 +207,11 @@ class RudelConfig {
 			return $store->prefix() . 'options';
 		}
 
-		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) || ! isset( $wpdb->base_prefix ) || ! is_string( $wpdb->base_prefix ) ) {
+		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) ) {
 			throw new \RuntimeException( 'WordPress options table is not available.' );
 		}
 
-		return $wpdb->base_prefix . 'options';
+		return RuntimeTableConfig::wordpress_prefix( $wpdb ) . 'options';
 	}
 
 	/**

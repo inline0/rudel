@@ -54,6 +54,23 @@ class RuntimeTableConfigOverrideTest extends TestCase
         $this->assertSame('wp_client_deployments', $store->table('app_deployments'));
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testHostTablePrefixWinsOverSelectedEnvironmentPrefix(): void
+    {
+        define('RUDEL_HOST_TABLE_PREFIX', 'wp_');
+
+        $wpdb = new \MockWpdb();
+        $wpdb->prefix = 'wp_env123_';
+        $wpdb->base_prefix = 'wp_env123_';
+
+        $store = new WpdbStore($wpdb);
+
+        $this->assertSame('wp_', RuntimeTableConfig::wordpress_prefix($wpdb));
+        $this->assertSame('wp_', $store->prefix());
+        $this->assertSame('wp_rudel_environments', $store->table('environments'));
+    }
+
     private function newStore(): WpdbStore
     {
         $wpdb = new \MockWpdb();

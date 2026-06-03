@@ -714,7 +714,7 @@ class EnvironmentManager {
 			throw new \RuntimeException( 'Overlay database cloning requires a running WordPress database connection.' );
 		}
 
-		$registry_prefix = $wpdb->base_prefix . RuntimeTableConfig::prefix();
+		$registry_prefix = RuntimeTableConfig::wordpress_prefix( $wpdb ) . RuntimeTableConfig::prefix();
 
 		return ( new MySQLCloner() )->clone_database(
 			$target_prefix,

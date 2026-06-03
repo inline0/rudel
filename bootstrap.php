@@ -348,6 +348,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$host_url  = rtrim( $protocol . '://' . $current_network_host() . $host_port, '/' );
 
 		$environment_url = $site_url;
+		$def( 'RUDEL_HOST_TABLE_PREFIX', $runtime_store->base_prefix() );
 		$def( 'RUDEL_HOST_URL', $host_url );
 		$def( 'RUDEL_ENVIRONMENT_URL', $environment_url );
 		$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );

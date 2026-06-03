@@ -93,4 +93,29 @@ class RuntimeTableConfig {
 
 		return implode( '|', $tables );
 	}
+
+	/**
+	 * Resolve the host WordPress table prefix for Rudel-owned runtime tables.
+	 *
+	 * @param object|null $wpdb WordPress database object.
+	 * @return string
+	 */
+	public static function wordpress_prefix( ?object $wpdb = null ): string {
+		if ( defined( 'RUDEL_HOST_TABLE_PREFIX' ) ) {
+			$prefix = constant( 'RUDEL_HOST_TABLE_PREFIX' );
+			if ( is_string( $prefix ) && '' !== $prefix ) {
+				return $prefix;
+			}
+		}
+
+		if ( null === $wpdb && isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ) {
+			$wpdb = $GLOBALS['wpdb'];
+		}
+
+		if ( null !== $wpdb && isset( $wpdb->base_prefix ) && is_string( $wpdb->base_prefix ) && '' !== $wpdb->base_prefix ) {
+			return $wpdb->base_prefix;
+		}
+
+		return 'wp_';
+	}
 }
