@@ -233,7 +233,7 @@ function rudel_overlay_current_theme(): string {
  * @param mixed  $stylesheet Theme stylesheet.
  * @return string
  */
-function rudel_overlay_theme_root( string $theme_root, $stylesheet ): string {
+function rudel_overlay_theme_root( string $theme_root, $stylesheet = null ): string {
 	if ( is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {
 		return (string) RUDEL_ENVIRONMENT_THEME_ROOT;
 	}
@@ -249,7 +249,7 @@ function rudel_overlay_theme_root( string $theme_root, $stylesheet ): string {
  * @param mixed  $stylesheet Theme stylesheet.
  * @return string
  */
-function rudel_overlay_theme_root_uri( string $theme_root_uri, string $siteurl, $stylesheet ): string {
+function rudel_overlay_theme_root_uri( string $theme_root_uri, $siteurl = null, $stylesheet = null ): string {
 	unset( $siteurl );
 
 	if ( defined( 'RUDEL_ENVIRONMENT_THEME_ROOT_URI' ) && is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {

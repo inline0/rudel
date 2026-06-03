@@ -83,7 +83,9 @@ class RudelOverlayHooksTest extends RudelTestCase
 
 		require dirname(__DIR__, 2) . '/rudel.php';
 
+		$this->assertSame('/host/themes', \rudel_overlay_theme_root('/host/themes'));
 		$this->assertSame('/host/themes', \rudel_overlay_theme_root('/host/themes', false));
+		$this->assertSame('http://example.test/wp-content/themes', \rudel_overlay_theme_root_uri('http://example.test/wp-content/themes'));
 		$this->assertSame('http://example.test/wp-content/themes', \rudel_overlay_theme_root_uri('http://example.test/wp-content/themes', 'http://example.test', false));
 		$this->assertSame($themeRoot, \rudel_overlay_theme_root('/host/themes', 'child-theme'));
 		$this->assertSame($themeRoot, \rudel_overlay_theme_root('/host/themes', 'parent-theme'));
