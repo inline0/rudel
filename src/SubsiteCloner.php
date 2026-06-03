@@ -1,6 +1,6 @@
 <?php
 /**
- * Subsite cloner: creates and manages WordPress multisite sub-sites for sandbox isolation.
+ * Legacy subsite cloner for older multisite-backed environments.
  *
  * @package Rudel
  */
@@ -8,7 +8,7 @@
 namespace Rudel;
 
 /**
- * Handles multisite sub-site creation, deletion, and database cloning for subsite-engine sandboxes.
+ * Handles multisite sub-site creation, deletion, and database cloning for legacy subsite-engine environments.
  */
 class SubsiteCloner {
 
@@ -31,10 +31,9 @@ class SubsiteCloner {
 	}
 
 	/**
-	 * Build the native multisite site target for one Rudel environment.
+	 * Build the native multisite site target for one legacy subsite environment.
 	 *
-	 * Rudel treats real multisite sites as the canonical browser runtime, so
-	 * subsite creation follows the network's own site model directly.
+	 * Subsite creation follows the legacy network's own site model directly.
 	 *
 	 * @param string $environment_id Environment slug.
 	 * @return array{domain: string, path: string}
@@ -47,7 +46,7 @@ class SubsiteCloner {
 		}
 
 		if ( ! $this->is_subdomain_network() ) {
-			throw new \RuntimeException( 'Rudel requires a subdomain multisite network for native site isolation.' );
+			throw new \RuntimeException( 'Legacy subsite engine requires a subdomain multisite network.' );
 		}
 
 		return array(

@@ -1,78 +1,58 @@
 ---
 title: Introduction
-description: Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
+description: Rudel manages request-selected WordPress overlay environments.
 ---
 
 # Introduction
 
-Rudel manages WordPress sandboxes and apps as real subdomain multisite sites.
+Rudel manages WordPress sandboxes and apps as request-selected overlay environments.
 
-Every Rudel environment has a real `blog_id`, a real URL, normal `wp-admin`,
-normal REST requests, normal asset handling, and its own isolated users. Each
-one also has its own cloned `wp-content`, which Rudel treats as the canonical
-file and code tree for that environment. Rudel uses that site identity plus
-that local content tree as the base for everything else it does: creation,
-cloning, templates, backups, deploy history, worktrees, and lifecycle policy.
+One host WordPress installation stays in place. Rudel creates environment records, clones the host WordPress tables into environment-specific prefixes, copies the selected active theme into an environment-owned theme root, and resolves the active environment during bootstrap.
 
-WordPress answers the browser question. Rudel answers the operator question.
-WordPress knows how the site boots and where it lives. Rudel knows why the
-site exists, what it belongs to, how it was created, and what should happen to
-it next.
+The runtime selection boundary is explicit:
+
+- no environment selector means WordPress boots as the host
+- `X-Rudel-Environment` selects an environment for HTTP requests
+- `rudel_environment` selects an environment by cookie
+- `RUDEL_ENVIRONMENT` selects an environment for WP-CLI
+- mapped app domains can select app environments
 
 ## Two environment types
 
-Rudel has two lifecycle shapes that share the same runtime model.
+**Sandboxes** are disposable environments for change work, QA, debugging, demos, migrations, and agent-driven tasks.
 
-**Sandboxes** are short-lived sites for change work, QA, debugging, demos, and agent-driven development. They are where you clone an app, try a change, snapshot state, review a result, and then either destroy the site or fold the work back into a stable app.
+**Apps** are durable environments that keep domain metadata, backups, deploy history, worktrees, and long-lived lifecycle state.
 
-**Apps** are long-lived sites that hold stable runtime state. They are the sites you keep around, attach domain metadata to, back up, deploy into, and restore from over time.
-
-Both are normal multisite sites. The difference is not in how the browser reaches them. The difference is in how Rudel manages their lifecycle.
-
-For apps, Rudel adds one more layer on top: a primary mapped app domain becomes the canonical app URL Rudel reports through its API, CLI, and deploy history. The underlying multisite subsite still exists as the runtime substrate.
+Both use the same overlay runtime. The difference is lifecycle intent, not a different WordPress substrate.
 
 ## Runtime shape
 
-Rudel keeps two layers in sync.
+Rudel keeps three layers clear.
 
-**WordPress multisite sites** are the routing and site-state truth. Every Rudel environment is backed by a real multisite site with native per-site tables, site options, uploads, admin behavior, browser routing, and its own isolated users.
+**WordPress host** is the shared process, core install, plugin directory, upload directory, and user table source.
 
-**Environment-local `wp-content` trees** are the file and code truth. Each app and sandbox runs against its own cloned `wp-content`, and any git worktrees Rudel creates live inside that environment-local tree.
+**Environment overlay** is the selected table prefix plus copied active theme. A selected environment gets table names like `wp_a4nmv7_options` and a theme root like `wp-content/rudel-environments/alpha-1234/themes`.
 
-**Rudel runtime records** are the operational truth. Rudel stores environment metadata, app identity, domain metadata, worktrees, deployment history, and lifecycle policy in WordPress tables so it can reason about environments explicitly rather than inferring state from directories and URLs.
+**Rudel runtime records** are the operational source of truth. Rudel stores app identity, environment identity, domain mappings, worktrees, deployment history, and policy metadata in host WordPress MySQL tables.
 
-Use WordPress for site truth, the environment directory for file truth, and
-Rudel runtime tables for lifecycle truth. WordPress answers where a site lives
-and how it boots. The environment-local `wp-content` answers which code and
-uploads belong to that environment. The environment-local `db.php` answers
-which isolated user tables belong to that environment. Rudel answers who owns
-it, what app it came from, which worktree belongs to it, and which backup
-belongs to which deployment.
+Rudel does not require multisite. Rudel does not use SQLite. Rudel does not use JSON as runtime configuration.
 
 ## What Rudel adds
 
-The runtime is native multisite. The value Rudel adds is everything around the lifecycle:
-
 - environment creation and destruction
-- app creation from the same runtime model
+- app creation from the same overlay model
 - app-derived sandboxes
 - snapshots for sandboxes
 - backups, deploys, and rollback for apps
-- reusable templates
-- generic Git remote push workflows and local worktrees
+- PHP-native Git workflows through Pitmaster
 - policy metadata such as owner, labels, protection, and expiry
-
-Rudel gives those sites an explicit operational surface.
+- DB-backed registry access inside and outside WordPress
 
 ## Requirements
 
-Rudel requires a subdomain multisite network. That is a hard requirement because the runtime contract depends on WordPress owning the site routing.
-
-In practice that means:
-
 - PHP 8.2 or later
 - WordPress 6.4 or later
-- a subdomain multisite network
-- write access to `wp-config.php` during initial runtime installation
+- the normal WordPress MySQL/MariaDB database
+- write access to `wp-config.php` during bootstrap installation
 
-If that foundation is in place, [Getting Started](/docs/getting-started) walks through installation and the first sandbox/app creation flow.
+[Getting Started](/docs/getting-started) walks through installation and the first environment creation flow.

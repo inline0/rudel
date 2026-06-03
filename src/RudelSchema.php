@@ -69,6 +69,8 @@ class RudelSchema {
 				status VARCHAR(32) NOT NULL,
 				multisite TINYINT(1) NOT NULL DEFAULT 0,
 				blog_id BIGINT UNSIGNED NULL,
+				table_prefix VARCHAR(64) NULL,
+				theme_slug VARCHAR(191) NULL,
 				clone_source LONGTEXT NULL,
 				owner VARCHAR(191) NULL,
 				labels LONGTEXT NULL,
@@ -91,6 +93,7 @@ class RudelSchema {
 				PRIMARY KEY (id),
 				UNIQUE KEY rudel_env_slug (slug),
 				UNIQUE KEY rudel_env_path (path),
+				UNIQUE KEY rudel_env_table_prefix (table_prefix),
 				KEY rudel_env_type (type),
 				KEY rudel_env_status (status),
 				KEY rudel_env_app (app_id)
@@ -173,6 +176,8 @@ class RudelSchema {
 		self::ensure_column( $store, $environments, 'tracked_git_dir', 'VARCHAR(191) NULL' );
 		self::ensure_column( $store, $environments, 'shared_plugins', 'TINYINT(1) NOT NULL DEFAULT 0' );
 		self::ensure_column( $store, $environments, 'shared_uploads', 'TINYINT(1) NOT NULL DEFAULT 0' );
+		self::ensure_column( $store, $environments, 'table_prefix', 'VARCHAR(64) NULL' );
+		self::ensure_column( $store, $environments, 'theme_slug', 'VARCHAR(191) NULL' );
 		self::backfill_column( $store, $environments, 'tracked_git_remote', 'tracked_github_repo' );
 		self::backfill_column( $store, $environments, 'tracked_git_branch', 'tracked_github_branch' );
 		self::backfill_column( $store, $environments, 'tracked_git_dir', 'tracked_github_dir' );

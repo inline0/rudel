@@ -80,7 +80,7 @@ class BootstrapRuntimeStore {
 	 */
 	public function environment_by_slug( string $slug ): ?array {
 		return $this->fetch_environment(
-			'SELECT id, app_id, slug, path, type, engine, multisite, blog_id FROM ' . $this->table( self::ENVIRONMENTS_TABLE ) . ' WHERE slug = ? LIMIT 1',
+			'SELECT id, app_id, slug, path, type, engine, multisite, blog_id, table_prefix, theme_slug FROM ' . $this->table( self::ENVIRONMENTS_TABLE ) . ' WHERE slug = ? LIMIT 1',
 			array( $slug )
 		);
 	}
@@ -93,7 +93,7 @@ class BootstrapRuntimeStore {
 	 */
 	public function app_by_domain( string $domain ): ?array {
 		return $this->fetch_environment(
-			'SELECT e.id, e.app_id, e.slug, e.path, e.type, e.engine, e.multisite, e.blog_id
+			'SELECT e.id, e.app_id, e.slug, e.path, e.type, e.engine, e.multisite, e.blog_id, e.table_prefix, e.theme_slug
 			 FROM ' . $this->table( self::APP_DOMAINS_TABLE ) . ' d
 			 INNER JOIN ' . $this->table( self::APPS_TABLE ) . ' a ON a.id = d.app_id
 			 INNER JOIN ' . $this->table( self::ENVIRONMENTS_TABLE ) . ' e ON e.id = a.environment_id

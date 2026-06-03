@@ -22,9 +22,9 @@ class Environment {
 	 * @param string                    $template     Template used to create this sandbox.
 	 * @param string                    $status       Current status (active, paused).
 	 * @param array<string, mixed>|null $clone_source Clone source metadata, or null if not cloned.
-	 * @param bool                      $multisite    Whether this sandbox was cloned from a multisite host.
-	 * @param string                    $engine       Database engine. Rudel uses 'subsite'.
-	 * @param int|null                  $blog_id      Multisite blog ID (subsite engine only).
+	 * @param bool                      $multisite    Legacy marker for older subsite-backed records.
+	 * @param string                    $engine       Runtime engine. Rudel uses 'overlay'.
+	 * @param int|null                  $blog_id      Legacy multisite blog ID when present on old records.
 	 * @param string                    $type                     Environment type: 'sandbox' or 'app'.
 	 * @param array<int, string>|null   $domains     Domain names mapped to this environment (app mode).
 	 * @param string|null               $owner                    Optional owner for stewardship and cleanup policy.
@@ -43,6 +43,8 @@ class Environment {
 	 * @param string|null               $tracked_git_dir          Optional wp-content subdirectory associated with the tracked repository.
 	 * @param bool                      $shared_plugins           Whether plugins are shared live from the host wp-content directory.
 	 * @param bool                      $shared_uploads           Whether uploads are shared live from the host wp-content directory.
+	 * @param string|null               $table_prefix             Environment-owned WordPress table prefix.
+	 * @param string|null               $theme_slug               Active theme slug for the overlay runtime.
 	 * @param int|null                  $record_id                DB record ID for the environment row.
 	 * @param int|null                  $app_record_id            DB record ID for the related app row, when present.
 	 */
@@ -55,7 +57,7 @@ class Environment {
 		public readonly string $status = 'active',
 		public readonly ?array $clone_source = null,
 		public readonly bool $multisite = false,
-		public readonly string $engine = 'subsite',
+		public readonly string $engine = 'overlay',
 		public readonly ?int $blog_id = null,
 		public readonly string $type = 'sandbox',
 		public readonly ?array $domains = null,
@@ -75,6 +77,8 @@ class Environment {
 		public readonly ?string $tracked_git_dir = null,
 		public readonly bool $shared_plugins = false,
 		public readonly bool $shared_uploads = false,
+		public readonly ?string $table_prefix = null,
+		public readonly ?string $theme_slug = null,
 		public readonly ?int $record_id = null,
 		public readonly ?int $app_record_id = null,
 	) {}
@@ -124,7 +128,7 @@ class Environment {
 		$rec_cat    = $record['created_at'] ?? '';
 		$rec_tpl    = $record['template'] ?? 'blank';
 		$rec_status = $record['status'] ?? 'active';
-		$rec_engine = $record['engine'] ?? 'subsite';
+		$rec_engine = $record['engine'] ?? 'overlay';
 		$rec_type   = $record['type'] ?? 'sandbox';
 
 		return new self(
@@ -136,7 +140,7 @@ class Environment {
 			status: is_scalar( $rec_status ) ? (string) $rec_status : 'active',
 			clone_source: $clone_source,
 			multisite: ! empty( $record['multisite'] ),
-			engine: is_scalar( $rec_engine ) ? (string) $rec_engine : 'subsite',
+			engine: is_scalar( $rec_engine ) ? (string) $rec_engine : 'overlay',
 			blog_id: isset( $record['blog_id'] ) && is_numeric( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
 			type: is_scalar( $rec_type ) ? (string) $rec_type : 'sandbox',
 			domains: ! empty( $domains ) ? array_values( $domains ) : null,
@@ -156,18 +160,29 @@ class Environment {
 			tracked_git_dir: self::string_or_null( $record['tracked_git_dir'] ?? null ),
 			shared_plugins: ! empty( $record['shared_plugins'] ),
 			shared_uploads: ! empty( $record['shared_uploads'] ),
+			table_prefix: self::string_or_null( $record['table_prefix'] ?? null ),
+			theme_slug: self::string_or_null( $record['theme_slug'] ?? null ),
 			record_id: isset( $record['id'] ) && is_numeric( $record['id'] ) ? (int) $record['id'] : null,
 			app_record_id: isset( $record['app_id'] ) && is_numeric( $record['app_id'] ) ? (int) $record['app_id'] : null,
 		);
 	}
 
 	/**
-	 * Whether this environment uses the subsite engine.
+	 * Whether this environment uses the legacy subsite engine.
 	 *
-	 * @return bool True if subsite.
+	 * @return bool True if subsite-backed.
 	 */
 	public function is_subsite(): bool {
 		return 'subsite' === $this->engine;
+	}
+
+	/**
+	 * Whether this environment uses the request-selected overlay runtime.
+	 *
+	 * @return bool True if overlay-backed.
+	 */
+	public function is_overlay(): bool {
+		return 'overlay' === $this->engine;
 	}
 
 	/**
@@ -194,6 +209,10 @@ class Environment {
 	 * @return string Table prefix string.
 	 */
 	public function get_table_prefix(): string {
+		if ( null !== $this->table_prefix && '' !== $this->table_prefix ) {
+			return $this->table_prefix;
+		}
+
 		if ( $this->is_subsite() && null !== $this->blog_id ) {
 			global $wpdb;
 			if ( isset( $wpdb ) && is_object( $wpdb ) && isset( $wpdb->base_prefix ) && is_string( $wpdb->base_prefix ) ) {
@@ -239,32 +258,27 @@ class Environment {
 	}
 
 	/**
-	 * WP content path for this environment.
+	 * Environment-owned content root.
 	 *
-	 * @return string Absolute path to wp-content.
+	 * @return string Absolute path to the overlay root or legacy wp-content path.
 	 */
 	public function get_wp_content_path(): string {
-		return $this->path . '/wp-content';
+		return $this->is_overlay() ? $this->path : $this->path . '/wp-content';
 	}
 
 	/**
-	 * Runtime wp-content path for this environment.
+	 * Runtime content root for this environment.
 	 *
-	 * In the 0.6 isolation model an environment-local wp-content tree is the
-	 * canonical code and file source for both apps and sandboxes. Host-side
-	 * operator flows should act on that same tree instead of jumping back to a
-	 * host-level fallback path.
-	 *
-	 * @return string Absolute path to the runtime wp-content directory.
+	 * @return string Absolute path to the runtime content root.
 	 */
 	public function get_runtime_wp_content_path(): string {
 		return $this->get_wp_content_path();
 	}
 
 	/**
-	 * Runtime content path, optionally scoped to one wp-content subdirectory.
+	 * Runtime content path, optionally scoped to one environment subdirectory.
 	 *
-	 * @param string $relative Relative path within wp-content.
+	 * @param string $relative Relative path within the environment content root.
 	 * @return string Absolute runtime path.
 	 */
 	public function get_runtime_content_path( string $relative = '' ): string {
@@ -314,6 +328,10 @@ class Environment {
 	public function get_url(): string {
 		if ( $this->is_app() && ! empty( $this->domains ) && is_string( $this->domains[0] ) ) {
 			return self::domain_url( $this->domains[0] );
+		}
+
+		if ( $this->is_overlay() ) {
+			return trailingslashit( self::host_url() );
 		}
 
 		if ( null !== $this->blog_id || $this->is_subsite() ) {
@@ -614,6 +632,8 @@ class Environment {
 			'status'        => $this->status,
 			'engine'        => $this->engine,
 			'type'          => $this->type,
+			'table_prefix'  => $this->get_table_prefix(),
+			'theme_slug'    => $this->theme_slug,
 			'protected'     => $this->is_protected,
 			'labels'        => $this->labels,
 			'last_used_at'  => $this->last_activity_at(),
@@ -718,7 +738,24 @@ class Environment {
 	 * @return string Table prefix string.
 	 */
 	public static function table_prefix_for_id( string $id ): string {
-		return 'rudel_' . substr( md5( $id ), 0, 6 ) . '_';
+		return self::network_base_prefix() . substr( md5( $id ), 0, 7 ) . '_';
+	}
+
+	/**
+	 * Root URL of the host WordPress site.
+	 *
+	 * @return string URL without trailing slash.
+	 */
+	private static function host_url(): string {
+		if ( defined( 'WP_HOME' ) ) {
+			return rtrim( (string) WP_HOME, '/' );
+		}
+
+		if ( function_exists( 'home_url' ) ) {
+			return rtrim( home_url( '/' ), '/' );
+		}
+
+		return 'http://localhost';
 	}
 
 	/**

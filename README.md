@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  WordPress environment orchestration on top of subdomain multisite.
+  Request-selected WordPress overlay environments for sandboxes and apps.
 </p>
 
 <p align="center">
@@ -21,24 +21,20 @@
 
 ## What is Rudel?
 
-Rudel is a WordPress plugin for running disposable sandboxes and long-lived apps on a subdomain multisite network.
+Rudel is a WordPress plugin for running disposable sandboxes and long-lived app environments inside one normal WordPress installation.
 
-Every Rudel environment is a real multisite site with a real `blog_id`, a real URL, normal `wp-admin`, normal REST requests, normal asset handling, and its own isolated users. Each environment also has its own cloned `wp-content`, which is the canonical file and code tree for that environment. Rudel builds the operator layer around that runtime: creation, cloning, templates, recovery points, deploy history, worktrees, and lifecycle metadata.
+An environment is selected per request with a trusted header, Rudel cookie, CLI environment variable, or mapped app domain. Once selected, Rudel switches WordPress to that environment's cloned database tables and copied active theme. The host WordPress core, plugins, uploads, and users remain shared by default.
 
-That gives teams an environment system that feels like ordinary WordPress in
-the browser while still giving operators explicit lifecycle tools for QA,
-demos, staged change work, code review, and stable app operations.
+Rudel does not require multisite. It does not use SQLite. Runtime metadata is stored only in host WordPress MySQL tables.
 
 ## Requirements
 
 - PHP 8.2+
 - WordPress 6.4+
-- WordPress multisite configured for subdomains
-- write access to `wp-config.php` during initial runtime installation
+- MySQL/MariaDB through the normal WordPress database connection
+- write access to `wp-config.php` during initial runtime bootstrap installation
 
 ## Quick Start
-
-Start with a working subdomain multisite network, then install and activate Rudel:
 
 ```bash
 composer require rudel/rudel
@@ -46,71 +42,48 @@ wp plugin activate rudel
 wp rudel status
 ```
 
-Create a sandbox for change work:
+Create a sandbox:
 
 ```bash
-wp rudel create --name=alpha
+wp rudel create --name=alpha --theme=twentytwentyfour
 ```
 
-Create an app for long-lived runtime state:
+Create an app:
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test
+wp rudel app create --name=demo --domain=demo.example.test --theme=twentytwentyfour
 ```
 
-Rudel creates real multisite sites, so use a core command to confirm the browser URLs:
+Run WP-CLI against an environment:
 
 ```bash
-wp site list --fields=blog_id,url
+RUDEL_ENVIRONMENT=alpha-1234 wp option get siteurl
 ```
 
-Run WP-CLI directly against one environment:
+Route an HTTP request to an environment:
 
 ```bash
-wp --url=http://alpha.localhost option get siteurl
-```
-
-Or work from its generated directory:
-
-```bash
-cd /path/to/wp-content/rudel-environments/alpha-1234
-wp option get siteurl
+curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
 ```
 
 ## Runtime Model
 
-Rudel has two lifecycle shapes, but one runtime model.
+Rudel has two lifecycle shapes and one runtime model.
 
-**Sandboxes** are the disposable side. They are where you try a migration, hand work to an agent, reproduce a bug, review a change, or test a risky update without touching the app that matters.
+Sandboxes are disposable environments for tasks, agents, QA, bug reproduction, migrations, and risky change work.
 
-**Apps** are the durable side. They are the sites you keep around, back up, deploy into, restore from, and attach domain metadata to over time.
+Apps are durable environments for approved state. They keep domain metadata, backups, deploy history, worktrees, and long-lived lifecycle state.
 
-Both are multisite sites. If Rudel gives you an environment URL, that URL is
-the site you visit.
+Both are overlay environments:
 
-Both also have their own environment-local `wp-content`. That cloned content
-tree is the only code and file source of truth for that environment. Worktrees
-live inside that environment-local tree as well, and an environment-local
-`db.php` drop-in points WordPress at that environment's isolated user tables.
+- Each environment has its own WordPress table prefix, for example `wp_a4nmv7_`.
+- Each environment gets a copied active theme under `wp-content/rudel-environments/{id}/themes/{theme}` or `wp-content/rudel-apps/{id}/themes/{theme}`.
+- Child themes keep their parent template relationship; Rudel copies the child and parent theme directories when the selected active theme is a child theme.
+- Plugins and uploads are intentionally shared from the host WordPress installation.
+- Users are intentionally shared for now through the normal WordPress users tables.
+- Request selection controls whether WordPress uses host state or one environment's state.
 
-If you want a lighter-weight layout, Rudel also supports opt-in shared
-`plugins` and `uploads`. That keeps the environment-local `wp-content` root
-but links those two directories back to the host instead of copying them.
-Themes stay local.
-
-Apps add one extra rule on top of that: when an app has a primary mapped
-domain, Rudel treats that domain as the app's canonical URL in its API,
-deploy rewrites, and generated local tooling. The underlying multisite subsite
-still exists as the deterministic runtime substrate.
-
-What Rudel adds on top of that runtime is the operational surface:
-
-- app-derived sandboxes
-- reusable templates
-- point-in-time sandbox snapshots
-- app backups, deploys, and rollback
-- worktree-aware code flows for git-tracked themes and plugins
-- policy metadata such as owner, labels, protection, and expiry
+The selected environment does not replace `WP_CONTENT_DIR`. Rudel only overrides the active theme root for the selected theme and switches the WordPress table prefix before core finishes booting.
 
 ## Runtime State
 
@@ -124,26 +97,9 @@ Rudel stores operational metadata in WordPress tables:
 
 Those tables are the source of truth for environments, app identity, domains, worktrees, deployment history, and lifecycle policy.
 
-Those tables always live in the host WordPress database. Rudel does not store
-its own runtime metadata in JSON files or any parallel runtime database.
-Current Rudel is multisite-only and uses the host WordPress database as the
-only runtime store for its registry.
-
-Outside WordPress, Rudel can still use that same registry through a standalone
-DB connection. The DB-backed core can list apps and environments, inspect
-deployments and worktrees, and read or update metadata without a live WordPress
-request. WordPress multisite lifecycle work such as creating or destroying
-sites still stays inside WordPress.
-
-Generated environment directories hold the full environment-local file tree:
-scoped `wp-cli.yml`, bootstrap files, the cloned `wp-content`, logs,
-snapshots, backups, and other environment artifacts. Rudel records metadata
-about worktrees and lifecycle state in runtime tables so operators can inspect
-and query it directly.
+Environment site data lives in cloned WordPress tables using the environment prefix. Rudel metadata tables always live in the host WordPress database. There is no runtime JSON config and no per-environment SQLite database.
 
 ## WP-CLI Surface
-
-The CLI follows the same mental model as the product.
 
 Sandbox lifecycle:
 
@@ -179,7 +135,11 @@ App lifecycle:
 - `wp rudel app domain-add`
 - `wp rudel app domain-remove`
 
-The naming is intentionally boring: sandboxes sit at `wp rudel ...`, while long-lived app operations sit at `wp rudel app ...`. Once that split clicks, the rest of the command surface is easy to navigate.
+## Standalone Core Access
+
+Rudel's registry can be inspected outside a WordPress request with a direct MySQL connection. Standalone mode is for metadata and registry access: list apps, list environments, inspect domains, inspect worktrees, and read deployment history.
+
+Operations that clone WordPress tables, copy themes, install the bootstrap, or execute live environment lifecycle still require WordPress because they depend on the active WordPress database connection and filesystem layout.
 
 ## Development
 
@@ -190,127 +150,11 @@ npm install
 composer cs
 composer stan
 composer test
-composer test:integration
-composer test:security
 
 bash tests/e2e/run-all.sh
 npm --prefix docs run build
 bash tests/run-all.sh
 ```
-
-## Clone Performance
-
-Rudel keeps clone semantics broad: a new app or sandbox still gets a real
-multisite site plus its own cloned `wp-content`. The performance work is in the
-copy implementation, not by weakening that contract.
-
-There is one explicit exception path for downstream products that inject a
-runtime entry globally outside the environment: `content_exclude`. That lets
-the caller skip explicitly named top-level entries in `themes`, `plugins`, or
-`uploads` while leaving the rest of the clone broad.
-
-Example:
-
-```php
-Rudel::create(
-    'alpha',
-    [
-        'clone_plugins'   => true,
-        'content_exclude' => [
-            'plugins' => [ 'runtime-core' ],
-        ],
-    ]
-);
-```
-
-Current local baseline from the reproducible benchmark:
-
-```bash
-bash tests/e2e/benchmark-wp-env.sh
-```
-
-Example result:
-
-```json
-{
-  "app_create_ms": 1784,
-  "sandbox_create_ms": 2060,
-  "local_git_sandbox_create_ms": 1883
-}
-```
-
-The copy stack is intentionally tiered:
-
-- native batched tar copy when process execution is available
-- batched `PharData` archive fallback for hosts that disable `proc_open`
-- recursive PHP copy only as the last-resort fallback
-
-One real downstream case mattered here: copying one globally bootstrapped
-runtime plugin directory added roughly `937 MB` of redundant plugin data to
-every app clone. Excluding only that one top-level plugin entry dropped the
-measured create time on the same lane from roughly `22–32s` to roughly `2–4s`
-without changing the broader clone contract for database state, themes,
-uploads, or the rest of `wp-content`.
-
-If clone performance regresses, measure it with `tests/e2e/benchmark-wp-env.sh`
-before changing clone semantics or narrowing what gets copied.
-
-## Standalone Core Access
-
-If you need Rudel's registry outside WordPress, initialize it with a direct DB
-connection. Rudel chooses `pdo_mysql` or `mysqli` automatically for direct
-connections, and WordPress runtime storage continues to use `$wpdb`.
-
-```php
-use Rudel\Connection;
-use Rudel\Rudel;
-
-$conn = new Connection(
-    host: '127.0.0.1:3306',
-    dbname: 'wordpress',
-    user: 'root',
-    password: 'secret',
-    prefix: 'wp_',
-);
-
-Rudel::init(
-    $conn,
-    [
-        'environments_dir' => '/var/www/html/wp-content/rudel-environments',
-        'apps_dir' => '/var/www/html/wp-content/rudel-apps',
-    ]
-);
-
-Rudel::ensure_schema();
-
-$apps = Rudel::apps();
-$sandboxes = Rudel::all();
-```
-
-That standalone path is for the DB-backed core. It does not replace the
-WordPress adapter layer. Operations that create, destroy, or rewire multisite
-sites still require a live WordPress multisite runtime.
-
-Set `RUDEL_DB_DRIVER` to `mysqli` or `pdo` when an embedded runtime needs to
-force a specific direct DB driver.
-
-For embedded control planes that share one WordPress database, pass a
-connection-level Rudel table prefix:
-
-```php
-$conn = new Connection(
-    host: '127.0.0.1:3306',
-    dbname: 'wordpress',
-    user: 'root',
-    password: 'secret',
-    prefix: 'wp_',
-    table_prefix: 'divine_rudel_',
-);
-```
-
-That keeps the WordPress database prefix intact and changes only the Rudel
-portion of the runtime table names, for example
-`wp_divine_rudel_environments`.
 
 ## Documentation
 

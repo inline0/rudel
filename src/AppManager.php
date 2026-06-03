@@ -1,6 +1,6 @@
 <?php
 /**
- * App manager: creates and manages multisite app environments.
+ * App manager: creates and manages long-lived app environments.
  *
  * @package Rudel
  */
@@ -518,7 +518,6 @@ class AppManager {
 
 		try {
 			$this->apps->replace_domains( (int) $app->app_record_id, $domains );
-			( new SubsiteCloner() )->update_subsite_domain( (int) $app->blog_id, $domains[0] );
 			$this->manager->update(
 				$app->id,
 				array(

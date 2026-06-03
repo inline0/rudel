@@ -497,7 +497,12 @@ class MockWpdb extends \wpdb
             if (str_ends_with($table, '_environments')) {
                 if (
                     (($row['slug'] ?? null) === ($data['slug'] ?? null)) ||
-                    (($row['path'] ?? null) === ($data['path'] ?? null))
+                    (($row['path'] ?? null) === ($data['path'] ?? null)) ||
+                    (
+                        null !== ($row['table_prefix'] ?? null) &&
+                        null !== ($data['table_prefix'] ?? null) &&
+                        (($row['table_prefix'] ?? null) === ($data['table_prefix'] ?? null))
+                    )
                 ) {
                     return 'Duplicate environment row';
                 }
@@ -663,6 +668,8 @@ class MockWpdb extends \wpdb
                             'engine' => $environmentRow['engine'] ?? null,
                             'multisite' => $environmentRow['multisite'] ?? null,
                             'blog_id' => $environmentRow['blog_id'] ?? null,
+                            'table_prefix' => $environmentRow['table_prefix'] ?? null,
+                            'theme_slug' => $environmentRow['theme_slug'] ?? null,
                         ]];
                     }
                 }

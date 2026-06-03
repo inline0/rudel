@@ -148,16 +148,16 @@ class Rudel {
 	}
 
 	/**
-	 * Current environment database engine, or null when none is active.
+	 * Current environment runtime engine, or null when none is active.
 	 *
-	 * @return string|null One of 'subsite' or null.
+	 * @return string|null Runtime engine string, or null.
 	 */
 	public static function engine(): ?string {
 		if ( ! self::is_environment() ) {
 			return null;
 		}
 
-		return self::string_constant( 'RUDEL_ENGINE' ) ?? 'subsite';
+		return self::string_constant( 'RUDEL_ENGINE' ) ?? 'overlay';
 	}
 
 	/**
@@ -217,7 +217,7 @@ class Rudel {
 			unset( $e );
 		}
 
-		return Environment::multisite_url_for( $environment_id );
+		return self::exit_url();
 	}
 
 	/**
@@ -272,13 +272,13 @@ class Rudel {
 	}
 
 	/**
-	 * Debug log path for the current sandbox.
+	 * Debug log path for the current environment.
 	 *
-	 * @return string|null Absolute path to debug.log, or null if not in a sandbox.
+	 * @return string|null Absolute path to debug.log, or null when no environment is active.
 	 */
 	public static function log_path(): ?string {
 		$path = self::path();
-		return $path ? $path . '/wp-content/debug.log' : null;
+		return $path ? $path . '/debug.log' : null;
 	}
 
 	/**
@@ -330,9 +330,8 @@ class Rudel {
 	/**
 	 * Initialize Rudel core access outside WordPress.
 	 *
-	 * Standalone callers provide a direct DB connection plus optional filesystem
-	 * context for environment/app directories. Multisite lifecycle operations
-	 * remain WordPress-only.
+	 * Standalone callers provide a direct DB connection plus optional filesystem context for environment/app directories.
+	 * WordPress site lifecycle operations still need a live WordPress runtime.
 	 *
 	 * @param Connection                                          $connection Standalone DB connection.
 	 * @param array{environments_dir?: string, apps_dir?: string} $context Optional filesystem context.
@@ -786,7 +785,7 @@ class Rudel {
 			'auto_app_deployment_retention_count' => $config->get( 'auto_app_deployment_retention_count' ),
 			'expiring_environment_notice_days'    => $config->get( 'expiring_environment_notice_days' ),
 			'automation_scheduled'                => $automation_on,
-			'multisite'                           => function_exists( 'is_multisite' ) && is_multisite(),
+			'wordpress_multisite'                 => function_exists( 'is_multisite' ) && is_multisite(),
 			'php_version'                         => PHP_VERSION,
 		);
 	}
@@ -1143,14 +1142,14 @@ class Rudel {
 	}
 
 	/**
-	 * Whether the WordPress multisite runtime is available.
+	 * Whether the WordPress runtime is available for lifecycle work.
 	 *
 	 * @return bool
 	 */
 	private static function has_wordpress_runtime(): bool {
-		return function_exists( 'is_multisite' )
-			&& function_exists( 'wpmu_create_blog' )
-			&& defined( 'ABSPATH' );
+		return defined( 'ABSPATH' )
+			&& isset( $GLOBALS['wpdb'] )
+			&& $GLOBALS['wpdb'] instanceof \wpdb;
 	}
 
 	/**
@@ -1159,7 +1158,7 @@ class Rudel {
 	 * @param string $operation Operation label.
 	 * @return void
 	 *
-	 * @throws \RuntimeException When the requested operation needs a live WordPress multisite runtime.
+	 * @throws \RuntimeException When the requested operation needs a live WordPress runtime.
 	 */
 	private static function require_wordpress_runtime( string $operation ): void {
 		if ( self::has_wordpress_runtime() ) {
@@ -1168,7 +1167,7 @@ class Rudel {
 
 		throw new \RuntimeException(
 			sprintf(
-				'%s requires a live WordPress multisite runtime. Use Rudel::init() for DB-backed registry access outside WordPress, but keep site lifecycle operations inside WordPress.',
+				'%s requires a live WordPress runtime with a database connection. Use Rudel::init() for DB-backed registry access outside WordPress, but keep site lifecycle operations inside WordPress.',
 				$operation
 			)
 		);

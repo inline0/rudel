@@ -122,7 +122,14 @@ class SnapshotManager {
 			);
 			// phpcs:enable
 
-			EnvironmentContentLayout::copy_owned_wp_content( $this->environment, $point_path . '/wp-content' );
+			if ( $this->environment->is_overlay() ) {
+				$theme_root = ThemeOverlay::theme_root_for( $this->environment );
+				if ( is_dir( $theme_root ) ) {
+					( new ContentCloner() )->copy_directory( $theme_root, $point_path . '/themes' );
+				}
+			} else {
+				EnvironmentContentLayout::copy_owned_wp_content( $this->environment, $point_path . '/wp-content' );
+			}
 
 			$meta = array(
 				'name'              => $name,
@@ -263,8 +270,12 @@ class SnapshotManager {
 				}
 			}
 
-			$environment_content = $this->environment->get_wp_content_path();
-			$snapshot_content    = $point_path . '/wp-content';
+			$environment_content = $this->environment->is_overlay()
+				? ThemeOverlay::theme_root_for( $this->environment )
+				: $this->environment->get_wp_content_path();
+			$snapshot_content    = $this->environment->is_overlay()
+				? $point_path . '/themes'
+				: $point_path . '/wp-content';
 
 			if ( is_dir( $snapshot_content ) ) {
 				$this->delete_directory( $environment_content );
@@ -272,8 +283,10 @@ class SnapshotManager {
 				$content_cloner->copy_directory( $snapshot_content, $environment_content );
 			}
 
-			$this->write_runtime_files( $environment_content );
-			EnvironmentContentLayout::materialize_for_environment( $this->environment );
+			if ( ! $this->environment->is_overlay() ) {
+				$this->write_runtime_files( $environment_content );
+				EnvironmentContentLayout::materialize_for_environment( $this->environment );
+			}
 
 			$this->environment->update_meta_batch(
 				array(

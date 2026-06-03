@@ -1,28 +1,20 @@
 ---
 title: Getting Started
-description: Install Rudel on a subdomain multisite network and create your first environments.
+description: Install Rudel and create your first overlay environments.
 ---
 
 # Getting Started
 
-Getting Rudel running is straightforward once the network shape is correct.
-The main requirement is a WordPress multisite network that runs on subdomains.
-From there, Rudel installs its runtime bootstrap, creates real sites for
-sandboxes and apps, gives each one its own cloned `wp-content`, and stores its
-operational metadata in WordPress tables.
+Rudel runs on a normal WordPress installation. It installs an early bootstrap into `wp-config.php`, creates host MySQL-backed runtime tables, and then resolves environments per request.
 
 ## Prerequisites
 
-Before installing the plugin, make sure the host WordPress instance can support the kind of sites Rudel is going to create:
+- WordPress 6.4 or later
+- PHP 8.2 or later
+- MySQL/MariaDB through the normal WordPress database connection
+- permission to update `wp-config.php`
 
-- WordPress multisite is enabled
-- the network uses subdomains, not subdirectories
-- you can write to `wp-config.php`
-
-Rudel expects that foundation to be in place before installation. The sites it
-creates use the same URL contract as the rest of the network, so once Rudel is
-installed you are working with normal multisite sites directly through their
-own site URLs.
+Multisite is not required.
 
 ## Install Rudel
 
@@ -41,73 +33,61 @@ wp plugin install rudel.zip --activate
 
 ## Verify the runtime install
 
-On activation, Rudel installs an early runtime bootstrap into `wp-config.php`. That gives it one guaranteed place to wire itself in before WordPress finishes booting.
-
 ```bash
 wp rudel status
 ```
 
-If `status` is clean, the bootstrap is in place, the runtime tables are available, and Rudel can manage the network normally.
+That confirms the bootstrap and runtime tables are available.
 
 ## Create a sandbox
 
-Sandboxes are the disposable side of Rudel. Use them for feature work, QA, debugging, demos, migrations, and any workflow where you want to change site state freely and throw it away later if needed.
-
 ```bash
-wp rudel create --name=alpha
+wp rudel create --name=alpha --theme=twentytwentyfour
 ```
 
-That command creates three things together:
+That creates:
 
-1. a real multisite site
-2. a Rudel environment record
-3. a generated environment directory with scoped tooling, a cloned `wp-content`, and other environment-owned files
+- a Rudel environment row
+- cloned WordPress tables with a generated environment prefix
+- a copied active theme inside the environment directory
+- scoped metadata for snapshots, cleanup, Git, and lifecycle policy
 
-To see the browser URL WordPress assigned, ask WordPress directly:
+Run WP-CLI against that environment:
 
 ```bash
-wp site list --fields=blog_id,url
+RUDEL_ENVIRONMENT=alpha-1234 wp option get siteurl
 ```
 
-You can then run commands directly against that site:
+Route an HTTP request to it:
 
 ```bash
-wp --url=http://alpha.localhost option get siteurl
-```
-
-Or work from the generated environment directory, which gives you a scoped `wp-cli.yml` plus the environment-local files Rudel manages directly for that site, including the cloned `wp-content`, bootstrap files, logs, snapshots, backups, and workspace artifacts:
-
-```bash
-cd /path/to/wp-content/rudel-environments/alpha-1234
-wp option get siteurl
+curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
 ```
 
 ## Create an app
 
-Apps are the stable side of the lifecycle. They are also real multisite sites,
-but Rudel treats them as long-lived runtime targets that can accumulate
-backups, domain metadata, and deployment history over time.
+Apps are durable overlays that can receive deploys and keep backups.
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test
+wp rudel app create --name=demo --domain=demo.example.test --theme=twentytwentyfour
 ```
 
-The `--domain` value becomes part of the Rudel app metadata. The runtime site also shows up through normal multisite tools such as `wp site list`. WordPress owns the site itself, the app keeps its own environment-local `wp-content`, and Rudel owns the lifecycle around both.
-
-If the app should also carry one tracked Git code source, add it at creation time:
+Create a sandbox from that app:
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/demo-theme.git --branch=main --dir=themes/demo-theme
+wp rudel app create-sandbox demo-1234 --name=feature-a
 ```
 
-That tracked remote, branch, and directory are then inherited automatically when you create sandboxes from the app.
+Deploy the sandbox back into the app:
+
+```bash
+wp rudel app deploy demo-1234 feature-a-5678
+```
 
 ## Next steps
 
-From here, the next useful pages are:
-
-- [Creating Environments](/docs/environments/creating) for clone options, templates, and Git seeding
-- [Apps](/docs/environments/apps) for the long-lived site lifecycle
-- [Snapshots](/docs/features/snapshots) for the recovery model
-- [Runtime State](/docs/features/runtime-state) for where Rudel stores operational data
-- [CLI](/docs/cli) for the full command surface
+- [Creating Environments](/docs/environments/creating)
+- [Isolation](/docs/environments/isolation)
+- [Runtime State](/docs/features/runtime-state)
+- [Apps](/docs/environments/apps)
+- [CLI](/docs/cli)

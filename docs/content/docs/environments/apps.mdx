@@ -1,30 +1,29 @@
 ---
 title: Apps
-description: Long-lived Rudel sites with backups, deploys, and rollback.
+description: Long-lived Rudel overlay environments with backups, deploys, and rollback.
 ---
 
 # Apps
 
 Apps are the stable side of the Rudel lifecycle.
 
-If sandboxes are where change happens, apps are where approved state lands. An app is a real multisite site that Rudel manages for continuity over time. An app keeps its identity, its domain metadata, its own cloned `wp-content`, its backups, and its deployment history while sandboxes come and go around it.
+If sandboxes are where change happens, apps are where approved state lands. An app keeps domain metadata, cloned DB tables, copied active theme files, backups, deployment history, tracked Git metadata, and lifecycle policy.
 
-An app combines four things:
+An app combines:
 
-- a real multisite site
 - a Rudel environment record
+- cloned WordPress tables with an app table prefix
+- copied active theme files under `wp-content/rudel-apps/{app_id}/themes`
 - an app record with domain metadata
-- a place to store backups and deployment history
+- backup and deployment history
 
 ## Create an app
 
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test
+wp rudel app create --name=demo --domain=demo.example.test --theme=twentytwentyfour
 ```
 
-The created site is immediately visible through normal multisite tooling such as `wp site list`, while Rudel keeps the extra app metadata in its own runtime tables.
-
-The supplied primary domain also becomes the app's canonical Rudel URL. That is the URL Rudel reports through `app info`, the PHP API, deploy history, and rewrite flows. When the local multisite network runs on a non-default port such as `:9878`, Rudel keeps that port in the rendered canonical URL. The underlying multisite subsite still exists as the deterministic runtime route that powers the app.
+The supplied primary domain becomes the app's canonical Rudel URL. Rudel stores the domain mapping in its app tables and uses it for app lookup, deploy rewrites, and operator output.
 
 ## Create a sandbox from an app
 
@@ -32,31 +31,20 @@ The supplied primary domain also becomes the app's canonical Rudel URL. That is 
 wp rudel app create-sandbox demo-1234 --name="Demo Feature"
 ```
 
-That sandbox clones from the app and becomes the workspace for change work. This is one of Rudel's core loops: the app stays stable, while sandboxes branch off from it for development, QA, or experimentation.
+That sandbox clones from the app and becomes the workspace for change work. The app stays stable while sandboxes branch off for development, QA, or experimentation.
 
-When the source app has a primary domain, Rudel rewrites cloned site state from that app domain into the sandbox's own runtime URL. Deploying back into the app reverses that rewrite and restores the app's primary domain.
+The derived sandbox gets its own table prefix and copied theme root. Plugins, uploads, and users remain shared with the host.
 
-That clone is complete at the environment level: the derived sandbox gets its own site tables and its own cloned `wp-content`. If Rudel creates git worktrees for tracked themes or plugins, those worktrees also live inside the sandbox's local `wp-content`, not in a shared network code directory.
-
-If the app tracks a Git remote, branch, and directory, the derived sandbox inherits that metadata automatically. In practice that means the sandbox already knows which remote it should push to and which base branch it should track for merge cleanup.
-
-Create an app with tracked Git metadata:
+If the app tracks a Git remote, branch, and directory, the derived sandbox inherits that metadata automatically:
 
 ```bash
 wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/demo-theme.git --branch=release --dir=themes/demo-theme
-```
-
-Then create a sandbox from it:
-
-```bash
 wp rudel app create-sandbox demo-1234 --name="Demo Feature"
 ```
 
-The resulting sandbox can use `wp rudel push` without having to repeat `--git` or `--dir` unless you are intentionally overriding the tracked source.
+The resulting sandbox can use `wp rudel push` without repeating `--git` or `--dir`.
 
 ## Backups
-
-Because apps are long-lived, their recovery model is different from sandbox snapshots. App backups are meant to preserve a stable site state that you may need to restore days or weeks later.
 
 Create a backup:
 
@@ -76,11 +64,11 @@ Restore a backup:
 wp rudel app restore demo-1234 --backup=baseline --force
 ```
 
+Backups capture the app's cloned tables and copied active theme files.
+
 ## Deploy
 
-Deploys are what connect sandboxes back to apps. Rudel records them explicitly so the app history stays understandable instead of turning into an opaque sequence of file copies. The deploy flow replaces the app's own environment-local site state and `wp-content`; it does not treat another environment or the host network as the code source of truth.
-
-That source-of-truth rule includes removals. If a tracked theme or plugin no longer exists in the sandbox you deploy from, Rudel removes that tracked directory from the app instead of silently leaving stale code behind.
+Deploys replace app state from a sandbox and record the operation.
 
 Preview a deploy:
 
@@ -94,7 +82,7 @@ Run a deploy:
 wp rudel app deploy demo-1234 --from=demo-feature-1234 --backup=before-deploy --label="Launch candidate" --notes="Approved by QA" --force
 ```
 
-List recorded deployments:
+List deployments:
 
 ```bash
 wp rudel app deployments demo-1234
@@ -106,17 +94,13 @@ Rollback a deployment:
 wp rudel app rollback demo-1234 --deployment=deploy-1234 --force
 ```
 
-That rollback flow keeps the operator story clean. You do not have to remember which backup name was created for which deploy; Rudel records that relationship directly.
-
 ## Domains
 
-Apps require a primary domain value at creation time, and Rudel stores that metadata in its app tables. That primary domain is the app's canonical Rudel URL. Additional domains remain explicit mappings in Rudel's app tables, while the backing multisite site keeps its own host-only network identity underneath.
-
-Add or remove additional domains:
+Apps require a primary domain value at creation time. Additional domains remain explicit mappings in Rudel's app tables.
 
 ```bash
 wp rudel app domain-add demo-1234 --domain=www.demo.example.test
 wp rudel app domain-remove demo-1234 --domain=www.demo.example.test
 ```
 
-If you remove the current primary domain, Rudel promotes the next mapped domain and updates the app's canonical URL accordingly.
+If you remove the current primary domain, Rudel promotes the next mapped domain and updates the app's canonical URL in the app environment tables.

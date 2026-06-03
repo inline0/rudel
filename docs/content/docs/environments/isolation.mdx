@@ -1,111 +1,72 @@
 ---
 title: Isolation
-description: How Rudel uses multisite boundaries and environment-owned files to isolate work.
+description: How Rudel isolates request-selected overlay environments.
 ---
 
 # Isolation
 
-Rudel isolation starts with the multisite site boundary and the environment-local content tree that belongs to that site.
+Rudel isolation is request-scoped.
 
-Each environment is a real site. Site tables, site options, uploads, admin
-state, isolated users, and site-scoped capabilities form the database and
-browser boundary.
-Rudel then gives that site its own cloned `wp-content` and keeps the
-operational files and metadata for that site grouped under the same
-environment identity so teams can create, clone, snapshot, back up, deploy,
-and destroy environments without losing track of what belongs where.
+When no environment is selected, the host WordPress site runs normally. When an environment is selected, Rudel switches WordPress to that environment's table prefix and active theme root before WordPress finishes booting.
 
-## Site data
+## Isolated
 
-Every Rudel environment is a real multisite site, which gives Rudel an isolation boundary for:
+Each environment has isolated:
 
-- per-site tables through `blog_id`
-- per-site options
-- per-site uploads
-- per-environment `users` and `usermeta` tables
-- per-site admin and REST behavior
+- WordPress site tables through a generated table prefix
+- site options loaded from those tables
+- posts, post meta, terms, comments, and other cloned WordPress table state
+- selected active theme files copied into the environment directory
+- theme Git worktrees when Rudel creates them
+- snapshots, backups, deploy history, and lifecycle metadata
+- cache salt and debug log scope for selected requests
 
-Environment URLs, `wp-admin`, media uploads, and normal browser navigation
-therefore behave like ordinary site requests.
+## Shared
 
-## Environment-local content
+The following remain shared with the host in the current model:
 
-Every Rudel environment also has its own `wp-content` inside the generated
-environment directory. That local tree is the canonical source of:
-
-- themes
+- WordPress core
 - plugins
 - uploads
-- environment-specific mu-plugins
-- an environment-local `db.php` drop-in for isolated users
-- git worktrees Rudel creates for tracked code
+- users and usermeta
+- the host process and PHP runtime
+- Rudel runtime registry tables
 
-Rudel does not treat host or network theme/plugin directories as the runtime
-source of truth for a live app or sandbox. Once you are inside an environment,
-its local `wp-content` is the environment.
+That sharing is intentional. Rudel's current isolation target is DB state plus active theme code. Plugin, upload, and user isolation can be added later as explicit new runtime layers, but they are not part of the current contract.
 
-By default, that means themes, plugins, and uploads are all local to the
-environment. Rudel also supports an opt-in shared mode for `plugins` and
-`uploads` only. In that mode, the environment still owns the local
-`wp-content` root, but those two top-level directories become links back to
-the host `wp-content` directories. Themes stay local.
+## Theme overlays
 
-There is one narrower performance escape hatch as well: `content_exclude`.
-That lets a caller skip explicitly named top-level entries inside `themes`,
-`plugins`, or `uploads` when another runtime layer already guarantees those
-entries externally. The intended case is a globally injected runtime plugin,
-not a general-purpose way to shrink clones.
+The selected theme is copied to:
 
-That shared mode is a deliberate tradeoff, not a hidden fallback:
+```text
+wp-content/rudel-environments/{environment_id}/themes/{theme_slug}
+wp-content/rudel-apps/{app_id}/themes/{theme_slug}
+```
 
-- `shared_plugins` means plugin code is live-shared with the host
-- `shared_uploads` means media files are live-shared with the host
-- shared directories are excluded from Rudel-owned snapshot/template copying and deploy replacement
-- shared plugins cannot be combined with plugin-tracked Git directories
+For selected requests, Rudel filters `template`, `stylesheet`, `theme_root`, and `theme_root_uri` so WordPress loads the copied theme. If the selected theme is a child theme, Rudel stores the child as `stylesheet`, derives the parent as `template`, and copies both theme directories into the environment theme root. Rudel does not redefine `WP_CONTENT_DIR`.
 
-## Environment directories
+## Database overlays
 
-Each environment also has a generated directory containing:
+Environment tables use generated prefixes such as:
 
-- `bootstrap.php`
-- `wp-cli.yml`
-- the cloned `wp-content`
-- `debug.log`
-- `snapshots/` or `backups/`
+```text
+wp_a4nmv7_options
+wp_a4nmv7_posts
+wp_a4nmv7_postmeta
+```
 
-This directory is where Rudel keeps the files that belong directly to that
-environment: bootstrap files, scoped CLI config, the local `wp-content`, logs,
-snapshots, backups, and other environment artifacts. Rudel still records
-metadata about worktrees and lifecycle state in runtime tables, but the file
-tree itself lives with the environment rather than in a shared network code
-location.
+Rudel metadata tables stay in the host prefix:
 
-## Authentication and cache
+```text
+wp_rudel_environments
+wp_rudel_apps
+wp_rudel_app_domains
+wp_rudel_worktrees
+wp_rudel_app_deployments
+```
 
-Rudel also scopes authentication salts and cache behavior per environment so sessions and persistent cache data stay isolated between environments and the host. The site boundary comes from multisite; Rudel makes sure the surrounding runtime state follows that boundary cleanly.
+Those registry tables are never cloned into environments.
 
 ## Email
 
-Sandboxes block outbound email by default because they are meant for change work and disposable testing. Apps allow normal email delivery by default because they are meant to behave like stable runtime targets.
-
-## Users
-
-Rudel no longer relies on the shared multisite `wp_users` tables for live
-environments.
-
-Every app and sandbox gets its own isolated `users` and `usermeta` tables, and
-an environment-local `db.php` drop-in points WordPress at those tables early in
-bootstrap. That means:
-
-- app users are isolated from host users
-- sandbox users are isolated from app users unless the sandbox was cloned from that app
-- snapshots, backups, deploys, and restore flows carry the environment's users with the rest of its state
-
-Because user membership is isolated per environment, multisite network UI that
-depends on shared usermeta, such as cross-site "My Sites" membership lists, is
-no longer the source of truth for moving between Rudel environments. Rudel
-keeps the environments isolated and resolves each app or sandbox as its own
-site instead.
-
-The host WordPress database still stores Rudel's registry tables, but live
-environment identity is no longer shared through network-global `wp_users`.
+Sandboxes block outbound email by default because they are disposable change environments. Apps allow normal email delivery by default because they are durable runtime targets.

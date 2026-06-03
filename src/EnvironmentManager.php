@@ -117,7 +117,6 @@ class EnvironmentManager {
 	 *
 	 * @throws \RuntimeException If the directory already exists or creation fails.
 	 * @throws \InvalidArgumentException If conflicting clone options are provided.
-	 * @throws \Throwable If any step after directory creation fails (directory is cleaned up).
 	 */
 	public function create( string $name, array $options = array() ): Environment {
 		$filtered_options = Hooks::filter( 'rudel_environment_create_options', $options, $name, $this );
@@ -132,16 +131,11 @@ class EnvironmentManager {
 		);
 		Hooks::action( 'rudel_before_environment_create', $context );
 
-		$id            = null;
-		$path          = null;
-		$engine        = 'subsite';
-		$blog_id       = null;
-		$admin_user_id = null;
-		$git_worktrees = array();
-		$user_tables   = array();
-		$site_options  = $this->normalize_site_options( $options['site_options'] ?? array() );
-		$created_at    = gmdate( 'c' );
-		$config        = new RudelConfig();
+		$id           = null;
+		$path         = null;
+		$site_options = $this->normalize_site_options( $options['site_options'] ?? array() );
+		$created_at   = gmdate( 'c' );
+		$config       = new RudelConfig();
 
 		try {
 			if ( empty( $options['skip_limits'] ) ) {
@@ -155,43 +149,23 @@ class EnvironmentManager {
 				throw new \RuntimeException( sprintf( 'Environment directory already exists: %s', $path ) );
 			}
 
-			$raw_clone_from          = $options['clone_from'] ?? null;
-			$clone_from              = is_string( $raw_clone_from ) ? $raw_clone_from : null;
-			$clone_db                = ! empty( $options['clone_db'] );
-			$clone_themes            = ! empty( $options['clone_themes'] );
-			$clone_plugins           = ! empty( $options['clone_plugins'] );
-			$clone_uploads           = ! empty( $options['clone_uploads'] );
-			$content_exclude         = $this->normalize_content_exclusions( $options['content_exclude'] ?? array() );
-			$shared_plugins_explicit = array_key_exists( 'shared_plugins', $options );
-			$shared_uploads_explicit = array_key_exists( 'shared_uploads', $options );
-			$shared_plugins          = ! empty( $options['shared_plugins'] );
-			$shared_uploads          = ! empty( $options['shared_uploads'] );
-			$has_clone               = $clone_db || $clone_themes || $clone_plugins || $clone_uploads;
-			$raw_type                = $options['type'] ?? 'sandbox';
-			$target_type             = is_string( $raw_type ) ? $raw_type : 'sandbox';
-			$raw_domains             = $options['domains'] ?? null;
+			$raw_clone_from = $options['clone_from'] ?? null;
+			$clone_from     = is_string( $raw_clone_from ) ? $raw_clone_from : null;
+			$raw_type       = $options['type'] ?? 'sandbox';
+			$target_type    = is_string( $raw_type ) ? $raw_type : 'sandbox';
+			$raw_domains    = $options['domains'] ?? null;
 			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
 			/** @var array<int, string>|null $target_domains */
 			$target_domains = is_array( $raw_domains ) ? $raw_domains : null;
-
-			if ( $clone_from && $has_clone ) {
-				throw new \InvalidArgumentException( 'Cannot combine --clone-from with --clone-db, --clone-themes, --clone-plugins, or --clone-uploads.' );
-			}
 
 			if ( ! in_array( $target_type, array( 'sandbox', 'app' ), true ) ) {
 				throw new \InvalidArgumentException( sprintf( 'Invalid environment type: %s. Must be "sandbox" or "app".', $target_type ) );
 			}
 
-			$this->validate_shared_content_options(
-				$shared_plugins,
-				isset( $options['tracked_git_dir'] ) && is_scalar( $options['tracked_git_dir'] ) ? (string) $options['tracked_git_dir'] : null
-			);
-			$options['shared_plugins'] = $shared_plugins;
-			$options['shared_uploads'] = $shared_uploads;
-
-			if ( ! function_exists( 'is_multisite' ) || ! is_multisite() ) {
-				throw new \RuntimeException( 'Rudel requires a WordPress multisite installation.' );
-			}
+			$table_prefix = Environment::table_prefix_for_id( $id );
+			$theme_slug   = $this->resolve_overlay_theme_slug( $options );
+			$target_url   = $this->get_target_environment_url( $id, null, $target_type, $target_domains );
+			$template     = is_string( $options['template'] ?? null ) ? (string) $options['template'] : 'overlay';
 
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for environment scaffolding.
 			if ( ! is_dir( $this->environments_dir ) ) {
@@ -202,57 +176,17 @@ class EnvironmentManager {
 				throw new \RuntimeException( sprintf( 'Failed to create environment directory: %s', $path ) );
 			}
 
-			mkdir( $path . '/wp-content', 0755 );
-			mkdir( $path . '/wp-content/themes', 0755 );
-			mkdir( $path . '/wp-content/plugins', 0755 );
-			mkdir( $path . '/wp-content/uploads', 0755 );
-			mkdir( $path . '/wp-content/mu-plugins', 0755 );
+			mkdir( $path . '/themes', 0755 );
+			mkdir( $path . '/logs', 0755 );
+			mkdir( $path . '/snapshots', 0755 );
+			mkdir( $path . '/metadata', 0755 );
 			mkdir( $path . '/tmp', 0755 );
 			// phpcs:enable
 
 			$clone_source       = null;
 			$clone_lineage      = array();
-			$is_multisite       = true;
-			$raw_template       = $options['template'] ?? ( $has_clone || $clone_from ? 'clone' : 'blank' );
-			$template           = is_string( $raw_template ) ? $raw_template : 'blank';
-			$is_from_template   = ! in_array( $template, array( 'blank', 'clone' ), true )
-				&& ! $clone_from && ! $has_clone
-				&& $this->template_exists( $template );
-			$subsite_cloner     = new SubsiteCloner();
 			$source_environment = null;
-			$admin_user_id      = $subsite_cloner->resolve_admin_user_id( isset( $options['admin_user_id'] ) && is_numeric( $options['admin_user_id'] ) ? (int) $options['admin_user_id'] : null );
-			$blog_id            = $subsite_cloner->create_subsite( $id, $name, $admin_user_id );
-			$user_tables        = $this->user_isolation->metadata_for_blog( $blog_id );
-			$target_url         = $this->get_target_environment_url( $id, $blog_id, $target_type, $target_domains );
-			$themes_cloned      = false;
-			$plugins_cloned     = false;
-			$uploads_cloned     = false;
-			$content_results    = array();
 
-			if ( 'app' === $target_type && is_array( $target_domains ) && ! empty( $target_domains ) ) {
-				$primary_domain = reset( $target_domains );
-				if ( is_string( $primary_domain ) && '' !== trim( $primary_domain ) ) {
-					$subsite_cloner->update_subsite_domain( $blog_id, $primary_domain );
-				}
-
-				// Apps keep a canonical primary domain in persisted site options even though the underlying multisite subsite remains the routing substrate.
-				$site_options = array_merge(
-					array(
-						'siteurl' => $target_url,
-						'home'    => $target_url,
-					),
-					$site_options
-				);
-			}
-
-			$this->write_environment_bootstrap(
-				$id,
-				$path,
-				$target_url,
-				$this->get_target_table_prefix( $blog_id ),
-				$user_tables['users_table'],
-				$user_tables['usermeta_table']
-			);
 			$this->write_wp_cli_yml( $path, $target_url );
 
 			if ( $clone_from ) {
@@ -260,179 +194,65 @@ class EnvironmentManager {
 				if ( ! $source_environment ) {
 					throw new \RuntimeException( sprintf( 'Source environment not found: %s', $clone_from ) );
 				}
-				if ( ! $source_environment->is_subsite() ) {
-					throw new \InvalidArgumentException( 'Subsite environments can only clone from other subsite environments.' );
-				}
 				if ( ! isset( $options['app_id'] ) && null !== $source_environment->app_record_id && 'sandbox' === $target_type ) {
 					$options['app_id'] = $source_environment->app_record_id;
 				}
-				if ( ! $shared_plugins_explicit ) {
-					$shared_plugins = $source_environment->shared_plugins;
-				}
-				if ( ! $shared_uploads_explicit ) {
-					$shared_uploads = $source_environment->shared_uploads;
-				}
-				$options['shared_plugins'] = $shared_plugins;
-				$options['shared_uploads'] = $shared_uploads;
-				$this->validate_shared_content_options(
-					$shared_plugins,
-					isset( $options['tracked_git_dir'] ) && is_scalar( $options['tracked_git_dir'] ) ? (string) $options['tracked_git_dir'] : null
-				);
 
-				$clone_source  = $this->clone_from_subsite_environment(
-					$source_environment,
-					$id,
-					$path,
-					$blog_id,
-					array(
-						'plugins' => $shared_plugins,
-						'uploads' => $shared_uploads,
-					),
-					$content_exclude
-				);
+				$theme_slug   = $theme_slug ?? $source_environment->theme_slug ?? $this->theme_slug_from_tracked_dir( $source_environment->tracked_git_dir );
+				$clone_source = $this->clone_from_overlay_environment( $source_environment, $table_prefix, $target_url, $path, $theme_slug );
 				$clone_lineage = array(
 					'source_environment_id'   => $source_environment->id,
 					'source_environment_type' => $source_environment->type,
 				);
-			} elseif ( $clone_db ) {
-				$clone_result = $subsite_cloner->clone_host_db_to_subsite( $blog_id );
+			} else {
+				$clone_result = $this->clone_host_database_to_overlay( $table_prefix, $target_url );
 				$clone_source = $this->build_clone_source(
 					$this->get_host_site_url(),
 					true,
-					$clone_themes,
-					$clone_plugins,
-					$clone_uploads,
+					null !== $theme_slug,
+					false,
+					false,
 					array(
 						'tables_cloned' => $clone_result['tables_cloned'],
 						'rows_cloned'   => $clone_result['rows_cloned'],
-						'multisite'     => true,
+						'engine'        => 'overlay',
 						'target_url'    => $target_url,
+						'table_prefix'  => $table_prefix,
 					)
 				);
 			}
 
-			if ( $is_from_template ) {
-				$this->initialize_from_template( $template, $id, $path );
+			if ( null !== $theme_slug && ! $clone_from ) {
+				( new ThemeOverlay() )->copy_theme( $theme_slug, ThemeOverlay::theme_root_for( $path ) );
 			}
 
-			if ( $has_clone && ! $clone_source ) {
-				$clone_source = $this->build_clone_source(
-					$this->get_host_site_url(),
-					false,
-					false,
-					false,
-					false,
+			$theme_template = null !== $theme_slug
+				? ( new ThemeOverlay() )->template_slug_for_theme( $theme_slug, ThemeOverlay::theme_root_for( $path ) )
+				: null;
+			$site_options = array_merge(
+				array_filter(
 					array(
-						'multisite'  => true,
-						'target_url' => $target_url,
-					)
-				);
-			}
-
-			if ( $clone_themes || $clone_plugins || $clone_uploads ) {
-				$content_cloner  = new ContentCloner();
-				$content_results = $content_cloner->clone_content(
-					$path . '/wp-content',
-					array(
-						'themes'          => $clone_themes,
-						'plugins'         => $clone_plugins && ! $shared_plugins,
-						'uploads'         => $clone_uploads && ! $shared_uploads,
-						'exclude_entries' => $content_exclude,
+						'siteurl'    => $target_url,
+						'home'       => $target_url,
+						'template'   => $theme_template,
+						'stylesheet' => $theme_slug,
 					),
-					$id
-				);
-
-				$git_worktrees = array();
-				foreach ( $content_results as $dir => $result ) {
-					$dir_key = is_string( $dir ) ? $dir : '';
-					if ( $this->content_clone_succeeded( $result ) ) {
-						if ( 'themes' === $dir_key ) {
-							$themes_cloned = true;
-						} elseif ( 'plugins' === $dir_key ) {
-							$plugins_cloned = true;
-						} elseif ( 'uploads' === $dir_key ) {
-							$uploads_cloned = true;
-						}
-					}
-
-					if ( is_array( $result ) && ! empty( $result['worktrees'] ) && is_array( $result['worktrees'] ) ) {
-						foreach ( $result['worktrees'] as $worktree ) {
-							if ( ! is_array( $worktree ) ) {
-								continue;
-							}
-
-							$wt_name   = $worktree['name'] ?? '';
-							$wt_branch = $worktree['branch'] ?? '';
-							$wt_repo   = $worktree['repo'] ?? '';
-							$wt_meta   = $worktree['metadata_name'] ?? '';
-
-							$git_worktrees[] = array(
-								'type'          => $dir_key,
-								'name'          => is_scalar( $wt_name ) ? (string) $wt_name : '',
-								'branch'        => is_scalar( $wt_branch ) ? (string) $wt_branch : '',
-								'repo'          => is_scalar( $wt_repo ) ? (string) $wt_repo : '',
-								'metadata_name' => is_scalar( $wt_meta ) ? (string) $wt_meta : '',
-							);
-						}
-					}
-				}
-			}
-
-			EnvironmentContentLayout::materialize_for_path( $path . '/wp-content', $shared_plugins, $shared_uploads );
-
-			$this->apply_site_options( $id, $path, $blog_id, $site_options );
-
-			$runtime_environment = new Environment(
-				id: $id,
-				name: $name,
-				path: $path,
-				created_at: $created_at,
-				template: $template,
-				status: 'active',
-				clone_source: null,
-				multisite: $is_multisite,
-				engine: $engine,
-				blog_id: $blog_id,
-				type: $target_type,
-				domains: $target_domains,
-				shared_plugins: $shared_plugins,
-				shared_uploads: $shared_uploads,
-				app_record_id: isset( $options['app_id'] ) && is_numeric( $options['app_id'] ) ? (int) $options['app_id'] : null,
+					static fn ( $value ): bool => null !== $value && '' !== $value
+				),
+				$site_options
 			);
-
-			$this->write_runtime_mu_plugin( $path );
-			$this->write_environment_db_dropin(
-				$path,
-				array(
-					'environment'    => $runtime_environment,
-					'path'           => $path,
-					'blog_id'        => $blog_id,
-					'type'           => $target_type,
-					'table_prefix'   => $runtime_environment->get_table_prefix(),
-					'users_table'    => $runtime_environment->get_users_table(),
-					'usermeta_table' => $runtime_environment->get_usermeta_table(),
-				)
-			);
-
-			if ( $source_environment instanceof Environment ) {
-				$this->user_isolation->clone_from_environment( $source_environment, $runtime_environment );
-			} else {
-				$this->user_isolation->clone_from_host( $runtime_environment );
-			}
-
-			if ( null !== $clone_source ) {
-				$clone_source['themes_cloned']  = $themes_cloned;
-				$clone_source['plugins_cloned'] = $plugins_cloned;
-				$clone_source['uploads_cloned'] = $uploads_cloned;
-			}
-
-			if ( ! empty( $git_worktrees ) && null !== $clone_source ) {
-				$clone_source['git_worktrees'] = $git_worktrees;
-			}
+			$this->apply_site_options( $id, $path, $table_prefix, $site_options );
 
 			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
 			/** @var array<string, mixed> $merged_options */
-			$merged_options = array_merge( $options, $clone_lineage );
+			$merged_options = array_merge(
+				$options,
+				$clone_lineage,
+				array(
+					'shared_plugins' => true,
+					'shared_uploads' => true,
+				)
+			);
 			$policy_meta    = EnvironmentPolicy::metadata_for_create(
 				$merged_options,
 				$target_type,
@@ -465,9 +285,9 @@ class EnvironmentManager {
 				template: $template,
 				status: 'active',
 				clone_source: $clone_source,
-				multisite: $is_multisite,
-				engine: $engine,
-				blog_id: $blog_id,
+				multisite: false,
+				engine: 'overlay',
+				blog_id: null,
 				type: $target_type,
 				domains: $target_domains,
 				owner: is_string( $pm_owner ) ? $pm_owner : null,
@@ -484,8 +304,10 @@ class EnvironmentManager {
 				tracked_git_remote: is_string( $pm_git_rem ) ? $pm_git_rem : null,
 				tracked_git_branch: is_string( $pm_git_br ) ? $pm_git_br : null,
 				tracked_git_dir: is_string( $pm_git_dir ) ? $pm_git_dir : null,
-				shared_plugins: ! empty( $policy_meta['shared_plugins'] ),
-				shared_uploads: ! empty( $policy_meta['shared_uploads'] ),
+				shared_plugins: true,
+				shared_uploads: true,
+				table_prefix: $table_prefix,
+				theme_slug: $theme_slug,
 				app_record_id: isset( $options['app_id'] ) && is_numeric( $options['app_id'] ) ? (int) $options['app_id'] : null,
 			);
 			$environment = $this->repository->save( $environment );
@@ -494,25 +316,12 @@ class EnvironmentManager {
 
 			return $environment;
 		} catch ( \Throwable $e ) {
-			if ( $blog_id ) {
-				$fail_type          = $options['type'] ?? 'sandbox';
-				$failed_environment = new Environment(
-					id: (string) $id,
-					name: $name,
-					path: (string) $path,
-					created_at: $created_at,
-					template: 'blank',
-					status: 'active',
-					multisite: true,
-					engine: $engine,
-					blog_id: $blog_id,
-					type: is_string( $fail_type ) ? $fail_type : 'sandbox',
-					shared_plugins: ! empty( $options['shared_plugins'] ),
-					shared_uploads: ! empty( $options['shared_uploads'] ),
-				);
-				$this->user_isolation->drop( $failed_environment );
-				$subsite_cloner = new SubsiteCloner();
-				$subsite_cloner->delete_subsite( $blog_id );
+			if ( null !== $id ) {
+				try {
+					( new MySQLCloner() )->drop_tables( Environment::table_prefix_for_id( (string) $id ) );
+				} catch ( \Throwable $drop_error ) {
+					unset( $drop_error );
+				}
 			}
 			if ( is_string( $path ) && is_dir( $path ) ) {
 				$this->delete_directory( $path );
@@ -572,7 +381,7 @@ class EnvironmentManager {
 			$this->apply_site_options(
 				$environment->id,
 				$environment->path,
-				$environment->blog_id,
+				$environment->get_table_prefix(),
 				$site_options
 			);
 			$updated = $this->repository->update_fields( $id, $changes, $environment->type );
@@ -613,6 +422,8 @@ class EnvironmentManager {
 				$this->user_isolation->drop( $environment );
 				$subsite_cloner = new SubsiteCloner();
 				$subsite_cloner->delete_subsite( $environment->blog_id );
+			} elseif ( $environment->is_overlay() ) {
+				( new MySQLCloner() )->drop_tables( $environment->get_table_prefix() );
 			}
 
 			$result = $this->delete_directory( $environment->path );
@@ -646,19 +457,29 @@ class EnvironmentManager {
 
 		try {
 			$result = $this->state_replacer->replace( $source, $target );
-			$this->write_runtime_mu_plugin( $target->path );
-			$this->write_environment_db_dropin(
-				$target->path,
-				array(
-					'environment'    => $target,
-					'path'           => $target->path,
-					'blog_id'        => $target->blog_id,
-					'type'           => $target->type,
-					'table_prefix'   => $target->get_table_prefix(),
-					'users_table'    => $target->get_users_table(),
-					'usermeta_table' => $target->get_usermeta_table(),
-				)
-			);
+			if ( $target->is_overlay() && null !== $source->theme_slug && $source->theme_slug !== $target->theme_slug ) {
+				$target = $this->repository->update_fields(
+					$target->id,
+					array( 'theme_slug' => $source->theme_slug ),
+					$target->type
+				);
+				$context['target'] = $target;
+			}
+			if ( $target->is_subsite() ) {
+				$this->write_runtime_mu_plugin( $target->path );
+				$this->write_environment_db_dropin(
+					$target->path,
+					array(
+						'environment'    => $target,
+						'path'           => $target->path,
+						'blog_id'        => $target->blog_id,
+						'type'           => $target->type,
+						'table_prefix'   => $target->get_table_prefix(),
+						'users_table'    => $target->get_users_table(),
+						'usermeta_table' => $target->get_usermeta_table(),
+					)
+				);
+			}
 
 			Hooks::action( 'rudel_after_environment_replace_state', $result, $context );
 
@@ -841,31 +662,169 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Reject environment layouts that would combine shared plugins with tracked plugin checkouts.
+	 * Resolve the active theme for a new overlay environment.
 	 *
-	 * @param bool        $shared_plugins Whether plugins are shared with the host.
-	 * @param string|null $tracked_git_dir Optional tracked wp-content subdirectory.
-	 * @return void
-	 * @throws \InvalidArgumentException When shared plugins are combined with plugin-tracked Git directories.
+	 * @param array<string, mixed> $options Create options.
+	 * @return string|null Theme slug.
 	 */
-	private function validate_shared_content_options( bool $shared_plugins, ?string $tracked_git_dir ): void {
-		if ( EnvironmentContentLayout::conflicts_with_shared_plugins( $shared_plugins, $tracked_git_dir ) ) {
-			throw new \InvalidArgumentException( 'Shared plugins cannot be combined with plugin-tracked Git directories.' );
+	private function resolve_overlay_theme_slug( array $options ): ?string {
+		$raw_theme = $options['theme'] ?? ( $options['theme_slug'] ?? null );
+		$theme     = is_scalar( $raw_theme ) ? (string) $raw_theme : null;
+
+		return ( new ThemeOverlay() )->resolve_theme_slug( $theme );
+	}
+
+	/**
+	 * Resolve a theme slug from a tracked Git directory such as themes/client-theme.
+	 *
+	 * @param string|null $tracked_git_dir Tracked wp-content-relative path.
+	 * @return string|null Theme slug, or null when the tracked path is not a theme.
+	 */
+	private function theme_slug_from_tracked_dir( ?string $tracked_git_dir ): ?string {
+		if ( null === $tracked_git_dir ) {
+			return null;
 		}
+
+		$path = trim( str_replace( '\\', '/', $tracked_git_dir ), '/' );
+		if ( '' === $path || ! str_starts_with( $path, 'themes/' ) ) {
+			return null;
+		}
+
+		$parts = explode( '/', $path );
+		$slug  = $parts[1] ?? '';
+		if ( '' === $slug ) {
+			return null;
+		}
+
+		return ( new ThemeOverlay() )->resolve_theme_slug( $slug );
+	}
+
+	/**
+	 * Clone the host database into a new overlay table prefix.
+	 *
+	 * @param string $target_prefix Environment table prefix.
+	 * @param string $target_url Environment URL.
+	 * @return array{tables_cloned: int, rows_cloned: int, is_multisite: bool}
+	 * @throws \RuntimeException When the host WordPress database connection is unavailable.
+	 */
+	private function clone_host_database_to_overlay( string $target_prefix, string $target_url ): array {
+		global $wpdb;
+
+		if ( ! $wpdb instanceof \wpdb ) {
+			throw new \RuntimeException( 'Overlay database cloning requires a running WordPress database connection.' );
+		}
+
+		$registry_prefix = $wpdb->base_prefix . RuntimeTableConfig::prefix();
+
+		return ( new MySQLCloner() )->clone_database(
+			$target_prefix,
+			$target_url,
+			array(
+				'exclude_prefixes' => array(
+					$registry_prefix,
+					$target_prefix,
+				),
+			)
+		);
+	}
+
+	/**
+	 * Clone one overlay environment into another.
+	 *
+	 * @param Environment $source Source environment.
+	 * @param string      $target_prefix Target table prefix.
+	 * @param string      $target_url Target URL.
+	 * @param string      $target_path Target environment path.
+	 * @param string|null $theme_slug Theme slug to copy.
+	 * @return array<string, mixed>
+	 * @throws \RuntimeException When the host WordPress database connection is unavailable.
+	 */
+	private function clone_from_overlay_environment(
+		Environment $source,
+		string $target_prefix,
+		string $target_url,
+		string $target_path,
+		?string $theme_slug
+	): array {
+		global $wpdb;
+
+		if ( ! $wpdb instanceof \wpdb ) {
+			throw new \RuntimeException( 'Overlay environment cloning requires a running WordPress database connection.' );
+		}
+
+		$source_prefix = $source->get_table_prefix();
+		$source_url    = $this->get_environment_site_url( $source );
+		$mysql_cloner  = new MySQLCloner();
+		$tables        = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ), true );
+		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
+		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
+
+		$themes_cloned = false;
+		$git_worktrees = array();
+		if ( null !== $theme_slug && '' !== $theme_slug ) {
+			$source_theme = ThemeOverlay::theme_root_for( $source ) . '/' . $theme_slug;
+			if ( is_dir( $source_theme ) ) {
+				$target_theme_root = ThemeOverlay::theme_root_for( $target_path );
+				$git               = new GitIntegration();
+				if ( $git->is_git_repo( $source_theme ) ) {
+					if ( ! is_dir( $target_theme_root ) ) {
+						// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating overlay theme root before worktree clone.
+						mkdir( $target_theme_root, 0755, true );
+					}
+					$target_id     = basename( $target_path );
+					$branch        = 'rudel/' . $target_id;
+					$metadata_name = $git->worktree_metadata_name( $target_id, 'themes', $theme_slug );
+					$target_theme  = $target_theme_root . '/' . $theme_slug;
+					if ( $git->create_worktree( $source_theme, $target_theme, $branch, $metadata_name ) ) {
+						$git_worktrees[] = array(
+							'type'          => 'themes',
+							'name'          => $theme_slug,
+							'branch'        => $branch,
+							'repo'          => $target_theme,
+							'metadata_name' => $metadata_name,
+						);
+					} else {
+						( new ContentCloner() )->copy_directory( $source_theme, $target_theme );
+					}
+				} else {
+					( new ContentCloner() )->copy_directory( $source_theme, $target_theme_root . '/' . $theme_slug );
+				}
+				$themes_cloned = true;
+			} else {
+				( new ThemeOverlay() )->copy_theme( $theme_slug, ThemeOverlay::theme_root_for( $target_path ) );
+				$themes_cloned = true;
+			}
+		}
+
+		return array(
+			'host_url'              => $source_url,
+			'cloned_at'             => gmdate( 'c' ),
+			'db_cloned'             => true,
+			'themes_cloned'         => $themes_cloned,
+			'plugins_cloned'        => false,
+			'uploads_cloned'        => false,
+			'tables_cloned'         => $tables,
+			'engine'                => 'overlay',
+			'target_url'            => $target_url,
+			'table_prefix'          => $target_prefix,
+			'git_worktrees'         => $git_worktrees,
+			'source_environment_id' => $source->id,
+			'source_type'           => $source->type,
+		);
 	}
 
 	/**
 	 * Build the target runtime URL for a not-yet-saved environment.
 	 *
 	 * @param string                  $id Environment ID.
-	 * @param int                     $blog_id Target multisite blog ID.
+	 * @param int|null                $blog_id Optional multisite blog ID for legacy subsite records.
 	 * @param string                  $type Environment type.
 	 * @param array<int, string>|null $domains Canonical domains when creating an app.
 	 * @return string
 	 */
 	private function get_target_environment_url(
 		string $id,
-		int $blog_id,
+		?int $blog_id,
 		string $type = 'sandbox',
 		?array $domains = null
 	): string {
@@ -876,7 +835,11 @@ class EnvironmentManager {
 			}
 		}
 
-		return rtrim( Environment::multisite_url_for( $id, $blog_id ), '/' );
+		if ( null !== $blog_id ) {
+			return rtrim( Environment::multisite_url_for( $id, $blog_id ), '/' );
+		}
+
+		return $this->get_host_site_url();
 	}
 
 	/**
@@ -961,53 +924,6 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Write the per-environment bootstrap.php.
-	 *
-	 * @param string $id Environment identifier.
-	 * @param string $path Absolute path to the environment directory.
-	 * @param string $environment_url Canonical environment URL for this generated bootstrap.
-	 * @param string $table_prefix Active multisite table prefix.
-	 * @param string $users_table Isolated users table.
-	 * @param string $usermeta_table Isolated usermeta table.
-	 * @return void
-	 */
-	private function write_environment_bootstrap(
-		string $id,
-		string $path,
-		string $environment_url,
-		string $table_prefix,
-		string $users_table,
-		string $usermeta_table
-	): void {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
-		$template = file_get_contents( $this->plugin_dir . 'templates/environment-bootstrap.php.tpl' );
-		if ( false === $template ) {
-			$template = '';
-		}
-
-		$content        = strtr(
-			$template,
-			array(
-				'{{sandbox_id}}'      => $id,
-				'{{sandbox_path}}'    => $path,
-				'{{environment_url}}' => $environment_url,
-				'{{table_prefix}}'    => $table_prefix,
-				'{{users_table}}'     => $users_table,
-				'{{usermeta_table}}'  => $usermeta_table,
-			)
-		);
-		$bootstrap_path = $path . '/bootstrap.php';
-		if ( file_exists( $bootstrap_path ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Allow refreshing the generated bootstrap before locking it again.
-			chmod( $bootstrap_path, 0644 );
-		}
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing environment bootstrap.
-		file_put_contents( $bootstrap_path, $content );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.
-		chmod( $bootstrap_path, 0444 );
-	}
-
-	/**
 	 * Write the per-environment wp-cli.yml.
 	 *
 	 * @param string $path Absolute path to the environment directory.
@@ -1022,22 +938,6 @@ class EnvironmentManager {
 		file_put_contents( $path . '/wp-cli.yml', $content );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.
 		chmod( $path . '/wp-cli.yml', 0444 );
-	}
-
-	/**
-	 * Multisite table prefix for one newly-created environment.
-	 *
-	 * @param int $blog_id Blog ID.
-	 * @return string
-	 */
-	private function get_target_table_prefix( int $blog_id ): string {
-		global $wpdb;
-
-		if ( isset( $wpdb ) && is_object( $wpdb ) && isset( $wpdb->base_prefix ) && is_string( $wpdb->base_prefix ) && '' !== $wpdb->base_prefix ) {
-			return $wpdb->base_prefix . $blog_id . '_';
-		}
-
-		return 'wp_' . $blog_id . '_';
 	}
 
 	/**
@@ -1110,73 +1010,37 @@ class EnvironmentManager {
 	}
 
 	/**
-	 * Normalize requested top-level content exclusions for cloned wp-content roots.
-	 *
-	 * @param mixed $content_exclude Raw exclusion map keyed by directory group.
-	 * @return array<string, string[]>
-	 */
-	private function normalize_content_exclusions( $content_exclude ): array {
-		if ( ! is_array( $content_exclude ) ) {
-			return array();
-		}
-
-		$normalized = array();
-
-		foreach ( array( 'themes', 'plugins', 'uploads' ) as $group ) {
-			$entries = $content_exclude[ $group ] ?? array();
-			if ( ! is_array( $entries ) ) {
-				continue;
-			}
-
-			$normalized_entries = array_values(
-				array_filter(
-					array_map( static fn( $entry ) => is_scalar( $entry ) ? (string) $entry : '', $entries ),
-					static fn( string $entry ): bool => '' !== $entry
-				)
-			);
-
-			if ( ! empty( $normalized_entries ) ) {
-				$normalized[ $group ] = $normalized_entries;
-			}
-		}
-
-		return $normalized;
-	}
-
-	/**
 	 * Apply requested site options into one environment database.
 	 *
 	 * @param string                     $id Environment identifier.
 	 * @param string                     $path Absolute environment path.
-	 * @param int|string|null            $blog_id Optional multisite blog identifier.
+	 * @param string                     $table_prefix Environment table prefix.
 	 * @param array<string, string|null> $site_options Site option overrides.
 	 * @return void
 	 */
-	private function apply_site_options( string $id, string $path, $blog_id, array $site_options ): void {
+	private function apply_site_options( string $id, string $path, string $table_prefix, array $site_options ): void {
 		if ( array() === $site_options ) {
 			return;
 		}
 
-		$this->apply_mysql_site_options( $id, $blog_id, $site_options );
+		$this->apply_mysql_site_options( $id, $table_prefix, $site_options );
 	}
 
 	/**
 	 * Apply site options inside a MySQL- or subsite-backed environment.
 	 *
 	 * @param string                     $id Environment identifier.
-	 * @param int|string|null            $blog_id Optional multisite blog identifier.
+	 * @param string                     $table_prefix Environment table prefix.
 	 * @param array<string, string|null> $site_options Site option overrides.
 	 * @throws \RuntimeException When the host WordPress database connection is unavailable.
 	 * @return void
 	 */
-	private function apply_mysql_site_options( string $id, $blog_id, array $site_options ): void {
+	private function apply_mysql_site_options( string $id, string $table_prefix, array $site_options ): void {
 		global $wpdb;
 
 		if ( ! $wpdb instanceof \wpdb ) {
 			throw new \RuntimeException( 'Applying MySQL-backed site options requires a running WordPress database connection.' );
 		}
-
-		$table_prefix = $wpdb->base_prefix . (int) $blog_id . '_';
 
 		$table = $table_prefix . 'options';
 
@@ -1214,246 +1078,6 @@ class EnvironmentManager {
 			}
 		}
 		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	}
-
-	/**
-	 * Check if a template exists by name.
-	 *
-	 * @param string $name Template name.
-	 * @return bool True if the template directory exists.
-	 */
-	private function template_exists( string $name ): bool {
-		$tpl_manager = new TemplateManager();
-		return is_dir( $tpl_manager->get_templates_dir() . '/' . $name );
-	}
-
-	/**
-	 * Initialize a sandbox from a template by copying its runtime content shell.
-	 *
-	 * @param string $template_name Template name.
-	 * @param string $target_id     New sandbox ID.
-	 * @param string $target_path   New sandbox directory path.
-	 * @return void
-	 *
-	 * @throws \RuntimeException If the template is not found or initialization fails.
-	 */
-	private function initialize_from_template( string $template_name, string $target_id, string $target_path ): void {
-		$tpl_manager   = new TemplateManager();
-		$template_path = $tpl_manager->get_template_path( $template_name );
-
-		$meta_file = $template_path . '/template.json';
-		if ( ! file_exists( $meta_file ) ) {
-			throw new \RuntimeException( sprintf( 'Template metadata not found: %s', $template_name ) );
-		}
-
-		// The initial scaffold only exists to boot the environment; once a template is chosen, its content should be authoritative.
-		$template_content = $template_path . '/wp-content';
-		if ( is_dir( $template_content ) ) {
-			$this->delete_directory( $target_path . '/wp-content' );
-			$content_cloner = new ContentCloner();
-			$content_cloner->copy_directory( $template_content, $target_path . '/wp-content' );
-		}
-	}
-
-	/**
-	 * Clone one subdomain-multisite environment into another subdomain-multisite site.
-	 *
-	 * @param Environment             $source Source environment.
-	 * @param string                  $target_id Target environment slug.
-	 * @param string                  $target_path Target environment path.
-	 * @param int                     $target_blog_id Target multisite blog ID.
-	 * @param array<string, bool>     $shared_content Shared top-level wp-content directories keyed by directory name.
-	 * @param array<string, string[]> $content_exclude Top-level wp-content entries to skip while cloning.
-	 * @return array<string, mixed>
-	 * @throws \RuntimeException When the host WordPress database connection is unavailable.
-	 */
-	private function clone_from_subsite_environment(
-		Environment $source,
-		string $target_id,
-		string $target_path,
-		int $target_blog_id,
-		array $shared_content = array(),
-		array $content_exclude = array()
-	): array {
-		global $wpdb;
-
-		if ( ! isset( $wpdb ) || ! ( $wpdb instanceof \wpdb ) ) {
-			throw new \RuntimeException( 'Cloning a subsite environment requires a running WordPress database connection.' );
-		}
-
-		$source_prefix = $source->get_table_prefix();
-		$target_prefix = $wpdb->base_prefix . $target_blog_id . '_';
-		$source_url    = $this->get_environment_site_url( $source );
-		$target_url    = $this->get_target_environment_url( $target_id, $target_blog_id );
-
-		$mysql_cloner = new MySQLCloner();
-		$tables       = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ), true );
-		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
-		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
-
-		$content_clone = $this->clone_environment_content( $source, $target_id, $target_path, $shared_content, $content_exclude );
-
-		$default_result = array(
-			'host_url'              => $source_url,
-			'cloned_at'             => gmdate( 'c' ),
-			'db_cloned'             => true,
-			'themes_cloned'         => ! empty( $content_clone['themes_cloned'] ),
-			'plugins_cloned'        => ! empty( $content_clone['plugins_cloned'] ),
-			'uploads_cloned'        => ! empty( $content_clone['uploads_cloned'] ),
-			'tables_cloned'         => $tables,
-			'multisite'             => true,
-			'target_url'            => $target_url,
-			'git_worktrees'         => $content_clone['git_worktrees'],
-			'source_environment_id' => $source->id,
-			'source_type'           => $source->type,
-		);
-		$filtered       = Hooks::filter(
-			'rudel_environment_clone_source',
-			$default_result,
-			$source_url,
-			true,
-			! empty( $content_clone['themes_cloned'] ),
-			! empty( $content_clone['plugins_cloned'] ),
-			! empty( $content_clone['uploads_cloned'] ),
-			array(
-				'tables_cloned'         => $tables,
-				'multisite'             => true,
-				'target_url'            => $target_url,
-				'git_worktrees'         => $content_clone['git_worktrees'],
-				'source_environment_id' => $source->id,
-				'source_type'           => $source->type,
-			)
-		);
-		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
-		/** @var array<string, mixed> */
-		return is_array( $filtered ) ? $filtered : $default_result;
-	}
-
-	/**
-	 * Clone wp-content from another environment while preserving git worktrees for code directories.
-	 *
-	 * @param Environment             $source Source environment.
-	 * @param string                  $target_id New environment identifier.
-	 * @param string                  $target_path New environment path.
-	 * @param array<string, bool>     $shared_content Shared top-level wp-content directories keyed by directory name.
-	 * @param array<string, string[]> $content_exclude Top-level wp-content entries to skip while cloning.
-	 * @return array{
-	 *     git_worktrees: array<int, array{type:string,name:string,branch:string,repo:string,metadata_name:string}>,
-	 *     themes_cloned: bool,
-	 *     plugins_cloned: bool,
-	 *     uploads_cloned: bool
-	 * }
-	 */
-	private function clone_environment_content( Environment $source, string $target_id, string $target_path, array $shared_content = array(), array $content_exclude = array() ): array {
-		$source_content = $source->get_wp_content_path();
-		$target_content = $target_path . '/wp-content';
-		$content_cloner = new ContentCloner();
-		$git            = new GitIntegration();
-		$git_worktrees  = array();
-		$themes_cloned  = false;
-		$plugins_cloned = false;
-		$uploads_cloned = false;
-
-		$this->delete_directory( $target_content );
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Recreating wp-content for cloned environments.
-		mkdir( $target_content, 0755, true );
-
-		$iterator = new \FilesystemIterator( $source_content, \FilesystemIterator::SKIP_DOTS );
-
-		foreach ( $iterator as $entry ) {
-			if ( ! $entry instanceof \SplFileInfo ) {
-				continue;
-			}
-			$name            = $entry->getFilename();
-			$source_path     = $entry->getPathname();
-			$target_pathname = $target_content . '/' . $name;
-			$is_shared       = ! empty( $shared_content[ $name ] );
-			$is_directory    = $entry->isDir() || ( $entry->isLink() && is_dir( (string) realpath( $source_path ) ) );
-
-			if ( $is_shared && in_array( $name, array( 'plugins', 'uploads' ), true ) ) {
-				continue;
-			}
-
-			if ( $is_directory ) {
-				if ( in_array( $name, array( 'themes', 'plugins' ), true ) ) {
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating top-level content directory before git worktree clone.
-					mkdir( $target_pathname, 0755, true );
-
-					$results = $git->clone_with_worktrees( $source_path, $target_pathname, $target_id, $content_exclude[ $name ] ?? array() );
-					if ( 'themes' === $name ) {
-						$themes_cloned = true;
-					} elseif ( 'plugins' === $name ) {
-						$plugins_cloned = true;
-					}
-					foreach ( $results['worktrees'] as $worktree ) {
-						if ( ! is_array( $worktree ) ) {
-							continue;
-						}
-
-						$git_worktrees[] = array(
-							'type'          => $name,
-							'name'          => (string) ( $worktree['name'] ?? '' ),
-							'branch'        => (string) ( $worktree['branch'] ?? '' ),
-							'repo'          => (string) ( $worktree['repo'] ?? '' ),
-							'metadata_name' => (string) ( $worktree['metadata_name'] ?? '' ),
-						);
-					}
-
-					continue;
-				}
-
-				$content_cloner->copy_directory( $source_path, $target_pathname );
-				if ( 'uploads' === $name ) {
-					$uploads_cloned = true;
-				}
-				continue;
-			}
-
-			$target_dir = dirname( $target_pathname );
-			if ( ! is_dir( $target_dir ) ) {
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating parent directory for copied environment file.
-				mkdir( $target_dir, 0755, true );
-			}
-
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying environment content file.
-			copy( $source_path, $target_pathname );
-		}
-
-		EnvironmentContentLayout::materialize_for_path(
-			$target_content,
-			! empty( $shared_content['plugins'] ),
-			! empty( $shared_content['uploads'] )
-		);
-
-		return array(
-			'git_worktrees'  => $git_worktrees,
-			'themes_cloned'  => $themes_cloned,
-			'plugins_cloned' => $plugins_cloned,
-			'uploads_cloned' => $uploads_cloned,
-		);
-	}
-
-	/**
-	 * Whether one content clone result produced a local copy or worktree.
-	 *
-	 * @param mixed $result Clone result for one top-level wp-content directory.
-	 * @return bool
-	 */
-	private function content_clone_succeeded( $result ): bool {
-		if ( is_string( $result ) ) {
-			return 'copied' === $result;
-		}
-
-		if ( ! is_array( $result ) ) {
-			return false;
-		}
-
-		if ( isset( $result['status'] ) && 'copied' === $result['status'] ) {
-			return true;
-		}
-
-		return false;
 	}
 
 	/**

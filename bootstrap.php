@@ -77,19 +77,6 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$raw_host      = isset( $raw_parts['host'] ) ? (string) $raw_parts['host'] : '';
 		$raw_port      = isset( $raw_parts['port'] ) ? $raw_parts['port'] : null;
 
-		if ( 'cli' !== $rudel_bootstrap_sapi ) {
-			foreach ( array( 'HTTP_HOST', 'SERVER_NAME' ) as $server_key ) {
-				if ( ! isset( $_SERVER[ $server_key ] ) || ! is_string( $_SERVER[ $server_key ] ) || '' === $_SERVER[ $server_key ] ) {
-					continue;
-				}
-
-				$host_parts = $split_host( $_SERVER[ $server_key ] );
-				if ( null !== $host_parts['port'] && ! in_array( $host_parts['port'], array( 80, 443 ), true ) && '' !== $host_parts['host'] ) {
-					$_SERVER[ $server_key ] = $host_parts['host'];
-				}
-			}
-		}
-
 		$validate_id = function ( ?string $id ): bool {
 			return $id && preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/', $id );
 		};
@@ -115,24 +102,28 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			}
 
 			return array(
-				'id'        => $slug,
-				'path'      => $real,
-				'is_app'    => 'app' === $type,
-				'record_id' => isset( $record['id'] ) ? (int) $record['id'] : null,
-				'app_id'    => isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
-				'engine'    => isset( $record['engine'] ) ? (string) $record['engine'] : 'mysql',
-				'multisite' => ! empty( $record['multisite'] ),
-				'blog_id'   => isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
+				'id'           => $slug,
+				'path'         => $real,
+				'is_app'       => 'app' === $type,
+				'record_id'    => isset( $record['id'] ) ? (int) $record['id'] : null,
+				'app_id'       => isset( $record['app_id'] ) ? (int) $record['app_id'] : null,
+				'engine'       => isset( $record['engine'] ) ? (string) $record['engine'] : 'overlay',
+				'multisite'    => ! empty( $record['multisite'] ),
+				'blog_id'      => isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
+				'table_prefix' => isset( $record['table_prefix'] ) && is_string( $record['table_prefix'] ) ? $record['table_prefix'] : null,
+				'theme_slug'   => isset( $record['theme_slug'] ) && is_string( $record['theme_slug'] ) ? $record['theme_slug'] : null,
 			);
 		};
 
 		$sandbox_id         = null;
 		$sandbox_path       = null;
-		$environment_engine = 'subsite';
+		$environment_engine = 'overlay';
 		$environment_blog   = null;
 		$environment_multi  = false;
 		$environment_row_id = null;
 		$app_row_id         = null;
+		$environment_prefix = null;
+		$environment_theme  = null;
 
 		$normalize_host = function ( string $host ): string {
 			return strtolower( (string) preg_replace( '/:\d+$/', '', $host ) );
@@ -157,7 +148,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			return $normalize_host( $_SERVER['HTTP_HOST'] ?? 'localhost' );
 		};
 
-		$try_resolve = function ( string $id ) use ( $validate_id, $runtime_store, $validate_record, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id ): bool {
+		$try_resolve = function ( string $id ) use ( $validate_id, $runtime_store, $validate_record, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id, &$environment_prefix, &$environment_theme ): bool {
 			if ( ! $validate_id( $id ) ) {
 				return false;
 			}
@@ -177,13 +168,15 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 				$environment_multi      = $result['multisite'];
 				$environment_row_id     = $result['record_id'];
 				$app_row_id             = $result['app_id'];
+				$environment_prefix     = $result['table_prefix'];
+				$environment_theme      = $result['theme_slug'];
 				return true;
 			}
 
 			return false;
 		};
 
-		$try_resolve_domain = function ( string $host ) use ( $runtime_store, $validate_record, $normalize_host, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id ): bool {
+		$try_resolve_domain = function ( string $host ) use ( $runtime_store, $validate_record, $normalize_host, &$sandbox_id, &$sandbox_path, &$rudel_bootstrap_is_app, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$app_row_id, &$environment_prefix, &$environment_theme ): bool {
 			$domain = $normalize_host( $host );
 			if ( '' === $domain ) {
 				return false;
@@ -207,11 +200,13 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			$environment_multi      = $result['multisite'];
 			$environment_row_id     = $result['record_id'];
 			$app_row_id             = $result['app_id'];
+			$environment_prefix     = $result['table_prefix'];
+			$environment_theme      = $result['theme_slug'];
 
 			return true;
 		};
 
-		$extract_cli_url            = function (): ?string {
+		$extract_cli_url = function (): ?string {
 			$argv_sources = array();
 			global $argv;
 
@@ -235,68 +230,45 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
 			return null;
 		};
-		$normalize_cli_url_for_core = function ( string $url ): string {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap URL normalization.
-			$parts = parse_url( $url );
-			if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
-				return $url;
+
+		$theme_template_slug = function ( string $theme_root, string $theme_slug ): string {
+			$style_css = rtrim( $theme_root, '/' ) . '/' . $theme_slug . '/style.css';
+			if ( ! is_file( $style_css ) ) {
+				return $theme_slug;
 			}
 
-			$port = isset( $parts['port'] ) ? (int) $parts['port'] : null;
-			if ( null === $port || in_array( $port, array( 80, 443 ), true ) ) {
-				return $url;
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Pre-WP bootstrap reads local theme headers without WordPress helpers.
+			$contents = file_get_contents( $style_css );
+			if ( ! is_string( $contents ) || '' === $contents ) {
+				return $theme_slug;
 			}
 
-			$normalized = isset( $parts['scheme'] ) ? $parts['scheme'] . '://' : 'http://';
-			if ( isset( $parts['user'] ) && '' !== (string) $parts['user'] ) {
-				$normalized .= $parts['user'];
-				if ( isset( $parts['pass'] ) && '' !== (string) $parts['pass'] ) {
-					$normalized .= ':' . $parts['pass'];
-				}
-				$normalized .= '@';
+			if ( 1 === preg_match( '/^[ \t\/*#@]*Template:\s*([A-Za-z0-9_.-]+)/mi', $contents, $matches ) ) {
+				return (string) $matches[1];
 			}
 
-			$normalized .= $parts['host'];
-			$normalized .= isset( $parts['path'] ) ? $parts['path'] : '';
-			$normalized .= isset( $parts['query'] ) ? '?' . $parts['query'] : '';
-			$normalized .= isset( $parts['fragment'] ) ? '#' . $parts['fragment'] : '';
-
-			return $normalized;
-		};
-		$rewrite_cli_url_arguments  = function ( string $normalized_url ): void {
-			$rewrite = function ( array &$args ) use ( $normalized_url ): void {
-				foreach ( $args as $index => $arg ) {
-					if ( ! is_string( $arg ) ) {
-						continue;
-					}
-
-					if ( 0 === strpos( $arg, '--url=' ) ) {
-						$args[ $index ] = '--url=' . $normalized_url;
-						return;
-					}
-
-					if ( '--url' === $arg && isset( $args[ $index + 1 ] ) && is_string( $args[ $index + 1 ] ) ) {
-						$args[ $index + 1 ] = $normalized_url;
-						return;
-					}
-				}
-			};
-
-			global $argv;
-
-			if ( isset( $argv ) && is_array( $argv ) ) {
-				$rewrite( $argv );
-			}
-			if ( isset( $_SERVER['argv'] ) && is_array( $_SERVER['argv'] ) ) {
-				$rewrite( $_SERVER['argv'] );
-			}
+			return $theme_slug;
 		};
 
 		// Resolution order matters: explicit operator routing should win before host-based app lookup.
+		if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi ) {
+			$env_id = getenv( 'RUDEL_ENVIRONMENT' );
+			if ( is_string( $env_id ) && '' !== $env_id ) {
+				$try_resolve( $env_id );
+			}
+		}
+
 		if ( ! $sandbox_id ) {
-			$header_id = $_SERVER['HTTP_X_RUDEL_SANDBOX'] ?? null;
+			$header_id = $_SERVER['HTTP_X_RUDEL_ENVIRONMENT'] ?? ( $_SERVER['HTTP_X_RUDEL_SANDBOX'] ?? null );
 			if ( $header_id ) {
 				$try_resolve( $header_id );
+			}
+		}
+
+		if ( ! $sandbox_id ) {
+			$cookie_id = $_COOKIE['rudel_environment'] ?? ( $_COOKIE['rudel_sandbox'] ?? null );
+			if ( is_string( $cookie_id ) && '' !== $cookie_id ) {
+				$try_resolve( $cookie_id );
 			}
 		}
 
@@ -310,8 +282,6 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi ) {
 			$rudel_bootstrap_requested_url = $extract_cli_url();
 			if ( is_string( $rudel_bootstrap_requested_url ) && '' !== $rudel_bootstrap_requested_url ) {
-				// WP-CLI multisite lookup matches against stored host-only domains, so keep the raw portful URL for Rudel-generated links but hand core a normalized host-only value.
-				$rewrite_cli_url_arguments( $normalize_cli_url_for_core( $rudel_bootstrap_requested_url ) );
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap.
 				$cli_host = parse_url( $rudel_bootstrap_requested_url, PHP_URL_HOST );
 				if ( is_string( $cli_host ) && '' !== $cli_host ) {
@@ -319,21 +289,6 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 				}
 				if ( ! $sandbox_id && is_string( $cli_host ) && preg_match( '/^([a-zA-Z0-9][a-zA-Z0-9_-]{0,63})\./', $normalize_host( $cli_host ), $m ) ) {
 					$try_resolve( $m[1] );
-				}
-			}
-		}
-
-		if ( ! $sandbox_id ) {
-			$host = $_SERVER['HTTP_HOST'] ?? '';
-			if ( $host ) {
-				$normalized_host = $normalize_host( (string) $host );
-				$network_host    = $current_network_host();
-
-				if ( '' !== $network_host && str_ends_with( $normalized_host, '.' . $network_host ) ) {
-					$slug = substr( $normalized_host, 0, -strlen( '.' . $network_host ) );
-					if ( '' !== $slug ) {
-						$try_resolve( $slug );
-					}
 				}
 			}
 		}
@@ -364,33 +319,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			}
 		};
 
-		// Keep sandboxed PHP boxed into its environment plus the minimum shared runtime paths it still needs.
-		$wp_core_path = defined( 'ABSPATH' ) ? rtrim( ABSPATH, '/' ) : dirname( __DIR__, 2 );
-		$paths        = array(
-			$sandbox_path,
-			$wp_core_path,
-			$plugin_dir,
-			sys_get_temp_dir(),
-			'/tmp',
-		);
-
-		// WP-CLI may run from outside WordPress, so the jail has to allow the invoking binary too.
-		if ( 'cli' === $rudel_bootstrap_sapi && ! empty( $_SERVER['SCRIPT_FILENAME'] ) ) {
-			$cli_dir = dirname( (string) realpath( $_SERVER['SCRIPT_FILENAME'] ) );
-			if ( '' !== $cli_dir && '.' !== $cli_dir ) {
-				$paths[] = $cli_dir;
-			}
-		}
-
-		$allowed_paths = implode( PATH_SEPARATOR, $paths );
-		if ( ! defined( 'RUDEL_DISABLE_OPEN_BASEDIR_JAIL' ) || ! RUDEL_DISABLE_OPEN_BASEDIR_JAIL ) {
-			// phpcs:ignore WordPress.PHP.IniSet.Risky -- Intentional open_basedir jail for sandbox isolation.
-			ini_set( 'open_basedir', $allowed_paths );
-		}
-
 		$_rudel_engine = $environment_engine;
-
-		$def( 'WP_CONTENT_DIR', $sandbox_path . '/wp-content' );
 
 		// Respect an explicit CLI target URL so generated links and rewrites stay on the requested origin.
 		$protocol = 'http';
@@ -421,18 +350,12 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$environment_url = $site_url;
 		$def( 'RUDEL_HOST_URL', $host_url );
 		$def( 'RUDEL_ENVIRONMENT_URL', $environment_url );
-
-		$def( 'RUDEL_ENVIRONMENT_CONTENT_URL', $environment_url . '/wp-content' );
-		$def( 'WP_CONTENT_URL', $environment_url . '/wp-content' );
-		$def( 'WP_PLUGIN_DIR', $sandbox_path . '/wp-content/plugins' );
-		$def( 'WPMU_PLUGIN_DIR', $sandbox_path . '/wp-content/mu-plugins' );
 		$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );
-		$def( 'UPLOADS', 'wp-content/uploads' );
 
 		// Keep sandbox notices out of browser output while preserving a per-environment debug trail.
 		if ( ! $rudel_bootstrap_is_app ) {
 			$def( 'WP_DEBUG', true );
-			$def( 'WP_DEBUG_LOG', true );
+			$def( 'WP_DEBUG_LOG', $sandbox_path . '/debug.log' );
 			$def( 'WP_DEBUG_DISPLAY', false );
 		}
 
@@ -452,34 +375,23 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$def( 'LOGGED_IN_SALT', hash( 'sha256', $sandbox_id . 'LOGGED_IN_SALT' ) );
 		$def( 'NONCE_SALT', hash( 'sha256', $sandbox_id . 'NONCE_SALT' ) );
 
-		$def( 'WP_ALLOW_MULTISITE', true );
-		$def( 'MULTISITE', true );
-		$def( 'SUBDOMAIN_INSTALL', true );
-		$def( 'DOMAIN_CURRENT_SITE', $current_network_host() );
-		$def( 'PATH_CURRENT_SITE', '/' );
-		$def( 'SITE_ID_CURRENT_SITE', 1 );
-		$def( 'BLOG_ID_CURRENT_SITE', 1 );
-
 		$def( 'RUDEL_ID', $sandbox_id );
 		$def( 'RUDEL_PATH', $sandbox_path );
 		$def( 'RUDEL_IS_APP', $rudel_bootstrap_is_app );
 		$def( 'RUDEL_BOOTSTRAP_PLUGIN_DIR', $plugin_dir );
 		$def( 'RUDEL_ENV_TYPE', $rudel_bootstrap_is_app ? 'app' : 'sandbox' );
 		$def( 'RUDEL_ENGINE', $_rudel_engine );
-		if ( null !== $environment_blog ) {
-			$base_prefix = $runtime_store->base_prefix();
-			if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->base_prefix ) && is_string( $GLOBALS['wpdb']->base_prefix ) && '' !== $GLOBALS['wpdb']->base_prefix ) {
-				$base_prefix = $GLOBALS['wpdb']->base_prefix;
-			} elseif ( isset( $GLOBALS['table_prefix'] ) && is_string( $GLOBALS['table_prefix'] ) && '' !== $GLOBALS['table_prefix'] ) {
-				$base_prefix = $GLOBALS['table_prefix'];
-			}
-
-			if ( is_string( $base_prefix ) && '' !== $base_prefix ) {
-				$def( 'RUDEL_TABLE_PREFIX', $base_prefix . $environment_blog . '_' );
-				$def( 'RUDEL_USER_SCOPE', 'isolated' );
-				$def( 'RUDEL_USERS_TABLE', $base_prefix . 'rudel_env_' . $environment_blog . '_users' );
-				$def( 'RUDEL_USERMETA_TABLE', $base_prefix . 'rudel_env_' . $environment_blog . '_usermeta' );
-			}
+		if ( is_string( $environment_prefix ) && '' !== $environment_prefix ) {
+			$GLOBALS['table_prefix'] = $environment_prefix;
+			$def( 'RUDEL_TABLE_PREFIX', $environment_prefix );
+		}
+		if ( is_string( $environment_theme ) && '' !== $environment_theme ) {
+			$theme_base_dir = $rudel_bootstrap_is_app ? 'rudel-apps' : 'rudel-environments';
+			$theme_root     = $sandbox_path . '/themes';
+			$def( 'RUDEL_THEME_SLUG', $environment_theme );
+			$def( 'RUDEL_TEMPLATE_SLUG', $theme_template_slug( $theme_root, $environment_theme ) );
+			$def( 'RUDEL_ENVIRONMENT_THEME_ROOT', $theme_root );
+			$def( 'RUDEL_ENVIRONMENT_THEME_ROOT_URI', $environment_url . '/wp-content/' . $theme_base_dir . '/' . rawurlencode( $sandbox_id ) . '/themes' );
 		}
 		$def( 'RUDEL_ENV_RECORD_ID', $environment_row_id );
 		if ( null !== $app_row_id ) {

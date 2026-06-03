@@ -122,6 +122,37 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 		array( Rudel\Automation::class, 'run' )
 	);
 
+	if ( defined( 'RUDEL_THEME_SLUG' ) && defined( 'RUDEL_ENVIRONMENT_THEME_ROOT' ) ) {
+		add_filter(
+			'pre_option_template',
+			'rudel_overlay_template_slug'
+		);
+		add_filter(
+			'pre_option_stylesheet',
+			'rudel_overlay_stylesheet_slug'
+		);
+		add_filter(
+			'pre_option_current_theme',
+			'rudel_overlay_current_theme'
+		);
+		add_filter(
+			'theme_root',
+			'rudel_overlay_theme_root',
+			10,
+			2
+		);
+		add_filter(
+			'theme_root_uri',
+			'rudel_overlay_theme_root_uri',
+			10,
+			3
+		);
+
+		if ( function_exists( 'register_theme_directory' ) ) {
+			register_theme_directory( RUDEL_ENVIRONMENT_THEME_ROOT );
+		}
+	}
+
 	if ( Rudel\Rudel::is_sandbox() || Rudel\Rudel::is_app() ) {
 		Rudel\Rudel::touch_current_environment();
 
@@ -154,6 +185,102 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 			'rudel_admin_bar_styles'
 		);
 	}
+}
+
+/**
+ * Active overlay stylesheet slug.
+ *
+ * @return string
+ */
+function rudel_overlay_stylesheet_slug(): string {
+	return defined( 'RUDEL_THEME_SLUG' ) ? (string) RUDEL_THEME_SLUG : '';
+}
+
+/**
+ * Active overlay template slug.
+ *
+ * @return string
+ */
+function rudel_overlay_template_slug(): string {
+	if ( defined( 'RUDEL_TEMPLATE_SLUG' ) && '' !== (string) RUDEL_TEMPLATE_SLUG ) {
+		return (string) RUDEL_TEMPLATE_SLUG;
+	}
+
+	return rudel_overlay_stylesheet_slug();
+}
+
+/**
+ * Display name for the current overlay theme.
+ *
+ * @return string
+ */
+function rudel_overlay_current_theme(): string {
+	$slug = rudel_overlay_stylesheet_slug();
+	if ( function_exists( 'wp_get_theme' ) && '' !== $slug ) {
+		$theme = wp_get_theme( $slug );
+		if ( $theme && method_exists( $theme, 'exists' ) && $theme->exists() ) {
+			return (string) $theme->get( 'Name' );
+		}
+	}
+
+	return $slug;
+}
+
+/**
+ * Theme root for the selected overlay theme.
+ *
+ * @param string $theme_root Current root.
+ * @param string $stylesheet Theme stylesheet.
+ * @return string
+ */
+function rudel_overlay_theme_root( string $theme_root, string $stylesheet ): string {
+	if ( rudel_overlay_owns_theme_slug( $stylesheet ) ) {
+		return (string) RUDEL_ENVIRONMENT_THEME_ROOT;
+	}
+
+	return $theme_root;
+}
+
+/**
+ * Theme root URI for the selected overlay theme.
+ *
+ * @param string $theme_root_uri Current root URI.
+ * @param string $siteurl Site URL.
+ * @param string $stylesheet Theme stylesheet.
+ * @return string
+ */
+function rudel_overlay_theme_root_uri( string $theme_root_uri, string $siteurl, string $stylesheet ): string {
+	unset( $siteurl );
+
+	if ( defined( 'RUDEL_ENVIRONMENT_THEME_ROOT_URI' ) && rudel_overlay_owns_theme_slug( $stylesheet ) ) {
+		return (string) RUDEL_ENVIRONMENT_THEME_ROOT_URI;
+	}
+
+	return $theme_root_uri;
+}
+
+/**
+ * Whether one theme slug is owned by the selected overlay root.
+ *
+ * @param string $slug Theme slug.
+ * @return bool
+ */
+function rudel_overlay_owns_theme_slug( string $slug ): bool {
+	if ( ! defined( 'RUDEL_ENVIRONMENT_THEME_ROOT' ) || '' === $slug ) {
+		return false;
+	}
+
+	$owned_slugs = array_unique(
+		array_filter(
+			array(
+				rudel_overlay_stylesheet_slug(),
+				rudel_overlay_template_slug(),
+			),
+			static fn ( string $value ): bool => '' !== $value
+		)
+	);
+
+	return in_array( $slug, $owned_slugs, true ) && is_dir( rtrim( (string) RUDEL_ENVIRONMENT_THEME_ROOT, '/' ) . '/' . $slug );
 }
 
 /**

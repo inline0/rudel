@@ -13,21 +13,29 @@ namespace Rudel;
 class EnvironmentStateReplacer {
 
 	/**
-	 * Replace one environment's database and wp-content with another's.
+	 * Replace one environment's database and environment-owned files with another's.
 	 *
 	 * @param Environment $source Source environment.
 	 * @param Environment $target Target environment.
 	 * @return array{source_id: string, target_id: string, tables_copied: int}
 	 *
-	 * @throws \InvalidArgumentException If the environments are not both subdomain-multisite sites.
+	 * @throws \InvalidArgumentException If the environments use incompatible runtime engines.
 	 */
 	public function replace( Environment $source, Environment $target ): array {
-		if ( ! $source->is_subsite() || ! $target->is_subsite() ) {
-			throw new \InvalidArgumentException( 'Environment state replacement requires subdomain-multisite environments.' );
+		if ( $source->engine !== $target->engine ) {
+			throw new \InvalidArgumentException( 'Environment state replacement requires matching runtime engines.' );
+		}
+
+		if ( ! $source->is_overlay() && ! $source->is_subsite() ) {
+			throw new \InvalidArgumentException( sprintf( 'Unsupported environment runtime engine: %s.', $source->engine ) );
 		}
 
 		$tables_copied = $this->replace_mysql_environment_state( $source, $target );
-		$this->replace_environment_content( $source, $target );
+		if ( $source->is_overlay() ) {
+			$this->replace_overlay_theme_content( $source, $target );
+		} else {
+			$this->replace_environment_content( $source, $target );
+		}
 
 		return array(
 			'source_id'     => $source->id,
@@ -69,9 +77,39 @@ class EnvironmentStateReplacer {
 			$source_prefix,
 			$target_prefix
 		);
-		( new EnvironmentUserIsolationService() )->replace( $source, $target );
+		if ( $source->uses_isolated_users() && $target->uses_isolated_users() ) {
+			( new EnvironmentUserIsolationService() )->replace( $source, $target );
+		}
 
 		return $tables;
+	}
+
+	/**
+	 * Replace environment-owned overlay themes without touching shared plugins/uploads.
+	 *
+	 * @param Environment $source Source environment.
+	 * @param Environment $target Target environment.
+	 * @return void
+	 */
+	private function replace_overlay_theme_content( Environment $source, Environment $target ): void {
+		$source_theme_root = ThemeOverlay::theme_root_for( $source );
+		$target_theme_root = ThemeOverlay::theme_root_for( $target );
+
+		if ( ! is_dir( $source_theme_root ) ) {
+			if ( is_dir( $target_theme_root ) ) {
+				$this->delete_directory( $target_theme_root );
+			}
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Recreating empty overlay theme root.
+			mkdir( $target_theme_root, 0755, true );
+			return;
+		}
+
+		if ( ! is_dir( $target_theme_root ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Recreating overlay theme root.
+			mkdir( $target_theme_root, 0755, true );
+		}
+
+		$this->sync_generic_directory( $source_theme_root, $target_theme_root, array(), true );
 	}
 
 	/**

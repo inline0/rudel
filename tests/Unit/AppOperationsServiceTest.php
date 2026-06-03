@@ -18,20 +18,26 @@ class AppOperationsServiceTest extends RudelTestCase
         $appPath = $this->createFakeSandbox('restore-app', 'Restore App', [
             'type' => 'app',
             'domains' => ['restore-app.example.test'],
-            'blog_id' => 2,
-            'multisite' => true,
+            'theme_slug' => 'state-theme',
         ]);
         $sandboxPath = $this->createFakeSandbox('restore-sandbox', 'Restore Sandbox', [
-            'blog_id' => 3,
-            'multisite' => true,
+            'theme_slug' => 'state-theme',
         ]);
 
-        file_put_contents($appPath . '/wp-content/state.txt', 'app state');
-        file_put_contents($sandboxPath . '/wp-content/state.txt', 'sandbox state');
+        mkdir($appPath . '/themes/state-theme', 0755, true);
+        mkdir($sandboxPath . '/themes/state-theme', 0755, true);
+        file_put_contents($appPath . '/themes/state-theme/state.txt', 'app state');
+        file_put_contents($sandboxPath . '/themes/state-theme/state.txt', 'sandbox state');
+
+        $app = Environment::from_path($appPath);
+        $sandbox = Environment::from_path($sandboxPath);
+
+        $this->assertInstanceOf(Environment::class, $app);
+        $this->assertInstanceOf(Environment::class, $sandbox);
 
         $wpdb->addTable(
-            'wp_2_options',
-            'CREATE TABLE `wp_2_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            $app->get_table_prefix() . 'options',
+            'CREATE TABLE `' . $app->get_table_prefix() . 'options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
             [
                 ['option_id' => 1, 'option_name' => 'blogname', 'option_value' => 'Restore App'],
                 ['option_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'http://restore-app.example.test'],
@@ -39,20 +45,14 @@ class AppOperationsServiceTest extends RudelTestCase
             ]
         );
         $wpdb->addTable(
-            'wp_3_options',
-            'CREATE TABLE `wp_3_options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
+            $sandbox->get_table_prefix() . 'options',
+            'CREATE TABLE `' . $sandbox->get_table_prefix() . 'options` (`option_id` bigint(20), `option_name` varchar(191), `option_value` longtext)',
             [
                 ['option_id' => 1, 'option_name' => 'blogname', 'option_value' => 'Restore Sandbox'],
                 ['option_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'http://restore-sandbox.example.test'],
                 ['option_id' => 3, 'option_name' => 'home', 'option_value' => 'http://restore-sandbox.example.test'],
             ]
         );
-
-        $app = Environment::from_path($appPath);
-        $sandbox = Environment::from_path($sandboxPath);
-
-        $this->assertInstanceOf(Environment::class, $app);
-        $this->assertInstanceOf(Environment::class, $sandbox);
 
         $appRepository = new EnvironmentRepository($this->runtimeStore(), $this->tmpDir, 'app');
         $sandboxRepository = new EnvironmentRepository($this->runtimeStore(), $this->tmpDir, 'sandbox');
@@ -105,9 +105,9 @@ class AppOperationsServiceTest extends RudelTestCase
             $this->assertSame('Metadata write failed', $e->getMessage());
         }
 
-        $this->assertSame('app state', file_get_contents($appPath . '/wp-content/state.txt'));
-        $this->assertSame('Restore App', $this->siteOptionValue(2, 'blogname'));
-        $this->assertSame('http://restore-app.example.test', $this->siteOptionValue(2, 'siteurl'));
+        $this->assertSame('app state', file_get_contents($appPath . '/themes/state-theme/state.txt'));
+        $this->assertSame('Restore App', $this->tableOptionValue($app->get_table_prefix(), 'blogname'));
+        $this->assertSame('http://restore-app.example.test', $this->tableOptionValue($app->get_table_prefix(), 'siteurl'));
         $this->assertSame([], (new \Rudel\AppDeploymentLog($app))->list());
     }
 }

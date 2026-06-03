@@ -47,7 +47,7 @@ class RudelExternalCoreTest extends TestCase {
 		Rudel::init( new Connection( 'localhost', 'rudel', 'root', 'secret', 'wp_' ) );
 
 		$this->expectException( \RuntimeException::class );
-		$this->expectExceptionMessage( 'requires a live WordPress multisite runtime' );
+		$this->expectExceptionMessage( 'requires a live WordPress runtime with a database connection' );
 
 		Rudel::create( 'outside-wp' );
 	}

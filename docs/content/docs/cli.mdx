@@ -18,19 +18,17 @@ You can rename only the root command with `RUDEL_CLI_COMMAND` before Rudel boots
 
 ### `wp rudel create`
 
-Create a sandbox. This is the command you use when you want a new disposable multisite site for change work.
+Create a sandbox. This is the command you use when you want a new disposable overlay environment for change work.
 
 ```bash
-wp rudel create [--name=<name>] [--git=<remote>] [--template=<template>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--shared-plugins] [--shared-uploads] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
+wp rudel create [--name=<name>] [--theme=<slug>] [--git=<remote>] [--template=<template>] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--type=<type>]
 ```
 
-Rudel creates sandboxes as multisite sites. There is no engine choice anymore, only different ways to seed the initial content and metadata. Each created sandbox also gets its own local `wp-content`, which becomes the canonical code and file tree for that environment.
-
-`--shared-plugins` and `--shared-uploads` are opt-in exceptions to the default fully local content model. They keep the environment-local `wp-content` root, but replace `plugins` and/or `uploads` with links back to the host directories.
+Rudel creates sandboxes as overlays with cloned WordPress tables and a copied active theme. Plugins, uploads, and users are shared with the host by default.
 
 ### `wp rudel list`
 
-List sandboxes. This is the operator view of the Rudel environment registry rather than WordPress's raw `wp site list` output.
+List sandboxes. This is the operator view of the Rudel environment registry.
 
 ```bash
 wp rudel list [--format=<format>]
@@ -38,7 +36,7 @@ wp rudel list [--format=<format>]
 
 ### `wp rudel info`
 
-Show sandbox details, including lifecycle metadata and Rudel-specific context that does not belong in core multisite tables.
+Show sandbox details, including lifecycle metadata and Rudel-specific overlay context.
 
 ```bash
 wp rudel info <id> [--format=<format>]
@@ -54,7 +52,7 @@ wp rudel update <id> [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>]
 
 ### `wp rudel destroy`
 
-Destroy a sandbox permanently. Rudel removes the environment record, the generated directory, and the multisite site that backs it.
+Destroy a sandbox permanently. Rudel removes the environment record, generated directory, and cloned environment tables.
 
 ```bash
 wp rudel destroy <id> [--force]
@@ -142,19 +140,19 @@ wp rudel push <id> [--git=<remote>] [--message=<message>] [--dir=<dir>]
 
 ## App commands
 
-Everything under `wp rudel app ...` is about the long-lived side of the system. Apps are still multisite sites, but they accumulate operational metadata that sandboxes usually do not keep for long.
+Everything under `wp rudel app ...` is about the long-lived side of the system. Apps use the same overlay runtime as sandboxes, but they accumulate operational metadata that sandboxes usually do not keep for long.
 
 ### `wp rudel app create`
 
 Create an app.
 
 ```bash
-wp rudel app create --domain=<domain> [--name=<name>] [--clone-db] [--clone-themes] [--clone-plugins] [--clone-uploads] [--clone-all] [--clone-from=<id>] [--shared-plugins] [--shared-uploads] [--git=<remote>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
+wp rudel app create --domain=<domain> [--name=<name>] [--theme=<slug>] [--clone-from=<id>] [--git=<remote>] [--branch=<branch>] [--dir=<dir>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
 Use `--git`, `--branch`, and `--dir` when the app should carry one tracked code source. That tracked source becomes the default Git context for app-derived sandboxes and deployment history.
 
-The `--domain` value is also the app's canonical Rudel URL. `wp rudel app info` and app deploy history report that primary domain even though the backing multisite site still exists underneath. On local networks that run on a non-default port, the rendered canonical URL keeps that port as part of the reported app URL.
+The `--domain` value is also the app's canonical Rudel URL. `wp rudel app info` and app deploy history report that primary domain. On local networks that run on a non-default port, the rendered canonical URL keeps that port as part of the reported app URL.
 
 ### `wp rudel app list`
 
@@ -187,14 +185,14 @@ wp rudel app destroy <id> [--force]
 Create a sandbox from an app.
 
 ```bash
-wp rudel app create-sandbox <id> [--name=<name>] [--shared-plugins] [--shared-uploads] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
+wp rudel app create-sandbox <id> [--name=<name>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>]
 ```
 
 If the source app tracks a Git remote, branch, and directory, the derived sandbox inherits that metadata automatically.
 
-If the source app uses shared plugins or uploads, the derived sandbox inherits those settings automatically unless you override them with the sandbox creation flags.
+Plugins and uploads are shared in the current overlay runtime. The app-derived sandbox gets its own cloned table prefix and copied active theme, while plugin files and uploaded files continue to come from the host WordPress installation.
 
-If the source app has a primary domain, Rudel also rewrites cloned site state from that app domain into the sandbox URL so local change work stays isolated. The derived sandbox still uses its own local `wp-content`; deploying back later replaces the app's local state, not some shared network code directory.
+If the source app has a primary domain, Rudel rewrites cloned site state from that app domain into the sandbox URL so local change work stays isolated. Deploying back later replaces the app's overlay state, not the host site.
 
 ### `wp rudel app backup`
 

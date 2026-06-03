@@ -376,6 +376,8 @@ class EnvironmentRepository {
 			'status'                  => $environment->status,
 			'multisite'               => $environment->multisite ? 1 : 0,
 			'blog_id'                 => $environment->blog_id,
+			'table_prefix'            => $environment->table_prefix,
+			'theme_slug'              => $environment->theme_slug,
 			'clone_source'            => null === $clone_source ? null : RuntimeJson::encode( $clone_source ),
 			'owner'                   => $environment->owner,
 			'labels'                  => RuntimeJson::encode( $environment->labels ),
@@ -487,6 +489,12 @@ class EnvironmentRepository {
 					break;
 				case 'blog_id':
 					$payload['blog_id'] = $value;
+					break;
+				case 'table_prefix':
+					$payload['table_prefix'] = $value;
+					break;
+				case 'theme_slug':
+					$payload['theme_slug'] = $value;
 					break;
 				case 'engine':
 					$payload['engine'] = $value;

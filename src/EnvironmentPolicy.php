@@ -73,6 +73,22 @@ class EnvironmentPolicy {
 			$normalized['owner'] = self::normalize_optional_string( $changes['owner'] );
 		}
 
+		if ( array_key_exists( 'name', $changes ) ) {
+			$normalized['name'] = self::normalize_required_string( $changes['name'], 'name' );
+		}
+
+		if ( array_key_exists( 'template', $changes ) ) {
+			$normalized['template'] = self::normalize_required_string( $changes['template'], 'template' );
+		}
+
+		if ( array_key_exists( 'status', $changes ) ) {
+			$normalized['status'] = self::normalize_required_string( $changes['status'], 'status' );
+		}
+
+		if ( array_key_exists( 'theme_slug', $changes ) ) {
+			$normalized['theme_slug'] = self::normalize_optional_string( $changes['theme_slug'] );
+		}
+
 		if ( array_key_exists( 'labels', $changes ) ) {
 			$normalized['labels'] = self::normalize_labels( $changes['labels'] );
 		}
@@ -227,6 +243,23 @@ class EnvironmentPolicy {
 
 		$value = trim( (string) $value );
 		return '' === $value ? null : $value;
+	}
+
+	/**
+	 * Normalize a required string value.
+	 *
+	 * @param mixed  $value Raw input.
+	 * @param string $field Field name for errors.
+	 * @return string
+	 * @throws \InvalidArgumentException If the value is empty or not scalar.
+	 */
+	private static function normalize_required_string( $value, string $field ): string {
+		$value = self::normalize_optional_string( $value );
+		if ( null === $value ) {
+			throw new \InvalidArgumentException( sprintf( '%s must be a non-empty string.', $field ) );
+		}
+
+		return $value;
 	}
 
 	/**

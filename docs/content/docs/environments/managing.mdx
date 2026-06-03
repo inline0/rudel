@@ -14,7 +14,7 @@ wp rudel list
 wp rudel list --format=json
 ```
 
-`wp rudel list` is the best high-level view when you care about Rudel metadata such as ownership, protection, or source lineage. If you only care about raw site URLs, use `wp site list` alongside it.
+`wp rudel list` is the best high-level view when you care about Rudel metadata such as ownership, protection, or source lineage.
 
 ## Inspect a sandbox
 
@@ -72,8 +72,8 @@ Destroy an app:
 wp rudel app destroy demo-1234 --force
 ```
 
-Destroying an environment removes its Rudel records, multisite site, and the
-full environment-local file tree under that generated directory, including the
-cloned `wp-content`. That is why the distinction between sandboxes and apps
-matters: sandboxes should be easy to remove, while apps usually deserve a
-backup or deploy-aware recovery point before anything destructive happens.
+Destroying an environment removes its Rudel records, drops its generated
+environment table prefix, and removes its owned environment directory. That is
+why the distinction between sandboxes and apps matters: sandboxes should be easy
+to remove, while apps usually deserve a backup or deploy-aware recovery point
+before anything destructive happens.

@@ -1,33 +1,23 @@
 ---
 title: Creating Environments
-description: Create sandboxes and apps on a subdomain multisite network.
+description: Create sandboxes and apps with Rudel's overlay runtime.
 ---
 
 # Creating Environments
 
-Rudel creates real multisite sites. That explains the whole runtime shape.
+Creating an environment means creating a DB-backed overlay, not a WordPress multisite site.
 
-When you create an environment, Rudel creates a real site, records that site in its runtime tables, and prepares the environment directory that holds scoped tooling, the cloned `wp-content`, snapshots, backups, and other environment-owned files.
+Rudel clones WordPress tables into an environment prefix, copies the selected active theme, records runtime metadata, and leaves host plugins/uploads/users shared.
 
 ## Create a sandbox
 
-Sandboxes are the disposable side of the system. Use them when you want a change workspace that is safe to destroy later.
-
 ```bash
-wp rudel create --name=alpha
+wp rudel create --name=alpha --theme=twentytwentyfour
 ```
-
-That gives you a new multisite site plus a Rudel environment record. From there, the creation flags mainly control how much starting state you want to bring in.
 
 Common variations:
 
 ```bash
-# clone host database
-wp rudel create --name=alpha --clone-db
-
-# copy host code and uploads too
-wp rudel create --name=alpha --clone-all
-
 # clone from an existing environment
 wp rudel create --name=qa --clone-from=alpha-1234
 
@@ -38,55 +28,38 @@ wp rudel create --name=starter --template=theme-starter
 wp rudel create --git=https://example.test/example-theme.git
 ```
 
-Those options compose in the way you would expect. Templates and Git seeding help you start from a known shape, while clone flags decide how much host or source-environment state should be copied into the new environment-local `wp-content` and site tables.
-
-If you want a lighter-weight environment without giving up isolated themes, you can opt into live shared host directories for plugins and uploads:
-
-```bash
-wp rudel create --name=alpha --shared-plugins --shared-uploads
-```
-
-That keeps the environment's `wp-content` local, but `wp-content/plugins` and `wp-content/uploads` become links back to the host directories instead of copied directories. Full isolation remains the default.
+The host database is cloned by default into a new environment table prefix. The active theme is copied into the environment-owned theme root.
 
 ## Create an app
 
-Apps use the same runtime model, but they are meant to be the stable side of the lifecycle: the places you deploy into, back up, and keep attached to domain metadata.
-
 ```bash
-wp rudel app create --name=demo --domain=demo.example.test
+wp rudel app create --name=demo --domain=demo.example.test --theme=twentytwentyfour
 ```
 
-Apps are also backed by real multisite sites. Rudel stores their domain metadata, deploy history, worktrees, and other lifecycle context in runtime tables, while the site itself keeps its own environment-local `wp-content` and remains a normal multisite site that core can see and manage.
+Apps use the same overlay runtime as sandboxes. They are durable targets with app domains, backups, deployment history, and app-derived sandbox workflows.
 
-If an app has a single long-lived code source, you can capture that at creation time:
+If an app has one long-lived Git source, capture it at creation time:
 
 ```bash
 wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/demo-theme.git --branch=main --dir=themes/demo-theme
 ```
 
-That tracked Git context becomes part of the app record. App-derived sandboxes inherit it automatically, which means later `wp rudel push` calls can usually run without restating the remote details.
+App-derived sandboxes inherit tracked Git metadata automatically.
 
-Apps can also opt into shared host plugins or uploads when that better matches the workflow:
+## Runtime selection
 
-```bash
-wp rudel app create --name=demo --domain=demo.example.test --shared-plugins --shared-uploads
-```
-
-Derived sandboxes inherit those shared-directory settings unless you override them at creation time.
-
-## Find the created site URLs
+Use one of the request selectors to enter an environment:
 
 ```bash
-wp site list --fields=blog_id,url
+curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
+RUDEL_ENVIRONMENT=alpha-1234 wp option get blogname
 ```
 
-That output is the browser truth for Rudel environments. If you need the site URL, ask WordPress. If you need the extra lifecycle metadata around that site, ask Rudel.
-
-The environment directory is the corresponding operator workspace and the canonical file tree for that environment. That is where Rudel keeps the scoped `wp-cli.yml`, bootstrap files, cloned `wp-content`, logs, snapshots, backups, and other environment-owned files.
+If no selector is present, WordPress boots as the host.
 
 ## Policy metadata
 
-Sandboxes and apps both support the same stewardship metadata:
+Sandboxes and apps both support stewardship metadata:
 
 - `--owner`
 - `--labels`
@@ -95,4 +68,4 @@ Sandboxes and apps both support the same stewardship metadata:
 - `--ttl-days`
 - `--expires-at`
 
-Those values are stored in Rudel runtime records and used by cleanup, automation, reporting, and operator tooling. They are worth setting early, because once a team has more than a handful of environments, names alone stop being enough.
+Those values are stored in Rudel runtime records and used by cleanup, automation, reporting, and operator tooling.

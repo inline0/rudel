@@ -11,11 +11,8 @@ use Rudel\Tests\RudelTestCase;
 
 class BootstrapRoutingPrecedenceTest extends RudelTestCase
 {
-	#[RunInSeparateProcess]
-	#[PreserveGlobalState(false)]
-	public function testExplicitSandboxHeaderWinsOverMappedAppDomain(): void
+	private function createRuntimeDirs(string $wordpressRoot, string $home = 'http://example.test', string $sapi = 'fpm-fcgi'): array
 	{
-		$wordpressRoot = $this->tmpDir . '/wordpress';
 		$environmentsDir = $wordpressRoot . '/wp-content/rudel-environments';
 		$appsDir = $wordpressRoot . '/wp-content/rudel-apps';
 		mkdir($environmentsDir, 0755, true);
@@ -23,234 +20,201 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 
 		define('ABSPATH', $wordpressRoot . '/');
 		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
-		define('WP_HOME', 'http://example.test');
-		define('DOMAIN_CURRENT_SITE', 'example.test');
-		define('RUDEL_BOOTSTRAP_SAPI', 'fpm-fcgi');
-		define('RUDEL_DISABLE_OPEN_BASEDIR_JAIL', true);
+		define('WP_HOME', $home);
+		define('RUDEL_BOOTSTRAP_SAPI', $sapi);
 
-		$appPath = $appsDir . '/demo-app';
-		$sandboxPath = $environmentsDir . '/feature-one';
-		mkdir($appPath, 0755, true);
-		mkdir($sandboxPath, 0755, true);
+		return [$environmentsDir, $appsDir];
+	}
 
-		$appRepository = new EnvironmentRepository($this->runtimeStore(), $appsDir, 'app');
-		$appEnvironment = $appRepository->save(
+	private function saveOverlayEnvironment(
+		string $baseDir,
+		string $id,
+		string $type = 'sandbox',
+		?array $domains = null,
+		string $tablePrefix = '',
+		string $themeSlug = 'host-theme',
+		?string $templateSlug = null
+	): Environment {
+		$path = $baseDir . '/' . $id;
+		mkdir($path . '/themes/' . $themeSlug, 0755, true);
+		file_put_contents(
+			$path . '/themes/' . $themeSlug . '/style.css',
+			null !== $templateSlug
+				? "/*\nTheme Name: {$themeSlug}\nTemplate: {$templateSlug}\n*/"
+				: '/* overlay */'
+		);
+		if (null !== $templateSlug && $templateSlug !== $themeSlug) {
+			mkdir($path . '/themes/' . $templateSlug, 0755, true);
+			file_put_contents($path . '/themes/' . $templateSlug . '/style.css', "/*\nTheme Name: {$templateSlug}\n*/");
+		}
+
+		$repository = new EnvironmentRepository($this->runtimeStore(), $baseDir, $type);
+		$environment = $repository->save(
 			new Environment(
-				id: 'demo-app',
-				name: 'Demo App',
-				path: $appPath,
+				id: $id,
+				name: $id,
+				path: $path,
 				created_at: '2026-01-01T00:00:00+00:00',
-				multisite: true,
-				engine: 'subsite',
-				blog_id: 2,
-				type: 'app',
-				domains: ['demo.example.test']
+				engine: 'overlay',
+				type: $type,
+				domains: $domains,
+				table_prefix: '' !== $tablePrefix ? $tablePrefix : 'wp_' . str_replace('-', '_', $id) . '_',
+				theme_slug: $themeSlug
 			)
 		);
-		(new AppRepository($this->runtimeStore(), $appRepository))->create($appEnvironment, ['demo.example.test']);
 
-		$sandboxRepository = new EnvironmentRepository($this->runtimeStore(), $environmentsDir, 'sandbox');
-		$sandbox = $sandboxRepository->save(
-			new Environment(
-				id: 'feature-one',
-				name: 'Feature One',
-				path: $sandboxPath,
-				created_at: '2026-01-01T00:00:00+00:00',
-				multisite: true,
-				engine: 'subsite',
-				blog_id: 3,
-				type: 'sandbox'
-			)
-		);
+		if ('app' === $type && is_array($domains)) {
+			(new AppRepository($this->runtimeStore(), $repository))->create($environment, $domains);
+		}
+
+		return $environment;
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testExplicitEnvironmentHeaderWinsOverMappedAppDomain(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		[$environmentsDir, $appsDir] = $this->createRuntimeDirs($wordpressRoot);
+
+		$app = $this->saveOverlayEnvironment($appsDir, 'demo-app', 'app', ['demo.example.test'], 'wp_demo_app_');
+		$sandbox = $this->saveOverlayEnvironment($environmentsDir, 'feature-one', 'sandbox', null, 'wp_feature_one_');
 
 		$_SERVER['HTTP_HOST'] = 'demo.example.test';
-		$_SERVER['HTTP_X_RUDEL_SANDBOX'] = $sandbox->id;
+		$_SERVER['HTTP_X_RUDEL_ENVIRONMENT'] = $sandbox->id;
 		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
 
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
-		$this->assertTrue(defined('RUDEL_ID'));
 		$this->assertSame($sandbox->id, constant('RUDEL_ID'));
-		$this->assertFalse(defined('RUDEL_IS_APP') ? (bool) constant('RUDEL_IS_APP') : true);
-		$this->assertSame('wp_3_', constant('RUDEL_TABLE_PREFIX'));
-		$this->assertSame('wp_rudel_env_3_users', constant('RUDEL_USERS_TABLE'));
-		$this->assertSame('wp_rudel_env_3_usermeta', constant('RUDEL_USERMETA_TABLE'));
+		$this->assertFalse((bool) constant('RUDEL_IS_APP'));
+		$this->assertSame('overlay', constant('RUDEL_ENGINE'));
+		$this->assertSame($sandbox->get_table_prefix(), constant('RUDEL_TABLE_PREFIX'));
+		$this->assertSame($sandbox->get_table_prefix(), $GLOBALS['table_prefix']);
+		$this->assertSame('host-theme', constant('RUDEL_THEME_SLUG'));
+		$this->assertSame('host-theme', constant('RUDEL_TEMPLATE_SLUG'));
+		$this->assertSame(realpath($sandbox->path) . '/themes', constant('RUDEL_ENVIRONMENT_THEME_ROOT'));
+		$this->assertSame('http://demo.example.test/wp-content/rudel-environments/' . $sandbox->id . '/themes', constant('RUDEL_ENVIRONMENT_THEME_ROOT_URI'));
+		$this->assertNotSame($app->id, constant('RUDEL_ID'));
 	}
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
-	public function testBootstrapStripsNonDefaultPortsForCoreLookupWhileKeepingRenderedUrls(): void
+	public function testCookieSelectsOverlayWithoutChangingHostHeaders(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
-		$environmentsDir = $wordpressRoot . '/wp-content/rudel-environments';
-		mkdir($environmentsDir, 0755, true);
+		[$environmentsDir] = $this->createRuntimeDirs($wordpressRoot);
+		$sandbox = $this->saveOverlayEnvironment($environmentsDir, 'feature-cookie', 'sandbox', null, 'wp_cookie_');
 
-		define('ABSPATH', $wordpressRoot . '/');
-		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
-		define('WP_HOME', 'http://localhost:9878');
-		define('DOMAIN_CURRENT_SITE', 'localhost:9878');
-		define('RUDEL_BOOTSTRAP_SAPI', 'fpm-fcgi');
-		define('RUDEL_DISABLE_OPEN_BASEDIR_JAIL', true);
-
-		$sandboxPath = $environmentsDir . '/feature-port';
-		mkdir($sandboxPath, 0755, true);
-
-		$sandbox = (new EnvironmentRepository($this->runtimeStore(), $environmentsDir, 'sandbox'))->save(
-			new Environment(
-				id: 'feature-port',
-				name: 'Feature Port',
-				path: $sandboxPath,
-				created_at: '2026-01-01T00:00:00+00:00',
-				multisite: true,
-				engine: 'subsite',
-				blog_id: 3,
-				type: 'sandbox'
-			)
-		);
-
-		$_SERVER['HTTP_HOST'] = 'feature-port.localhost:9878';
-		$_SERVER['SERVER_NAME'] = 'feature-port.localhost:9878';
+		$_SERVER['HTTP_HOST'] = 'localhost:8000';
+		$_SERVER['SERVER_NAME'] = 'localhost:8000';
 		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
+		$_COOKIE['rudel_environment'] = $sandbox->id;
 
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
-		$this->assertSame('feature-port.localhost', $_SERVER['HTTP_HOST']);
-		$this->assertSame('feature-port.localhost', $_SERVER['SERVER_NAME']);
 		$this->assertSame($sandbox->id, constant('RUDEL_ID'));
-		$this->assertSame('http://feature-port.localhost:9878', constant('RUDEL_ENVIRONMENT_URL'));
-		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-		$this->assertSame('http://localhost:9878', constant('WP_HOME'));
-		$this->assertSame('wp_3_', constant('RUDEL_TABLE_PREFIX'));
-		$this->assertSame('wp_rudel_env_3_users', constant('RUDEL_USERS_TABLE'));
-		$this->assertSame('wp_rudel_env_3_usermeta', constant('RUDEL_USERMETA_TABLE'));
-	}
-
-	#[RunInSeparateProcess]
-	#[PreserveGlobalState(false)]
-	public function testHostRequestsKeepPortfulMainSiteUrlWhenNoEnvironmentMatches(): void
-	{
-		$wordpressRoot = $this->tmpDir . '/wordpress';
-
-		define('ABSPATH', $wordpressRoot . '/');
-		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
-		define('DOMAIN_CURRENT_SITE', 'localhost');
-		define('RUDEL_BOOTSTRAP_SAPI', 'fpm-fcgi');
-		define('RUDEL_DISABLE_OPEN_BASEDIR_JAIL', true);
-
-		$_SERVER['HTTP_HOST'] = 'localhost:9878';
-		$_SERVER['SERVER_NAME'] = 'localhost:9878';
-		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
-
-		require dirname(__DIR__, 2) . '/bootstrap.php';
-
-		$this->assertFalse(defined('RUDEL_ID'));
-		$this->assertSame('localhost', $_SERVER['HTTP_HOST']);
-		$this->assertSame('localhost', $_SERVER['SERVER_NAME']);
-		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-		$this->assertFalse(defined('WP_HOME'));
+		$this->assertSame('localhost:8000', $_SERVER['HTTP_HOST']);
+		$this->assertSame('localhost:8000', $_SERVER['SERVER_NAME']);
+		$this->assertSame('http://localhost:8000', constant('RUDEL_ENVIRONMENT_URL'));
+		$this->assertSame($sandbox->get_table_prefix(), constant('RUDEL_TABLE_PREFIX'));
+		$this->assertFalse(defined('WP_CONTENT_DIR') && WP_CONTENT_DIR === $sandbox->path);
+		$this->assertFalse(defined('WP_HOME') && WP_HOME === constant('RUDEL_ENVIRONMENT_URL'));
 		$this->assertFalse(defined('WP_SITEURL'));
 	}
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
-	public function testBootstrapNormalizesCliUrlArgumentsWhileKeepingRenderedCliUrl(): void
+	public function testHostRequestWithoutEnvironmentLeavesRuntimeUntouched(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
-		$environmentsDir = $wordpressRoot . '/wp-content/rudel-environments';
-		mkdir($environmentsDir, 0755, true);
+		$this->createRuntimeDirs($wordpressRoot, 'http://localhost:8000');
 
-		define('ABSPATH', $wordpressRoot . '/');
-		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
-		define('WP_HOME', 'http://localhost:9878');
-		define('DOMAIN_CURRENT_SITE', 'localhost');
-		define('RUDEL_BOOTSTRAP_SAPI', 'cli');
-		define('RUDEL_DISABLE_OPEN_BASEDIR_JAIL', true);
-
-		$sandboxPath = $environmentsDir . '/feature-port';
-		mkdir($sandboxPath, 0755, true);
-
-		(new EnvironmentRepository($this->runtimeStore(), $environmentsDir, 'sandbox'))->save(
-			new Environment(
-				id: 'feature-port',
-				name: 'Feature Port',
-				path: $sandboxPath,
-				created_at: '2026-01-01T00:00:00+00:00',
-				multisite: true,
-				engine: 'subsite',
-				blog_id: 3,
-				type: 'sandbox'
-			)
-		);
-
-		global $argv;
-		$argv = array('wp', '--url=http://feature-port.localhost:9878/', 'option', 'get', 'blogname');
-		$_SERVER['argv'] = array('wp', '--url', 'http://feature-port.localhost:9878/', 'option', 'get', 'blogname');
+		$_SERVER['HTTP_HOST'] = 'localhost:8000';
+		$_SERVER['SERVER_NAME'] = 'localhost:8000';
 		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
 
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
-		$this->assertSame('feature-port', constant('RUDEL_ID'));
-		$this->assertSame('--url=http://feature-port.localhost/', $argv[1]);
-		$this->assertSame('http://feature-port.localhost/', $_SERVER['argv'][2]);
-		$this->assertSame('http://feature-port.localhost:9878', constant('RUDEL_ENVIRONMENT_URL'));
-		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-		$this->assertSame('http://localhost:9878', constant('WP_HOME'));
-		$this->assertSame('wp_3_', constant('RUDEL_TABLE_PREFIX'));
-		$this->assertSame('wp_rudel_env_3_users', constant('RUDEL_USERS_TABLE'));
-		$this->assertSame('wp_rudel_env_3_usermeta', constant('RUDEL_USERMETA_TABLE'));
+		$this->assertFalse(defined('RUDEL_ID'));
+		$this->assertSame('localhost:8000', $_SERVER['HTTP_HOST']);
+		$this->assertSame('localhost:8000', $_SERVER['SERVER_NAME']);
+		$this->assertSame('http://localhost:8000', constant('RUDEL_HOST_URL'));
+		$this->assertSame('wp_', $GLOBALS['table_prefix']);
+		$this->assertFalse(defined('RUDEL_TABLE_PREFIX'));
+		$this->assertFalse(defined('WP_SITEURL'));
 	}
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
-	public function testMappedAppDomainPreservesCanonicalHostAndRenderedUrl(): void
+	public function testCliEnvironmentVariableSelectsOverlayWithoutRewritingUrlArguments(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
-		$environmentsDir = $wordpressRoot . '/wp-content/rudel-environments';
-		$appsDir = $wordpressRoot . '/wp-content/rudel-apps';
-		mkdir($environmentsDir, 0755, true);
-		mkdir($appsDir, 0755, true);
+		[$environmentsDir] = $this->createRuntimeDirs($wordpressRoot, 'http://example.test', 'cli');
+		$sandbox = $this->saveOverlayEnvironment($environmentsDir, 'feature-cli', 'sandbox', null, 'wp_feature_cli_');
+		putenv('RUDEL_ENVIRONMENT=' . $sandbox->id);
 
-		define('ABSPATH', $wordpressRoot . '/');
-		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
-		define('WP_HOME', 'http://localhost:9878');
-		define('DOMAIN_CURRENT_SITE', 'localhost');
-		define('RUDEL_BOOTSTRAP_SAPI', 'fpm-fcgi');
-		define('RUDEL_DISABLE_OPEN_BASEDIR_JAIL', true);
-
-		$appPath = $appsDir . '/demo-app';
-		mkdir($appPath, 0755, true);
-
-		$appRepository = new EnvironmentRepository($this->runtimeStore(), $appsDir, 'app');
-		$appEnvironment = $appRepository->save(
-			new Environment(
-				id: 'demo-app',
-				name: 'Demo App',
-				path: $appPath,
-				created_at: '2026-01-01T00:00:00+00:00',
-				multisite: true,
-				engine: 'subsite',
-				blog_id: 4,
-				type: 'app',
-				domains: ['demo.example.test']
-			)
-		);
-		(new AppRepository($this->runtimeStore(), $appRepository))->create($appEnvironment, ['demo.example.test']);
-
-		$_SERVER['HTTP_HOST'] = 'demo.example.test:9878';
-		$_SERVER['SERVER_NAME'] = 'demo.example.test:9878';
+		global $argv;
+		$argv = ['wp', '--url=http://localhost:8000/', 'option', 'get', 'blogname'];
+		$_SERVER['argv'] = ['wp', '--url', 'http://localhost:8000/', 'option', 'get', 'blogname'];
 		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
 
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
-		$this->assertSame('demo-app', constant('RUDEL_ID'));
+		$this->assertSame($sandbox->id, constant('RUDEL_ID'));
+		$this->assertSame('--url=http://localhost:8000/', $argv[1]);
+		$this->assertSame('http://localhost:8000/', $_SERVER['argv'][2]);
+		$this->assertSame($sandbox->get_table_prefix(), constant('RUDEL_TABLE_PREFIX'));
+		putenv('RUDEL_ENVIRONMENT');
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testMappedAppDomainSelectsOverlayApp(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		[, $appsDir] = $this->createRuntimeDirs($wordpressRoot);
+		$app = $this->saveOverlayEnvironment($appsDir, 'demo-app', 'app', ['demo.example.test'], 'wp_demo_app_');
+
+		$_SERVER['HTTP_HOST'] = 'demo.example.test:8000';
+		$_SERVER['SERVER_NAME'] = 'demo.example.test:8000';
+		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
+
+		require dirname(__DIR__, 2) . '/bootstrap.php';
+
+		$this->assertSame($app->id, constant('RUDEL_ID'));
 		$this->assertTrue((bool) constant('RUDEL_IS_APP'));
-		$this->assertSame('demo.example.test', $_SERVER['HTTP_HOST']);
-		$this->assertSame('demo.example.test', $_SERVER['SERVER_NAME']);
-		$this->assertSame('http://demo.example.test:9878', constant('RUDEL_ENVIRONMENT_URL'));
-		$this->assertSame('http://localhost:9878', constant('RUDEL_HOST_URL'));
-		$this->assertSame('http://localhost:9878', constant('WP_HOME'));
-		$this->assertSame('wp_4_', constant('RUDEL_TABLE_PREFIX'));
-		$this->assertSame('wp_rudel_env_4_users', constant('RUDEL_USERS_TABLE'));
-		$this->assertSame('wp_rudel_env_4_usermeta', constant('RUDEL_USERMETA_TABLE'));
+		$this->assertSame('demo.example.test:8000', $_SERVER['HTTP_HOST']);
+		$this->assertSame('demo.example.test:8000', $_SERVER['SERVER_NAME']);
+		$this->assertSame('http://demo.example.test:8000', constant('RUDEL_ENVIRONMENT_URL'));
+		$this->assertSame($app->get_table_prefix(), constant('RUDEL_TABLE_PREFIX'));
+		$this->assertSame('host-theme', constant('RUDEL_THEME_SLUG'));
+		$this->assertSame('http://demo.example.test:8000/wp-content/rudel-apps/' . $app->id . '/themes', constant('RUDEL_ENVIRONMENT_THEME_ROOT_URI'));
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testBootstrapDefinesSeparateTemplateSlugForChildThemeOverlay(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		[$environmentsDir] = $this->createRuntimeDirs($wordpressRoot);
+		$sandbox = $this->saveOverlayEnvironment(
+			$environmentsDir,
+			'child-feature',
+			'sandbox',
+			null,
+			'wp_child_feature_',
+			'child-theme',
+			'parent-theme'
+		);
+
+		$_SERVER['HTTP_HOST'] = 'example.test';
+		$_SERVER['HTTP_X_RUDEL_ENVIRONMENT'] = $sandbox->id;
+		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
+
+		require dirname(__DIR__, 2) . '/bootstrap.php';
+
+		$this->assertSame('child-theme', constant('RUDEL_THEME_SLUG'));
+		$this->assertSame('parent-theme', constant('RUDEL_TEMPLATE_SLUG'));
 	}
 }

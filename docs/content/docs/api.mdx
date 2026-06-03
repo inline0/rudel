@@ -5,41 +5,119 @@ description: The Rudel\\Rudel PHP API.
 
 # PHP API
 
-`Rudel\Rudel` is the public PHP surface for runtime context and lifecycle operations.
+`Rudel\Rudel` is the public PHP facade for runtime context, environment
+lifecycle operations, and app deployment workflows.
 
-The public API is intentionally narrower than the internal codebase. Rudel has repositories, managers, and services under the hood, but consumers should not need to learn those details just to answer the common questions:
+Use the facade before reaching into repositories or managers. The lower-level
+classes exist for Rudel internals and tests; embedding products should normally
+need only the public API plus the CLI command map.
 
-- what Rudel environment is active on this request?
-- how do I create, update, or destroy an environment?
-- how do I manage app backups, deploys, and rollback from PHP?
+## Runtime Context
 
-If you are embedding Rudel into another product or building an operator interface, start with `Rudel\Rudel` before reaching for lower-level services.
+These methods are safe in any WordPress request. When no Rudel environment is
+selected, the context methods return host-site values or `null`.
 
-## Standalone core access
+### `Rudel::is_sandbox()`
 
-Rudel's DB-backed registry can also be initialized outside WordPress.
+Returns `true` when the current request is a sandbox overlay.
 
-That standalone path is for the core metadata layer:
+### `Rudel::is_app()`
 
-- listing apps and environments
+Returns `true` when the current request is an app overlay.
+
+### `Rudel::id()`
+
+Returns the current sandbox ID or `null`.
+
+### `Rudel::app_id()`
+
+Returns the current app ID or `null`.
+
+### `Rudel::path()`
+
+Returns the current environment directory.
+
+Overlay directories contain Rudel-owned files such as copied themes, logs,
+snapshots, and metadata. They are not a replacement WordPress installation.
+
+### `Rudel::engine()`
+
+Returns `overlay` for selected overlay environments.
+
+### `Rudel::table_prefix()`
+
+Returns the active WordPress table prefix for the selected environment.
+
+Example:
+
+```php
+Rudel::table_prefix(); // wp_a4nmv7_
+```
+
+That prefix points WordPress at the environment's cloned tables for options,
+posts, terms, comments, and related site data.
+
+### `Rudel::url()`
+
+Returns the canonical URL for the selected environment.
+
+Sandboxes usually use the host URL plus request selection headers or cookies.
+Apps can report a mapped app domain when one is configured.
+
+### `Rudel::exit_url()`
+
+Returns the host WordPress URL.
+
+### `Rudel::log_path()`
+
+Returns the environment debug log path:
+
+```text
+{environment}/debug.log
+```
+
+### `Rudel::context()`
+
+Returns a single payload suitable for templates, API responses, and operator
+UIs:
+
+```php
+[
+    'is_sandbox'     => true,
+    'is_app'         => false,
+    'id'             => 'alpha-1234',
+    'app_id'         => null,
+    'path'           => '/var/www/html/wp-content/rudel-environments/alpha-1234',
+    'engine'         => 'overlay',
+    'table_prefix'   => 'wp_alpha12_',
+    'url'            => 'http://localhost:8000/',
+    'exit_url'       => 'http://localhost:8000/',
+    'email_disabled' => true,
+    'log_path'       => '/var/www/html/wp-content/rudel-environments/alpha-1234/debug.log',
+    'version'        => '...',
+    'cli_command'    => 'rudel',
+]
+```
+
+## Standalone Core Access
+
+Rudel's registry can be initialized outside WordPress when an external operator
+needs direct metadata access.
+
+Standalone mode is for DB-backed Rudel metadata:
+
+- listing apps and sandboxes
 - reading domains, worktrees, deployments, and policy metadata
-- updating DB-backed metadata
+- updating Rudel registry records
+- ensuring Rudel registry tables exist
 
-It is not a replacement for WordPress multisite itself. Site lifecycle
-operations such as creating, destroying, or rewiring multisite subsites still
-require a live WordPress runtime.
+Standalone mode is not a WordPress request bootstrap. Creating environment
+tables, copying themes, applying request overlays, and running cleanup still
+need a live WordPress runtime.
 
 ### `Rudel::init( Connection $conn, array $context = [] )`
 
-Initialize Rudel with a standalone DB connection.
-
-The optional `$context` array currently supports:
-
-- `environments_dir`
-- `apps_dir`
-
-Those paths let operator-facing APIs keep reporting the same filesystem context
-outside WordPress that they would use inside WordPress.
+Initialize Rudel with a direct MySQL connection.
 
 ```php
 use Rudel\Connection;
@@ -62,8 +140,7 @@ Rudel::init(
 );
 ```
 
-The optional `table_prefix` argument changes the Rudel portion of standalone
-runtime table names per connection:
+The optional connection `table_prefix` controls the Rudel registry-table suffix:
 
 ```php
 $conn = new Connection(
@@ -76,286 +153,148 @@ $conn = new Connection(
 );
 ```
 
-Direct standalone connections choose `pdo_mysql` or `mysqli` automatically. Set
-`RUDEL_DB_DRIVER` to `mysqli` or `pdo` to force one driver.
-
-That resolves tables such as `environments` to
+That resolves registry tables such as `environments` to
 `wp_divine_rudel_environments`.
 
 ### `Rudel::ensure_schema()`
 
-Ensure the Rudel runtime tables exist for the active store.
+Ensures the Rudel registry schema exists for the active store.
 
-That is the standalone equivalent of letting the WordPress plugin bootstrap
-create the tables during normal install/runtime setup.
+For details, see [Standalone Use](/docs/features/standalone-use).
 
-For the full model and boundaries, see [Standalone Use](/docs/features/standalone-use).
-
-## Runtime context
-
-These methods are safe to call from any request. They tell you whether the current request belongs to a Rudel environment and, if so, what that environment looks like.
-
-### `Rudel::is_sandbox()`
-
-Returns `true` when the current request is a Rudel sandbox.
-
-### `Rudel::is_app()`
-
-Returns `true` when the current request is a Rudel app.
-
-### `Rudel::id()`
-
-Returns the current sandbox ID or `null`.
-
-### `Rudel::app_id()`
-
-Returns the current app ID or `null`.
-
-### `Rudel::path()`
-
-Returns the current environment directory path or `null`.
-
-That directory contains the environment's local `wp-content`, which is the
-canonical file and code tree for the active app or sandbox.
-
-### `Rudel::engine()`
-
-Returns `subsite` for active Rudel environments or `null` outside Rudel.
-
-### `Rudel::table_prefix()`
-
-Returns the active environment table prefix or `null`.
-
-In live requests Rudel resolves this from the active runtime context, not from hand-authored config. For subsite-backed environments that means the real multisite prefix for the current `blog_id`.
-
-### `Rudel::url()`
-
-Returns the active environment's canonical site URL.
-
-For sandboxes that is normally the multisite subdomain URL. For apps it is the primary mapped app domain when one is configured.
-
-### `Rudel::exit_url()`
-
-Returns the network host root URL.
-
-### `Rudel::is_email_disabled()`
-
-Returns whether outbound email is blocked for the active environment.
-
-### `Rudel::log_path()`
-
-Returns the active environment debug log path, if any.
-
-### `Rudel::version()`
-
-Returns the installed Rudel version.
-
-### `Rudel::cli_command()`
-
-Returns the configured WP-CLI root command.
-
-### `Rudel::context()`
-
-Returns the bundled runtime context in one array:
-
-```php
-[
-    'is_sandbox'     => true,
-    'is_app'         => false,
-    'id'             => 'alpha-1234',
-    'app_id'         => null,
-    'path'           => '/var/www/html/wp-content/rudel-environments/alpha-1234',
-    'engine'         => 'subsite',
-    'table_prefix'   => 'wp_2_',
-    'url'            => 'http://alpha.localhost/',
-    'exit_url'       => 'http://localhost/',
-    'email_disabled' => true,
-    'log_path'       => '/var/www/html/wp-content/rudel-environments/alpha-1234/wp-content/debug.log',
-    'version'        => '...',
-    'cli_command'    => 'rudel',
-]
-```
-
-In practice, `Rudel::context()` is the easiest thing to hand to templates, custom admin screens, or API responses when you want one consistent runtime payload instead of a dozen point lookups.
-
-The context payload is about the active site identity. For file and code
-operations, the important corresponding invariant is that the active
-environment's local `wp-content` under `Rudel::path()` is the canonical content
-tree for that environment.
-
-## Environment lifecycle
-
-The environment lifecycle API is the programmatic counterpart to the `wp rudel ...` CLI commands.
+## Sandbox Lifecycle
 
 ### `Rudel::all()`
 
-List sandboxes.
+Lists sandboxes.
 
 ### `Rudel::get( string $id )`
 
-Load one sandbox.
+Loads one sandbox.
 
 ### `Rudel::create( string $name, array $options = [] )`
 
-Create a sandbox.
+Creates a sandbox overlay from the host WordPress site.
 
-This still requires a live WordPress multisite runtime.
+Common options:
 
-Relevant create options include:
+- `theme`: active theme slug to copy into the environment
+- `template`: template name
+- `clone_from`: source sandbox or app ID
+- `owner`, `labels`, `purpose`: policy metadata
+- `protected`, `ttl_days`, `expires_at`: cleanup policy
 
-- `clone_db`
-- `clone_themes`
-- `clone_plugins`
-- `clone_uploads`
-- `content_exclude`
-- `clone_from`
-- `shared_plugins`
-- `shared_uploads`
-- `template`
-
-`content_exclude` is for the narrow case where one top-level `wp-content`
-entry is already supplied outside the environment by another runtime layer.
-For example, a downstream product can keep `clone_plugins=true` while
-explicitly skipping one globally injected plugin:
-
-```php
-[
-    'clone_plugins'   => true,
-    'content_exclude' => [
-        'plugins' => [ 'runtime-core' ],
-    ],
-]
-```
+Rudel clones WordPress site tables into a generated environment prefix and
+copies the selected active theme. Plugin files and upload files remain shared.
 
 ### `Rudel::update( string $id, array $changes )`
 
-Update sandbox metadata.
+Updates sandbox metadata and policy.
 
 ### `Rudel::destroy( string $id )`
 
-Destroy a sandbox.
-
-This still requires a live WordPress multisite runtime.
+Destroys a sandbox, drops its environment-prefixed WordPress tables, and removes
+its owned environment directory.
 
 ### `Rudel::cleanup( array $options = [] )`
 
-Run cleanup policy.
+Runs cleanup policy.
 
 ### `Rudel::cleanup_merged( array $options = [] )`
 
-Remove sandboxes whose tracked branches have already merged.
+Removes sandboxes whose tracked branches have already merged.
+
+## Snapshots And Templates
 
 ### `Rudel::snapshot( string $id, string $name )`
 
-Create a sandbox snapshot.
+Creates a sandbox snapshot.
 
 ### `Rudel::restore( string $id, string $snapshot )`
 
-Restore a sandbox snapshot.
+Restores a sandbox snapshot.
 
 ### `Rudel::templates()`
 
-List saved templates.
+Lists saved templates.
 
 ### `Rudel::save_template( string $id, string $name, string $description = '' )`
 
-Save a sandbox as a template.
+Saves a sandbox as a reusable template.
 
 ### `Rudel::delete_template( string $name )`
 
-Delete a template.
+Deletes a template.
 
-## App lifecycle
+## App Lifecycle
 
-Apps are the long-lived side of Rudel, so the app API adds backups, deploy planning, deployment history, rollback, and domain metadata on top of the normal environment lifecycle.
+Apps are long-lived environments. They use the same overlay runtime as
+sandboxes, but add domain metadata, backups, deploy planning, deployment
+history, and rollback.
 
 ### `Rudel::apps()`
 
-List apps.
+Lists apps.
 
 ### `Rudel::app( string $id )`
 
-Load one app.
+Loads one app.
 
 ### `Rudel::create_app( string $name, array $domains, array $options = [] )`
 
-Create an app.
+Creates an app overlay.
 
-This still requires a live WordPress multisite runtime.
-
-App creation accepts the same content-layout options as sandbox creation,
-including `shared_plugins` and `shared_uploads`.
+Use the `theme` option to choose which active theme should be copied into the
+app environment. The first domain is the app's canonical URL when present.
 
 ### `Rudel::update_app( string $id, array $changes )`
 
-Update app metadata.
+Updates app metadata.
 
 ### `Rudel::destroy_app( string $id )`
 
-Destroy an app.
-
-This still requires a live WordPress multisite runtime.
+Destroys an app environment and its Rudel records.
 
 ### `Rudel::create_sandbox_from_app( string $app_id, string $name, array $options = [] )`
 
-Create a sandbox cloned from an app.
-
-This still requires a live WordPress multisite runtime.
-
-App-derived sandboxes inherit the app's shared plugins/uploads policy unless
-the create options override it explicitly.
+Creates a sandbox by cloning the app's environment-prefixed tables and copied
+active theme.
 
 ### `Rudel::backup_app( string $app_id, string $name )`
 
-Create an app backup.
-
-### `Rudel::app_backups( string $app_id )`
-
-List app backups.
+Creates an app backup.
 
 ### `Rudel::plan_app_deploy( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = [] )`
 
-Build a dry-run deploy plan.
+Builds a dry-run deploy plan.
 
 ### `Rudel::deploy_sandbox_to_app( string $app_id, string $sandbox_id, ?string $backup_name = null, array $options = [] )`
 
-Deploy a sandbox into an app.
-
-### `Rudel::app_deployments( string $app_id )`
-
-List deployment records.
+Deploys sandbox state into an app.
 
 ### `Rudel::rollback_app_deployment( string $app_id, string $deployment_id, array $options = [] )`
 
-Rollback an app deployment.
-
-### `Rudel::restore_app( string $app_id, string $backup_name )`
-
-Restore an app from a named backup.
+Rolls an app back to the backup associated with a deployment record.
 
 ### `Rudel::add_app_domain( string $app_id, string $domain )`
 
-Attach an additional domain to an app record.
-
-This still requires a live WordPress multisite runtime because the underlying multisite subsite domain must stay in sync.
+Attaches a domain to an app record.
 
 ### `Rudel::remove_app_domain( string $app_id, string $domain )`
 
-Remove a domain from an app record.
+Removes a domain from an app record.
 
-## A typical application flow
+## Git And CLI Harnesses
 
-The methods read more naturally as a lifecycle than as a flat list. A common flow looks like this:
+### `Rudel::push( string $sandbox_id, string $remote_url = '', string $message = 'Update from Rudel', string $subdir = '' )`
 
-1. create or load an app
-2. create a sandbox from that app
-3. snapshot the sandbox if the change work is risky
-4. plan the deploy
-5. deploy the sandbox into the app
-6. inspect deployment history or roll back if needed
+Pushes a sandbox checkout to its configured Git remote.
 
-If the app tracks a Git remote, branch, and directory, `Rudel::create_sandbox_from_app()` carries that metadata into the new sandbox automatically. That keeps later push and deploy operations aligned with the app's declared code source while still working inside the sandbox's own local `wp-content`.
+### `Rudel::cli_command_map()`
 
-The same flow also carries the app's URL contract forward: app-derived sandboxes rewrite from the app's canonical primary domain into the sandbox URL, and deploy-back restores the primary app domain again.
+Returns Rudel's serializable CLI command catalog for agent harnesses.
 
-That is the same workflow the CLI exposes. The PHP API exists so higher-level tooling can drive it directly without shelling out to WP-CLI.
+### `Rudel::resolve_cli_command( string|array $path, array $args = [], array $assoc_args = [] )`
+
+Maps one parsed CLI command into the PHP or shell plan the harness should
+execute.

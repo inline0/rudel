@@ -39,26 +39,29 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * default: blank
 	 * ---
 	 *
+	 * [--theme=<slug>]
+	 * : Active theme slug to copy into the environment overlay. Defaults to the current active theme when available.
+	 *
 	 * [--clone-db]
-	 * : Clone the host database into the sandbox.
+	 * : Deprecated. Overlay environments clone host tables by default.
 	 *
 	 * [--clone-themes]
-	 * : Copy host themes into the sandbox.
+	 * : Deprecated. Overlay environments copy the selected active theme by default.
 	 *
 	 * [--clone-plugins]
-	 * : Copy host plugins into the sandbox.
+	 * : Deprecated. Plugins are shared with the host in the overlay runtime.
 	 *
 	 * [--clone-uploads]
-	 * : Copy host uploads into the sandbox.
+	 * : Deprecated. Uploads are shared with the host in the overlay runtime.
 	 *
 	 * [--shared-plugins]
-	 * : Link sandbox plugins to the host plugins directory instead of cloning them.
+	 * : Deprecated. Plugins are shared by default in the overlay runtime.
 	 *
 	 * [--shared-uploads]
-	 * : Link sandbox uploads to the host uploads directory instead of cloning them.
+	 * : Deprecated. Uploads are shared by default in the overlay runtime.
 	 *
 	 * [--clone-all]
-	 * : Clone everything (database, themes, plugins, uploads).
+	 * : Deprecated. Overlay environments clone DB tables, copy the selected theme, and share plugins/uploads by default.
 	 *
 	 * [--clone-from=<id>]
 	 * : Clone from an existing sandbox. Mutually exclusive with --clone-db/--clone-all.
@@ -243,9 +246,6 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		$data    = $sandbox->to_array();
 
 		$data['size'] = $this->format_size( $sandbox->get_size() );
-		if ( $sandbox->is_subsite() ) {
-			$data['db_path'] = 'N/A (managed by multisite)';
-		}
 		$data['url']        = $sandbox->get_url();
 		$data['wp_content'] = $sandbox->get_runtime_wp_content_path();
 
@@ -462,16 +462,8 @@ class RudelCommand extends AbstractEnvironmentCommand {
 				'Value' => $automation_on ? 'yes' : 'no',
 			),
 			array(
-				'Field' => 'Multisite',
-				'Value' => function_exists( 'is_multisite' ) && is_multisite() ? 'yes' : 'no',
-			),
-			array(
 				'Field' => 'PHP version',
 				'Value' => PHP_VERSION,
-			),
-			array(
-				'Field' => 'Multisite mode',
-				'Value' => 'subdomain only',
 			),
 		);
 
@@ -514,6 +506,10 @@ class RudelCommand extends AbstractEnvironmentCommand {
 			),
 			$this->build_policy_changes( $assoc_args )
 		);
+
+		if ( isset( $assoc_args['theme'] ) && is_string( $assoc_args['theme'] ) ) {
+			$options['theme'] = $assoc_args['theme'];
+		}
 
 		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
 			$options['shared_plugins'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-plugins', false );

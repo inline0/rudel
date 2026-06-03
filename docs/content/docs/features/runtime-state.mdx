@@ -1,44 +1,17 @@
 ---
 title: Runtime State
-description: Rudel stores runtime metadata in WordPress tables.
+description: Rudel stores runtime metadata in host WordPress MySQL tables.
 ---
 
 # Runtime State
 
-Rudel runtime metadata is stored in WordPress tables.
+Rudel runtime metadata is stored in host WordPress MySQL tables.
 
-That is one of the most important architectural decisions in the project. Rudel does not treat generated directories as the authoritative source of metadata. The database is where Rudel tracks what environments exist, which ones are apps, which domains belong to which app, which worktrees are attached, and which deployments have happened.
+The registry tables are the source of truth for environment identity, app identity, app domains, worktrees, deployment history, and lifecycle policy. Rudel does not use JSON runtime config and does not store metadata in SQLite.
 
-That does not make the filesystem secondary in the runtime itself. The
-environment directory still contains the canonical local `wp-content` for that
-app or sandbox. The database is the source of truth for metadata and lifecycle
-state. The environment-local file tree is the source of truth for code and
-uploads inside that environment, and the environment-local `db.php` drop-in is
-what points WordPress at that environment's isolated user tables.
+## Registry tables
 
-That runtime state includes:
-
-- environments
-- apps
-- app domains
-- worktrees
-- app deployments
-- Rudel configuration
-
-Those tables always live in the host WordPress database. Rudel does not keep a parallel JSON registry or any second runtime datastore for its own metadata.
-
-That runtime registry is separate from live environment user tables. Apps and
-sandboxes derive their own isolated `users` and `usermeta` tables from the
-network base prefix plus the environment `blog_id`, but those tables are site
-state, not Rudel registry metadata.
-
-That also means higher-level products can talk to Rudel's registry outside
-WordPress as long as they use the same database. The standalone core path uses
-the same runtime tables; it does not create a second metadata layer.
-
-The environments table also carries the metadata that makes higher-level workflows possible: ownership, expiry, lineage, tracked Git remote data, shared-content policy, and the identifiers Rudel uses to connect apps, app-derived sandboxes, and deploy records back together.
-
-## Default tables
+Default tables:
 
 - `wp_rudel_environments`
 - `wp_rudel_apps`
@@ -46,15 +19,34 @@ The environments table also carries the metadata that makes higher-level workflo
 - `wp_rudel_worktrees`
 - `wp_rudel_app_deployments`
 
-Together those tables let Rudel answer the operational questions around the sites it manages: who owns an environment, which app a sandbox came from, or which backup belongs to a specific deployment record.
+These tables always live in the host WordPress database.
 
-One detail matters here: worktrees are stored in their own runtime table instead of being embedded permanently inside `clone_source`. That keeps Git-aware lifecycle state queryable and easier to update when environments change over time.
+## Environment tables
 
-Another detail matters for multisite lookups: Rudel stores host-only multisite domains in the native site tables. Custom network ports belong in rendered runtime URLs and per-site `home` / `siteurl` values, not in `wp_site.domain` or `wp_blogs.domain`. When Rudel has to override the current environment URL at runtime, it keeps that override scoped to the active blog so `switch_to_blog()` and multisite admin links can still resolve sibling sites correctly.
+Each environment has its own cloned WordPress tables with a generated prefix:
+
+```text
+wp_a4nmv7_options
+wp_a4nmv7_posts
+wp_a4nmv7_postmeta
+```
+
+Rudel switches the request table prefix during early bootstrap when an environment is selected. The host prefix itself remains untouched.
+
+## Theme state
+
+Each environment stores copied active theme files under its environment directory:
+
+```text
+wp-content/rudel-environments/{environment_id}/themes/{theme_slug}
+wp-content/rudel-apps/{app_id}/themes/{theme_slug}
+```
+
+The environment record stores the selected stylesheet slug. Runtime bootstrap derives the template slug from the copied theme's `style.css`, so child themes keep a distinct parent template while still loading from the environment theme root.
 
 ## Table naming overrides
 
-Most installs should leave the default table names alone. Advanced embedded setups can override the Rudel portion of those names with:
+Most installs should leave the default table names alone. Advanced embedded setups can override only the Rudel portion of registry table names:
 
 - `RUDEL_RUNTIME_TABLE_PREFIX`
 - `RUDEL_RUNTIME_TABLE_ENVIRONMENTS`
@@ -63,9 +55,9 @@ Most installs should leave the default table names alone. Advanced embedded setu
 - `RUDEL_RUNTIME_TABLE_WORKTREES`
 - `RUDEL_RUNTIME_TABLE_APP_DEPLOYMENTS`
 
-Define them before Rudel installs or bootstraps the runtime tables. After tables already exist, changing the names is a migration concern rather than a configuration tweak.
+Define overrides before Rudel installs or bootstraps persisted runtime tables. Existing table-name changes are migrations, not runtime toggles.
 
-Standalone connections can also set a per-connection Rudel table prefix:
+Standalone connections can also set the Rudel registry prefix:
 
 ```php
 $conn = new \Rudel\Connection(
@@ -74,17 +66,11 @@ $conn = new \Rudel\Connection(
     user: 'root',
     password: 'secret',
     prefix: 'wp_',
-    table_prefix: 'divine_rudel_',
+    table_prefix: 'custom_rudel_',
 );
 ```
 
-Direct standalone connections choose `pdo_mysql` or `mysqli` automatically. Set
-`RUDEL_DB_DRIVER` to `mysqli` or `pdo` to force one driver.
-
-That keeps the WordPress database prefix untouched and changes only the Rudel
-segment, so `environments` becomes `wp_divine_rudel_environments`. Explicit
-runtime table constants still affect the base table names before the connection
-prefix is applied.
+That keeps the WordPress database prefix untouched and changes only Rudel registry table names.
 
 ## Service boundaries
 
@@ -95,20 +81,4 @@ Runtime reads and writes should go through Rudel repositories and services:
 - `EnvironmentWorktreeRepository`
 - `AppDeploymentRepository`
 
-That boundary is deliberate. Environment directories are for environment-owned
-files, including the local `wp-content`, while runtime tables are for metadata
-and lifecycle state. If a higher-level product wants to inspect or manipulate
-Rudel state, it should talk to the runtime tables through Rudel's public API
-or internal repositories rather than reading files and guessing.
-
-One example of that split is shared content mode. The runtime tables record
-whether `plugins` or `uploads` are shared with the host. The environment
-directory then materializes that policy as links inside the environment-local
-`wp-content` tree.
-
-Outside WordPress, the public entrypoint for that is `Rudel::init()` with a
-direct DB `Connection`. That gives external products access to Rudel's
-registry-backed core while still leaving multisite site creation and request
-bootstrap inside WordPress.
-
-App domains fit into that same boundary. The primary mapped app domain is the canonical app URL Rudel reports through its public API and CLI, while the backing multisite subsite remains the deterministic runtime substrate under the hood. If the network itself runs on a non-default port, Rudel keeps that port in rendered canonical app URLs instead of dropping back to a host-only URL shape.
+Environment directories are for theme files, logs, snapshots, backups, and local workspace artifacts. Runtime tables are for metadata and lifecycle state.

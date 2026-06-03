@@ -102,8 +102,8 @@ class AppOperationsService {
 			'label'              => $this->normalize_optional_string( $options['label'] ?? null ),
 			'notes'              => $this->normalize_optional_string( $options['notes'] ?? null ),
 			'checks'             => array(
-				'engines_match'       => $sandbox->engine === $app->engine,
-				'subsite_unsupported' => false,
+				'engines_match' => $sandbox->engine === $app->engine,
+				'overlay'       => $app->is_overlay() && $sandbox->is_overlay(),
 			),
 			'dry_run'            => ! empty( $options['dry_run'] ),
 		);

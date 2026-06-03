@@ -27,9 +27,9 @@ class PushCommandTest extends RudelTestCase
             'clone_source' => $cloneSource,
         ], static fn($value) => null !== $value));
 
-        file_put_contents($path . '/wp-content/index.php', '<?php // root');
-        mkdir($path . '/wp-content/themes/my-theme', 0755, true);
-        file_put_contents($path . '/wp-content/themes/my-theme/style.css', '/* theme */');
+        file_put_contents($path . '/index.php', '<?php // root');
+        mkdir($path . '/themes/my-theme', 0755, true);
+        file_put_contents($path . '/themes/my-theme/style.css', '/* theme */');
 
         return \Rudel\Environment::from_path($path);
     }

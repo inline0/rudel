@@ -30,7 +30,7 @@ abstract class RudelTestCase extends TestCase
         $GLOBALS['rudel_test_filters'] = [];
         $GLOBALS['rudel_test_action_callbacks'] = [];
         $GLOBALS['rudel_test_filter_callbacks'] = [];
-        $GLOBALS['rudel_test_multisite'] = true;
+        $GLOBALS['rudel_test_multisite'] = false;
         $GLOBALS['rudel_test_subdomain_install'] = true;
 	        $GLOBALS['rudel_test_next_blog_id'] = 2;
 	        $GLOBALS['rudel_test_current_blog_id'] = 1;
@@ -136,11 +136,7 @@ abstract class RudelTestCase extends TestCase
     {
         $path = $this->tmpDir . '/' . $id;
         mkdir($path, 0755, true);
-        mkdir($path . '/wp-content', 0755, true);
-        mkdir($path . '/wp-content/plugins', 0755);
-        mkdir($path . '/wp-content/themes', 0755);
-        mkdir($path . '/wp-content/uploads', 0755);
-        mkdir($path . '/wp-content/mu-plugins', 0755);
+        mkdir($path . '/themes', 0755, true);
         mkdir($path . '/tmp', 0755);
 
         $meta = array_merge(
@@ -148,7 +144,7 @@ abstract class RudelTestCase extends TestCase
                 'created_at' => '2026-01-01T00:00:00+00:00',
                 'template' => 'blank',
                 'status' => 'active',
-                'engine' => 'subsite',
+                'engine' => 'overlay',
                 'type' => 'sandbox',
             ],
             $extraMeta
@@ -163,7 +159,7 @@ abstract class RudelTestCase extends TestCase
             status: (string) ($meta['status'] ?? 'active'),
             clone_source: isset($meta['clone_source']) && is_array($meta['clone_source']) ? $meta['clone_source'] : null,
             multisite: ! empty($meta['multisite']),
-            engine: (string) ($meta['engine'] ?? 'subsite'),
+            engine: (string) ($meta['engine'] ?? 'overlay'),
             blog_id: isset($meta['blog_id']) ? (int) $meta['blog_id'] : null,
             type: (string) ($meta['type'] ?? 'sandbox'),
             domains: isset($meta['domains']) && is_array($meta['domains']) ? array_values($meta['domains']) : null,
@@ -183,6 +179,8 @@ abstract class RudelTestCase extends TestCase
             tracked_git_dir: isset($meta['tracked_git_dir']) && is_scalar($meta['tracked_git_dir']) ? (string) $meta['tracked_git_dir'] : null,
             shared_plugins: ! empty($meta['shared_plugins']),
             shared_uploads: ! empty($meta['shared_uploads']),
+            table_prefix: isset($meta['table_prefix']) && is_scalar($meta['table_prefix']) ? (string) $meta['table_prefix'] : null,
+            theme_slug: isset($meta['theme_slug']) && is_scalar($meta['theme_slug']) ? (string) $meta['theme_slug'] : null,
         );
 
         $repository = $this->environmentRepository((string) ($meta['type'] ?? 'sandbox'));
@@ -248,6 +246,12 @@ abstract class RudelTestCase extends TestCase
     protected function siteOptionValue(int $blogId, string $optionName)
     {
         $table = $GLOBALS['wpdb']->base_prefix . $blogId . '_options';
+        return $this->tableOptionValue($table, $optionName);
+    }
+
+    protected function tableOptionValue(string $tableOrPrefix, string $optionName)
+    {
+        $table = str_ends_with($tableOrPrefix, '_options') ? $tableOrPrefix : $tableOrPrefix . 'options';
         foreach ($GLOBALS['wpdb']->getTableRows($table) as $row) {
             if (($row['option_name'] ?? null) === $optionName) {
                 return $row['option_value'] ?? null;

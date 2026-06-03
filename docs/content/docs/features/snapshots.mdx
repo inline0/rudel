@@ -26,8 +26,8 @@ Restore it:
 wp rudel restore alpha-1234 --snapshot=before-update --force
 ```
 
-Snapshots capture the sandbox site state and its environment-local
-`wp-content` so you can roll back risky work quickly without promoting that
+Snapshots capture the sandbox's cloned WordPress tables and copied active
+theme files so you can roll back risky work quickly without promoting that
 recovery model into the long-lived app lifecycle.
 
 ## App backups
@@ -44,4 +44,6 @@ Restore it:
 wp rudel app restore demo-1234 --backup=baseline --force
 ```
 
-App deploys also integrate with backups so recovery is built into the deploy workflow rather than added as an afterthought.
+App backups capture the app's cloned WordPress tables and copied active theme
+files. App deploys integrate with backups so recovery is built into the deploy
+workflow rather than added as an afterthought.

@@ -5,9 +5,9 @@ description: Save sandboxes as reusable starting points.
 
 # Templates
 
-Templates let you freeze a sandbox's state and reuse it as a starting point for new sandboxes. Instead of configuring the same theme, plugins, and content every time, you set it up once, save it, and let Rudel recreate that starting point on demand.
-
-They work especially well in a multisite-based system because the runtime site creation stays native while the content layer becomes repeatable.
+Templates let you save the environment-owned filesystem artifacts from a sandbox
+as a reusable reference. They are useful for copied theme files and workspace
+shape. Use snapshots or app backups when you need to preserve database state.
 
 ## Saving a template
 
@@ -15,23 +15,12 @@ They work especially well in a multisite-based system because the runtime site c
 wp rudel template save my-sandbox-a1b2 --name=starter
 ```
 
-This copies the sandbox's site data and its environment-local `wp-content`
-into a named template. You can optionally add a description:
+This copies the sandbox's environment-owned files into a named template. You can
+optionally add a description:
 
 ```bash
 wp rudel template save my-sandbox-a1b2 --name=starter --description="WordPress with WooCommerce and Storefront theme"
 ```
-
-## Creating from a template
-
-```bash
-wp rudel create --name="new-project" --template=starter
-```
-
-The new sandbox starts with the template's site data and copied local
-`wp-content`. Rudel rewrites the runtime identifiers for the new environment
-automatically so you can treat the result as a fresh site rather than a
-half-cloned artifact.
 
 ## Managing templates
 
@@ -49,10 +38,10 @@ wp rudel template delete starter --force
 
 ## Typical workflows
 
-**Standardized environments.** Set up your preferred theme, plugins, and settings once, then use the template for every new sandbox.
+**Standardized filesystem shape.** Set up your preferred copied theme files once, then save the template as a reference.
 
-**Team onboarding.** Share a template so every developer starts from the same baseline.
+**Team onboarding.** Share a template so every developer can inspect the same workspace baseline.
 
-**Testing baselines.** Save a known-good state and create sandboxes from it for repeatable, consistent testing.
+**Testing baselines.** Pair templates with snapshots when you need both filesystem and DB recovery points.
 
-**Client demos.** Pre-configure templates for different client scenarios and spin up fresh sandboxes on demand.
+**Client demos.** Keep named theme/workspace baselines for different client scenarios.

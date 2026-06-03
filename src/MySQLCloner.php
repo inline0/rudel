@@ -45,7 +45,7 @@ class MySQLCloner {
 	 *
 	 * @param string               $target_prefix Table prefix for the sandbox.
 	 * @param string               $sandbox_url   Full URL for the sandbox (for URL rewriting).
-	 * @param array<string, mixed> $options       Optional settings: 'chunk_size' => int.
+	 * @param array<string, mixed> $options       Optional settings: 'chunk_size' => int, 'exclude_prefixes' => string[].
 	 * @return array{tables_cloned: int, rows_cloned: int, is_multisite: bool} Clone statistics.
 	 *
 	 * @throws \RuntimeException If cloning fails.
@@ -66,7 +66,8 @@ class MySQLCloner {
 		$chunk_size    = $options['chunk_size'] ?? self::DEFAULT_CHUNK_SIZE;
 		$source_prefix = (string) $wpdb->prefix;
 		$host_url      = $this->get_host_url();
-		$tables        = $this->discover_tables( $wpdb, $source_prefix );
+		$exclude_prefixes = $this->normalize_excluded_prefixes( $options['exclude_prefixes'] ?? array() );
+		$tables           = $this->discover_tables( $wpdb, $source_prefix, $exclude_prefixes );
 
 		if ( empty( $tables ) ) {
 			throw new \RuntimeException( 'No tables found with prefix: ' . $source_prefix );
@@ -139,8 +140,9 @@ class MySQLCloner {
 	public function drop_tables( string $prefix, array $exclude_prefixes = array() ): int {
 		$is_rudel_prefix   = str_starts_with( $prefix, 'rudel_' );
 		$is_multisite_blog = 1 === preg_match( '/^[A-Za-z0-9]+_\d+_$/', $prefix );
+		$is_overlay_prefix = 1 === preg_match( '/^[A-Za-z0-9_]+_[a-f0-9]{7}_$/', $prefix );
 
-		if ( ! $is_rudel_prefix && ! $is_multisite_blog ) {
+		if ( ! $is_rudel_prefix && ! $is_multisite_blog && ! $is_overlay_prefix ) {
 			throw new \RuntimeException(
 				sprintf(
 					'Refusing to drop tables with prefix "%s": only Rudel-managed prefixes are allowed.',
@@ -264,6 +266,28 @@ class MySQLCloner {
 		);
 
 		return $this->discover_cache[ $cache_key ];
+	}
+
+	/**
+	 * Normalize optional table-prefix exclusions.
+	 *
+	 * @param mixed $exclude_prefixes Raw exclusion list.
+	 * @return string[]
+	 */
+	private function normalize_excluded_prefixes( $exclude_prefixes ): array {
+		if ( ! is_array( $exclude_prefixes ) ) {
+			return array();
+		}
+
+		return array_values(
+			array_filter(
+				array_map(
+					static fn ( $prefix ): string => is_scalar( $prefix ) ? (string) $prefix : '',
+					$exclude_prefixes
+				),
+				static fn ( string $prefix ): bool => '' !== $prefix
+			)
+		);
 	}
 
 	/**

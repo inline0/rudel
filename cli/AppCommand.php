@@ -44,26 +44,29 @@ class AppCommand extends \WP_CLI_Command {
 	 * [--name=<name>]
 	 * : Human-readable name. Derived from domain if omitted.
 	 *
+	 * [--theme=<slug>]
+	 * : Active theme slug to copy into the app overlay. Defaults to the current active theme when available.
+	 *
 	 * [--clone-db]
-	 * : Clone the host database.
+	 * : Deprecated. Overlay apps clone host tables by default.
 	 *
 	 * [--clone-themes]
-	 * : Copy host themes.
+	 * : Deprecated. Overlay apps copy the selected active theme by default.
 	 *
 	 * [--clone-plugins]
-	 * : Copy host plugins.
+	 * : Deprecated. Plugins are shared with the host in the overlay runtime.
 	 *
 	 * [--clone-uploads]
-	 * : Copy host uploads.
+	 * : Deprecated. Uploads are shared with the host in the overlay runtime.
 	 *
 	 * [--shared-plugins]
-	 * : Link app plugins to the host plugins directory instead of cloning them.
+	 * : Deprecated. Plugins are shared by default in the overlay runtime.
 	 *
 	 * [--shared-uploads]
-	 * : Link app uploads to the host uploads directory instead of cloning them.
+	 * : Deprecated. Uploads are shared by default in the overlay runtime.
 	 *
 	 * [--clone-all]
-	 * : Clone everything.
+	 * : Deprecated. Overlay apps clone DB tables, copy the selected theme, and share plugins/uploads by default.
 	 *
 	 * [--clone-from=<id>]
 	 * : Clone from an existing sandbox or app. Mutually exclusive with --clone-db/--clone-all.
@@ -118,6 +121,10 @@ class AppCommand extends \WP_CLI_Command {
 			$this->build_git_tracking_changes( $assoc_args ),
 			$this->build_policy_changes( $assoc_args )
 		);
+
+		if ( isset( $assoc_args['theme'] ) && is_string( $assoc_args['theme'] ) ) {
+			$options['theme'] = $assoc_args['theme'];
+		}
 
 		if ( array_key_exists( 'shared-plugins', $assoc_args ) ) {
 			$options['shared_plugins'] = \WP_CLI\Utils\get_flag_value( $assoc_args, 'shared-plugins', false );
@@ -386,10 +393,10 @@ class AppCommand extends \WP_CLI_Command {
 	 * : Optional description of why the sandbox exists.
 	 *
 	 * [--shared-plugins]
-	 * : Link sandbox plugins to the host plugins directory instead of keeping isolated copies.
+	 * : Deprecated. Plugins are shared by default in the overlay runtime.
 	 *
 	 * [--shared-uploads]
-	 * : Link sandbox uploads to the host uploads directory instead of keeping isolated copies.
+	 * : Deprecated. Uploads are shared by default in the overlay runtime.
 	 *
 	 * [--protected]
 	 * : Exclude the sandbox from automated cleanup.

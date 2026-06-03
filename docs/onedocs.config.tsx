@@ -6,7 +6,7 @@ const iconClass = "h-5 w-5 text-fd-primary";
 
 export default defineConfig({
   title: "Rudel",
-  description: "WordPress environment orchestration on top of subdomain multisite.",
+  description: "Request-selected WordPress overlay environments for sandboxes and apps.",
   logo: {
     light: "/logo-light.svg",
     dark: "/logo-dark.svg",
@@ -26,19 +26,19 @@ export default defineConfig({
       {
         title: "Sandboxes",
         description:
-          "Disposable multisite sites for development, testing, and AI agents.",
+          "Disposable overlay environments for development, testing, and AI agents.",
         icon: <Box className={iconClass} />,
       },
       {
         title: "Apps",
         description:
-          "Long-lived multisite sites with backups, deploys, and rollback history.",
+          "Long-lived overlay environments with backups, deploys, and rollback history.",
         icon: <Globe className={iconClass} />,
       },
       {
-        title: "Multisite Runtime",
+        title: "Overlay Runtime",
         description:
-          "One runtime model: real subdomain multisite sites for every environment.",
+          "One runtime model: cloned table prefixes plus copied active themes.",
         icon: <Database className={iconClass} />,
       },
       {
@@ -54,9 +54,9 @@ export default defineConfig({
         icon: <Camera className={iconClass} />,
       },
       {
-        title: "Real Site Isolation",
+        title: "Request Isolation",
         description:
-          "Per-site tables, native multisite uploads, isolated content, salts, cache, and email policy.",
+          "Per-request table prefixes, active theme roots, salts, cache, and email policy.",
         icon: <Shield className={iconClass} />,
       },
       {

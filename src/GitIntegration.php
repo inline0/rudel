@@ -487,7 +487,7 @@ class GitIntegration {
 	 * @param string $entry_name Repository directory name inside the content type.
 	 * @return string
 	 */
-	private function worktree_metadata_name( string $environment_id, string $content_type, string $entry_name ): string {
+	public function worktree_metadata_name( string $environment_id, string $content_type, string $entry_name ): string {
 		$parts = array_filter(
 			array(
 				$this->sanitize_worktree_fragment( $environment_id ),

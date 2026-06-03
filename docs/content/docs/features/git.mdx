@@ -1,84 +1,44 @@
 ---
 title: Git Integration
-description: Branch-based workflows with automatic worktrees and built-in Git remotes.
+description: PHP-native Git workflows for Rudel themes and app sandboxes.
 ---
 
 # Git Integration
 
-When your themes or plugins live in git repositories, Rudel integrates with git automatically. Instead of treating every sandbox as a dead-end file copy, it can create a dedicated `rudel/{sandbox-id}` branch and attach worktree metadata to the environment. Those worktrees live inside the environment's own cloned `wp-content`, so git-aware code workflows still respect the same isolation boundary as the rest of the environment.
+Rudel uses Pitmaster for PHP-native Git clone, push, fetch, merge checks, and linked worktree lifecycle. It does not require the `git` binary on the host.
 
-## How it works
+## Tracked theme workflows
 
-When you create a sandbox with `--clone-themes` or `--clone-plugins`, Rudel checks each copied theme or plugin directory for a `.git` folder. If it finds one, it creates a worktree on a new branch named `rudel/{sandbox-id}` inside that sandbox's local `wp-content` and records that relationship in Rudel's runtime tables. Directories without git are copied normally, and uploads are always copied since they are runtime data rather than version-controlled source.
-
-```bash
-wp rudel create --name=feature-x --clone-themes --clone-plugins
-```
-
-If your theme at `wp-content/themes/my-theme` is a git repo, the sandbox keeps using that theme as tracked code inside its own local `wp-content`, and Rudel records the generated sandbox branch plus the tracked directory metadata in runtime tables.
-
-## Working in the sandbox
-
-From the sandbox's tracked theme or plugin directory inside that environment, you're on a regular git branch. You can commit and push just like any other feature branch.
+The current overlay runtime isolates active themes. When an app tracks `themes/my-theme`, app-derived sandboxes inherit that metadata and Rudel can create a dedicated `rudel/{sandbox-id}` branch and linked worktree for the sandbox theme.
 
 ```bash
-cd /path/to/the/theme-or-plugin-directory-rudel-tracked-for-the-sandbox
-git status
-git add .
-git commit -m "Add new template"
-git push origin rudel/feature-x-a1b2
+wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/my-theme.git --branch=main --dir=themes/my-theme
+wp rudel app create-sandbox demo-1234 --name=feature-x
 ```
 
-AI coding agents working in the sandbox can commit their changes directly from the tracked theme or plugin checkout inside that environment.
+The sandbox records the generated branch and worktree metadata in Rudel's runtime tables.
 
-## Merging and cleanup
-
-Once the branch is merged into main, the sandbox has served its purpose. Instead of manually destroying it, run:
+## Push
 
 ```bash
-wp rudel cleanup --merged
+wp rudel push feature-x-a1b2 --message="Add header template"
 ```
 
-This checks every sandbox that carries tracked Git branch state. If all of a sandbox's tracked branches have been merged into their base branch, the sandbox is destroyed and Rudel cleans up the branch metadata along with the environment.
+If the sandbox inherited tracked Git metadata from an app, the remote and directory are already known. You can still override them:
 
-To preview what would be removed without actually deleting:
+```bash
+wp rudel push feature-x-a1b2 --git=https://example.test/my-theme.git --dir=themes/my-theme --message="Add header template"
+```
+
+## Cleanup
 
 ```bash
 wp rudel cleanup --merged --dry-run
+wp rudel cleanup --merged
 ```
 
-## What gets git-tracked
+Merged cleanup checks tracked branches and destroys sandboxes whose tracked work has already landed.
 
-Only themes and plugins are eligible for git worktrees. The decision is per-directory: if a copied theme or plugin contains a `.git` directory, Rudel can track it as git-backed code inside the environment-local `wp-content`. Directories without git are copied normally. Uploads are always file-copied.
+## Scope
 
-One opt-in constraint matters here: if an environment uses `shared_plugins`, plugin directories are live-linked to the host and are therefore not valid Rudel-owned Git worktree targets. Theme-tracked Git workflows are unaffected.
-
-The site data side of the sandbox is not part of git. That is the disposable part. The code changes in themes and plugins are the part that should be preserved, and git already handles that naturally.
-
-## Built-in Git remote support
-
-Rudel now uses a PHP-native Git engine for clone, push, fetch, merge checks, and worktree lifecycle. That means you can keep using Git-backed code workflows on hosts where the `git` binary is not installed.
-
-Use any normal remote URL Rudel can reach:
-
-```bash
-wp rudel create --git=https://example.test/my-theme.git
-wp rudel push my-sandbox-a1b2 --git=https://example.test/my-theme.git --dir=themes/my-theme --message="Add header template"
-```
-
-Rudel creates the branch (`rudel/{sandbox-id}`), keeps the tracked checkout inside the environment-local `wp-content`, and pushes the resulting commit through its built-in Git layer.
-
-Apps can also carry one tracked Git remote, branch, and directory:
-
-```bash
-wp rudel app create --name=demo --domain=demo.example.test --git=https://example.test/demo-theme.git --branch=main --dir=themes/demo-theme
-```
-
-Any sandbox created from that app inherits the tracked Git metadata automatically. That keeps branch and merge-cleanup workflows consistent across the app lifecycle without making operators restate the same remote details on every derived sandbox.
-
-## Without git
-
-If none of your themes or plugins are git repos and you do not use tracked
-Git remotes, Rudel simply copies the relevant code directories and keeps the
-environment lifecycle running normally. Git integration is an optional
-code-management layer on top of the multisite runtime.
+Theme worktrees are first-class in the current overlay model. Plugin worktrees remain metadata-compatible, but plugins are shared with the host by default and are not isolated by the current runtime.
