@@ -83,6 +83,7 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		$_SERVER['HTTP_HOST'] = 'demo.example.test';
 		$_SERVER['HTTP_X_RUDEL_ENVIRONMENT'] = $sandbox->id;
 		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
+		$table_prefix = 'wp_';
 
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
@@ -91,6 +92,7 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		$this->assertSame('overlay', constant('RUDEL_ENGINE'));
 		$this->assertSame($sandbox->get_table_prefix(), constant('RUDEL_TABLE_PREFIX'));
 		$this->assertSame($sandbox->get_table_prefix(), $GLOBALS['table_prefix']);
+		$this->assertSame($sandbox->get_table_prefix(), $table_prefix);
 		$this->assertSame('host-theme', constant('RUDEL_THEME_SLUG'));
 		$this->assertSame('host-theme', constant('RUDEL_TEMPLATE_SLUG'));
 		$this->assertSame(realpath($sandbox->path) . '/themes', constant('RUDEL_ENVIRONMENT_THEME_ROOT'));
@@ -158,6 +160,7 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		$argv = ['wp', '--url=http://localhost:8000/', 'option', 'get', 'blogname'];
 		$_SERVER['argv'] = ['wp', '--url', 'http://localhost:8000/', 'option', 'get', 'blogname'];
 		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
+		$table_prefix = 'wp_';
 
 		require dirname(__DIR__, 2) . '/bootstrap.php';
 
@@ -165,6 +168,8 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 		$this->assertSame('--url=http://localhost:8000/', $argv[1]);
 		$this->assertSame('http://localhost:8000/', $_SERVER['argv'][2]);
 		$this->assertSame($sandbox->get_table_prefix(), constant('RUDEL_TABLE_PREFIX'));
+		$this->assertSame($sandbox->get_table_prefix(), $GLOBALS['table_prefix']);
+		$this->assertSame($sandbox->get_table_prefix(), $table_prefix);
 		putenv('RUDEL_ENVIRONMENT');
 	}
 

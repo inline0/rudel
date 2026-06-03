@@ -398,6 +398,11 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			$def( 'RUDEL_APP_RECORD_ID', $app_row_id );
 		}
 	} )();
+
+if ( defined( 'RUDEL_TABLE_PREFIX' ) && is_string( RUDEL_TABLE_PREFIX ) && '' !== RUDEL_TABLE_PREFIX ) {
+	$table_prefix              = RUDEL_TABLE_PREFIX;
+	$GLOBALS['table_prefix'] = RUDEL_TABLE_PREFIX;
+}
 unset( $rudel_bootstrap_is_app );
 unset( $rudel_bootstrap_requested_url );
 unset( $rudel_bootstrap_sapi );
