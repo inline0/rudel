@@ -230,11 +230,11 @@ function rudel_overlay_current_theme(): string {
  * Theme root for the selected overlay theme.
  *
  * @param string $theme_root Current root.
- * @param string $stylesheet Theme stylesheet.
+ * @param mixed  $stylesheet Theme stylesheet.
  * @return string
  */
-function rudel_overlay_theme_root( string $theme_root, string $stylesheet ): string {
-	if ( rudel_overlay_owns_theme_slug( $stylesheet ) ) {
+function rudel_overlay_theme_root( string $theme_root, $stylesheet ): string {
+	if ( is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {
 		return (string) RUDEL_ENVIRONMENT_THEME_ROOT;
 	}
 
@@ -246,13 +246,13 @@ function rudel_overlay_theme_root( string $theme_root, string $stylesheet ): str
  *
  * @param string $theme_root_uri Current root URI.
  * @param string $siteurl Site URL.
- * @param string $stylesheet Theme stylesheet.
+ * @param mixed  $stylesheet Theme stylesheet.
  * @return string
  */
-function rudel_overlay_theme_root_uri( string $theme_root_uri, string $siteurl, string $stylesheet ): string {
+function rudel_overlay_theme_root_uri( string $theme_root_uri, string $siteurl, $stylesheet ): string {
 	unset( $siteurl );
 
-	if ( defined( 'RUDEL_ENVIRONMENT_THEME_ROOT_URI' ) && rudel_overlay_owns_theme_slug( $stylesheet ) ) {
+	if ( defined( 'RUDEL_ENVIRONMENT_THEME_ROOT_URI' ) && is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {
 		return (string) RUDEL_ENVIRONMENT_THEME_ROOT_URI;
 	}
 
