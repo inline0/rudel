@@ -538,6 +538,15 @@ class EnvironmentManager {
 				$host   = isset( $parts['host'] ) && is_string( $parts['host'] ) ? $parts['host'] : $host;
 				$port   = isset( $parts['port'] ) && is_numeric( $parts['port'] ) ? (int) $parts['port'] : null;
 			}
+		} elseif ( function_exists( 'home_url' ) ) {
+			$home_url = home_url( '/' );
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Runtime URL derivation from WordPress' resolved home URL.
+			$parts = parse_url( $home_url );
+			if ( is_array( $parts ) ) {
+				$scheme = isset( $parts['scheme'] ) && is_string( $parts['scheme'] ) ? $parts['scheme'] : $scheme;
+				$host   = isset( $parts['host'] ) && is_string( $parts['host'] ) ? $parts['host'] : $host;
+				$port   = isset( $parts['port'] ) && is_numeric( $parts['port'] ) ? (int) $parts['port'] : null;
+			}
 		}
 
 		if ( defined( 'DOMAIN_CURRENT_SITE' ) ) {

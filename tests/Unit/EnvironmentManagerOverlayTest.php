@@ -10,7 +10,7 @@ use Rudel\ThemeOverlay;
 
 class EnvironmentManagerOverlayTest extends RudelTestCase
 {
-	private function defineWordPressRuntime(string $home = 'http://example.test'): string
+	private function defineWordPressRuntime(?string $home = 'http://example.test'): string
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';
 		mkdir($wordpressRoot . '/wp-content/themes/host-theme', 0755, true);
@@ -22,7 +22,9 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 		define('ABSPATH', $wordpressRoot . '/');
 		define('WP_CONTENT_DIR', $wordpressRoot . '/wp-content');
-		define('WP_HOME', $home);
+		if (null !== $home) {
+			define('WP_HOME', $home);
+		}
 
 		return $wordpressRoot;
 	}
@@ -94,6 +96,28 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 		$this->assertFileDoesNotExist($environment->path . '/wp-content/db.php');
 		$this->assertFileDoesNotExist($environment->path . '/plugins/demo-plugin/demo-plugin.php');
 		$this->assertFileDoesNotExist($environment->path . '/uploads/2026/04/demo.txt');
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
+	public function testCreateUsesResolvedHomeUrlWhenWpHomeConstantIsAbsent(): void
+	{
+		$this->defineWordPressRuntime(null);
+		$GLOBALS['rudel_test_sites'][1]['home'] = 'http://localhost:8000/';
+		$GLOBALS['rudel_test_sites'][1]['siteurl'] = 'http://localhost:8000/';
+
+		$manager = new EnvironmentManager(
+			$this->tmpDir . '/sandboxes',
+			$this->tmpDir . '/apps',
+			'sandbox',
+			$this->runtimeStore()
+		);
+
+		$environment = $manager->create('Port Site', ['theme' => 'host-theme']);
+
+		$this->assertSame('http://localhost:8000/', $environment->get_url());
+		$this->assertSame('http://localhost:8000', $this->tableOptionValue($environment->get_table_prefix(), 'siteurl'));
+		$this->assertSame('http://localhost:8000', $this->tableOptionValue($environment->get_table_prefix(), 'home'));
 	}
 
 	#[RunInSeparateProcess]
