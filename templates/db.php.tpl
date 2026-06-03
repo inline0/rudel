@@ -1,24 +1,24 @@
 <?php
 /**
- * Rudel db.php drop-in.
+ * Runtime db.php drop-in.
  *
  * Maps the active environment onto its isolated users and usermeta tables.
  */
 
 if (
-	defined( 'RUDEL_USERS_TABLE' )
-	&& is_string( RUDEL_USERS_TABLE )
-	&& '' !== RUDEL_USERS_TABLE
+	defined( '{{constant_users_table}}' )
+	&& is_string( {{constant_users_table}} )
+	&& '' !== {{constant_users_table}}
 	&& ! defined( 'CUSTOM_USER_TABLE' )
 ) {
-	define( 'CUSTOM_USER_TABLE', RUDEL_USERS_TABLE );
+	define( 'CUSTOM_USER_TABLE', {{constant_users_table}} );
 }
 
 if (
-	defined( 'RUDEL_USERMETA_TABLE' )
-	&& is_string( RUDEL_USERMETA_TABLE )
-	&& '' !== RUDEL_USERMETA_TABLE
+	defined( '{{constant_usermeta_table}}' )
+	&& is_string( {{constant_usermeta_table}} )
+	&& '' !== {{constant_usermeta_table}}
 	&& ! defined( 'CUSTOM_USER_META_TABLE' )
 ) {
-	define( 'CUSTOM_USER_META_TABLE', RUDEL_USERMETA_TABLE );
+	define( 'CUSTOM_USER_META_TABLE', {{constant_usermeta_table}} );
 }

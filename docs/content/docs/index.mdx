@@ -5,13 +5,13 @@ description: Request-selected WordPress overlay environments for sandboxes.
 
 Rudel creates disposable WordPress sandboxes inside one host WordPress installation.
 
-Each sandbox is selected per request. The selected request uses cloned WordPress tables and a copied active theme while the host WordPress core, plugins, uploads, and users remain shared by default.
+Each sandbox is selected per request through names supplied by an explicit runtime profile. The selected request uses cloned WordPress tables and a copied active theme while the host WordPress core, plugins, uploads, and users remain shared by default.
 
 ## What Rudel isolates
 
 - database content through a generated table prefix
 - active theme files through a copied theme root
-- request context through trusted headers, cookies, or CLI environment variables
+- request context through profile-configured trusted headers, cookies, or CLI environment variables
 - lifecycle metadata through host WordPress MySQL tables
 
 ## What Rudel does not isolate by default
@@ -25,10 +25,10 @@ That boundary is intentional. Rudel focuses on fast, request-selected sandboxes 
 
 ## Source of truth
 
-Rudel runtime records live in the host WordPress database:
+Rudel runtime records live in profile-configured tables in the host WordPress database. For example, an integration might choose:
 
-- `wp_rudel_environments`
-- `wp_rudel_worktrees`
+- `wp_runtime_environments`
+- `wp_runtime_worktrees`
 
 There is no runtime JSON config and no SQLite metadata store.
 

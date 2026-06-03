@@ -7,6 +7,7 @@
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
+require_once __DIR__ . '/Fixtures/RuntimeProfiles.php';
 
 if ( ! class_exists( 'wpdb' ) ) {
 	// Minimal wpdb stub so MockWpdb can extend it outside WordPress.
@@ -522,6 +523,10 @@ if ( is_dir( RUDEL_TEST_TMPDIR ) ) {
 	exec( 'rm -rf ' . escapeshellarg( RUDEL_TEST_TMPDIR ) );
 }
 mkdir( RUDEL_TEST_TMPDIR, 0755, true );
+
+\Rudel\RuntimeProfile::set_current(
+	\Rudel\Tests\Fixtures\RuntimeProfiles::rudelLike( RUDEL_TEST_TMPDIR )
+);
 
 // Cleanup on shutdown
 register_shutdown_function(

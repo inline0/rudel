@@ -1,5 +1,8 @@
 {
 	"plugins": ["."],
+	"mappings": {
+		"wp-content/mu-plugins": "./tests/e2e/mu-plugins"
+	},
 	"port": 8000,
 	"testsPort": 8001,
 	"config": {

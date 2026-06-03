@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: Rudel Runtime Hooks
- * Description: Runtime hooks that must always load inside a Rudel environment.
+ * Plugin Name: Runtime Hooks
+ * Description: Runtime hooks that must always load inside a selected environment.
  *
  * @package Rudel
  */
@@ -10,33 +10,33 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
+if ( defined( '{{runtime_mu_loaded_constant}}' ) ) {
 	return;
 }
 
-define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
+define( '{{runtime_mu_loaded_constant}}', true );
 
 /**
- * Return the resolved environment URL for the active Rudel site.
+ * Return the resolved environment URL for the active runtime site.
  *
  * @return string|null
  */
-function rudel_runtime_environment_url() {
-	if ( defined( 'RUDEL_ENVIRONMENT_URL' ) && is_string( RUDEL_ENVIRONMENT_URL ) && '' !== RUDEL_ENVIRONMENT_URL ) {
-		return rtrim( RUDEL_ENVIRONMENT_URL, '/' );
+function {{runtime_environment_url_fn}}() {
+	if ( defined( '{{constant_environment_url}}' ) && is_string( {{constant_environment_url}} ) && '' !== {{constant_environment_url}} ) {
+		return rtrim( {{constant_environment_url}}, '/' );
 	}
 
 	return null;
 }
 
 /**
- * Return the resolved multisite blog ID for the active Rudel site.
+ * Return the resolved multisite blog ID for the active runtime site.
  *
  * @return int|null
  */
-function rudel_runtime_blog_id() {
-	if ( defined( 'RUDEL_TABLE_PREFIX' ) && is_string( RUDEL_TABLE_PREFIX ) ) {
-		if ( preg_match( '/(\d+)_$/', RUDEL_TABLE_PREFIX, $matches ) ) {
+function {{runtime_blog_id_fn}}() {
+	if ( defined( '{{constant_table_prefix}}' ) && is_string( {{constant_table_prefix}} ) ) {
+		if ( preg_match( '/(\d+)_$/', {{constant_table_prefix}}, $matches ) ) {
 			return (int) $matches[1];
 		}
 	}
@@ -49,7 +49,7 @@ function rudel_runtime_blog_id() {
  *
  * @return int|null
  */
-function rudel_runtime_current_blog_id() {
+function {{runtime_current_blog_id_fn}}() {
 	global $wpdb, $table_prefix, $blog_id, $current_blog;
 
 	if ( isset( $wpdb ) && is_object( $wpdb ) && isset( $wpdb->blogid ) ) {
@@ -86,8 +86,8 @@ function rudel_runtime_current_blog_id() {
  *
  * @return string
  */
-function rudel_runtime_network_port_suffix() {
-	$host_url = rudel_runtime_host_url();
+function {{runtime_port_suffix_fn}}() {
+	$host_url = {{runtime_host_url_fn}}();
 	if ( null === $host_url ) {
 		return '';
 	}
@@ -106,7 +106,7 @@ function rudel_runtime_network_port_suffix() {
  * @param int $blog_id Blog ID.
  * @return string|null
  */
-function rudel_runtime_blog_url_for( $blog_id ) {
+function {{runtime_blog_url_for_fn}}( $blog_id ) {
 	$blog_id = (int) $blog_id;
 	$domain  = '';
 	$path    = '/';
@@ -157,7 +157,7 @@ function rudel_runtime_blog_url_for( $blog_id ) {
 	}
 
 	$scheme = 'http';
-	$host_url = rudel_runtime_host_url();
+	$host_url = {{runtime_host_url_fn}}();
 	if ( null !== $host_url ) {
 		$parts = wp_parse_url( $host_url );
 		if ( is_array( $parts ) && isset( $parts['scheme'] ) ) {
@@ -167,7 +167,7 @@ function rudel_runtime_blog_url_for( $blog_id ) {
 
 	$url = $scheme . '://' . $domain;
 	if ( ! preg_match( '/:\d+$/', $domain ) ) {
-		$url .= rudel_runtime_network_port_suffix();
+		$url .= {{runtime_port_suffix_fn}}();
 	}
 
 	return rtrim( $url, '/' ) . $path;
@@ -179,19 +179,19 @@ function rudel_runtime_blog_url_for( $blog_id ) {
  * @param mixed $value Current pre_option value.
  * @return mixed
  */
-function rudel_runtime_site_option_override( $value ) {
-	$current_blog_id  = rudel_runtime_current_blog_id();
-	$resolved_blog_id = rudel_runtime_blog_id();
+function {{runtime_site_option_fn}}( $value ) {
+	$current_blog_id  = {{runtime_current_blog_id_fn}}();
+	$resolved_blog_id = {{runtime_blog_id_fn}}();
 
 	if ( null !== $resolved_blog_id && null !== $current_blog_id && $current_blog_id === $resolved_blog_id ) {
-		$environment_url = rudel_runtime_environment_url();
+		$environment_url = {{runtime_environment_url_fn}}();
 		if ( null !== $environment_url ) {
 			return $environment_url;
 		}
 	}
 
 	if ( null !== $current_blog_id ) {
-		$blog_url = rudel_runtime_blog_url_for( $current_blog_id );
+		$blog_url = {{runtime_blog_url_for_fn}}( $current_blog_id );
 		if ( null !== $blog_url ) {
 			return rtrim( $blog_url, '/' );
 		}
@@ -201,33 +201,33 @@ function rudel_runtime_site_option_override( $value ) {
 }
 
 /**
- * Return the network host URL when Rudel resolved one in bootstrap.
+ * Return the network host URL when bootstrap resolved one.
  *
  * @return string|null
  */
-function rudel_runtime_host_url() {
-	if ( defined( 'RUDEL_HOST_URL' ) && is_string( RUDEL_HOST_URL ) && '' !== RUDEL_HOST_URL ) {
-		return rtrim( RUDEL_HOST_URL, '/' );
+function {{runtime_host_url_fn}}() {
+	if ( defined( '{{constant_host_url}}' ) && is_string( {{constant_host_url}} ) && '' !== {{constant_host_url}} ) {
+		return rtrim( {{constant_host_url}}, '/' );
 	}
 
 	return null;
 }
 
-if ( null !== rudel_runtime_environment_url() ) {
+if ( null !== {{runtime_environment_url_fn}}() ) {
 	// Host-level WP_HOME/WP_SITEURL constants override database reads, but the
 	// override must stay blog-aware so switch_to_blog() still yields distinct
 	// root/current/sibling URLs in multisite admin flows.
 	add_filter(
 		'pre_option_home',
 		function ( $value ) {
-			return rudel_runtime_site_option_override( $value );
+			return {{runtime_site_option_fn}}( $value );
 		}
 	);
 
 	add_filter(
 		'pre_option_siteurl',
 		function ( $value ) {
-			return rudel_runtime_site_option_override( $value );
+			return {{runtime_site_option_fn}}( $value );
 		}
 	);
 
@@ -235,7 +235,7 @@ if ( null !== rudel_runtime_environment_url() ) {
 add_filter(
 	'pre_wp_mail',
 	function ( $null, $atts ) {
-		if ( ! defined( 'RUDEL_DISABLE_EMAIL' ) || ! RUDEL_DISABLE_EMAIL ) {
+		if ( ! defined( '{{constant_disable_email}}' ) || ! {{constant_disable_email}} ) {
 			return $null;
 		}
 
@@ -246,9 +246,9 @@ add_filter(
 
 		$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
 
-		if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( 'RUDEL_ID' ) ) {
+		if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( '{{constant_id}}' ) ) {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in the environment debug.log.
-			error_log( sprintf( 'Rudel: email blocked in environment %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
+			error_log( sprintf( '{{email_log_label}}: email blocked in environment %s (to: %s, subject: %s)', {{constant_id}}, $to, $subject ) );
 		}
 
 		return true;
@@ -257,25 +257,22 @@ add_filter(
 	2
 );
 
-if ( defined( 'RUDEL_ID' ) && '' !== RUDEL_ID ) {
+if ( defined( '{{constant_id}}' ) && '' !== {{constant_id}} ) {
 	add_action(
 		'admin_bar_menu',
 		function ( $wp_admin_bar ) {
-			$is_app = defined( 'RUDEL_IS_APP' ) && RUDEL_IS_APP;
-			$title  = '&#9632; ' . ( $is_app ? 'App' : 'Sandbox' ) . ': ' . RUDEL_ID;
-			$base   = rudel_runtime_environment_url();
-			$host   = rudel_runtime_host_url();
-			$href   = $is_app ? ( $base ?? '/' ) : ( $host ?? '/' );
+			$title  = '&#9632; {{admin_bar_title}}: ' . {{constant_id}};
+			$base   = {{runtime_environment_url_fn}}();
+			$host   = {{runtime_host_url_fn}}();
+			$href   = $host ?? ( $base ?? '/' );
 
 			$wp_admin_bar->add_node(
 				array(
-					'id'    => 'rudel-environment',
+					'id'    => '{{admin_bar_node_id}}',
 					'title' => $title,
 					'href'  => $href,
 					'meta'  => array(
-						'title' => $is_app
-							? 'Current Rudel app environment'
-							: 'Return to the Rudel network host',
+						'title' => 'Return to the host site',
 					),
 				)
 			);
@@ -283,8 +280,8 @@ if ( defined( 'RUDEL_ID' ) && '' !== RUDEL_ID ) {
 		1
 	);
 
-	add_action( 'wp_head', 'rudel_runtime_admin_bar_styles' );
-	add_action( 'admin_head', 'rudel_runtime_admin_bar_styles' );
+	add_action( 'wp_head', '{{runtime_admin_styles_fn}}' );
+	add_action( 'admin_head', '{{runtime_admin_styles_fn}}' );
 }
 
 /**
@@ -292,12 +289,10 @@ if ( defined( 'RUDEL_ID' ) && '' !== RUDEL_ID ) {
  *
  * @return void
  */
-function rudel_runtime_admin_bar_styles() {
-	if ( ! defined( 'RUDEL_ID' ) || '' === RUDEL_ID ) {
+function {{runtime_admin_styles_fn}}() {
+	if ( ! defined( '{{constant_id}}' ) || '' === {{constant_id}} ) {
 		return;
 	}
 
-	$is_app = defined( 'RUDEL_IS_APP' ) && RUDEL_IS_APP;
-	$color  = $is_app ? '#2271b1' : '#d63638';
-	echo '<style>#wp-admin-bar-rudel-environment > a { background: ' . esc_attr( $color ) . ' !important; color: #fff !important; font-weight: 600 !important; }</style>';
+	echo '<style>#wp-admin-bar-{{admin_bar_node_id}} > a { background: #d63638 !important; color: #fff !important; font-weight: 600 !important; }</style>';
 }

@@ -428,11 +428,17 @@ class SnapshotManager {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$runtime_template = file_get_contents( $plugin_dir . 'templates/runtime-mu-plugin.php.tpl' );
+		$runtime_template = is_string( $runtime_template )
+			? RuntimeTemplateRenderer::render( $runtime_template, RuntimeProfile::current() )
+			: '';
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Rewriting the generated MU plugin after restore.
-		file_put_contents( $mu_dir . '/rudel-runtime.php', $runtime_template );
+		file_put_contents( $mu_dir . '/' . RuntimeProfile::current()->runtime_mu_file(), $runtime_template );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
 		$db_template = file_get_contents( $plugin_dir . 'templates/db.php.tpl' );
+		$db_template = is_string( $db_template )
+			? RuntimeTemplateRenderer::render( $db_template, RuntimeProfile::current() )
+			: '';
 		$db_template = Hooks::filter(
 			'rudel_environment_db_dropin_contents',
 			$db_template,

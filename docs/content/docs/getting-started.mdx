@@ -5,14 +5,90 @@ description: Install Rudel and create your first sandbox.
 
 ## Install
 
-Install Rudel with Composer and activate it like a normal WordPress plugin.
+Install Rudel with Composer.
 
 ```bash
 composer require rudel/rudel
-wp plugin activate rudel
 ```
 
-Check the runtime status:
+Before activation, the host integration must provide a runtime profile. The profile names the trusted request selectors, runtime constants, metadata tables, environment paths, and generated MU-plugin surface that Rudel should use. Rudel does not ship default public runtime names.
+
+The usual WordPress path is a small mu-plugin that returns the profile through the `rudel_runtime_profile` filter before `wp plugin activate rudel` runs:
+
+```php
+<?php
+add_filter(
+    'rudel_runtime_profile',
+    static function () {
+        return [
+            'selectors' => [
+                'cookie' => 'your_environment',
+                'header' => 'X-Your-Environment',
+                'env'    => 'YOUR_ENVIRONMENT',
+            ],
+            'constants' => [
+                'id'                      => 'YOUR_ID',
+                'path'                    => 'YOUR_PATH',
+                'wp_config_path'          => 'YOUR_WP_CONFIG_PATH',
+                'plugin_dir'              => 'YOUR_BOOTSTRAP_PLUGIN_DIR',
+                'env_type'                => 'YOUR_ENV_TYPE',
+                'engine'                  => 'YOUR_ENGINE',
+                'table_prefix'            => 'YOUR_TABLE_PREFIX',
+                'host_table_prefix'       => 'YOUR_HOST_TABLE_PREFIX',
+                'host_url'                => 'YOUR_HOST_URL',
+                'environment_url'         => 'YOUR_ENVIRONMENT_URL',
+                'environment_content_url' => 'YOUR_ENVIRONMENT_CONTENT_URL',
+                'theme_slug'              => 'YOUR_THEME_SLUG',
+                'template_slug'           => 'YOUR_TEMPLATE_SLUG',
+                'theme_root'              => 'YOUR_ENVIRONMENT_THEME_ROOT',
+                'theme_root_uri'          => 'YOUR_ENVIRONMENT_THEME_ROOT_URI',
+                'record_id'               => 'YOUR_ENV_RECORD_ID',
+                'disable_email'           => 'YOUR_DISABLE_EMAIL',
+                'user_scope'              => 'YOUR_USER_SCOPE',
+                'users_table'             => 'YOUR_USERS_TABLE',
+                'usermeta_table'          => 'YOUR_USERMETA_TABLE',
+            ],
+            'runtime_tables' => [
+                'prefix'       => 'your_',
+                'environments' => 'your_environments',
+                'worktrees'    => 'your_worktrees',
+            ],
+            'naming' => [
+                'environment_table_prefix'     => '{{host_prefix}}your_{{short_hash}}_',
+                'isolated_users_table'         => '{{host_prefix}}your_env_{{blog_id}}_users',
+                'isolated_usermeta_table'      => '{{host_prefix}}your_env_{{blog_id}}_usermeta',
+                'cache_key_salt'               => 'your_{{id}}_',
+                'git_branch_prefix'            => 'your/',
+                'managed_table_prefix_patterns' => [
+                    '/^your_/',
+                    '/^[A-Za-z0-9_]+your_[a-f0-9]{7}_$/',
+                ],
+            ],
+            'paths' => [
+                'environments_dir_name'       => 'your-environments',
+                'environments_dir_constant'   => 'YOUR_ENVIRONMENTS_DIR',
+                'environment_content_url_path' => 'your-environments',
+                'bootstrap_config_path'       => WP_CONTENT_DIR . '/your-runtime-profile.php',
+            ],
+            'wp_config_marker' => '// Your environment bootstrap',
+            'runtime_mu' => [
+                'file'              => 'your-runtime.php',
+                'loaded_constant'   => 'YOUR_RUNTIME_HOOKS_LOADED',
+                'function_prefix'   => 'your_runtime',
+                'admin_bar_node_id' => 'your-environment',
+                'admin_bar_title'   => 'Sandbox',
+                'email_log_label'   => 'Your Runtime',
+            ],
+        ];
+    }
+);
+```
+
+Then activate the plugin and check the runtime status:
+
+```bash
+wp plugin activate rudel
+```
 
 ```bash
 wp rudel status
@@ -20,7 +96,7 @@ wp rudel status
 
 ## Install the bootstrap
 
-Rudel needs an early bootstrap line in `wp-config.php` so it can select a sandbox before WordPress finishes loading.
+Rudel needs an early bootstrap line in `wp-config.php` so it can select a sandbox before WordPress finishes loading. The activation hook installs this bootstrap with the active runtime profile; `wp rudel bootstrap install` is also available for explicit reinstalls.
 
 ```bash
 wp rudel bootstrap install
@@ -39,16 +115,16 @@ Rudel creates a generated sandbox ID, clones the host WordPress tables into a sa
 ## Use WP-CLI inside a sandbox
 
 ```bash
-RUDEL_ENVIRONMENT=alpha-1234 wp option get siteurl
+YOUR_ENVIRONMENT=alpha-1234 wp option get siteurl
 ```
 
 ## Route HTTP into a sandbox
 
 ```bash
-curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
+curl -H 'X-Your-Environment: alpha-1234' http://localhost:8000/
 ```
 
-You can also use the `rudel_environment` cookie for browser sessions.
+You can also use the cookie name configured by your runtime profile for browser sessions.
 
 ## Next steps
 

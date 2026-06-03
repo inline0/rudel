@@ -58,16 +58,46 @@ class Rudel {
 	 * @return string|null
 	 */
 	private static function environment_id(): ?string {
-		if ( ! defined( 'RUDEL_ID' ) ) {
+		$constant = self::runtime_constant_name( 'id' );
+		if ( null === $constant || ! defined( $constant ) ) {
 			return null;
 		}
 
-		$id = constant( 'RUDEL_ID' );
+		$id = constant( $constant );
 		if ( ! is_string( $id ) || '' === $id ) {
 			return null;
 		}
 
 		return $id;
+	}
+
+	/**
+	 * Current runtime profile, if one has been installed.
+	 *
+	 * @return RuntimeProfile|null
+	 */
+	private static function runtime_profile(): ?RuntimeProfile {
+		try {
+			return RuntimeProfile::current();
+		} catch ( \RuntimeException $e ) {
+			unset( $e );
+			return null;
+		}
+	}
+
+	/**
+	 * Constant name for one active runtime value.
+	 *
+	 * @param string $key Logical constant key.
+	 * @return string|null
+	 */
+	private static function runtime_constant_name( string $key ): ?string {
+		$profile = self::runtime_profile();
+		if ( null === $profile ) {
+			return null;
+		}
+
+		return $profile->constant( $key );
 	}
 
 	/**
@@ -119,7 +149,8 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function path(): ?string {
-		return self::string_constant( 'RUDEL_PATH' );
+		$constant = self::runtime_constant_name( 'path' );
+		return null === $constant ? null : self::string_constant( $constant );
 	}
 
 	/**
@@ -132,7 +163,8 @@ class Rudel {
 			return null;
 		}
 
-		return self::string_constant( 'RUDEL_ENGINE' ) ?? 'overlay';
+		$constant = self::runtime_constant_name( 'engine' );
+		return null === $constant ? null : self::string_constant( $constant );
 	}
 
 	/**
@@ -141,7 +173,8 @@ class Rudel {
 	 * @return string|null
 	 */
 	public static function table_prefix(): ?string {
-		$prefix = self::string_constant( 'RUDEL_TABLE_PREFIX' );
+		$constant = self::runtime_constant_name( 'table_prefix' );
+		$prefix   = null === $constant ? null : self::string_constant( $constant );
 		if ( null !== $prefix && '' !== $prefix ) {
 			return $prefix;
 		}
@@ -171,7 +204,8 @@ class Rudel {
 			return null;
 		}
 
-		$environment_url = self::string_constant( 'RUDEL_ENVIRONMENT_URL' );
+		$constant        = self::runtime_constant_name( 'environment_url' );
+		$environment_url = null === $constant ? null : self::string_constant( $constant );
 		if ( null !== $environment_url && '' !== $environment_url ) {
 			return rtrim( $environment_url, '/' ) . '/';
 		}
@@ -199,7 +233,8 @@ class Rudel {
 	 * @return string URL for the network host.
 	 */
 	public static function exit_url(): string {
-		$host_url = self::string_constant( 'RUDEL_HOST_URL' );
+		$constant = self::runtime_constant_name( 'host_url' );
+		$host_url = null === $constant ? null : self::string_constant( $constant );
 		if ( null !== $host_url && '' !== $host_url ) {
 			return rtrim( $host_url, '/' ) . '/';
 		}
@@ -241,7 +276,8 @@ class Rudel {
 	 * @return bool True if email is blocked.
 	 */
 	public static function is_email_disabled(): bool {
-		return self::is_environment() && self::bool_constant( 'RUDEL_DISABLE_EMAIL' );
+		$constant = self::runtime_constant_name( 'disable_email' );
+		return self::is_environment() && null !== $constant && self::bool_constant( $constant );
 	}
 
 	/**
@@ -309,9 +345,9 @@ class Rudel {
 	 * @return void
 	 */
 	public static function init( Connection $connection, array $context = array() ): void {
-		self::$store                = RudelDatabase::for_connection( $connection );
-		self::$context              = self::normalize_context( $context );
-		self::$manager_instance     = null;
+		self::$store            = RudelDatabase::for_connection( $connection );
+		self::$context          = self::normalize_context( $context );
+		self::$manager_instance = null;
 	}
 
 	/**
@@ -329,9 +365,9 @@ class Rudel {
 	 * @return void
 	 */
 	public static function reset(): void {
-		self::$store                = null;
-		self::$context              = array();
-		self::$manager_instance     = null;
+		self::$store            = null;
+		self::$context          = array();
+		self::$manager_instance = null;
 		RudelDatabase::reset();
 	}
 
@@ -523,22 +559,22 @@ class Rudel {
 		}
 
 		return array(
-			'bootstrap_installed'                 => $bootstrap_ok,
-			'current_environment_id'              => self::environment_id(),
-			'current_environment_type'            => $type,
-			'sandboxes_directory'                 => self::environments_dir(),
-			'active_sandboxes'                    => count( self::all() ),
-			'config_storage'                      => 'wp_options',
-			'config_option'                       => $config->option_name(),
-			'default_ttl_days'                    => $config->get( 'default_ttl_days' ),
-			'max_age_days'                        => $config->get( 'max_age_days' ),
-			'max_idle_days'                       => $config->get( 'max_idle_days' ),
-			'auto_cleanup'                        => $config->get( 'auto_cleanup_enabled' ) > 0,
-			'auto_cleanup_merged'                 => $config->get( 'auto_cleanup_merged' ) > 0,
-			'expiring_environment_notice_days'    => $config->get( 'expiring_environment_notice_days' ),
-			'automation_scheduled'                => $automation_on,
-			'wordpress_multisite'                 => function_exists( 'is_multisite' ) && is_multisite(),
-			'php_version'                         => PHP_VERSION,
+			'bootstrap_installed'              => $bootstrap_ok,
+			'current_environment_id'           => self::environment_id(),
+			'current_environment_type'         => $type,
+			'sandboxes_directory'              => self::environments_dir(),
+			'active_sandboxes'                 => count( self::all() ),
+			'config_storage'                   => 'wp_options',
+			'config_option'                    => $config->option_name(),
+			'default_ttl_days'                 => $config->get( 'default_ttl_days' ),
+			'max_age_days'                     => $config->get( 'max_age_days' ),
+			'max_idle_days'                    => $config->get( 'max_idle_days' ),
+			'auto_cleanup'                     => $config->get( 'auto_cleanup_enabled' ) > 0,
+			'auto_cleanup_merged'              => $config->get( 'auto_cleanup_merged' ) > 0,
+			'expiring_environment_notice_days' => $config->get( 'expiring_environment_notice_days' ),
+			'automation_scheduled'             => $automation_on,
+			'wordpress_multisite'              => function_exists( 'is_multisite' ) && is_multisite(),
+			'php_version'                      => PHP_VERSION,
 		);
 	}
 

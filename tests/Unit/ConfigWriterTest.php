@@ -5,6 +5,8 @@ namespace Rudel\Tests\Unit;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use Rudel\ConfigWriter;
+use Rudel\RuntimeProfile;
+use Rudel\Tests\Fixtures\RuntimeProfiles;
 use Rudel\Tests\RudelTestCase;
 
 class ConfigWriterTest extends RudelTestCase
@@ -30,7 +32,9 @@ class ConfigWriterTest extends RudelTestCase
 
         $contents = file_get_contents($configPath);
         $this->assertStringContainsString('// Rudel environment bootstrap', $contents);
+        $this->assertStringContainsString('$GLOBALS[\'rudel_runtime_profile\'] = require', $contents);
         $this->assertStringContainsString("require_once", $contents);
+        $this->assertFileExists(RuntimeProfile::current()->bootstrap_config_path());
     }
 
     #[RunInSeparateProcess]
@@ -70,7 +74,7 @@ class ConfigWriterTest extends RudelTestCase
         $writer = new ConfigWriter();
         $writer->install();
 
-        $backups = glob($this->tmpDir . '/wp-config.php.rudel-backup-*');
+        $backups = glob($this->tmpDir . '/wp-config.php.runtime-backup-*');
         $this->assertNotEmpty($backups);
     }
 
@@ -224,14 +228,33 @@ class ConfigWriterTest extends RudelTestCase
         $writer->install();
 
         // Delete the backup from install
-        foreach (glob($this->tmpDir . '/wp-config.php.rudel-backup-*') as $f) {
+        foreach (glob($this->tmpDir . '/wp-config.php.runtime-backup-*') as $f) {
             unlink($f);
         }
 
         $writer->uninstall();
 
-        $backups = glob($this->tmpDir . '/wp-config.php.rudel-backup-*');
+        $backups = glob($this->tmpDir . '/wp-config.php.runtime-backup-*');
         $this->assertNotEmpty($backups, 'Uninstall should create a backup');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testInstallCanUseNeutralInjectedProfile(): void
+    {
+        $configPath = $this->createWpConfig($this->tmpDir);
+        RuntimeProfile::set_current(RuntimeProfiles::neutral($this->tmpDir));
+
+        define('ABSPATH', $this->tmpDir . '/');
+        define('RUDEL_PLUGIN_FILE', $this->tmpDir . '/rudel.php');
+
+        $writer = new ConfigWriter();
+        $writer->install();
+
+        $contents = file_get_contents($configPath);
+        $this->assertStringContainsString('// Fixture environment bootstrap', $contents);
+        $this->assertStringContainsString('FIXTURE_WP_CONFIG_PATH', $contents);
+        $this->assertFileExists($this->tmpDir . '/fixture-runtime-profile.php');
     }
 
     // isInstalled()

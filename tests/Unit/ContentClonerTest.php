@@ -173,7 +173,6 @@ class ContentClonerTest extends RudelTestCase
         mkdir($target, 0755, true);
 
         $method = new \ReflectionMethod($this->cloner, 'copy_directory_with_phar');
-        $method->setAccessible(true);
 
         $this->assertTrue($method->invoke($this->cloner, $source, $target));
         $this->assertFileExists($target . '/root.txt');
@@ -191,7 +190,6 @@ class ContentClonerTest extends RudelTestCase
         mkdir($target, 0755, true);
 
         $method = new \ReflectionMethod($this->cloner, 'copy_directory_with_phar');
-        $method->setAccessible(true);
 
         $this->assertFalse($method->invoke($this->cloner, $source, $target));
     }

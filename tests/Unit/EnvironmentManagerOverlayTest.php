@@ -53,7 +53,6 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 		);
 
 		$method = new \ReflectionMethod($manager, 'delete_directory');
-		$method->setAccessible(true);
 
 		$result = $method->invoke($manager, $root);
 

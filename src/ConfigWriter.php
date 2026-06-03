@@ -8,16 +8,25 @@
 namespace Rudel;
 
 /**
- * Injects and removes the Rudel bootstrap require line in wp-config.php.
+ * Injects and removes the runtime bootstrap require line in wp-config.php.
  */
 class ConfigWriter {
 
 	/**
-	 * Marker comment used to identify the injected line.
+	 * Runtime profile to install.
 	 *
-	 * @var string
+	 * @var RuntimeProfile|null
 	 */
-	private const MARKER = '// Rudel environment bootstrap';
+	private ?RuntimeProfile $profile;
+
+	/**
+	 * Initialize dependencies.
+	 *
+	 * @param RuntimeProfile|null $profile Runtime profile to install.
+	 */
+	public function __construct( ?RuntimeProfile $profile = null ) {
+		$this->profile = $profile;
+	}
 
 	/**
 	 * Inject the bootstrap require line into wp-config.php.
@@ -28,6 +37,7 @@ class ConfigWriter {
 	 */
 	public function install(): void {
 		$config_path = $this->get_config_path();
+		$profile     = $this->profile();
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- Direct check required before wp-config.php modification.
 		if ( ! is_writable( $config_path ) ) {
@@ -43,8 +53,12 @@ class ConfigWriter {
 
 		$this->backup( $config_path );
 
-		$bootstrap_path = dirname( RUDEL_PLUGIN_FILE ) . '/bootstrap.php';
-		$line           = "if ( ! defined( 'RUDEL_WP_CONFIG_PATH' ) ) { define( 'RUDEL_WP_CONFIG_PATH', __FILE__ ); } require_once '{$bootstrap_path}'; " . self::MARKER;
+		$this->write_profile_config( $profile );
+
+		$bootstrap_path     = dirname( RUDEL_PLUGIN_FILE ) . '/bootstrap.php';
+		$profile_path       = $profile->bootstrap_config_path();
+		$wp_config_constant = $profile->constant( 'wp_config_path' );
+		$line               = "if ( ! defined( '{$wp_config_constant}' ) ) { define( '{$wp_config_constant}', __FILE__ ); } \$GLOBALS['rudel_runtime_profile'] = require '{$profile_path}'; require_once '{$bootstrap_path}'; " . $profile->wp_config_marker();
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local wp-config.php.
 		$contents = file_get_contents( $config_path );
@@ -105,8 +119,9 @@ class ConfigWriter {
 		if ( false === $contents ) {
 			return;
 		}
-		$lines = explode( "\n", $contents );
-		$lines = array_filter( $lines, fn( $line ) => ! str_contains( $line, self::MARKER ) );
+		$lines  = explode( "\n", $contents );
+		$marker = $this->profile()->wp_config_marker();
+		$lines  = array_filter( $lines, fn( $line ) => ! str_contains( $line, $marker ) );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing local wp-config.php.
 		file_put_contents( $config_path, implode( "\n", $lines ) );
 	}
@@ -126,7 +141,60 @@ class ConfigWriter {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local wp-config.php.
 		$contents = file_get_contents( $config_path );
 
-		return false !== $contents && str_contains( $contents, self::MARKER );
+		return false !== $contents && str_contains( $contents, $this->profile()->wp_config_marker() );
+	}
+
+	/**
+	 * Resolve the runtime profile to install.
+	 *
+	 * @return RuntimeProfile
+	 * @throws \RuntimeException If no runtime profile is available.
+	 */
+	private function profile(): RuntimeProfile {
+		if ( null !== $this->profile ) {
+			return $this->profile;
+		}
+
+		try {
+			$this->profile = RuntimeProfile::current();
+			return $this->profile;
+		} catch ( \RuntimeException $e ) {
+			unset( $e );
+		}
+
+		$filtered = Hooks::filter( 'rudel_runtime_profile', null );
+		if ( $filtered instanceof RuntimeProfile ) {
+			$this->profile = $filtered;
+			return $this->profile;
+		}
+		if ( is_array( $filtered ) ) {
+			// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing.
+			/** @var array<string, mixed> $filtered */
+			$this->profile = RuntimeProfile::from_array( $filtered );
+			return $this->profile;
+		}
+
+		throw new \RuntimeException( 'A runtime profile is required before installing the runtime bootstrap.' );
+	}
+
+	/**
+	 * Write the generated profile config file loaded from wp-config.php.
+	 *
+	 * @param RuntimeProfile $profile Runtime profile.
+	 * @return void
+	 */
+	private function write_profile_config( RuntimeProfile $profile ): void {
+		$profile_path = $profile->bootstrap_config_path();
+		$directory    = dirname( $profile_path );
+
+		if ( ! is_dir( $directory ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating generated profile config directory.
+			mkdir( $directory, 0755, true );
+		}
+
+		$contents = "<?php\nreturn " . var_export( $profile->to_array(), true ) . ";\n";
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing generated runtime profile config.
+		file_put_contents( $profile_path, $contents );
 	}
 
 	/**
@@ -159,7 +227,7 @@ class ConfigWriter {
 	 * @return void
 	 */
 	private function backup( string $config_path ): void {
-		$backup_path = $config_path . '.rudel-backup-' . gmdate( 'Y-m-d-His' );
+		$backup_path = $config_path . '.runtime-backup-' . gmdate( 'Y-m-d-His' );
 		copy( $config_path, $backup_path );
 	}
 }

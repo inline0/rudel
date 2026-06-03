@@ -23,11 +23,11 @@ npm --prefix docs run build
 
 - Rudel runs on a normal WordPress installation. Multisite is not required.
 - Every Rudel environment is a sandbox overlay selected per request.
-- Runtime selection uses `X-Rudel-Environment`, `rudel_environment`, or `RUDEL_ENVIRONMENT` for CLI.
+- Runtime selection uses the trusted header, cookie, and CLI environment variable declared by the active runtime profile.
 - Environment site data uses cloned WordPress tables with generated prefixes such as `wp_a4nmv7_`.
 - Environment code isolation is active-theme isolation. The selected theme is copied into the environment directory and loaded through theme filters.
 - Host WordPress core, plugins, uploads, and users are shared by default.
-- Runtime metadata lives in host WordPress MySQL tables, never JSON and never SQLite.
+- Runtime metadata lives in profile-configured host WordPress MySQL tables, never JSON and never SQLite.
 
 ## Project Structure
 
@@ -45,15 +45,19 @@ rudel/
 
 ## Configuration
 
-Define these before Rudel boots when non-default paths or names are needed:
+Rudel has no built-in public runtime names. The implementer must provide a runtime profile before activation/bootstrap. Profiles can be supplied through the `rudel_runtime_profile` filter for WordPress activation and normal runtime services, or through `$GLOBALS['rudel_runtime_profile']` before `bootstrap.php` runs.
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `RUDEL_CLI_COMMAND` | `rudel` | Root WP-CLI command name |
-| `RUDEL_RUNTIME_TABLE_PREFIX` | `rudel_` | Shared runtime-table prefix after the WordPress DB prefix |
-| `RUDEL_RUNTIME_TABLE_ENVIRONMENTS` | `rudel_environments` | Explicit environments-table base name override |
-| `RUDEL_RUNTIME_TABLE_WORKTREES` | `rudel_worktrees` | Explicit worktrees-table base name override |
-| `RUDEL_ENVIRONMENTS_DIR` | `WP_CONTENT_DIR . '/rudel-environments'` | Base directory for sandbox environments |
+The profile owns:
+
+- selector names for HTTP header, cookie, and CLI environment variable
+- runtime constant names emitted by `bootstrap.php`
+- runtime metadata table names
+- generated table-prefix patterns and git branch prefix
+- environments directory name/path override constant
+- generated runtime MU-plugin filename, function prefix, admin-bar labels, and email-log label
+- wp-config marker and generated profile config path
+
+`RUDEL_CLI_COMMAND` remains a repo-local WP-CLI command constant. It can be defined before plugin load to change the root command name from `rudel`.
 
 ## Key Rules
 
@@ -67,7 +71,8 @@ Define these before Rudel boots when non-default paths or names are needed:
 8. Keep CLI help, docs, tests, and `CliCommandMap` aligned with the shipped command surface.
 9. Prefer positive assertions of the current contract over legacy-removal assertions in tests.
 10. Keep Rudel product-neutral. Do not mention downstream product names in docs, comments, examples, changelogs, or release notes.
-11. `CHANGELOG.md` is the source of truth for release notes. GitHub release bodies must be exactly `See CHANGELOG.md for the full release notes.` with no compare links or duplicated summaries.
+11. Do not add default public Rudel runtime selectors, cookies, constants, database table names, generated file names, or path names. Tests may use Rudel-shaped fixture profiles only when the profile is explicit.
+12. `CHANGELOG.md` is the source of truth for release notes. GitHub release bodies must be exactly `See CHANGELOG.md for the full release notes.` with no compare links or duplicated summaries.
 
 ## Comment Policy
 

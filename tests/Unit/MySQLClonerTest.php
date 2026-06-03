@@ -131,7 +131,7 @@ class MySQLClonerTest extends RudelTestCase
         $this->setGlobalWpdb();
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('only Rudel-managed prefixes are allowed');
+        $this->expectExceptionMessage('only runtime-managed prefixes are allowed');
         $this->cloner->drop_tables('custom_prefix_');
     }
 

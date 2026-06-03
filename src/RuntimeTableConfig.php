@@ -1,6 +1,6 @@
 <?php
 /**
- * Runtime table naming for advanced embedded installs.
+ * Runtime table naming for profile-driven embedded installs.
  *
  * @package Rudel
  */
@@ -13,33 +13,12 @@ namespace Rudel;
 class RuntimeTableConfig {
 
 	/**
-	 * Default shared table-name prefix after `$wpdb->base_prefix`.
-	 */
-	private const DEFAULT_PREFIX = 'rudel_';
-
-	/**
-	 * Explicit per-table constant overrides.
-	 *
-	 * @var array<string, string>
-	 */
-	private const TABLE_CONSTANTS = array(
-		'environments' => 'RUDEL_RUNTIME_TABLE_ENVIRONMENTS',
-		'worktrees'    => 'RUDEL_RUNTIME_TABLE_WORKTREES',
-	);
-
-	/**
-	 * Shared Rudel table-name prefix after the WordPress DB prefix.
+	 * Shared runtime table-name prefix after the WordPress DB prefix.
 	 *
 	 * @return string
 	 */
 	public static function prefix(): string {
-		if ( ! defined( 'RUDEL_RUNTIME_TABLE_PREFIX' ) ) {
-			return self::DEFAULT_PREFIX;
-		}
-
-		$prefix_value = constant( 'RUDEL_RUNTIME_TABLE_PREFIX' );
-
-		return self::normalize_prefix( is_string( $prefix_value ) ? $prefix_value : '' );
+		return RuntimeProfile::current()->runtime_table_prefix();
 	}
 
 	/**
@@ -64,16 +43,7 @@ class RuntimeTableConfig {
 	 * @return string
 	 */
 	public static function table( string $suffix ): string {
-		$constant = self::TABLE_CONSTANTS[ $suffix ] ?? null;
-		if ( null !== $constant && defined( $constant ) ) {
-			$constant_value = constant( $constant );
-			$table          = is_string( $constant_value ) ? trim( $constant_value ) : '';
-			if ( '' !== $table ) {
-				return $table;
-			}
-		}
-
-		return self::prefix() . $suffix;
+		return RuntimeProfile::current()->runtime_table( $suffix );
 	}
 
 	/**
@@ -84,7 +54,7 @@ class RuntimeTableConfig {
 	public static function signature(): string {
 		$tables = array();
 
-		foreach ( array_keys( self::TABLE_CONSTANTS ) as $suffix ) {
+		foreach ( array( 'environments', 'worktrees' ) as $suffix ) {
 			$tables[] = self::table( $suffix );
 		}
 
@@ -98,8 +68,9 @@ class RuntimeTableConfig {
 	 * @return string
 	 */
 	public static function wordpress_prefix( ?object $wpdb = null ): string {
-		if ( defined( 'RUDEL_HOST_TABLE_PREFIX' ) ) {
-			$prefix = constant( 'RUDEL_HOST_TABLE_PREFIX' );
+		$host_prefix_constant = RuntimeProfile::current()->constant( 'host_table_prefix' );
+		if ( defined( $host_prefix_constant ) ) {
+			$prefix = constant( $host_prefix_constant );
 			if ( is_string( $prefix ) && '' !== $prefix ) {
 				return $prefix;
 			}
