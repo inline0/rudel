@@ -1,14 +1,14 @@
 <?php
 /**
- * Per-environment bootstrap loaded by wp-cli when working inside one runtime site.
- * This bootstrap mirrors the canonical environment URL generated for this site.
+ * Per-environment bootstrap -- loaded by wp-cli when working inside one Rudel site.
+ * This bootstrap mirrors the canonical environment URL Rudel generated for this site.
  */
 
 $sandbox_id = '{{sandbox_id}}';
 $sandbox_path = '{{sandbox_path}}';
 
 // Already resolved (global bootstrap ran first)
-if (defined('{{constant_id}}')) {
+if (defined('RUDEL_ID')) {
     return;
 }
 
@@ -36,14 +36,14 @@ if (! defined('BLOG_ID_CURRENT_SITE')) { define('BLOG_ID_CURRENT_SITE', 1); }
 $_rudel_network_url = $_rudel_scheme . '://' . $_rudel_root_host . $_rudel_port;
 $_rudel_environment_url = '{{environment_url}}';
 
-if (! defined('{{constant_host_url}}')) {
-    define('{{constant_host_url}}', $_rudel_network_url);
+if (! defined('RUDEL_HOST_URL')) {
+    define('RUDEL_HOST_URL', $_rudel_network_url);
 }
-if (! defined('{{constant_environment_url}}')) {
-    define('{{constant_environment_url}}', $_rudel_environment_url);
+if (! defined('RUDEL_ENVIRONMENT_URL')) {
+    define('RUDEL_ENVIRONMENT_URL', $_rudel_environment_url);
 }
-if (! defined('{{constant_environment_content_url}}')) {
-    define('{{constant_environment_content_url}}', $_rudel_environment_url . '/wp-content');
+if (! defined('RUDEL_ENVIRONMENT_CONTENT_URL')) {
+    define('RUDEL_ENVIRONMENT_CONTENT_URL', $_rudel_environment_url . '/wp-content');
 }
 if (! defined('WP_CONTENT_URL')) {
     define('WP_CONTENT_URL', $_rudel_environment_url . '/wp-content');
@@ -55,10 +55,10 @@ if (! defined('WP_DEBUG_LOG')) { define('WP_DEBUG_LOG', true); }
 if (! defined('WP_DEBUG_DISPLAY')) { define('WP_DEBUG_DISPLAY', false); }
 
 // Per-environment cache isolation
-if (! defined('WP_CACHE_KEY_SALT')) { define('WP_CACHE_KEY_SALT', '{{cache_key_salt}}'); }
+if (! defined('WP_CACHE_KEY_SALT')) { define('WP_CACHE_KEY_SALT', 'rudel_' . $sandbox_id . '_'); }
 
 // Disable outbound email by default
-if (! defined('{{constant_disable_email}}')) { define('{{constant_disable_email}}', true); }
+if (! defined('RUDEL_DISABLE_EMAIL')) { define('RUDEL_DISABLE_EMAIL', true); }
 
 // Per-environment auth salts
 define('AUTH_KEY', hash('sha256', $sandbox_id . 'AUTH_KEY'));
@@ -70,11 +70,11 @@ define('SECURE_AUTH_SALT', hash('sha256', $sandbox_id . 'SECURE_AUTH_SALT'));
 define('LOGGED_IN_SALT', hash('sha256', $sandbox_id . 'LOGGED_IN_SALT'));
 define('NONCE_SALT', hash('sha256', $sandbox_id . 'NONCE_SALT'));
 
-// Runtime markers
-define('{{constant_id}}', $sandbox_id);
-define('{{constant_path}}', $sandbox_path);
-define('{{constant_engine}}', 'subsite');
-define('{{constant_table_prefix}}', '{{table_prefix}}');
-define('{{constant_user_scope}}', 'isolated');
-define('{{constant_users_table}}', '{{users_table}}');
-define('{{constant_usermeta_table}}', '{{usermeta_table}}');
+// Rudel markers
+define('RUDEL_ID', $sandbox_id);
+define('RUDEL_PATH', $sandbox_path);
+define('RUDEL_ENGINE', 'subsite');
+define('RUDEL_TABLE_PREFIX', '{{table_prefix}}');
+define('RUDEL_USER_SCOPE', 'isolated');
+define('RUDEL_USERS_TABLE', '{{users_table}}');
+define('RUDEL_USERMETA_TABLE', '{{usermeta_table}}');

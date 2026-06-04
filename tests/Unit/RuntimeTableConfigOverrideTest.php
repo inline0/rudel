@@ -5,24 +5,16 @@ namespace Rudel\Tests\Unit;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
-use Rudel\RuntimeProfile;
 use Rudel\RuntimeTableConfig;
-use Rudel\Tests\Fixtures\RuntimeProfiles;
 use Rudel\WpdbStore;
 
 class RuntimeTableConfigOverrideTest extends TestCase
 {
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testRuntimeProfileChangesDefaultTableNames(): void
+    public function testRuntimeTablePrefixOverrideChangesDefaultTableNames(): void
     {
-        $profile = RuntimeProfiles::neutral(sys_get_temp_dir());
-        $profile['runtime_tables'] = [
-            'prefix' => 'themeworkspace',
-            'environments' => 'themeworkspace_environments',
-            'worktrees' => 'themeworkspace_worktrees',
-        ];
-        RuntimeProfile::set_current($profile);
+        define('RUDEL_RUNTIME_TABLE_PREFIX', 'themeworkspace');
 
         $this->assertSame('themeworkspace_', RuntimeTableConfig::prefix());
 
@@ -34,17 +26,11 @@ class RuntimeTableConfigOverrideTest extends TestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testRuntimeProfileCanUseUnprefixedTableNames(): void
+    public function testRuntimeTablePrefixPreservesEmptyOverride(): void
     {
-        $profile = RuntimeProfiles::neutral(sys_get_temp_dir());
-        $profile['runtime_tables'] = [
-            'prefix' => 'runtime',
-            'environments' => 'environments',
-            'worktrees' => 'worktrees',
-        ];
-        RuntimeProfile::set_current($profile);
+        define('RUDEL_RUNTIME_TABLE_PREFIX', '');
 
-        $this->assertSame('runtime_', RuntimeTableConfig::prefix());
+        $this->assertSame('', RuntimeTableConfig::prefix());
 
         $store = $this->newStore();
 
@@ -54,15 +40,11 @@ class RuntimeTableConfigOverrideTest extends TestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testProfileTableNamesWinOverSharedRuntimeTablePrefix(): void
+    public function testPerTableOverrideWinsOverSharedRuntimeTablePrefix(): void
     {
-        $profile = RuntimeProfiles::neutral(sys_get_temp_dir());
-        $profile['runtime_tables'] = [
-            'prefix' => 'themeworkspace',
-            'environments' => 'client_environments',
-            'worktrees' => 'client_worktrees',
-        ];
-        RuntimeProfile::set_current($profile);
+        define('RUDEL_RUNTIME_TABLE_PREFIX', 'themeworkspace');
+        define('RUDEL_RUNTIME_TABLE_ENVIRONMENTS', 'client_environments');
+        define('RUDEL_RUNTIME_TABLE_WORKTREES', 'client_worktrees');
 
         $store = $this->newStore();
 
@@ -74,7 +56,7 @@ class RuntimeTableConfigOverrideTest extends TestCase
     #[PreserveGlobalState(false)]
     public function testHostTablePrefixWinsOverSelectedEnvironmentPrefix(): void
     {
-        define(RuntimeProfile::current()->constant('host_table_prefix'), 'wp_');
+        define('RUDEL_HOST_TABLE_PREFIX', 'wp_');
 
         $wpdb = new \MockWpdb();
         $wpdb->prefix = 'wp_env123_';

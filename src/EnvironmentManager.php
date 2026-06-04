@@ -163,8 +163,8 @@ class EnvironmentManager {
 					throw new \RuntimeException( sprintf( 'Source environment not found: %s', $clone_from ) );
 				}
 
-				$theme_slug    = $theme_slug ?? $source_environment->theme_slug ?? $this->theme_slug_from_tracked_dir( $source_environment->tracked_git_dir );
-				$clone_source  = $this->clone_from_overlay_environment( $source_environment, $table_prefix, $target_url, $path, $theme_slug );
+				$theme_slug   = $theme_slug ?? $source_environment->theme_slug ?? $this->theme_slug_from_tracked_dir( $source_environment->tracked_git_dir );
+				$clone_source = $this->clone_from_overlay_environment( $source_environment, $table_prefix, $target_url, $path, $theme_slug );
 				$clone_lineage = array(
 					'source_environment_id'   => $source_environment->id,
 					'source_environment_type' => $source_environment->type,
@@ -194,7 +194,7 @@ class EnvironmentManager {
 			$theme_template = null !== $theme_slug
 				? ( new ThemeOverlay() )->template_slug_for_theme( $theme_slug, ThemeOverlay::theme_root_for( $path ) )
 				: null;
-			$site_options   = array_merge(
+			$site_options = array_merge(
 				array_filter(
 					array(
 						'siteurl'    => $target_url,
@@ -421,7 +421,7 @@ class EnvironmentManager {
 		try {
 			$result = $this->state_replacer->replace( $source, $target );
 			if ( $target->is_overlay() && null !== $source->theme_slug && $source->theme_slug !== $target->theme_slug ) {
-				$target            = $this->repository->update_fields(
+				$target = $this->repository->update_fields(
 					$target->id,
 					array( 'theme_slug' => $source->theme_slug ),
 					$target->type
@@ -846,16 +846,14 @@ class EnvironmentManager {
 	 * @return string Absolute path.
 	 */
 	private function get_default_environments_dir(): string {
-		$environments_dir_constant = RuntimeProfile::current()->environments_dir_constant();
-		$environments_dir_value    = defined( $environments_dir_constant ) ? constant( $environments_dir_constant ) : null;
-		if ( is_string( $environments_dir_value ) ) {
-			return $environments_dir_value;
+		if ( defined( 'RUDEL_ENVIRONMENTS_DIR' ) ) {
+			return RUDEL_ENVIRONMENTS_DIR;
 		}
 		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			return WP_CONTENT_DIR . '/' . RuntimeProfile::current()->environments_dir_name();
+			return WP_CONTENT_DIR . '/rudel-environments';
 		}
 		$abspath = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 3 ) . '/';
-		return $abspath . 'wp-content/' . RuntimeProfile::current()->environments_dir_name();
+		return $abspath . 'wp-content/rudel-environments';
 	}
 
 	/**
@@ -898,11 +896,10 @@ class EnvironmentManager {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Ensuring MU plugin directory exists after content copy.
 			mkdir( $path . '/wp-content/mu-plugins', 0755, true );
 		}
-		$template = $this->render_profile_template(
-			$this->plugin_dir . 'templates/runtime-mu-plugin.php.tpl'
-		);
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
+		$template = file_get_contents( $this->plugin_dir . 'templates/runtime-mu-plugin.php.tpl' );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing runtime MU plugin.
-		file_put_contents( $path . '/wp-content/mu-plugins/' . RuntimeProfile::current()->runtime_mu_file(), $template );
+		file_put_contents( $path . '/wp-content/mu-plugins/rudel-runtime.php', $template );
 	}
 
 	/**
@@ -917,29 +914,11 @@ class EnvironmentManager {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Ensuring wp-content exists before writing the db.php drop-in.
 			mkdir( $path . '/wp-content', 0755, true );
 		}
-		$template = $this->render_profile_template(
-			$this->plugin_dir . 'templates/db.php.tpl'
-		);
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
+		$template = file_get_contents( $this->plugin_dir . 'templates/db.php.tpl' );
 		$template = Hooks::filter( 'rudel_environment_db_dropin_contents', $template, $context );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing environment db.php drop-in.
 		file_put_contents( $path . '/wp-content/db.php', $template );
-	}
-
-	/**
-	 * Render a generated runtime template with the active profile values.
-	 *
-	 * @param string $template_path Template path.
-	 * @return string
-	 * @throws \RuntimeException If the template cannot be read.
-	 */
-	private function render_profile_template( string $template_path ): string {
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template.
-		$template = file_get_contents( $template_path );
-		if ( ! is_string( $template ) ) {
-			throw new \RuntimeException( sprintf( 'Failed to read runtime template: %s', $template_path ) );
-		}
-
-		return RuntimeTemplateRenderer::render( $template, RuntimeProfile::current() );
 	}
 
 	/**

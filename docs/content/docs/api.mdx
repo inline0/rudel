@@ -9,22 +9,6 @@ Use `Rudel\Rudel` when calling Rudel from WordPress code.
 use Rudel\Rudel;
 ```
 
-## Runtime profile
-
-Rudel requires an explicit `Rudel\RuntimeProfile` before runtime operations can run. WordPress integrations normally provide the profile through the `rudel_runtime_profile` filter before plugin activation. Early bootstrap requests load the generated profile config through `$GLOBALS['rudel_runtime_profile']`.
-
-Use `Rudel\RudelRuntime` when an embedding application needs to read the active ID or build activation selectors without knowing the profile's concrete names:
-
-```php
-use Rudel\RudelRuntime;
-
-$runtime = new RudelRuntime();
-
-$active_id = $runtime->active_id();
-$cookie    = $runtime->activation_cookie( 'alpha-1234' );
-$env       = $runtime->environment_variable( 'alpha-1234' );
-```
-
 ## Runtime context
 
 ### `Rudel::is_active()`
@@ -72,7 +56,7 @@ Rudel::init( [
         'prefix'   => 'wp_',
     ],
     'context' => [
-        'environments_dir' => '/var/www/html/wp-content/runtime-environments',
+        'environments_dir' => '/var/www/html/wp-content/rudel-environments',
     ],
 ] );
 ```

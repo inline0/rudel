@@ -245,7 +245,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		$sandbox = $this->require_environment( $args[0] );
 		$data    = $sandbox->to_array();
 
-		$data['size']       = $this->format_size( $sandbox->get_size() );
+		$data['size'] = $this->format_size( $sandbox->get_size() );
 		$data['url']        = $sandbox->get_url();
 		$data['wp_content'] = $sandbox->get_runtime_wp_content_path();
 

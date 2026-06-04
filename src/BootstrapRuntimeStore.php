@@ -46,9 +46,7 @@ class BootstrapRuntimeStore {
 	 * Initialize dependencies.
 	 */
 	public function __construct() {
-		$wp_config_constant = RuntimeProfile::current()->constant( 'wp_config_path' );
-		$wp_config_value    = defined( $wp_config_constant ) ? constant( $wp_config_constant ) : null;
-		$config_path        = is_string( $wp_config_value ) ? $wp_config_value : null;
+		$config_path = defined( 'RUDEL_WP_CONFIG_PATH' ) && is_string( RUDEL_WP_CONFIG_PATH ) ? RUDEL_WP_CONFIG_PATH : null;
 		$config      = $this->parse_config_file( $config_path );
 
 		if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof \wpdb ) {

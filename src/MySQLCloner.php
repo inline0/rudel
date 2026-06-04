@@ -63,9 +63,9 @@ class MySQLCloner {
 
 		// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for global $wpdb.
 		/** @var \wpdb $wpdb */
-		$chunk_size       = $options['chunk_size'] ?? self::DEFAULT_CHUNK_SIZE;
-		$source_prefix    = (string) $wpdb->prefix;
-		$host_url         = $this->get_host_url();
+		$chunk_size    = $options['chunk_size'] ?? self::DEFAULT_CHUNK_SIZE;
+		$source_prefix = (string) $wpdb->prefix;
+		$host_url      = $this->get_host_url();
 		$exclude_prefixes = $this->normalize_excluded_prefixes( $options['exclude_prefixes'] ?? array() );
 		$tables           = $this->discover_tables( $wpdb, $source_prefix, $exclude_prefixes );
 
@@ -138,13 +138,14 @@ class MySQLCloner {
 	 * @throws \RuntimeException If the prefix is not one Rudel is expected to manage.
 	 */
 	public function drop_tables( string $prefix, array $exclude_prefixes = array() ): int {
-		$is_managed_prefix = RuntimeProfile::current()->manages_table_prefix( $prefix );
+		$is_rudel_prefix   = str_starts_with( $prefix, 'rudel_' );
 		$is_multisite_blog = 1 === preg_match( '/^[A-Za-z0-9]+_\d+_$/', $prefix );
+		$is_overlay_prefix = 1 === preg_match( '/^[A-Za-z0-9_]+_[a-f0-9]{7}_$/', $prefix );
 
-		if ( ! $is_managed_prefix && ! $is_multisite_blog ) {
+		if ( ! $is_rudel_prefix && ! $is_multisite_blog && ! $is_overlay_prefix ) {
 			throw new \RuntimeException(
 				sprintf(
-					'Refusing to drop tables with prefix "%s": only runtime-managed prefixes are allowed.',
+					'Refusing to drop tables with prefix "%s": only Rudel-managed prefixes are allowed.',
 					$prefix
 				)
 			);

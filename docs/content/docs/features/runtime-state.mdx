@@ -5,16 +5,16 @@ description: Rudel's DB-backed source of truth.
 
 Rudel runtime state is DB-backed only.
 
-The host WordPress MySQL database contains Rudel's profile-configured metadata tables. For example, a profile might create:
+The host WordPress MySQL database contains Rudel's metadata tables:
 
-- `wp_runtime_environments`
-- `wp_runtime_worktrees`
+- `wp_rudel_environments`
+- `wp_rudel_worktrees`
 
 Those tables are the source of truth for sandbox identity, lifecycle metadata, worktree metadata, cleanup policy, and timestamps.
 
 ## Environment records
 
-The environments table stores:
+`wp_rudel_environments` stores:
 
 - stable record ID
 - public sandbox ID
@@ -29,26 +29,35 @@ The environments table stores:
 
 ## Worktree records
 
-The worktrees table stores linked worktree metadata for Git-backed directories.
+`wp_rudel_worktrees` stores linked worktree metadata for Git-backed theme directories.
 
 Rudel does not infer runtime state from filesystem paths. Filesystem paths are artifacts that belong to the runtime records.
 
 ## Table naming
 
-Rudel table names derive from the active runtime profile:
+By default, Rudel table names derive from:
 
 ```text
-{wordpress_db_prefix} + {profile_table_name}
+{wordpress_db_prefix} + rudel_ + {table_name}
 ```
 
-For a normal `wp_` installation and a profile that names its tables `runtime_environments` and `runtime_worktrees`:
+For a normal `wp_` installation:
 
 ```text
-wp_runtime_environments
-wp_runtime_worktrees
+wp_rudel_environments
+wp_rudel_worktrees
 ```
 
-The profile should be stable once records exist. Renaming metadata tables after first install requires a normal database migration.
+Advanced embedders can set `RUDEL_RUNTIME_TABLE_PREFIX` to change the Rudel portion while leaving the WordPress DB prefix untouched.
+
+Explicit per-table constants win over the shared prefix:
+
+```php
+define( 'RUDEL_RUNTIME_TABLE_PREFIX', 'themefoo_' );
+define( 'RUDEL_RUNTIME_TABLE_ENVIRONMENTS', 'custom_environments' );
+```
+
+These constants should be defined before first install/bootstrap when persisted records already matter.
 
 ## No alternate runtime store
 

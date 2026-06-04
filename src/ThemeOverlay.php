@@ -137,7 +137,7 @@ class ThemeOverlay {
 	 * @return string Theme root URL.
 	 */
 	public static function theme_root_uri_for( string $environment_url, string $environment_id ): string {
-		return rtrim( $environment_url, '/' ) . '/wp-content/' . RuntimeProfile::current()->environment_content_url_path() . '/' . rawurlencode( $environment_id ) . '/themes';
+		return rtrim( $environment_url, '/' ) . '/wp-content/rudel-environments/' . rawurlencode( $environment_id ) . '/themes';
 	}
 
 	/**

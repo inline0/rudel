@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Rudel
  * Description: The WordPress isolation layer for request-selected sandboxes.
- * Version: 0.11.0
+ * Version: 0.10.0
  * Author: Inline0
  * Author URI: https://inline0.com
  * License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RUDEL_VERSION', '0.11.0' );
+define( 'RUDEL_VERSION', '0.10.0' );
 define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -35,15 +35,10 @@ unset( $rudel_autoload );
  * Ensure Rudel's runtime tables exist whenever WordPress has a DB connection.
  *
  * @return void
- * @throws RuntimeException If no runtime profile is available.
  */
 function rudel_ensure_runtime_schema() {
 	if ( ! isset( $GLOBALS['wpdb'] ) || ! is_object( $GLOBALS['wpdb'] ) ) {
 		return;
-	}
-
-	if ( null === rudel_runtime_profile_or_null() ) {
-		throw new RuntimeException( 'A runtime profile is required before Rudel runtime schema can be installed.' );
 	}
 
 	Rudel\RudelSchema::ensure( new Rudel\WpdbStore( $GLOBALS['wpdb'] ) );
@@ -84,73 +79,11 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	WP_CLI::add_command( RUDEL_CLI_COMMAND . ' template', Rudel\CLI\TemplateCommand::class );
 }
 
-/**
- * Current runtime profile, if one is installed.
- *
- * @return Rudel\RuntimeProfile|null
- */
-function rudel_runtime_profile_or_null(): ?Rudel\RuntimeProfile {
-	try {
-		return Rudel\RuntimeProfile::current();
-	} catch ( Throwable $e ) {
-		unset( $e );
-	}
+if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
+	define( 'RUDEL_RUNTIME_HOOKS_LOADED', true );
 
-	$filtered = Rudel\Hooks::filter( 'rudel_runtime_profile', null );
-	if ( $filtered instanceof Rudel\RuntimeProfile ) {
-		Rudel\RuntimeProfile::set_current( $filtered );
-		return $filtered;
-	}
-
-	if ( is_array( $filtered ) ) {
-		try {
-			Rudel\RuntimeProfile::set_current( $filtered );
-			return Rudel\RuntimeProfile::current();
-		} catch ( Throwable $e ) {
-			unset( $e );
-		}
-	}
-
-	return null;
-}
-
-/**
- * Runtime constant value for one profile slot.
- *
- * @param string $key Logical constant key.
- * @return mixed|null
- */
-function rudel_runtime_constant_value( string $key ) {
-	$profile = rudel_runtime_profile_or_null();
-	if ( null === $profile ) {
-		return null;
-	}
-
-	$constant = $profile->constant( $key );
-	return defined( $constant ) ? constant( $constant ) : null;
-}
-
-/**
- * Whether a runtime constant slot is defined.
- *
- * @param string $key Logical constant key.
- * @return bool
- */
-function rudel_runtime_constant_defined( string $key ): bool {
-	$profile = rudel_runtime_profile_or_null();
-	return null !== $profile && defined( $profile->constant( $key ) );
-}
-
-$rudel_runtime_profile = rudel_runtime_profile_or_null();
-$rudel_hooks_constant  = null !== $rudel_runtime_profile ? $rudel_runtime_profile->runtime_mu_loaded_constant() : null;
-
-if ( null === $rudel_hooks_constant || ! defined( $rudel_hooks_constant ) ) {
-	if ( null !== $rudel_hooks_constant ) {
-		define( $rudel_hooks_constant, true );
-	}
-
-	if ( Rudel\Rudel::is_sandbox() && null !== $rudel_runtime_profile && ! rudel_runtime_constant_defined( 'table_prefix' ) && isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->prefix ) && is_string( $GLOBALS['wpdb']->prefix ) && '' !== $GLOBALS['wpdb']->prefix ) {
-		define( $rudel_runtime_profile->constant( 'table_prefix' ), $GLOBALS['wpdb']->prefix );
+	if ( Rudel\Rudel::is_sandbox() && ! defined( 'RUDEL_TABLE_PREFIX' ) && isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) && isset( $GLOBALS['wpdb']->prefix ) && is_string( $GLOBALS['wpdb']->prefix ) && '' !== $GLOBALS['wpdb']->prefix ) {
+		define( 'RUDEL_TABLE_PREFIX', $GLOBALS['wpdb']->prefix );
 	}
 
 	// Register this unconditionally so late-defined environment constants can still suppress mail before it leaves PHP.
@@ -168,11 +101,9 @@ if ( null === $rudel_hooks_constant || ! defined( $rudel_hooks_constant ) ) {
 
 			$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
 
-			$id      = rudel_runtime_constant_value( 'id' );
-			$profile = rudel_runtime_profile_or_null();
-			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && is_string( $id ) && '' !== $id ) {
+			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( 'RUDEL_ID' ) ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in the environment debug.log.
-				error_log( sprintf( '%s: email blocked in environment %s (to: %s, subject: %s)', null !== $profile ? $profile->email_log_label() : 'Runtime', $id, $to, $subject ) );
+				error_log( sprintf( 'Rudel: email blocked in environment %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
 			}
 
 			return true;
@@ -190,7 +121,7 @@ if ( null === $rudel_hooks_constant || ! defined( $rudel_hooks_constant ) ) {
 		array( Rudel\Automation::class, 'run' )
 	);
 
-	if ( rudel_runtime_constant_defined( 'theme_slug' ) && rudel_runtime_constant_defined( 'theme_root' ) ) {
+	if ( defined( 'RUDEL_THEME_SLUG' ) && defined( 'RUDEL_ENVIRONMENT_THEME_ROOT' ) ) {
 		add_filter(
 			'pre_option_template',
 			'rudel_overlay_template_slug'
@@ -216,9 +147,8 @@ if ( null === $rudel_hooks_constant || ! defined( $rudel_hooks_constant ) ) {
 			3
 		);
 
-		$rudel_theme_root = rudel_runtime_constant_value( 'theme_root' );
-		if ( function_exists( 'register_theme_directory' ) && is_string( $rudel_theme_root ) ) {
-			register_theme_directory( $rudel_theme_root );
+		if ( function_exists( 'register_theme_directory' ) ) {
+			register_theme_directory( RUDEL_ENVIRONMENT_THEME_ROOT );
 		}
 	}
 
@@ -228,11 +158,10 @@ if ( null === $rudel_hooks_constant || ! defined( $rudel_hooks_constant ) ) {
 		add_action(
 			'admin_bar_menu',
 			function ( $wp_admin_bar ) {
-				$profile = rudel_runtime_profile_or_null();
 				$wp_admin_bar->add_node(
 					array(
-						'id'    => null !== $profile ? $profile->admin_bar_node_id() : 'runtime-environment',
-						'title' => '&#9632; ' . ( null !== $profile ? $profile->admin_bar_title() : 'Environment' ) . ': ' . Rudel\Rudel::id(),
+						'id'    => 'rudel-environment',
+						'title' => '&#9632; Sandbox: ' . Rudel\Rudel::id(),
 						'href'  => Rudel\Rudel::exit_url(),
 						'meta'  => array(
 							'title' => 'Click to exit sandbox and return to host',
@@ -260,8 +189,7 @@ if ( null === $rudel_hooks_constant || ! defined( $rudel_hooks_constant ) ) {
  * @return string
  */
 function rudel_overlay_stylesheet_slug(): string {
-	$slug = rudel_runtime_constant_value( 'theme_slug' );
-	return is_string( $slug ) ? $slug : '';
+	return defined( 'RUDEL_THEME_SLUG' ) ? (string) RUDEL_THEME_SLUG : '';
 }
 
 /**
@@ -270,9 +198,8 @@ function rudel_overlay_stylesheet_slug(): string {
  * @return string
  */
 function rudel_overlay_template_slug(): string {
-	$slug = rudel_runtime_constant_value( 'template_slug' );
-	if ( is_string( $slug ) && '' !== $slug ) {
-		return $slug;
+	if ( defined( 'RUDEL_TEMPLATE_SLUG' ) && '' !== (string) RUDEL_TEMPLATE_SLUG ) {
+		return (string) RUDEL_TEMPLATE_SLUG;
 	}
 
 	return rudel_overlay_stylesheet_slug();
@@ -304,8 +231,7 @@ function rudel_overlay_current_theme(): string {
  */
 function rudel_overlay_theme_root( string $theme_root, $stylesheet = null ): string {
 	if ( is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {
-		$runtime_theme_root = rudel_runtime_constant_value( 'theme_root' );
-		return is_string( $runtime_theme_root ) ? $runtime_theme_root : $theme_root;
+		return (string) RUDEL_ENVIRONMENT_THEME_ROOT;
 	}
 
 	return $theme_root;
@@ -322,9 +248,8 @@ function rudel_overlay_theme_root( string $theme_root, $stylesheet = null ): str
 function rudel_overlay_theme_root_uri( string $theme_root_uri, $siteurl = null, $stylesheet = null ): string {
 	unset( $siteurl );
 
-	$runtime_theme_root_uri = rudel_runtime_constant_value( 'theme_root_uri' );
-	if ( is_string( $runtime_theme_root_uri ) && is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {
-		return $runtime_theme_root_uri;
+	if ( defined( 'RUDEL_ENVIRONMENT_THEME_ROOT_URI' ) && is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {
+		return (string) RUDEL_ENVIRONMENT_THEME_ROOT_URI;
 	}
 
 	return $theme_root_uri;
@@ -337,8 +262,7 @@ function rudel_overlay_theme_root_uri( string $theme_root_uri, $siteurl = null, 
  * @return bool
  */
 function rudel_overlay_owns_theme_slug( string $slug ): bool {
-	$theme_root = rudel_runtime_constant_value( 'theme_root' );
-	if ( ! is_string( $theme_root ) || '' === $slug ) {
+	if ( ! defined( 'RUDEL_ENVIRONMENT_THEME_ROOT' ) || '' === $slug ) {
 		return false;
 	}
 
@@ -352,7 +276,7 @@ function rudel_overlay_owns_theme_slug( string $slug ): bool {
 		)
 	);
 
-	return in_array( $slug, $owned_slugs, true ) && is_dir( rtrim( $theme_root, '/' ) . '/' . $slug );
+	return in_array( $slug, $owned_slugs, true ) && is_dir( rtrim( (string) RUDEL_ENVIRONMENT_THEME_ROOT, '/' ) . '/' . $slug );
 }
 
 /**
@@ -361,7 +285,5 @@ function rudel_overlay_owns_theme_slug( string $slug ): bool {
  * @return void
  */
 function rudel_admin_bar_styles() {
-	$profile = rudel_runtime_profile_or_null();
-	$node_id = null !== $profile ? $profile->admin_bar_node_id() : 'runtime-environment';
-	echo '<style>#wp-admin-bar-' . esc_attr( $node_id ) . ' > a { background: #d63638 !important; color: #fff !important; font-weight: 600 !important; }</style>';
+	echo '<style>#wp-admin-bar-rudel-environment > a { background: #d63638 !important; color: #fff !important; font-weight: 600 !important; }</style>';
 }

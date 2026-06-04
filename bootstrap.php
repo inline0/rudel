@@ -17,39 +17,35 @@
 // phpcs:disable WordPress.WP.GlobalVariablesOverride.Prohibited -- Intentional: setting $table_prefix for environment isolation.
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound
 
-require_once __DIR__ . '/src/RuntimeProfile.php';
-
-$rudel_bootstrap_sapi    = defined( 'RUDEL_BOOTSTRAP_SAPI' ) ? (string) RUDEL_BOOTSTRAP_SAPI : php_sapi_name();
-$rudel_bootstrap_profile = \Rudel\RuntimeProfile::current();
+$rudel_bootstrap_sapi = defined( 'RUDEL_BOOTSTRAP_SAPI' ) ? (string) RUDEL_BOOTSTRAP_SAPI : php_sapi_name();
 
 // This file can live under a web-accessible plugin path, so refuse direct hits.
 if ( 'cli' !== $rudel_bootstrap_sapi && isset( $_SERVER['SCRIPT_FILENAME'] ) && realpath( $_SERVER['SCRIPT_FILENAME'] ) === realpath( __FILE__ ) ) {
 	exit;
 }
 
-// Per-environment bootstraps can preload the active ID; re-resolving here would clobber that context.
-if ( defined( $rudel_bootstrap_profile->constant( 'id' ) ) ) {
+// Per-environment bootstraps can preload RUDEL_ID; re-resolving here would clobber that context.
+if ( defined( 'RUDEL_ID' ) ) {
 	return;
 }
 
 	$rudel_bootstrap_requested_url = null;
 	$rudel_bootstrap_host_url      = null;
 
-require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 require_once __DIR__ . '/src/RuntimeTableConfig.php';
+require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
-	( function () use ( &$rudel_bootstrap_requested_url, &$rudel_bootstrap_host_url, $rudel_bootstrap_sapi, $rudel_bootstrap_profile ) {
+	( function () use ( &$rudel_bootstrap_requested_url, &$rudel_bootstrap_host_url, $rudel_bootstrap_sapi ) {
 		$plugin_dir       = __DIR__;
 		$environments_dir = null;
 
-		$environments_dir_constant = $rudel_bootstrap_profile->environments_dir_constant();
-		if ( defined( $environments_dir_constant ) && is_string( constant( $environments_dir_constant ) ) ) {
-			$environments_dir = constant( $environments_dir_constant );
+		if ( defined( 'RUDEL_ENVIRONMENTS_DIR' ) ) {
+			$environments_dir = RUDEL_ENVIRONMENTS_DIR;
 		} elseif ( defined( 'WP_CONTENT_DIR' ) ) {
-			$environments_dir = WP_CONTENT_DIR . '/' . $rudel_bootstrap_profile->environments_dir_name();
+			$environments_dir = WP_CONTENT_DIR . '/rudel-environments';
 		} else {
 			$abspath          = defined( 'ABSPATH' ) ? ABSPATH : dirname( __DIR__, 2 ) . '/';
-			$environments_dir = $abspath . 'wp-content/' . $rudel_bootstrap_profile->environments_dir_name();
+			$environments_dir = $abspath . 'wp-content/rudel-environments';
 		}
 
 		$runtime_store = new \Rudel\BootstrapRuntimeStore();
@@ -89,7 +85,7 @@ require_once __DIR__ . '/src/RuntimeTableConfig.php';
 				return null;
 			}
 
-			$base = realpath( $environments_dir );
+			$base     = realpath( $environments_dir );
 			if ( false === $base || 0 !== strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
 				return null;
 			}
@@ -209,27 +205,27 @@ require_once __DIR__ . '/src/RuntimeTableConfig.php';
 		};
 
 		if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi ) {
-			$env_id = getenv( $rudel_bootstrap_profile->environment_variable_name() );
+			$env_id = getenv( 'RUDEL_ENVIRONMENT' );
 			if ( is_string( $env_id ) && '' !== $env_id ) {
 				$try_resolve( $env_id );
 			}
 		}
 
 		if ( ! $sandbox_id ) {
-			$header_id = $_SERVER[ $rudel_bootstrap_profile->server_header_key() ] ?? null;
+			$header_id = $_SERVER['HTTP_X_RUDEL_ENVIRONMENT'] ?? ( $_SERVER['HTTP_X_RUDEL_SANDBOX'] ?? null );
 			if ( $header_id ) {
 				$try_resolve( $header_id );
 			}
 		}
 
 		if ( ! $sandbox_id ) {
-			$cookie_id = $_COOKIE[ $rudel_bootstrap_profile->cookie_name() ] ?? null;
+			$cookie_id = $_COOKIE['rudel_environment'] ?? ( $_COOKIE['rudel_sandbox'] ?? null );
 			if ( is_string( $cookie_id ) && '' !== $cookie_id ) {
 				$try_resolve( $cookie_id );
 			}
 		}
 
-		if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi && $rudel_bootstrap_profile->url_subdomain_enabled() ) {
+		if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi ) {
 			$rudel_bootstrap_requested_url = $extract_cli_url();
 			if ( is_string( $rudel_bootstrap_requested_url ) && '' !== $rudel_bootstrap_requested_url ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap.
@@ -251,9 +247,8 @@ require_once __DIR__ . '/src/RuntimeTableConfig.php';
 
 				$host_url                 = rtrim( $protocol . '://' . $raw_host . ':' . $raw_port, '/' );
 				$rudel_bootstrap_host_url = $host_url;
-				$host_url_constant        = $rudel_bootstrap_profile->constant( 'host_url' );
-				if ( ! defined( $host_url_constant ) ) {
-					define( $host_url_constant, $host_url );
+				if ( ! defined( 'RUDEL_HOST_URL' ) ) {
+					define( 'RUDEL_HOST_URL', $host_url );
 				}
 			}
 
@@ -296,9 +291,9 @@ require_once __DIR__ . '/src/RuntimeTableConfig.php';
 		$host_url  = rtrim( $protocol . '://' . $current_network_host() . $host_port, '/' );
 
 		$environment_url = $site_url;
-		$def( $rudel_bootstrap_profile->constant( 'host_table_prefix' ), $runtime_store->base_prefix() );
-		$def( $rudel_bootstrap_profile->constant( 'host_url' ), $host_url );
-		$def( $rudel_bootstrap_profile->constant( 'environment_url' ), $environment_url );
+		$def( 'RUDEL_HOST_TABLE_PREFIX', $runtime_store->base_prefix() );
+		$def( 'RUDEL_HOST_URL', $host_url );
+		$def( 'RUDEL_ENVIRONMENT_URL', $environment_url );
 		$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );
 
 		// Keep sandbox notices out of browser output while preserving a per-environment debug trail.
@@ -307,10 +302,10 @@ require_once __DIR__ . '/src/RuntimeTableConfig.php';
 		$def( 'WP_DEBUG_DISPLAY', false );
 
 		// Shared Redis/Memcached backends need an environment-specific salt or cached state will bleed across sites.
-		$def( 'WP_CACHE_KEY_SALT', $rudel_bootstrap_profile->cache_key_salt( $sandbox_id ) );
+		$def( 'WP_CACHE_KEY_SALT', 'rudel_' . $sandbox_id . '_' );
 
 		// Temporary sandboxes should be safe to preview even when the cloned site would normally send mail.
-		$def( $rudel_bootstrap_profile->constant( 'disable_email' ), true );
+		$def( 'RUDEL_DISABLE_EMAIL', true );
 
 		// Deterministic per-environment salts keep auth cookies from bleeding across host and sandbox sessions.
 		$def( 'AUTH_KEY', hash( 'sha256', $sandbox_id . 'AUTH_KEY' ) );
@@ -322,30 +317,28 @@ require_once __DIR__ . '/src/RuntimeTableConfig.php';
 		$def( 'LOGGED_IN_SALT', hash( 'sha256', $sandbox_id . 'LOGGED_IN_SALT' ) );
 		$def( 'NONCE_SALT', hash( 'sha256', $sandbox_id . 'NONCE_SALT' ) );
 
-		$def( $rudel_bootstrap_profile->constant( 'id' ), $sandbox_id );
-		$def( $rudel_bootstrap_profile->constant( 'path' ), $sandbox_path );
-		$def( $rudel_bootstrap_profile->constant( 'plugin_dir' ), $plugin_dir );
-		$def( $rudel_bootstrap_profile->constant( 'env_type' ), 'sandbox' );
-		$def( $rudel_bootstrap_profile->constant( 'engine' ), $_rudel_engine );
+		$def( 'RUDEL_ID', $sandbox_id );
+		$def( 'RUDEL_PATH', $sandbox_path );
+		$def( 'RUDEL_BOOTSTRAP_PLUGIN_DIR', $plugin_dir );
+		$def( 'RUDEL_ENV_TYPE', 'sandbox' );
+		$def( 'RUDEL_ENGINE', $_rudel_engine );
 		if ( is_string( $environment_prefix ) && '' !== $environment_prefix ) {
 			$GLOBALS['table_prefix'] = $environment_prefix;
-			$def( $rudel_bootstrap_profile->constant( 'table_prefix' ), $environment_prefix );
+			$def( 'RUDEL_TABLE_PREFIX', $environment_prefix );
 		}
 		if ( is_string( $environment_theme ) && '' !== $environment_theme ) {
-			$theme_root = $sandbox_path . '/themes';
-			$def( $rudel_bootstrap_profile->constant( 'theme_slug' ), $environment_theme );
-			$def( $rudel_bootstrap_profile->constant( 'template_slug' ), $theme_template_slug( $theme_root, $environment_theme ) );
-			$def( $rudel_bootstrap_profile->constant( 'theme_root' ), $theme_root );
-			$def( $rudel_bootstrap_profile->constant( 'theme_root_uri' ), $environment_url . '/wp-content/' . $rudel_bootstrap_profile->environment_content_url_path() . '/' . rawurlencode( $sandbox_id ) . '/themes' );
+			$theme_root     = $sandbox_path . '/themes';
+			$def( 'RUDEL_THEME_SLUG', $environment_theme );
+			$def( 'RUDEL_TEMPLATE_SLUG', $theme_template_slug( $theme_root, $environment_theme ) );
+			$def( 'RUDEL_ENVIRONMENT_THEME_ROOT', $theme_root );
+			$def( 'RUDEL_ENVIRONMENT_THEME_ROOT_URI', $environment_url . '/wp-content/rudel-environments/' . rawurlencode( $sandbox_id ) . '/themes' );
 		}
-		$def( $rudel_bootstrap_profile->constant( 'record_id' ), $environment_row_id );
+		$def( 'RUDEL_ENV_RECORD_ID', $environment_row_id );
 	} )();
 
-$rudel_table_prefix_constant = $rudel_bootstrap_profile->constant( 'table_prefix' );
-if ( defined( $rudel_table_prefix_constant ) && is_string( constant( $rudel_table_prefix_constant ) ) && '' !== constant( $rudel_table_prefix_constant ) ) {
-	$table_prefix            = constant( $rudel_table_prefix_constant );
-	$GLOBALS['table_prefix'] = constant( $rudel_table_prefix_constant );
+if ( defined( 'RUDEL_TABLE_PREFIX' ) && is_string( RUDEL_TABLE_PREFIX ) && '' !== RUDEL_TABLE_PREFIX ) {
+	$table_prefix              = RUDEL_TABLE_PREFIX;
+	$GLOBALS['table_prefix'] = RUDEL_TABLE_PREFIX;
 }
 unset( $rudel_bootstrap_requested_url );
-unset( $rudel_bootstrap_profile );
 unset( $rudel_bootstrap_sapi );

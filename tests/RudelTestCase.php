@@ -10,8 +10,6 @@ use Rudel\EnvironmentRepository;
 use Rudel\Rudel;
 use Rudel\RudelDatabase;
 use Rudel\RudelSchema;
-use Rudel\RuntimeProfile;
-use Rudel\Tests\Fixtures\RuntimeProfiles;
 use Rudel\WpdbStore;
 
 /**
@@ -27,7 +25,6 @@ abstract class RudelTestCase extends TestCase
 	    {
 	        parent::setUp();
 	        Rudel::reset();
-	        RuntimeProfile::set_current(RuntimeProfiles::rudelLike(RUDEL_TEST_TMPDIR));
 	        $GLOBALS['rudel_test_actions'] = [];
         $GLOBALS['rudel_test_filters'] = [];
         $GLOBALS['rudel_test_action_callbacks'] = [];

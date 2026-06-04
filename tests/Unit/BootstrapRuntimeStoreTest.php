@@ -5,8 +5,6 @@ namespace Rudel\Tests\Unit;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Rudel\BootstrapRuntimeStore;
-use Rudel\RuntimeProfile;
-use Rudel\Tests\Fixtures\RuntimeProfiles;
 use Rudel\Tests\RudelTestCase;
 
 class BootstrapRuntimeStoreTest extends RudelTestCase
@@ -15,6 +13,7 @@ class BootstrapRuntimeStoreTest extends RudelTestCase
     {
         $store = (new \ReflectionClass(BootstrapRuntimeStore::class))->newInstanceWithoutConstructor();
         $method = new \ReflectionMethod(BootstrapRuntimeStore::class, 'parse_db_host');
+        $method->setAccessible(true);
 
         $parsed = $method->invoke($store, 'mysql.example.com:3307');
 
@@ -29,6 +28,7 @@ class BootstrapRuntimeStoreTest extends RudelTestCase
     {
         $store = (new \ReflectionClass(BootstrapRuntimeStore::class))->newInstanceWithoutConstructor();
         $method = new \ReflectionMethod(BootstrapRuntimeStore::class, 'parse_db_host');
+        $method->setAccessible(true);
 
         $parsed = $method->invoke($store, 'localhost:/tmp/mysql.sock');
 
@@ -43,19 +43,15 @@ class BootstrapRuntimeStoreTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testTableUsesSharedRuntimeTablePrefixOverride(): void
     {
-        $profile = RuntimeProfiles::neutral($this->tmpDir);
-        $profile['runtime_tables'] = [
-            'prefix' => 'themeworkspace',
-            'environments' => 'themeworkspace_environments',
-            'worktrees' => 'themeworkspace_worktrees',
-        ];
-        RuntimeProfile::set_current($profile);
+        define('RUDEL_RUNTIME_TABLE_PREFIX', 'themeworkspace');
 
         $store = (new \ReflectionClass(BootstrapRuntimeStore::class))->newInstanceWithoutConstructor();
         $prefix = new \ReflectionProperty(BootstrapRuntimeStore::class, 'prefix');
+        $prefix->setAccessible(true);
         $prefix->setValue($store, 'wp_');
 
         $method = new \ReflectionMethod(BootstrapRuntimeStore::class, 'table');
+        $method->setAccessible(true);
 
         $this->assertSame('wp_themeworkspace_environments', $method->invoke($store, 'environments'));
     }
@@ -64,19 +60,16 @@ class BootstrapRuntimeStoreTest extends RudelTestCase
     #[PreserveGlobalState(false)]
     public function testTablePrefersExplicitPerTableOverrides(): void
     {
-        $profile = RuntimeProfiles::neutral($this->tmpDir);
-        $profile['runtime_tables'] = [
-            'prefix' => 'themeworkspace',
-            'environments' => 'themeworkspace_environments',
-            'worktrees' => 'client_worktrees',
-        ];
-        RuntimeProfile::set_current($profile);
+        define('RUDEL_RUNTIME_TABLE_PREFIX', 'themeworkspace');
+        define('RUDEL_RUNTIME_TABLE_WORKTREES', 'client_worktrees');
 
         $store = (new \ReflectionClass(BootstrapRuntimeStore::class))->newInstanceWithoutConstructor();
         $prefix = new \ReflectionProperty(BootstrapRuntimeStore::class, 'prefix');
+        $prefix->setAccessible(true);
         $prefix->setValue($store, 'wp_');
 
         $method = new \ReflectionMethod(BootstrapRuntimeStore::class, 'table');
+        $method->setAccessible(true);
 
         $this->assertSame('wp_client_worktrees', $method->invoke($store, 'worktrees'));
         $this->assertSame('wp_themeworkspace_environments', $method->invoke($store, 'environments'));

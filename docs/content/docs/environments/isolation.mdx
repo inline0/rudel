@@ -24,16 +24,21 @@ Rudel switches the active WordPress table prefix before WordPress finishes booti
 The selected active theme is copied into the sandbox directory:
 
 ```text
-wp-content/{profile_environments_dir}/{environment_id}/themes/{theme_slug}
+wp-content/rudel-environments/{environment_id}/themes/{theme_slug}
 ```
 
 If the active theme is a child theme, Rudel also copies the parent theme so the template relationship stays valid.
 
 ### Request context
 
-HTTP requests can enter a sandbox through the trusted header or cookie configured by the runtime profile.
+HTTP requests can enter a sandbox through:
 
-WP-CLI commands can enter a sandbox through the environment variable configured by the runtime profile.
+- `X-Rudel-Environment`
+- `rudel_environment`
+
+WP-CLI commands can enter a sandbox through:
+
+- `RUDEL_ENVIRONMENT`
 
 ## Shared by default
 
@@ -49,8 +54,8 @@ This is the current isolation boundary. It keeps sandbox creation fast and avoid
 Rudel runtime metadata stays in host WordPress MySQL tables:
 
 ```text
-{wordpress_prefix}{profile_environments_table}
-{wordpress_prefix}{profile_worktrees_table}
+wp_rudel_environments
+wp_rudel_worktrees
 ```
 
 These tables are Rudel's source of truth. Environment directories contain managed files and artifacts, not runtime registry state.

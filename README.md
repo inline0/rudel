@@ -21,11 +21,11 @@
 
 ## What is Rudel?
 
-Rudel is a WordPress plugin and library for running disposable overlay sandboxes inside one normal WordPress installation.
+Rudel is a WordPress plugin for running disposable overlay sandboxes inside one normal WordPress installation.
 
-A sandbox is selected per request with profile-configured selectors: a trusted header, cookie, or CLI environment variable. Once selected, Rudel switches WordPress to that sandbox's cloned database tables and copied active theme. Host WordPress core, plugins, uploads, and users remain shared by default.
+A sandbox is selected per request with a trusted header, Rudel cookie, or CLI environment variable. Once selected, Rudel switches WordPress to that sandbox's cloned database tables and copied active theme. Host WordPress core, plugins, uploads, and users remain shared by default.
 
-Rudel does not require multisite. It does not use SQLite. Runtime metadata is stored only in host WordPress MySQL tables. Runtime names are supplied by an explicit integration profile, so Rudel can be embedded without leaking Rudel-specific constants, cookies, table names, or generated file names into the host application.
+Rudel does not require multisite. It does not use SQLite. Runtime metadata is stored only in host WordPress MySQL tables.
 
 ## Requirements
 
@@ -38,15 +38,6 @@ Rudel does not require multisite. It does not use SQLite. Runtime metadata is st
 
 ```bash
 composer require rudel/rudel
-```
-
-Install a runtime profile before activating Rudel. The profile names your selectors, constants, runtime tables, environment paths, and generated MU-plugin surface. Rudel fails closed when no profile is present.
-
-Profiles can be supplied through the `rudel_runtime_profile` WordPress filter before activation, or through `$GLOBALS['rudel_runtime_profile']` before `bootstrap.php` runs. The injected bootstrap line stores the validated profile in a generated PHP config file so early request routing can load it before WordPress finishes booting.
-
-Then activate the plugin and check status:
-
-```bash
 wp plugin activate rudel
 wp rudel status
 ```
@@ -57,16 +48,16 @@ Create a sandbox:
 wp rudel create --name=alpha --theme=twentytwentyfour
 ```
 
-Run WP-CLI against a sandbox using the environment variable configured by your profile:
+Run WP-CLI against a sandbox:
 
 ```bash
-YOUR_ENV_SELECTOR=alpha-1234 wp option get siteurl
+RUDEL_ENVIRONMENT=alpha-1234 wp option get siteurl
 ```
 
-Route an HTTP request to a sandbox using the header configured by your profile:
+Route an HTTP request to a sandbox:
 
 ```bash
-curl -H 'X-Your-Environment: alpha-1234' http://localhost:8000/
+curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
 ```
 
 ## Runtime Model
@@ -74,7 +65,7 @@ curl -H 'X-Your-Environment: alpha-1234' http://localhost:8000/
 Every Rudel environment is a sandbox overlay:
 
 - Each sandbox has its own WordPress table prefix, for example `wp_a4nmv7_`.
-- Each sandbox gets a copied active theme under the profile-configured environments directory, for example `wp-content/runtime-environments/{id}/themes/{theme}`.
+- Each sandbox gets a copied active theme under `wp-content/rudel-environments/{id}/themes/{theme}`.
 - Child themes keep their parent template relationship; Rudel copies the child and parent theme directories when the selected active theme is a child theme.
 - Plugins and uploads are intentionally shared from the host WordPress installation.
 - Users are intentionally shared for now through the normal WordPress users tables.
@@ -84,10 +75,10 @@ The selected sandbox does not replace `WP_CONTENT_DIR`. Rudel overrides the acti
 
 ## Runtime State
 
-Rudel stores operational metadata in profile-configured WordPress tables. A profile might choose names such as:
+Rudel stores operational metadata in WordPress tables:
 
-- `wp_runtime_environments`
-- `wp_runtime_worktrees`
+- `wp_rudel_environments`
+- `wp_rudel_worktrees`
 
 Those tables are the source of truth for sandbox identity, worktrees, lifecycle policy, snapshots, and cleanup metadata.
 

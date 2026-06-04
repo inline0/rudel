@@ -463,12 +463,12 @@ class Environment {
 	}
 
 	/**
-	 * Branch name this runtime profile uses for this environment's Git workflow.
+	 * Branch name Rudel uses for this environment's Git workflow.
 	 *
-	 * @return string Branch name.
+	 * @return string Branch name in rudel/{id} format.
 	 */
 	public function get_git_branch(): string {
-		return RuntimeProfile::current()->git_branch( $this->id );
+		return 'rudel/' . $this->id;
 	}
 
 	/**
@@ -695,7 +695,7 @@ class Environment {
 	 * @return string Table prefix string.
 	 */
 	public static function table_prefix_for_id( string $id ): string {
-		return RuntimeProfile::current()->environment_table_prefix( $id, self::network_base_prefix() );
+		return self::network_base_prefix() . substr( md5( $id ), 0, 7 ) . '_';
 	}
 
 	/**
@@ -722,7 +722,7 @@ class Environment {
 	 * @return string
 	 */
 	public static function users_table_for_blog( int $blog_id ): string {
-		return RuntimeProfile::current()->isolated_users_table( $blog_id, self::network_base_prefix() );
+		return self::network_base_prefix() . 'rudel_env_' . $blog_id . '_users';
 	}
 
 	/**
@@ -732,7 +732,7 @@ class Environment {
 	 * @return string
 	 */
 	public static function usermeta_table_for_blog( int $blog_id ): string {
-		return RuntimeProfile::current()->isolated_usermeta_table( $blog_id, self::network_base_prefix() );
+		return self::network_base_prefix() . 'rudel_env_' . $blog_id . '_usermeta';
 	}
 
 	/**
@@ -824,10 +824,8 @@ class Environment {
 			return $wpdb->base_prefix;
 		}
 
-		$table_prefix_constant = RuntimeProfile::current()->constant( 'table_prefix' );
-		$table_prefix_value    = defined( $table_prefix_constant ) ? constant( $table_prefix_constant ) : null;
-		if ( is_string( $table_prefix_value ) && '' !== $table_prefix_value ) {
-			return self::base_prefix_from_blog_prefix( $table_prefix_value );
+		if ( defined( 'RUDEL_TABLE_PREFIX' ) && is_string( RUDEL_TABLE_PREFIX ) && '' !== RUDEL_TABLE_PREFIX ) {
+			return self::base_prefix_from_blog_prefix( RUDEL_TABLE_PREFIX );
 		}
 
 		if ( isset( $table_prefix ) && is_string( $table_prefix ) && '' !== $table_prefix ) {

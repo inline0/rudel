@@ -1,14 +1,5 @@
 # Changelog
 
-## v0.11.0 - 2026-06-04
-
-- Added explicit runtime profiles so embedders own all public runtime selectors, constants, table names, environment paths, generated MU-plugin names, admin labels, and email-log labels.
-- Made bootstrap and runtime services fail closed when no profile is available instead of falling back to built-in Rudel runtime names.
-- Added profile-aware template rendering for generated `db.php`, environment bootstrap files, and runtime MU plugins.
-- Added `Rudel\RudelRuntime` helpers for profile-aware active ID reads, activation cookies, and CLI environment variables.
-- Updated tests and E2E setup so Rudel-shaped names are used only through explicit fixture profiles.
-- Updated docs around the neutral runtime profile contract.
-
 ## v0.10.0 - 2026-06-03
 
 - Completed the hard cut to sandbox-only request overlays by removing the app environment model, app CLI, app APIs, app repositories, app deployment history, app domain routing, and app runtime tables.
