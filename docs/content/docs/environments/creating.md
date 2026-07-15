@@ -1,6 +1,11 @@
 ---
-title: Creating
-description: Create Rudel sandboxes with cloned tables and copied active themes.
+title: "Creating"
+description: "Create Rudel sandboxes with cloned tables and copied active themes."
+path: "environments/creating"
+order: 2
+section: "Environments"
+meta_title: "Creating"
+meta_description: "Create Rudel sandboxes with cloned tables and copied active themes."
 ---
 
 ## Create from the host

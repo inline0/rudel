@@ -1,6 +1,11 @@
 ---
-title: Getting Started
-description: Install Rudel and create your first sandbox.
+title: "Getting Started"
+description: "Install Rudel and create your first sandbox."
+path: "getting-started"
+order: 1
+section: "Documentation"
+meta_title: "Getting Started"
+meta_description: "Install Rudel and create your first sandbox."
 ---
 
 ## Install

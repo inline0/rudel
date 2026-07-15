@@ -1,6 +1,11 @@
 ---
-title: Automation
-description: Scheduled cleanup and expiry reporting.
+title: "Automation"
+description: "Scheduled cleanup and expiry reporting."
+path: "features/automation"
+order: 8
+section: "Features"
+meta_title: "Automation"
+meta_description: "Scheduled cleanup and expiry reporting."
 ---
 
 Rudel's automation layer keeps disposable sandboxes from accumulating forever.

@@ -1,6 +1,11 @@
 ---
-title: Cleanup
-description: Remove stale Rudel sandboxes safely.
+title: "Cleanup"
+description: "Remove stale Rudel sandboxes safely."
+path: "features/cleanup"
+order: 7
+section: "Features"
+meta_title: "Cleanup"
+meta_description: "Remove stale Rudel sandboxes safely."
 ---
 
 Cleanup removes sandboxes that are no longer needed.

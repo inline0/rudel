@@ -1,6 +1,11 @@
 ---
-title: Hooks
-description: Rudel lifecycle hooks for extensions.
+title: "Hooks"
+description: "Rudel lifecycle hooks for extensions."
+path: "features/hooks"
+order: 9
+section: "Features"
+meta_title: "Hooks"
+meta_description: "Rudel lifecycle hooks for extensions."
 ---
 
 Rudel exposes hooks around sandbox lifecycle events.

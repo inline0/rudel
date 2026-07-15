@@ -1,6 +1,11 @@
 ---
-title: Templates
-description: Reuse a known sandbox shape.
+title: "Templates"
+description: "Reuse a known sandbox shape."
+path: "features/templates"
+order: 11
+section: "Features"
+meta_title: "Templates"
+meta_description: "Reuse a known sandbox shape."
 ---
 
 Templates let you save a sandbox shape and use it as a repeatable starting point.

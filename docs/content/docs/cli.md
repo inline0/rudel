@@ -1,6 +1,11 @@
 ---
-title: CLI
-description: The Rudel WP-CLI command surface.
+title: "CLI"
+description: "The Rudel WP-CLI command surface."
+path: "cli"
+order: 15
+section: "Documentation"
+meta_title: "CLI"
+meta_description: "The Rudel WP-CLI command surface."
 ---
 
 Rudel publishes its command surface under `wp rudel` by default.

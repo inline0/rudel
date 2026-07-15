@@ -1,6 +1,11 @@
 ---
-title: Isolation
-description: What Rudel isolates and what remains shared.
+title: "Isolation"
+description: "What Rudel isolates and what remains shared."
+path: "environments/isolation"
+order: 4
+section: "Environments"
+meta_title: "Isolation"
+meta_description: "What Rudel isolates and what remains shared."
 ---
 
 Rudel is a request-selected overlay system. A selected request uses sandbox database tables and sandbox theme files while still running through the host WordPress installation.
