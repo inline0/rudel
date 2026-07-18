@@ -58,9 +58,9 @@ else
 fi
 echo ""
 
-# 5. Docs build
+# 5. Docs validation
 echo -e "${BOLD}━━━ Docs ━━━${NC}"
-if npm --prefix docs run build; then
+if node scripts/check-docs-content.mjs --root docs --expected-docs 17 --expected-nav 3; then
     echo -e "${GREEN}Docs passed${NC}"
 else
     EXIT_CODE=1

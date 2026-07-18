@@ -16,7 +16,7 @@ composer test:security
 
 bash tests/e2e/run-all.sh
 bash tests/run-all.sh
-npm --prefix docs run build
+node scripts/check-docs-content.mjs
 ```
 
 ## Current Architecture
@@ -38,7 +38,7 @@ rudel/
 ├── cli/                      # Split WP-CLI surface
 ├── src/                      # Runtime models, repositories, managers, services
 ├── templates/                # Runtime templates where still needed
-├── docs/                     # Product docs site
+├── docs/                     # Portable Markdown documentation
 ├── tests/                    # Unit, integration, security, and E2E tests
 └── .github/workflows/
 ```
@@ -58,7 +58,7 @@ Define these before Rudel boots when non-default paths or names are needed:
 ## Key Rules
 
 1. Rudel is overlay-first. Do not reintroduce multisite as a runtime requirement.
-2. CI is the source of truth for repo work. Keep coding standards, static analysis, PHPUnit, docs build, and E2E green.
+2. CI is the source of truth for repo work. Keep coding standards, static analysis, PHPUnit, docs validation, and E2E green.
 3. `bootstrap.php` stays self-contained: no autoloader, no WordPress functions, plain PHP only.
 4. Runtime state is DB-backed only. Environment records, worktrees, snapshots, policy metadata, and config belong in WordPress tables.
 5. Environment table prefixes must be unique and must not overwrite the host WordPress prefix itself.

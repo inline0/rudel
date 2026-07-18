@@ -118,13 +118,13 @@ composer stan
 composer test
 
 bash tests/e2e/run-all.sh
-npm --prefix docs run build
+node scripts/check-docs-content.mjs
 bash tests/run-all.sh
 ```
 
 ## Documentation
 
-Full documentation lives at [rudel.dev](https://rudel.dev).
+Full documentation lives as portable Markdown in [`docs/`](./docs).
 
 ## License
 
