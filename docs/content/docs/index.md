@@ -1,15 +1,13 @@
 ---
-title: "Rudel"
+title: "Introduction"
 description: "Request-selected WordPress overlay environments for sandboxes."
 path: "."
 order: 10
-section: "Getting Started"
-meta_title: "Rudel"
+meta_title: "Introduction"
 meta_description: "Request-selected WordPress overlay environments for sandboxes."
 ---
 
-# Rudel
-
+# Introduction
 Rudel creates disposable WordPress sandboxes inside one host WordPress installation.
 
 Each sandbox is selected per request. The selected request uses cloned WordPress tables and a copied active theme while the host WordPress core, plugins, uploads, and users remain shared by default.

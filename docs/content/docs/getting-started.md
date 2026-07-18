@@ -3,7 +3,6 @@ title: "Getting Started"
 description: "Install Rudel and create your first sandbox."
 path: "getting-started"
 order: 20
-section: "Getting Started"
 meta_title: "Getting Started"
 meta_description: "Install Rudel and create your first sandbox."
 ---
