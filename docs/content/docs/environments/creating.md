@@ -2,11 +2,13 @@
 title: "Creating"
 description: "Create Rudel sandboxes with cloned tables and copied active themes."
 path: "environments/creating"
-order: 2
+order: 30
 section: "Environments"
 meta_title: "Creating"
 meta_description: "Create Rudel sandboxes with cloned tables and copied active themes."
 ---
+
+# Creating
 
 ## Create from the host
 

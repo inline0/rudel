@@ -2,11 +2,13 @@
 title: "Managing"
 description: "Inspect, update, and remove Rudel sandboxes."
 path: "environments/managing"
-order: 3
+order: 40
 section: "Environments"
 meta_title: "Managing"
 meta_description: "Inspect, update, and remove Rudel sandboxes."
 ---
+
+# Managing
 
 ## List sandboxes
 

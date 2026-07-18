@@ -2,11 +2,13 @@
 title: "Policy"
 description: "Stewardship, expiry, and lineage metadata for sandboxes."
 path: "features/policy"
-order: 6
+order: 70
 section: "Features"
 meta_title: "Policy"
 meta_description: "Stewardship, expiry, and lineage metadata for sandboxes."
 ---
+
+# Policy
 
 Rudel sandboxes can carry metadata that explains who owns them, why they exist, when they should expire, and where they came from.
 

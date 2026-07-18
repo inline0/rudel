@@ -2,11 +2,13 @@
 title: "Git"
 description: "PHP-native Git workflows for Rudel theme worktrees."
 path: "features/git"
-order: 12
+order: 130
 section: "Features"
 meta_title: "Git"
 meta_description: "PHP-native Git workflows for Rudel theme worktrees."
 ---
+
+# Git
 
 Rudel can use PHP-native Git operations for tracked theme worktrees. It does not require the host `git` binary.
 

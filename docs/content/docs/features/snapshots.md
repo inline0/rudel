@@ -2,11 +2,13 @@
 title: "Snapshots"
 description: "Recovery points for Rudel sandboxes."
 path: "features/snapshots"
-order: 10
+order: 110
 section: "Features"
 meta_title: "Snapshots"
 meta_description: "Recovery points for Rudel sandboxes."
 ---
+
+# Snapshots
 
 Snapshots capture a sandbox recovery point.
 

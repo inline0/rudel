@@ -2,11 +2,13 @@
 title: "API"
 description: "Programmatic Rudel APIs."
 path: "api"
-order: 16
-section: "Documentation"
+order: 170
+section: "Reference"
 meta_title: "API"
 meta_description: "Programmatic Rudel APIs."
 ---
+
+# API
 
 Use `Rudel\Rudel` when calling Rudel from WordPress code.
 

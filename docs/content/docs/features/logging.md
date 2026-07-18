@@ -2,7 +2,7 @@
 title: "Error Logging"
 description: "Per-sandbox debug logs with a dedicated CLI viewer."
 path: "features/logging"
-order: 13
+order: 140
 section: "Features"
 meta_title: "Error Logging"
 meta_description: "Per-sandbox debug logs with a dedicated CLI viewer."

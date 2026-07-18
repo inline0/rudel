@@ -2,11 +2,13 @@
 title: "Standalone Use"
 description: "Read Rudel metadata outside a WordPress request."
 path: "features/standalone-use"
-order: 14
+order: 150
 section: "Features"
 meta_title: "Standalone Use"
 meta_description: "Read Rudel metadata outside a WordPress request."
 ---
+
+# Standalone Use
 
 Standalone mode lets external PHP code inspect Rudel's registry with a direct MySQL connection.
 

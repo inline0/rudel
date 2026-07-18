@@ -2,11 +2,13 @@
 title: "Runtime State"
 description: "Rudel's DB-backed source of truth."
 path: "features/runtime-state"
-order: 5
+order: 60
 section: "Features"
 meta_title: "Runtime State"
 meta_description: "Rudel's DB-backed source of truth."
 ---
+
+# Runtime State
 
 Rudel runtime state is DB-backed only.
 
