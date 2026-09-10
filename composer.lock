@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7c27da102129f0f0d65d1cd0b8d59d8d",
+    "content-hash": "794835148c051b912f5bce22ad8b98ac",
     "packages": [
         {
             "name": "pitmaster/pitmaster",
@@ -2421,5 +2421,5 @@
         "php": "^8.2"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }
