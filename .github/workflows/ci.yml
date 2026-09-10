@@ -74,3 +74,15 @@ jobs:
       - run: composer install --no-interaction
       - run: npm ci
       - run: bash tests/e2e/run-all.sh
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer
+      - run: composer install --no-interaction
+      - run: composer audit --locked --no-interaction
