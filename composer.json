@@ -3,15 +3,9 @@
     "description": "Request-selected WordPress overlay environments for sandboxes",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/inline0/pitmaster"
-        }
-    ],
     "require": {
         "php": "^8.2",
-        "pitmaster/pitmaster": "^0.2.4"
+        "pitmaster/pitmaster": "^0.2.10"
     },
     "autoload": {
         "psr-4": {

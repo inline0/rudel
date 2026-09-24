@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0cdee08ebdf023af731f0a7664907df4",
+    "content-hash": "9e47c68b25006188c33c885d16103d7d",
     "packages": [
         {
             "name": "pitmaster/pitmaster",
-            "version": "v0.2.4",
+            "version": "v0.2.10",
             "source": {
                 "type": "git",
                 "url": "https://github.com/inline0/pitmaster.git",
-                "reference": "7c18a6b7f91c3a390ebef3942bb13cf5b170cb16"
+                "reference": "55b442a574b5bc28fcb7e820c6de2502b9cb03e3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/inline0/pitmaster/zipball/7c18a6b7f91c3a390ebef3942bb13cf5b170cb16",
-                "reference": "7c18a6b7f91c3a390ebef3942bb13cf5b170cb16",
+                "url": "https://api.github.com/repos/inline0/pitmaster/zipball/55b442a574b5bc28fcb7e820c6de2502b9cb03e3",
+                "reference": "55b442a574b5bc28fcb7e820c6de2502b9cb03e3",
                 "shasum": ""
             },
             "require": {
@@ -27,9 +27,9 @@
                 "php": "^8.2"
             },
             "require-dev": {
-                "phpstan/phpstan": "^2.0",
-                "phpunit/phpunit": "^11.0",
-                "squizlabs/php_codesniffer": "^3.0"
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^13.1",
+                "squizlabs/php_codesniffer": "^3.13.6"
             },
             "bin": [
                 "bin/pitmaster"
@@ -40,31 +40,7 @@
                     "Pitmaster\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Pitmaster\\Tests\\": "tests/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "phpunit"
-                ],
-                "test:unit": [
-                    "phpunit --testsuite unit"
-                ],
-                "test:integration": [
-                    "phpunit --testsuite integration"
-                ],
-                "analyse": [
-                    "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M"
-                ],
-                "cs": [
-                    "phpcs --warning-severity=0"
-                ],
-                "cs:fix": [
-                    "phpcbf"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -89,7 +65,7 @@
                 "issues": "https://github.com/inline0/pitmaster/issues",
                 "source": "https://github.com/inline0/pitmaster"
             },
-            "time": "2026-04-08T09:22:10+00:00"
+            "time": "2026-09-24T10:36:18+00:00"
         }
     ],
     "packages-dev": [
