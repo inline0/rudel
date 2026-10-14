@@ -23,7 +23,7 @@
 
 Rudel is a WordPress plugin for running disposable overlay sandboxes inside one normal WordPress installation.
 
-A sandbox is selected per request with a trusted header, Rudel cookie, or CLI environment variable. Once selected, Rudel switches WordPress to that sandbox's cloned database tables and copied active theme. Host WordPress core, plugins, uploads, and users remain shared by default.
+A sandbox is selected per request with a header, a cookie, or a CLI environment variable. Once selected, Rudel switches WordPress to that sandbox's cloned database tables, users included, and its copied active theme. WordPress core, plugin files, and uploads stay shared with the host.
 
 Rudel does not require multisite. It does not use SQLite. Runtime metadata is stored only in host WordPress MySQL tables.
 
@@ -32,7 +32,7 @@ Rudel does not require multisite. It does not use SQLite. Runtime metadata is st
 - PHP 8.2+
 - WordPress 6.4+
 - MySQL/MariaDB through the normal WordPress database connection
-- write access to `wp-config.php` during initial runtime bootstrap installation
+- write access to `wp-config.php` when the plugin is activated (activation adds the bootstrap line)
 
 ## Quick Start
 
@@ -42,7 +42,9 @@ wp plugin activate rudel
 wp rudel status
 ```
 
-Create a sandbox:
+Activation installs the early bootstrap line in `wp-config.php`; there is no separate install command. Composer must place the package in `wp-content/plugins` (for example through `composer/installers`) for `wp plugin activate` to find it.
+
+Create a sandbox. The command prints the generated ID, for example `alpha-1234`:
 
 ```bash
 wp rudel create --name=alpha --theme=twentytwentyfour
@@ -64,12 +66,12 @@ curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
 
 Every Rudel environment is a sandbox overlay:
 
-- Each sandbox has its own WordPress table prefix, for example `wp_a4nmv7_`.
+- Each sandbox has its own WordPress table prefix, for example `wp_b65338d_`, holding a copy of the host tables.
 - Each sandbox gets a copied active theme under `wp-content/rudel-environments/{id}/themes/{theme}`.
 - Child themes keep their parent template relationship; Rudel copies the child and parent theme directories when the selected active theme is a child theme.
 - Plugins and uploads are intentionally shared from the host WordPress installation.
-- Users are intentionally shared for now through the normal WordPress users tables.
-- Request selection controls whether WordPress uses host state or one sandbox's state.
+- Users are cloned with the other tables when the sandbox is created; after that, sandbox and host users change independently.
+- Request selection controls whether WordPress uses host state or one sandbox's state. The selector is not authenticated, so it is not an access-control boundary.
 
 The selected sandbox does not replace `WP_CONTENT_DIR`. Rudel overrides the active theme root for the selected theme and switches the WordPress table prefix before core finishes booting.
 
@@ -80,9 +82,9 @@ Rudel stores operational metadata in WordPress tables:
 - `wp_rudel_environments`
 - `wp_rudel_worktrees`
 
-Those tables are the source of truth for sandbox identity, worktrees, lifecycle policy, snapshots, and cleanup metadata.
+Those tables are the source of truth for sandbox identity, worktrees, and lifecycle metadata such as owner, protection, and expiry. Settings live in the `rudel_config` option.
 
-Sandbox site data lives in cloned WordPress tables using the sandbox prefix. Rudel metadata tables always live in the host WordPress database. There is no runtime JSON config and no per-sandbox SQLite database.
+Sandbox site data lives in cloned WordPress tables using the sandbox prefix; snapshots are further table copies. Rudel metadata tables always live in the host WordPress database. There is no runtime JSON config and no per-sandbox SQLite database.
 
 ## WP-CLI Surface
 

@@ -17,7 +17,7 @@ The host WordPress MySQL database contains Rudel's metadata tables:
 - `wp_rudel_environments`
 - `wp_rudel_worktrees`
 
-Those tables are the source of truth for sandbox identity, lifecycle metadata, worktree metadata, cleanup policy, and timestamps.
+Those tables are the source of truth for sandbox identity, lifecycle metadata such as protection and expiry, worktree metadata, and timestamps.
 
 ## Environment records
 
@@ -68,7 +68,7 @@ These constants should be defined before first install/bootstrap when persisted 
 
 ## No alternate runtime store
 
-Rudel does not use JSON as runtime config.
+Rudel does not use JSON as runtime config. Settings live in the `rudel_config` option in the host options table (see [Configuration](/docs/configuration)). The JSON files Rudel writes for snapshots and templates describe those artifacts; they are not runtime registry state.
 
 Rudel does not store its metadata in SQLite.
 

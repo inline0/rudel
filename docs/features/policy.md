@@ -25,7 +25,7 @@ wp rudel create \
 Metadata is stored in the environment record and can be updated later:
 
 ```bash
-wp rudel update qa-run-1234 --owner=agent --labels=agent,checkout
+wp rudel update qa-run-3be7 --owner=agent --labels=agent,checkout
 ```
 
 ## Expiry
@@ -34,21 +34,21 @@ wp rudel update qa-run-1234 --owner=agent --labels=agent,checkout
 wp rudel create --name=temp-run --ttl-days=2
 ```
 
-or:
+On `create`, `--ttl-days` counts from creation; on `update`, from now. Set `default_ttl_days` in `rudel_config` to give every new sandbox an expiry. Or set an explicit timestamp:
 
 ```bash
-wp rudel update temp-run-1234 --expires-at=2026-06-10T12:00:00+00:00
+wp rudel update temp-run-3be7 --expires-at=2026-06-10T12:00:00+00:00
 ```
 
-Expired sandboxes are eligible for cleanup unless they are protected.
+Expired sandboxes are eligible for cleanup unless they are protected. Remove an expiry with `wp rudel update <id> --clear-expiry`.
 
 ## Protection
 
 ```bash
-wp rudel update qa-run-1234 --protected
+wp rudel update qa-run-3be7 --protected
 ```
 
-Protected sandboxes are skipped by cleanup and require explicit force when destroyed.
+Protected sandboxes are skipped by cleanup, both manual and scheduled. Protection does not block `wp rudel destroy` or `Rudel::destroy()`.
 
 ## Lineage
 
