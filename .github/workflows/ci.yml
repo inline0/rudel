@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - run: node scripts/check-docs-content.mjs --root docs --expected-docs 17 --expected-nav 3
+      - run: node scripts/check-docs-content.mjs --root docs --expected-docs 18 --expected-nav 3
 
   e2e:
     name: E2E

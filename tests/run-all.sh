@@ -60,7 +60,7 @@ echo ""
 
 # 5. Docs validation
 echo -e "${BOLD}━━━ Docs ━━━${NC}"
-if node scripts/check-docs-content.mjs --root docs --expected-docs 17 --expected-nav 3; then
+if node scripts/check-docs-content.mjs --root docs --expected-docs 18 --expected-nav 3; then
     echo -e "${GREEN}Docs passed${NC}"
 else
     EXIT_CODE=1
