@@ -150,11 +150,11 @@ else
     fail "No backup file found" ""
 fi
 
-# Backup content should match original
+# The payload stays intact after its executable guard.
 BACKUP_FILE=$(ls "$WP_DIR"/wp-config.php.rudel-backup-* | head -1)
-BACKUP_CONTENT=$(cat "$BACKUP_FILE")
-if [[ "$BACKUP_CONTENT" == "$ORIGINAL_CONTENT" ]]; then
-    pass "Backup matches original content"
+BACKUP_CONTENT=$(tail -n +2 "$BACKUP_FILE")
+if [[ "$BACKUP_CONTENT" == "$ORIGINAL_CONTENT" ]] && head -n 1 "$BACKUP_FILE" | grep -q __halt_compiler && [[ -z "$(php "$BACKUP_FILE")" ]]; then
+    pass "Protected backup preserves the original content and rejects execution"
 else
     fail "Backup content differs from original" ""
 fi
