@@ -158,6 +158,8 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 
 	if ( Rudel\Rudel::is_sandbox() ) {
 		Rudel\Rudel::touch_current_environment();
+		add_action( 'init', 'rudel_exit_sandbox_request', 0 );
+
 
 		add_action(
 			'admin_bar_menu',
@@ -185,6 +187,57 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 			'rudel_admin_bar_styles'
 		);
 	}
+}
+
+/**
+ * Clear sandbox selection cookies and redirect a validated exit request to the host.
+ *
+ * @return void
+ */
+function rudel_exit_sandbox_request(): void {
+	if ( ! isset( $_GET['rudel_exit'] ) || ! is_string( $_GET['rudel_exit'] ) || '1' !== $_GET['rudel_exit'] ) {
+		return;
+	}
+
+	$nonce = isset( $_GET['_wpnonce'] ) && is_string( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+	if ( ! wp_verify_nonce( $nonce, 'rudel_exit_sandbox' ) ) {
+		wp_die( 'Invalid sandbox exit request.', '', array( 'response' => 403 ) );
+	}
+
+	$paths = array( '/' );
+	foreach ( array( 'COOKIEPATH', 'SITECOOKIEPATH', 'ADMIN_COOKIE_PATH' ) as $name ) {
+		$value = defined( $name ) ? constant( $name ) : null;
+		if ( is_string( $value ) && '' !== $value ) {
+			$paths[] = $value;
+		}
+	}
+	$domains = array( '' );
+	if ( defined( 'COOKIE_DOMAIN' ) && is_string( COOKIE_DOMAIN ) && '' !== COOKIE_DOMAIN ) {
+		$domains[] = COOKIE_DOMAIN;
+	}
+
+	foreach ( array( 'rudel_environment', 'rudel_sandbox' ) as $cookie ) {
+		foreach ( array_unique( $paths ) as $path ) {
+			foreach ( array_unique( $domains ) as $domain ) {
+				setcookie(
+					$cookie,
+					'',
+					array(
+						'expires'  => time() - 3600,
+						'path'     => $path,
+						'domain'   => $domain,
+						'secure'   => is_ssl(),
+						'httponly' => true,
+						'samesite' => 'Lax',
+					)
+				);
+			}
+		}
+	}
+
+	nocache_headers();
+	wp_safe_redirect( Rudel\Rudel::host_url() );
+	exit;
 }
 
 /**

@@ -80,6 +80,33 @@ class BootstrapRuntimeStore {
 	}
 
 	/**
+	 * Resolve the canonical host URL before overlay filters exist.
+	 *
+	 * @return string|null Host home URL.
+	 */
+	public function host_url(): ?string {
+		$defined_home = $this->string_constant( 'WP_HOME' );
+		if ( null !== $defined_home ) {
+			return $defined_home;
+		}
+
+		$table = '`' . str_replace( '`', '``', $this->prefix . 'options' ) . '`';
+		foreach ( array( 'home', 'siteurl' ) as $option ) {
+			$row = $this->fetch_environment( 'SELECT option_value FROM ' . $table . ' WHERE option_name = ? LIMIT 1', array( $option ) );
+			if ( is_array( $row ) && isset( $row['option_value'] ) && is_string( $row['option_value'] ) && '' !== $row['option_value'] ) {
+				return $row['option_value'];
+			}
+		}
+
+		return null;
+	}
+
+	private function string_constant( string $name ): ?string {
+		$value = defined( $name ) ? constant( $name ) : null;
+		return is_string( $value ) && '' !== $value ? $value : null;
+	}
+
+	/**
 	 * WordPress base table prefix parsed during bootstrap.
 	 *
 	 * @return string

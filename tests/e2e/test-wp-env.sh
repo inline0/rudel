@@ -512,6 +512,33 @@ else
 fi
 rm -f "$ALPHA_BODY"
 
+COOKIE_JAR="$(mktemp)"
+EXIT_BODY="$(mktemp)"
+printf '# Netscape HTTP Cookie File\nlocalhost\tFALSE\t/\tFALSE\t0\trudel_environment\t%s\nlocalhost\tFALSE\t/\tFALSE\t0\trudel_sandbox\t%s\n' "$ALPHA_ID" "$ALPHA_ID" > "$COOKIE_JAR"
+COOKIE_STATUS=$(curl -sS -b "$COOKIE_JAR" -c "$COOKIE_JAR" http://localhost:8000/ -o "$EXIT_BODY" -w '%{http_code}')
+if [[ "$COOKIE_STATUS" == "200" ]] && grep -q 'Alpha Site' "$EXIT_BODY"; then
+	pass "Browser cookie jar selects the sandbox before exit"
+else
+	fail "Exit regression cookie setup failed"
+	exit 1
+fi
+INVALID_EXIT_STATUS=$(curl -sS -b "$COOKIE_JAR" -c "$COOKIE_JAR" 'http://localhost:8000/?rudel_exit=1&_wpnonce=invalid' -o "$EXIT_BODY" -w '%{http_code}')
+if [[ "$INVALID_EXIT_STATUS" == "403" ]] && grep -q rudel_environment "$COOKIE_JAR"; then
+	pass "An invalid exit nonce preserves the sandbox selector"
+else
+	fail "Invalid exit request changed the cookie selector"
+	exit 1
+fi
+EXIT_URL=$(wp_env_cli "$ALPHA_ID" eval 'echo \Rudel\Rudel::exit_url();' | tail -1)
+EXIT_STATUS=$(curl -sS -L -b "$COOKIE_JAR" -c "$COOKIE_JAR" "$EXIT_URL" -o "$EXIT_BODY" -w '%{http_code}')
+if [[ "$EXIT_STATUS" == "200" ]] && grep -q 'Rudel Host' "$EXIT_BODY" && ! grep -q rudel_environment "$COOKIE_JAR" && ! grep -q rudel_sandbox "$COOKIE_JAR"; then
+	pass "Exit link expires current and legacy selectors and returns to the host"
+else
+	fail "Exit link did not return the browser to the host"
+	exit 1
+fi
+rm -f "$COOKIE_JAR" "$EXIT_BODY"
+
 echo ""
 echo -e "${BOLD}Destroy cleanup${NC}"
 

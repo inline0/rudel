@@ -181,6 +181,8 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 
 		$this->assertSame($sandbox->id, constant('RUDEL_ID'));
 		$this->assertSame('--url=http://localhost:8000/', $argv[1]);
+		$this->assertSame('http://localhost:8000', constant('RUDEL_ENVIRONMENT_URL'));
+		$this->assertSame('http://example.test', constant('RUDEL_HOST_URL'));
 		$this->assertSame('http://localhost:8000/', $_SERVER['argv'][2]);
 		$this->assertSame($sandbox->get_table_prefix(), constant('RUDEL_TABLE_PREFIX'));
 		$this->assertSame('wp_', constant('RUDEL_HOST_TABLE_PREFIX'));

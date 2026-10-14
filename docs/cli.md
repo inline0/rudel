@@ -49,7 +49,7 @@ Creates a sandbox and prints its ID.
 
 `--clone-db`, `--clone-themes`, `--clone-plugins`, `--clone-uploads`, `--clone-all`, `--shared-plugins` and `--shared-uploads` are deprecated. They only change the progress messages: every sandbox clones the tables, copies one theme and shares plugins and uploads.
 
-The command ends with a hint to `cd` into the sandbox directory and run `wp post list`. That runs against the host, because the `wp-cli.yml` in the sandbox directory points at the host URL. Use `RUDEL_ENVIRONMENT` instead.
+The command ends with a hint to `cd` into the sandbox directory and run `wp post list`. Its generated WP-CLI config requires a PHP selector before WordPress boots, so the command uses that sandbox's tables. An explicit `RUDEL_ENVIRONMENT` value takes precedence.
 
 ## list
 

@@ -9,6 +9,28 @@ use Rudel\Tests\RudelTestCase;
 
 class BootstrapRuntimeStoreTest extends RudelTestCase
 {
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testHostUrlUsesHostOptionsIncludingPortAndSubdirectory(): void
+    {
+        $wpdb = $GLOBALS['wpdb'];
+        $wpdb->addTable('wp_options', 'CREATE TABLE wp_options (option_id int, option_name varchar(191), option_value longtext)', [
+            ['option_id' => 1, 'option_name' => 'home', 'option_value' => 'http://localhost:8000/wordpress'],
+            ['option_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'http://localhost:8000/core'],
+        ]);
+        $this->assertSame('http://localhost:8000/wordpress', (new BootstrapRuntimeStore())->host_url());
+        $wpdb->update('wp_options', ['option_value' => ''], ['option_name' => 'home']);
+        $this->assertSame('http://localhost:8000/core', (new BootstrapRuntimeStore())->host_url());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testHostUrlUsesAnExplicitConfiguredHome(): void
+    {
+        define('WP_HOME', 'https://example.test:8443/wordpress');
+        $this->assertSame('https://example.test:8443/wordpress', (new BootstrapRuntimeStore())->host_url());
+    }
+
     public function testParseDbHostSupportsHostAndPort(): void
     {
         $store = (new \ReflectionClass(BootstrapRuntimeStore::class))->newInstanceWithoutConstructor();

@@ -225,7 +225,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			}
 		}
 
-		if ( ! $sandbox_id && 'cli' === $rudel_bootstrap_sapi ) {
+		if ( 'cli' === $rudel_bootstrap_sapi ) {
 			$rudel_bootstrap_requested_url = $extract_cli_url();
 			if ( is_string( $rudel_bootstrap_requested_url ) && '' !== $rudel_bootstrap_requested_url ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pre-WP bootstrap.
@@ -262,7 +262,11 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			}
 		};
 
-		$_rudel_engine = $environment_engine;
+		$_rudel_engine       = $environment_engine;
+		$configured_host_url = $runtime_store->host_url();
+		if ( 'cli' === $rudel_bootstrap_sapi && null === $rudel_bootstrap_requested_url ) {
+			$rudel_bootstrap_requested_url = $configured_host_url;
+		}
 
 		// Respect an explicit CLI target URL so generated links and rewrites stay on the requested origin.
 		$protocol = 'http';
@@ -288,7 +292,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		$site_url  = rtrim( $protocol . '://' . $host, '/' );
 		$host_bits = $split_host( (string) $host );
 		$host_port = null !== $host_bits['port'] ? ':' . $host_bits['port'] : '';
-		$host_url  = rtrim( $protocol . '://' . $current_network_host() . $host_port, '/' );
+		$host_url  = null !== $configured_host_url ? rtrim( $configured_host_url, '/' ) : rtrim( $protocol . '://' . $current_network_host() . $host_port, '/' );
 
 		$environment_url = $site_url;
 		$def( 'RUDEL_HOST_TABLE_PREFIX', $runtime_store->base_prefix() );

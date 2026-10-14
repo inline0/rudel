@@ -190,7 +190,7 @@ class Rudel {
 			unset( $e );
 		}
 
-		return self::exit_url();
+		return self::host_url();
 	}
 
 	/**
@@ -199,6 +199,26 @@ class Rudel {
 	 * @return string URL for the network host.
 	 */
 	public static function exit_url(): string {
+		$url = self::host_url();
+		if ( self::is_sandbox() && function_exists( 'wp_create_nonce' ) && function_exists( 'add_query_arg' ) ) {
+			return add_query_arg(
+				array(
+					'rudel_exit' => '1',
+					'_wpnonce'   => wp_create_nonce( 'rudel_exit_sandbox' ),
+				),
+				$url
+			);
+		}
+
+		return $url;
+	}
+
+	/**
+	 * Get the host URL without an environment exit action.
+	 *
+	 * @return string Host URL.
+	 */
+	public static function host_url(): string {
 		$host_url = self::string_constant( 'RUDEL_HOST_URL' );
 		if ( null !== $host_url && '' !== $host_url ) {
 			return rtrim( $host_url, '/' ) . '/';

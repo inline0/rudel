@@ -228,3 +228,15 @@ if ( ! function_exists( 'maybe_unserialize' ) ) {
 		return false === $value && 'b:0;' !== $data ? $data : $value;
 	}
 }
+
+if ( ! function_exists( 'wp_create_nonce' ) ) {
+	function wp_create_nonce( int|string $action = -1 ): string {
+		return '';
+	}
+}
+
+if ( ! function_exists( 'add_query_arg' ) ) {
+	function add_query_arg( mixed ...$args ): string {
+		return '';
+	}
+}

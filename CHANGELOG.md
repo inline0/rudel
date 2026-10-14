@@ -2,6 +2,7 @@
 
 ## v0.10.1 - 2026-10-14
 
+- Made the sandbox exit link validate its nonce, expire current and legacy selector cookies, and redirect to the host.
 - Scoped effective auth salts with WordPress's secret and the environment ID, and configured sandbox PHP logging after WordPress's debug setup so pre-defined host constants do not bypass isolation.
 - Loaded selected sandbox protections during the mu-plugin stage and kept shared bootstrap and cleanup state installed when Rudel is deactivated inside a sandbox.
 - Excluded existing sandbox and snapshot table groups from host and sandbox clones so repeated creates copy only the source site's tables.

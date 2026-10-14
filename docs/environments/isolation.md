@@ -57,7 +57,7 @@ HTTP requests select a sandbox through:
 - the `X-Rudel-Environment` header (legacy alias `X-Rudel-Sandbox`)
 - the `rudel_environment` cookie (legacy alias `rudel_sandbox`)
 
-Rudel never sets or clears the cookie. Delete it to return to the host; the Sandbox item in the admin bar links to the host URL but leaves the cookie in place ([issue #10](https://github.com/inline0/rudel/issues/10)).
+The Sandbox item in the admin bar uses a nonce-protected exit link. Following it expires both `rudel_environment` and legacy `rudel_sandbox` selector cookies at the standard WordPress cookie paths, then redirects to the host. A request with an invalid nonce leaves the selection in place.
 
 WP-CLI commands select a sandbox through:
 

@@ -34,7 +34,8 @@ These methods describe the current request. Outside a sandbox they return `false
 | `engine(): ?string` | `overlay` inside a sandbox |
 | `table_prefix(): ?string` | the sandbox table prefix, for example `wp_b65338d_` |
 | `url(): ?string` | the sandbox URL; overlay sandboxes share the host URL |
-| `exit_url(): string` | the host URL |
+| `exit_url(): string` | nonce-protected sandbox exit URL in WordPress; host URL outside a sandbox |
+| `host_url(): string` | the host URL without an exit action |
 | `is_email_disabled(): bool` | `true` when outbound mail is blocked for the request |
 | `log_path(): ?string` | `{sandbox directory}/debug.log` |
 | `version(): ?string` | the installed Rudel version |
@@ -52,7 +53,7 @@ Returns all of the above in one array:
     'engine'         => 'overlay',
     'table_prefix'   => 'wp_b65338d_',
     'url'            => 'http://localhost/',
-    'exit_url'       => 'http://localhost/',
+    'exit_url'       => 'http://localhost/?rudel_exit=1&_wpnonce=...',
     'email_disabled' => true,
     'log_path'       => '/var/www/html/wp-content/rudel-environments/alpha-3be7/debug.log',
     'version'        => '0.10.0',
