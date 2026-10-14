@@ -9,6 +9,13 @@ meta_description: "Install Rudel and create your first sandbox."
 
 # Getting Started
 
+## Requirements
+
+- PHP 8.2+
+- WordPress 6.4+
+- MySQL or MariaDB through the normal WordPress database connection
+- a writable `wp-config.php` when the plugin is activated
+
 ## Install
 
 Install Rudel with Composer and activate it like a normal WordPress plugin.
@@ -18,21 +25,21 @@ composer require rudel/rudel
 wp plugin activate rudel
 ```
 
+Composer installs Rudel into `vendor/rudel/rudel` unless your project maps WordPress plugins into `wp-content/plugins` (for example with `composer/installers`). The plugin must be in the plugins directory for `wp plugin activate rudel` to find it.
+
+## What activation does
+
+Activation creates Rudel's tables, schedules the hourly cleanup event and adds one bootstrap line to `wp-config.php`, directly above the line that loads `wp-settings.php`. That line lets Rudel select a sandbox before WordPress finishes loading. Rudel writes a backup copy named `wp-config.php.rudel-backup-{timestamp}` first.
+
+There is no separate install command. If `wp-config.php` is not writable, activation fails. Deactivation removes the line and the scheduled event.
+
 Check the runtime status:
 
 ```bash
 wp rudel status
 ```
 
-## Install the bootstrap
-
-Rudel needs an early bootstrap line in `wp-config.php` so it can select a sandbox before WordPress finishes loading.
-
-```bash
-wp rudel bootstrap install
-```
-
-The bootstrap is idempotent. Running the command again does not duplicate the injected line.
+`Bootstrap installed` should read `yes`.
 
 ## Create a sandbox
 
@@ -40,25 +47,29 @@ The bootstrap is idempotent. Running the command again does not duplicate the in
 wp rudel create --name=alpha --theme=twentytwentyfour
 ```
 
-Rudel creates a generated sandbox ID, clones the host WordPress tables into a sandbox-specific table prefix, copies the active theme into the sandbox directory, and stores the runtime record in the host WordPress database.
+Rudel prints the generated sandbox ID, for example `alpha-3be7`. It clones the host WordPress tables into a sandbox-specific table prefix, copies the theme into the sandbox directory, and stores the record in the host WordPress database. The examples below use `alpha-3be7`; use the ID your command printed.
 
 ## Use WP-CLI inside a sandbox
 
 ```bash
-RUDEL_ENVIRONMENT=alpha-1234 wp option get siteurl
+RUDEL_ENVIRONMENT=alpha-3be7 wp option get blogname
 ```
+
+Without `RUDEL_ENVIRONMENT`, WP-CLI talks to the host.
 
 ## Route HTTP into a sandbox
 
 ```bash
-curl -H 'X-Rudel-Environment: alpha-1234' http://localhost:8000/
+curl -H 'X-Rudel-Environment: alpha-3be7' http://localhost:8000/
 ```
 
-You can also use the `rudel_environment` cookie for browser sessions.
+For a browser session, set a `rudel_environment` cookie with the sandbox ID. Rudel reads the cookie but never sets or clears it. Delete the cookie to return to the host.
+
+The sandbox runs on the host URL. Without the header or cookie, the same URL serves the host.
 
 ## Next steps
 
 - [Creating Environments](/docs/environments/creating)
 - [Managing Environments](/docs/environments/managing)
 - [Isolation](/docs/environments/isolation)
-- [Runtime State](/docs/features/runtime-state)
+- [CLI](/docs/cli)
