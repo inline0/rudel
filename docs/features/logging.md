@@ -10,9 +10,9 @@ meta_description: "Per-sandbox debug logs with a dedicated CLI viewer."
 
 # Error Logging
 
-For a selected sandbox request, the bootstrap defines `WP_DEBUG` as `true`, `WP_DEBUG_LOG` as the sandbox `debug.log` and `WP_DEBUG_DISPLAY` as `false`, so errors go to a per-sandbox file instead of the browser.
+For a selected sandbox request, Rudel configures PHP logging after WordPress's debug setup: all PHP error levels, `log_errors` enabled, `display_errors` disabled, and `error_log` set to the sandbox `debug.log`.
 
-Each of these is defined only if `wp-config.php` has not defined it already, and the bootstrap line sits directly above the `wp-settings.php` line, after the rest of `wp-config.php`. A standard `wp-config.php` defines `WP_DEBUG` as `false`, so on such an install sandbox requests do not log to `debug.log` ([issue #4](https://github.com/inline0/rudel/issues/4)). To get per-sandbox logs there, remove the `WP_DEBUG`, `WP_DEBUG_LOG` and `WP_DEBUG_DISPLAY` definitions from `wp-config.php`. WordPress then keeps debugging off for host requests, and the bootstrap turns logging on for sandbox requests.
+This works with a standard `wp-config.php`, including one that defines `WP_DEBUG` or `WP_DEBUG_LOG` as `false`. Existing WordPress constants keep their values; WordPress features that explicitly consult `WP_DEBUG` still follow that setting. The runtime loads for selected requests independently of the sandbox's active plugin list.
 
 ## Viewing logs
 
@@ -42,4 +42,4 @@ That directory is inside `wp-content`, and web servers serve it like any other f
 
 ## Blocked email
 
-Sandbox requests block outbound email. When `WP_DEBUG_LOG` is defined, each blocked message is logged with its recipient and subject through `error_log()`. It reaches the sandbox `debug.log` only when debug logging is active as described above; otherwise it goes to PHP's default error log.
+Sandbox requests block outbound email. Each blocked message is logged with its recipient and subject through `error_log()` to the selected sandbox log.

@@ -62,6 +62,31 @@ class BootstrapRoutingPrecedenceTest extends RudelTestCase
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
+	public function testPredefinedHostSecretsStillProduceEnvironmentSpecificEffectiveSalts(): void
+	{
+		$wordpressRoot = $this->tmpDir . '/wordpress';
+		[$environmentsDir] = $this->createRuntimeDirs($wordpressRoot);
+		$sandbox = $this->saveOverlayEnvironment($environmentsDir, 'salt-regression');
+		define('AUTH_KEY', 'host-auth-secret');
+		define('WP_DEBUG', false);
+		$_SERVER['HTTP_X_RUDEL_ENVIRONMENT'] = $sandbox->id;
+		$_SERVER['SCRIPT_FILENAME'] = $wordpressRoot . '/index.php';
+		require dirname(__DIR__, 2) . '/bootstrap.php';
+		$this->assertSame('host-auth-secret', AUTH_KEY);
+		$this->assertFalse(WP_DEBUG);
+		$filter = $GLOBALS['wp_filter']['salt'][PHP_INT_MAX][0];
+		$this->assertSame(2, $filter['accepted_args']);
+		$salt = $filter['function']('host-secret-salt', 'auth');
+		$this->assertSame(64, strlen($salt));
+		$this->assertNotSame('host-secret-salt', $salt);
+		$this->assertNotSame($salt, $filter['function']('other-host-secret', 'auth'));
+		$this->assertNotSame($salt, $filter['function']('host-secret-salt', 'nonce'));
+		$this->assertSame($salt, $filter['function']('host-secret-salt', 'auth'));
+		$this->assertIsCallable($GLOBALS['wp_filter']['muplugins_loaded'][0][0]['function']);
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
 	public function testExplicitEnvironmentHeaderWinsOverCookie(): void
 	{
 		$wordpressRoot = $this->tmpDir . '/wordpress';

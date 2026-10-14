@@ -57,6 +57,10 @@ register_activation_hook(
 register_deactivation_hook(
 	__FILE__,
 	function () {
+		if ( Rudel\Rudel::is_sandbox() ) {
+			return;
+		}
+
 		Rudel\Automation::unschedule();
 		$writer = new Rudel\ConfigWriter();
 		$writer->uninstall();
@@ -101,7 +105,7 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 
 			$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
 
-			if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG && defined( 'RUDEL_ID' ) ) {
+			if ( defined( 'RUDEL_ID' ) ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in the environment debug.log.
 				error_log( sprintf( 'Rudel: email blocked in environment %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
 			}

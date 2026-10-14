@@ -76,4 +76,4 @@ When a request selects a sandbox, the bootstrap defines constants that code can 
 
 Prefer the [API](/docs/api) methods such as `Rudel::id()` over reading the constants directly.
 
-The bootstrap also defines `WP_DEBUG`, `WP_DEBUG_LOG`, `WP_DEBUG_DISPLAY`, `WP_TEMP_DIR`, `WP_CACHE_KEY_SALT` and the eight authentication keys and salts, but only those that `wp-config.php` has not already defined. See [Error Logging](/docs/features/logging) and [Isolation](/docs/environments/isolation).
+The bootstrap supplies missing debug, temporary-directory and cache-salt constants. Effective auth salts are derived through WordPress's `salt` filter using its secret and the selected environment ID. PHP log routing and display settings apply after WordPress's debug setup, even when the host already defined its debug constants. See [Error Logging](/docs/features/logging) and [Isolation](/docs/environments/isolation).

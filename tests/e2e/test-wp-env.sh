@@ -467,6 +467,51 @@ else
 	exit 1
 fi
 
+wp_cli config set WP_DEBUG false --raw >/dev/null
+wp_cli config set WP_DEBUG_LOG false --raw >/dev/null
+DEBUG_SETTINGS=$(wp_env_cli "$ALPHA_ID" eval 'error_log("RudelDebugProbe"); echo ini_get("display_errors") . ":" . ini_get("log_errors");' | tail -1)
+if [[ "$DEBUG_SETTINGS" == "0:1" ]] && wp_shell "grep -q RudelDebugProbe '${ALPHA_PATH}/debug.log'" >/dev/null; then
+	pass "Sandbox PHP logging works with host debug constants disabled and display off"
+else
+	fail "Sandbox debug routing failed"
+	exit 1
+fi
+HOST_SALT=$(wp_cli eval 'echo wp_salt("auth");' | tail -1)
+ALPHA_SALT=$(wp_env_cli "$ALPHA_ID" eval 'echo wp_salt("auth");' | tail -1)
+BETA_SALT=$(wp_env_cli "$BETA_ID" eval 'echo wp_salt("auth");' | tail -1)
+if [[ "$HOST_SALT" != "$ALPHA_SALT" && "$ALPHA_SALT" != "$BETA_SALT" && "$HOST_SALT" != "$BETA_SALT" ]]; then
+	pass "Effective auth salts differ between the host and each sandbox"
+else
+	fail "Environment auth salts were not isolated"
+	exit 1
+fi
+HOST_COOKIE=$(wp_cli eval 'echo wp_generate_auth_cookie(1,time()+3600,"auth");' | tail -1)
+HOST_COOKIE_VALID=$(wp_cli eval "var_export(wp_validate_auth_cookie('${HOST_COOKIE}', 'auth'));" | tail -1)
+FOREIGN_COOKIE_VALID=$(wp_env_cli "$ALPHA_ID" eval "var_export(wp_validate_auth_cookie('${HOST_COOKIE}', 'auth'));" | tail -1)
+if [[ "$HOST_COOKIE_VALID" == "1" && "$FOREIGN_COOKIE_VALID" == "false" ]]; then
+	pass "A valid host auth cookie is rejected in a sandbox"
+else
+	fail "Host auth cookie isolation failed"
+	exit 1
+fi
+wp_env_cli "$ALPHA_ID" plugin deactivate rudel >/dev/null
+if ! wp_env_cli "$ALPHA_ID" plugin is-active rudel >/dev/null 2>&1 && [[ "$(wp_env_cli "$ALPHA_ID" option get blogname | tail -1)" == "Alpha Site" ]] && [[ "$(wp_env_cli "$BETA_ID" option get blogname | tail -1)" == "Beta Site" ]] && wp_cli plugin is-active rudel >/dev/null 2>&1; then
+	pass "Sandbox deactivation preserves shared bootstrap and sibling selection"
+else
+	fail "Sandbox deactivation changed shared runtime state"
+	exit 1
+fi
+BLOCKED_MAIL=$(wp_env_cli "$ALPHA_ID" eval 'var_export(wp_mail("nobody@example.test","DeactivatedSandboxProbe","blocked"));' | tail -1)
+ALPHA_BODY="$(mktemp)"
+ALPHA_STATUS=$(overlay_http_status "$ALPHA_ID" "$ALPHA_BODY")
+if [[ "$BLOCKED_MAIL" == "true" && "$ALPHA_STATUS" == "200" ]] && grep -q rudel-host-theme "$ALPHA_BODY" && wp_shell "grep -q DeactivatedSandboxProbe '${ALPHA_PATH}/debug.log'" >/dev/null; then
+	pass "Inactive sandbox plugin still loads mail blocking and theme overlay protections"
+else
+	fail "Inactive sandbox plugin lost runtime protections"
+	exit 1
+fi
+rm -f "$ALPHA_BODY"
+
 echo ""
 echo -e "${BOLD}Destroy cleanup${NC}"
 

@@ -48,7 +48,7 @@ If the theme is a child theme, Rudel also copies the parent theme so the templat
 
 A plugin installed or updated on the host is installed or updated for every sandbox. Which plugins are active is stored in the options table, so activation state is per sandbox. Uploads made inside a sandbox land in the host uploads directory. This keeps sandbox creation fast and avoids replacing `WP_CONTENT_DIR` globally.
 
-Keep Rudel itself active inside every sandbox. Its mail blocking and theme overlay run from the plugin, and deactivating it while a sandbox is selected also removes the bootstrap line from the shared `wp-config.php`, which switches off sandbox selection for the whole install ([issue #13](https://github.com/inline0/rudel/issues/13)).
+The bootstrap loads Rudel's runtime during `muplugins_loaded` for selected sandbox requests. Mail blocking and theme filters therefore remain active even when that sandbox deactivates Rudel in its plugin list. Sandbox deactivation keeps the shared bootstrap and host cleanup schedule installed; deactivation on the host still removes them.
 
 ## Selecting a sandbox
 
@@ -73,9 +73,9 @@ For a selected request, Rudel:
 - blocks outbound email through a `pre_wp_mail` filter
 - sets `WP_TEMP_DIR` to the sandbox `tmp` directory
 - sets `WP_CACHE_KEY_SALT` to a sandbox-specific value so persistent object caches keep sandbox keys apart
-- offers `WP_DEBUG` logging to the sandbox `debug.log` and authentication keys and salts derived from the sandbox ID
+- routes PHP errors to the sandbox `debug.log` with browser display disabled and derives effective authentication salts from the environment ID and WordPress's secret salt
 
-The bootstrap defines each of these constants only if `wp-config.php` has not defined it already. A standard `wp-config.php` defines `WP_DEBUG` and all keys and salts, so on such an install sandbox requests use the host's debug setting and the host's keys and salts ([issue #4](https://github.com/inline0/rudel/issues/4)). Because the users are cloned too, a host login cookie can be valid in a sandbox.
+Existing WordPress constants retain their configured values. The `salt` filter scopes the effective signing secret to the selected environment, so host and sibling authentication cookies are rejected. PHP logging is configured after WordPress's debug setup, so host debug constants do not prevent the sandbox log.
 
 ## Runtime metadata
 

@@ -2,6 +2,8 @@
 
 ## v0.10.1 - 2026-10-14
 
+- Scoped effective auth salts with WordPress's secret and the environment ID, and configured sandbox PHP logging after WordPress's debug setup so pre-defined host constants do not bypass isolation.
+- Loaded selected sandbox protections during the mu-plugin stage and kept shared bootstrap and cleanup state installed when Rudel is deactivated inside a sandbox.
 - Excluded existing sandbox and snapshot table groups from host and sandbox clones so repeated creates copy only the source site's tables.
 - Added snapshot deletion through the PHP API and WP-CLI, allowed generated snapshot prefixes in guarded table cleanup, and validated snapshot names before restore or delete.
 - Generated a PHP selector alongside each sandbox's WP-CLI config so commands run from its directory select that sandbox and honour an explicit environment override.

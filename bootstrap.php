@@ -85,7 +85,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 				return null;
 			}
 
-			$base     = realpath( $environments_dir );
+			$base = realpath( $environments_dir );
 			if ( false === $base || 0 !== strpos( $real, $base . DIRECTORY_SEPARATOR ) ) {
 				return null;
 			}
@@ -307,15 +307,43 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 		// Temporary sandboxes should be safe to preview even when the cloned site would normally send mail.
 		$def( 'RUDEL_DISABLE_EMAIL', true );
 
-		// Deterministic per-environment salts keep auth cookies from bleeding across host and sandbox sessions.
-		$def( 'AUTH_KEY', hash( 'sha256', $sandbox_id . 'AUTH_KEY' ) );
-		$def( 'SECURE_AUTH_KEY', hash( 'sha256', $sandbox_id . 'SECURE_AUTH_KEY' ) );
-		$def( 'LOGGED_IN_KEY', hash( 'sha256', $sandbox_id . 'LOGGED_IN_KEY' ) );
-		$def( 'NONCE_KEY', hash( 'sha256', $sandbox_id . 'NONCE_KEY' ) );
-		$def( 'AUTH_SALT', hash( 'sha256', $sandbox_id . 'AUTH_SALT' ) );
-		$def( 'SECURE_AUTH_SALT', hash( 'sha256', $sandbox_id . 'SECURE_AUTH_SALT' ) );
-		$def( 'LOGGED_IN_SALT', hash( 'sha256', $sandbox_id . 'LOGGED_IN_SALT' ) );
-		$def( 'NONCE_SALT', hash( 'sha256', $sandbox_id . 'NONCE_SALT' ) );
+		$register_hook = static function ( string $name, callable $callback, int $priority, int $accepted_args ): void {
+			if ( isset( $GLOBALS['wp_filter'][ $name ] ) && is_object( $GLOBALS['wp_filter'][ $name ] ) && method_exists( $GLOBALS['wp_filter'][ $name ], 'add_filter' ) ) {
+				$GLOBALS['wp_filter'][ $name ]->add_filter( $name, $callback, $priority, $accepted_args );
+				return;
+			}
+
+			$GLOBALS['wp_filter'][ $name ][ $priority ][] = array(
+				'function'      => $callback,
+				'accepted_args' => $accepted_args,
+			);
+		};
+
+		// Derive effective salts from WordPress's secret, even when wp-config already defined its constants.
+		$register_hook(
+			'salt',
+			static function ( string $salt, string $scheme ) use ( $sandbox_id ): string {
+				return hash_hmac( 'sha256', 'rudel:' . $sandbox_id . ':' . $scheme, $salt );
+			},
+			PHP_INT_MAX,
+			2
+		);
+
+		// Selected requests need their protections even if the overlay's plugin list disables Rudel.
+		$register_hook(
+			'muplugins_loaded',
+			static function () use ( $plugin_dir, $sandbox_path ): void {
+				require_once $plugin_dir . '/rudel.php';
+				error_reporting( E_ALL );
+				// phpcs:ignore WordPress.PHP.IniSet.log_errors_Disallowed -- Host debug constants are immutable; selected requests need their own PHP log.
+				ini_set( 'log_errors', '1' );
+				// phpcs:ignore WordPress.PHP.IniSet.display_errors_Disallowed -- Hide sandbox errors even when the host enables browser debugging.
+				ini_set( 'display_errors', '0' );
+				ini_set( 'error_log', $sandbox_path . '/debug.log' );
+			},
+			0,
+			0
+		);
 
 		$def( 'RUDEL_ID', $sandbox_id );
 		$def( 'RUDEL_PATH', $sandbox_path );
@@ -327,7 +355,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			$def( 'RUDEL_TABLE_PREFIX', $environment_prefix );
 		}
 		if ( is_string( $environment_theme ) && '' !== $environment_theme ) {
-			$theme_root     = $sandbox_path . '/themes';
+			$theme_root = $sandbox_path . '/themes';
 			$def( 'RUDEL_THEME_SLUG', $environment_theme );
 			$def( 'RUDEL_TEMPLATE_SLUG', $theme_template_slug( $theme_root, $environment_theme ) );
 			$def( 'RUDEL_ENVIRONMENT_THEME_ROOT', $theme_root );
@@ -337,7 +365,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 	} )();
 
 if ( defined( 'RUDEL_TABLE_PREFIX' ) && is_string( RUDEL_TABLE_PREFIX ) && '' !== RUDEL_TABLE_PREFIX ) {
-	$table_prefix              = RUDEL_TABLE_PREFIX;
+	$table_prefix            = RUDEL_TABLE_PREFIX;
 	$GLOBALS['table_prefix'] = RUDEL_TABLE_PREFIX;
 }
 unset( $rudel_bootstrap_requested_url );
