@@ -25,7 +25,7 @@ Rudel creates the sandbox, clones the remote into `themes/my-theme` inside the s
 The sandbox serves a successful checkout immediately:
 
 - A theme checkout becomes the active sandbox theme, including themes not installed on the host. A same-name host theme is replaced only inside the sandbox. Child themes use an installed parent copied into the sandbox.
-- A plugin checkout with a valid plugin header is activated in the sandbox and loaded from its local checkout. The generated mu-plugin loader runs it in WordPress's global scope and prevents a same-name host plugin from loading twice. Host requests keep using the host plugin files and activation state.
+- A plugin checkout with a valid plugin header is activated in the sandbox and loaded from its local checkout. The generated mu-plugin loader runs it in WordPress's global scope and prevents a same-name host plugin from loading twice. Asset URLs generated with `plugins_url()` or `plugin_dir_url()` point to the checkout. Host requests keep using the host plugin files and activation state.
 
 Rudel records the resolved checkout and active theme or plugin in the environment metadata. The checkout remains available to `wp rudel push`.
 

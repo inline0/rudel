@@ -315,6 +315,7 @@ require_once __DIR__ . '/src/PrivateStorage.php';
 		$def( 'RUDEL_HOST_TABLE_PREFIX', $runtime_store->base_prefix() );
 		$def( 'RUDEL_HOST_URL', $host_url );
 		$def( 'RUDEL_ENVIRONMENT_URL', $environment_url );
+		$def( 'RUDEL_ENVIRONMENT_PLUGIN_ROOT_URI', $environment_url . '/wp-content/rudel-environments/' . rawurlencode( $sandbox_id ) . '/plugins' );
 		$def( 'WP_TEMP_DIR', $sandbox_path . '/tmp' );
 
 		// Keep sandbox notices out of browser output while preserving a per-environment debug trail.

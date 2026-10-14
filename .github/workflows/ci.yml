@@ -86,3 +86,27 @@ jobs:
           tools: composer
       - run: composer install --no-interaction
       - run: composer audit --locked --no-interaction
+
+  runtime-db:
+    name: Standalone MySQL (PHP 8.2)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: rudel_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mysqli, pdo_mysql
+          tools: composer
+      - run: composer install --no-dev --optimize-autoloader --no-interaction
+      - run: php tests/runtime-db.php

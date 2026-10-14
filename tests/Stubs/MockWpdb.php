@@ -110,6 +110,10 @@ class MockWpdb extends \wpdb
      */
     public function get_row(string $query, $output = null)
     {
+        if (preg_match("/FROM information_schema\\.COLUMNS WHERE TABLE_SCHEMA = DATABASE\\(\\) AND TABLE_NAME = '([^']+)' AND COLUMN_NAME = '([^']+)'/i", $query, $m)) {
+            return $this->tableHasColumn(stripslashes($m[1]), stripslashes($m[2])) ? ['COLUMN_NAME'=>stripslashes($m[2])] : null;
+        }
+
         if (preg_match("/SHOW COLUMNS FROM `?(\\w+)`? LIKE '([^']+)'/i", $query, $m)) {
             $table = $m[1];
             $column = stripslashes($m[2]);

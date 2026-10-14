@@ -170,6 +170,7 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 	if ( Rudel\Rudel::is_sandbox() ) {
 		Rudel\Rudel::touch_current_environment();
 		add_action( 'init', 'rudel_exit_sandbox_request', 0 );
+		add_filter( 'plugins_url', 'rudel_overlay_plugin_url', PHP_INT_MAX, 3 );
 
 
 		add_action(
@@ -198,6 +199,27 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 			'rudel_admin_bar_styles'
 		);
 	}
+}
+
+/**
+ * Resolve assets from a Git-created plugin checkout for its selected request.
+ *
+ * @param string $url Original plugin URL.
+ * @param string $path Requested asset path.
+ * @param string $plugin Plugin source filename.
+ * @return string Plugin asset URL.
+ */
+function rudel_overlay_plugin_url( string $url, string $path, string $plugin ): string {
+	if ( ! defined( 'RUDEL_GIT_PLUGIN_FILE' ) || ! defined( 'RUDEL_ENVIRONMENT_PLUGIN_ROOT_URI' ) || ! defined( 'RUDEL_GIT_PLUGIN_KEY' ) ) {
+		return $url;
+	}
+	$root   = str_replace( '\\', '/', dirname( RUDEL_GIT_PLUGIN_FILE ) );
+	$plugin = str_replace( '\\', '/', $plugin );
+	if ( ! str_starts_with( $plugin, $root . '/' ) ) {
+		return $url;
+	}
+	$relative = substr( dirname( $plugin ), strlen( $root ) );
+	return RUDEL_ENVIRONMENT_PLUGIN_ROOT_URI . '/' . dirname( RUDEL_GIT_PLUGIN_KEY ) . $relative . ( '' !== $path ? '/' . ltrim( $path, '/' ) : '' );
 }
 
 /**

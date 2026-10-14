@@ -217,8 +217,8 @@ class RudelSchema {
 	 */
 	private static function column_exists( DatabaseStore $store, string $table, string $column ): bool {
 		$row = $store->fetch_row(
-			'SHOW COLUMNS FROM ' . self::quote_identifier( $table ) . ' LIKE ?',
-			array( $column )
+			'SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+			array( $table, $column )
 		);
 
 		return is_array( $row ) && ! empty( $row );

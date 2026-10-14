@@ -454,6 +454,7 @@ add_filter( 'option_blogname', function ( $name ) {
 	return $GLOBALS['rudel_git_plugin_global'];
 } );
 PHP
+		printf 'GitPluginAssetMarker' > "$SOURCE_DIR/asset.txt"
 	fi
 	git -C "$SOURCE_DIR" add .
 	git -C "$SOURCE_DIR" commit -qm initial
@@ -489,6 +490,18 @@ if [[ "$GIT_STATUS" == "200" ]] && grep -q GitPluginMarker "$GIT_BODY" && wp_env
 	pass "Git plugin checkout loads in global scope only in its selected sandbox"
 else
 	fail "Git plugin checkout was not loaded" "$GIT_PLUGIN_OUTPUT"
+	exit 1
+fi
+PLUGIN_ASSET_URL=$(wp_env_cli "$GIT_PLUGIN_ID" eval 'echo plugins_url("asset.txt", RUDEL_GIT_PLUGIN_FILE), PHP_EOL;' | tail -1)
+if [[ -z "$PLUGIN_ASSET_URL" ]]; then
+	fail "Git plugin asset URL was empty"
+	exit 1
+fi
+PLUGIN_ASSET=$(curl -sS "$PLUGIN_ASSET_URL")
+if [[ "$PLUGIN_ASSET" == "GitPluginAssetMarker" ]]; then
+	pass "Git plugin asset URLs serve checkout files instead of host plugin files"
+else
+	fail "Git plugin asset URL did not resolve to its checkout" "$PLUGIN_ASSET_URL"
 	exit 1
 fi
 HOST_STATUS=$(curl -sS http://localhost:8000/ -o "$GIT_BODY" -w '%{http_code}')
