@@ -109,6 +109,11 @@ class ConfigWriter {
 		$lines = array_filter( $lines, fn( $line ) => ! str_contains( $line, self::MARKER ) );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing local wp-config.php.
 		file_put_contents( $config_path, implode( "\n", $lines ) );
+		$loader = $this->git_loader_path();
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove only Rudel's generated mu-plugin during host deactivation.
+		if ( is_file( $loader ) ) {
+			unlink( $loader );
+		}
 	}
 
 	/**
@@ -127,6 +132,54 @@ class ConfigWriter {
 		$contents = file_get_contents( $config_path );
 
 		return false !== $contents && str_contains( $contents, self::MARKER );
+	}
+
+	/**
+	 * Install the request-selected Git plugin loader in WordPress's global plugin scope.
+	 *
+	 * @throws \RuntimeException If the loader cannot be installed safely.
+	 * @return void
+	 */
+	public function install_git_loader(): void {
+		$path     = $this->git_loader_path();
+		$contents = <<<'PHP'
+<?php
+/** Rudel Git checkout loader. */
+if ( ! defined( 'RUDEL_GIT_PLUGIN_FILE' ) || ! defined( 'RUDEL_BOOTSTRAP_PLUGIN_DIR' ) ) {
+	return;
+}
+require_once RUDEL_BOOTSTRAP_PLUGIN_DIR . '/rudel.php';
+rudel_enable_sandbox_logging( RUDEL_PATH );
+get_option( 'active_plugins', array() );
+if ( ! empty( $GLOBALS['rudel_git_plugin_active'] ) ) {
+	require_once RUDEL_GIT_PLUGIN_FILE;
+}
+PHP;
+		// phpcs:disable WordPress.WP.AlternativeFunctions -- The loader is a filesystem entry point consumed by WordPress before ordinary plugins.
+		$existing = is_file( $path ) ? file_get_contents( $path ) : false;
+		if ( $existing === $contents . "\n" ) {
+			return;
+		}
+		if ( false !== $existing && ! str_contains( $existing, 'Rudel Git checkout loader' ) ) {
+			throw new \RuntimeException( 'Git loader path is occupied: ' . $path );
+		}
+		if ( ! is_dir( dirname( $path ) ) && ! mkdir( dirname( $path ), 0755, true ) ) {
+			throw new \RuntimeException( 'Cannot create mu-plugin directory.' );
+		}
+		if ( false === file_put_contents( $path, $contents . "\n" ) ) {
+			throw new \RuntimeException( 'Cannot install Git plugin loader.' );
+		}
+		// phpcs:enable WordPress.WP.AlternativeFunctions
+	}
+
+	/**
+	 * Filesystem entry point for selected Git plugins.
+	 *
+	 * @return string Loader path.
+	 */
+	private function git_loader_path(): string {
+		$content = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
+		return rtrim( $content, '/' ) . '/mu-plugins/rudel-git-checkout.php';
 	}
 
 	/**

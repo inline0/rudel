@@ -26,7 +26,7 @@ node scripts/check-docs-content.mjs
 - Runtime selection uses `X-Rudel-Environment`, `rudel_environment`, or `RUDEL_ENVIRONMENT` for CLI.
 - Environment site data uses cloned WordPress tables with generated prefixes such as `wp_a4nmv7_`.
 - Environment code isolation is active-theme isolation. The selected theme is copied into the environment directory and loaded through theme filters.
-- Host WordPress core, plugins, uploads, and users are shared by default.
+- Host WordPress core, plugin files and uploads are shared by default; site tables, including users, are cloned. Git-created plugins can override their own plugin directory for the selected sandbox.
 - Runtime metadata lives in host WordPress MySQL tables, never JSON and never SQLite.
 
 ## Project Structure
@@ -63,7 +63,7 @@ Define these before Rudel boots when non-default paths or names are needed:
 4. Runtime state is DB-backed only. Environment records, worktrees, snapshots, policy metadata, and config belong in WordPress tables.
 5. Environment table prefixes must be unique and must not overwrite the host WordPress prefix itself.
 6. Selected requests must not redefine `WP_HOME`, `WP_SITEURL`, or `WP_CONTENT_DIR` globally.
-7. Theme isolation is the current filesystem isolation boundary. Plugins, uploads, and users remain shared unless a future version explicitly changes that model.
+7. Themes are environment-owned. Git-created plugin checkouts override only their own plugin directory; other plugin files and uploads stay shared.
 8. Keep CLI help, docs, tests, and `CliCommandMap` aligned with the shipped command surface.
 9. Prefer positive assertions of the current contract over legacy-removal assertions in tests.
 10. Keep Rudel product-neutral. Do not mention downstream product names in docs, comments, examples, changelogs, or release notes.

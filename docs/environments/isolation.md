@@ -38,7 +38,7 @@ The selected theme is copied into the sandbox directory:
 wp-content/rudel-environments/{environment_id}/themes/{theme_slug}
 ```
 
-If the theme is a child theme, Rudel also copies the parent theme so the template relationship stays valid. A sandbox always serves the theme recorded at creation; switching themes inside the sandbox has no effect.
+If the theme is a child theme, Rudel also copies the parent theme so the template relationship stays valid. A sandbox serves its recorded theme, including a theme installed through a Git checkout; switching themes inside the sandbox has no effect.
 
 ## Shared with the host
 
@@ -46,7 +46,7 @@ If the theme is a child theme, Rudel also copies the parent theme so the templat
 - plugin files
 - uploaded media files
 
-A plugin installed or updated on the host is installed or updated for every sandbox. Which plugins are active is stored in the options table, so activation state is per sandbox. Uploads made inside a sandbox land in the host uploads directory. This keeps sandbox creation fast and avoids replacing `WP_CONTENT_DIR` globally.
+Plugin files are shared by default. A plugin created with `--git --type=plugin` overrides its own plugin directory only for that sandbox; other plugins continue to use the host files. A plugin installed or updated on the host is otherwise installed or updated for every sandbox. Which plugins are active is stored in the options table, so activation state is per sandbox. Uploads made inside a sandbox land in the host uploads directory. This keeps sandbox creation fast and avoids replacing `WP_CONTENT_DIR` globally.
 
 The bootstrap loads Rudel's runtime during `muplugins_loaded` for selected sandbox requests. Mail blocking and theme filters therefore remain active even when that sandbox deactivates Rudel in its plugin list. Sandbox deactivation keeps the shared bootstrap and host cleanup schedule installed; deactivation on the host still removes them.
 

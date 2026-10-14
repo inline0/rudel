@@ -140,9 +140,7 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 		);
 		add_filter(
 			'theme_root',
-			'rudel_overlay_theme_root',
-			10,
-			2
+			'rudel_overlay_theme_root'
 		);
 		add_filter(
 			'theme_root_uri',
@@ -187,6 +185,21 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 			'rudel_admin_bar_styles'
 		);
 	}
+}
+
+/**
+ * Configure PHP error reporting for the selected sandbox.
+ *
+ * @param string $path Environment directory.
+ * @return void
+ */
+function rudel_enable_sandbox_logging( string $path ): void {
+	error_reporting( E_ALL );
+	// phpcs:ignore WordPress.PHP.IniSet.log_errors_Disallowed -- Host debug constants are immutable; selected requests need their own PHP log.
+	ini_set( 'log_errors', '1' );
+	// phpcs:ignore WordPress.PHP.IniSet.display_errors_Disallowed -- Hide sandbox errors even when the host enables browser debugging.
+	ini_set( 'display_errors', '0' );
+	ini_set( 'error_log', $path . '/debug.log' );
 }
 
 /**
@@ -287,7 +300,7 @@ function rudel_overlay_current_theme(): string {
  * @return string
  */
 function rudel_overlay_theme_root( string $theme_root, $stylesheet = null ): string {
-	if ( is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) {
+	if ( defined( 'RUDEL_ENVIRONMENT_THEME_ROOT' ) && ( null === $stylesheet || ( is_scalar( $stylesheet ) && rudel_overlay_owns_theme_slug( (string) $stylesheet ) ) ) ) {
 		return (string) RUDEL_ENVIRONMENT_THEME_ROOT;
 	}
 

@@ -74,7 +74,7 @@ class BootstrapRuntimeStore {
 	 */
 	public function environment_by_slug( string $slug ): ?array {
 		return $this->fetch_environment(
-			'SELECT id, slug, path, type, engine, multisite, blog_id, table_prefix, theme_slug FROM ' . $this->table( self::ENVIRONMENTS_TABLE ) . ' WHERE slug = ? LIMIT 1',
+			'SELECT id, slug, path, type, engine, multisite, blog_id, table_prefix, theme_slug, clone_source FROM ' . $this->table( self::ENVIRONMENTS_TABLE ) . ' WHERE slug = ? LIMIT 1',
 			array( $slug )
 		);
 	}

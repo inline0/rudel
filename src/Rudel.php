@@ -414,6 +414,7 @@ class Rudel {
 	 * @return array{environment: Environment, git: array{remote: string, branch: string, base_branch: string|null, repo_name: string, content_type: string, checkout_dir: string, error: string|null}}
 	 *
 	 * @throws \InvalidArgumentException If the requested content layout conflicts with the Git checkout type.
+	 * @throws \RuntimeException If sandbox creation fails before the Git checkout starts.
 	 */
 	public static function create_from_git( string $remote_url, array $options = array() ): array {
 		self::require_wordpress_runtime( 'Rudel::create_from_git()' );
@@ -422,6 +423,12 @@ class Rudel {
 		$name         = null !== $name_opt ? $name_opt : basename( is_string( $cleaned_url ) ? $cleaned_url : $remote_url );
 		$content_type = isset( $options['type'] ) && is_scalar( $options['type'] ) ? (string) $options['type'] : 'theme';
 		unset( $options['name'], $options['type'] );
+		if ( ! in_array( $content_type, array( 'theme', 'plugin' ), true ) ) {
+			throw new \InvalidArgumentException( 'Git checkout type must be theme or plugin.' );
+		}
+		if ( 'theme' === $content_type ) {
+			unset( $options['theme'], $options['theme_slug'] );
+		}
 
 		if ( 'plugin' === $content_type && ! empty( $options['shared_plugins'] ) ) {
 			throw new \InvalidArgumentException( 'Shared plugins cannot be combined with plugin Git checkouts.' );
@@ -449,24 +456,79 @@ class Rudel {
 			$type_dir                      = 'plugin' === $content_type ? 'plugins' : 'themes';
 			$checkout_dir                  = $sandbox->get_runtime_content_path( $type_dir . '/' . $repo_name );
 			$result['git']['checkout_dir'] = $checkout_dir;
-			$checkout                      = $repo->clone_remote_checkout( $remote_url, $checkout_dir, $branch );
-			$result['git']['base_branch']  = $checkout['base_branch'];
+			$clone_dir                     = $checkout_dir;
+			if ( 'theme' === $content_type && is_dir( $checkout_dir ) ) {
+				$clone_dir = $sandbox->get_runtime_content_path( 'tmp/git-checkout-' . bin2hex( random_bytes( 4 ) ) . '/themes/' . $repo_name );
+			}
+			$checkout                     = $repo->clone_remote_checkout( $remote_url, $clone_dir, $branch );
+			$result['git']['base_branch'] = $checkout['base_branch'];
 
 			$clone_source                    = $sandbox->clone_source ?? array();
 			$clone_source['git_remote']      = $remote_url;
 			$clone_source['git_dir']         = $type_dir . '/' . $repo_name;
 			$clone_source['git_base_branch'] = $checkout['base_branch'];
-			self::manager()->update(
-				$sandbox->id,
-				array(
-					'clone_source' => $clone_source,
-				)
-			);
+			$changes                         = array( 'clone_source' => $clone_source );
+			if ( 'theme' === $content_type ) {
+				if ( ! is_file( $clone_dir . '/style.css' ) ) {
+					throw new \RuntimeException( 'Git theme checkout is missing style.css.' );
+				}
+				$overlay    = new ThemeOverlay();
+				$parent     = $overlay->template_slug_for_theme( $repo_name, dirname( $clone_dir ) );
+				$theme_root = ThemeOverlay::theme_root_for( $sandbox );
+				if ( $parent !== $repo_name && ! is_dir( $theme_root . '/' . $parent ) ) {
+					$overlay->copy_theme( $parent, $theme_root );
+				}
+				if ( $clone_dir !== $checkout_dir ) {
+					$overlay->install_checkout( $clone_dir, $repo_name, $theme_root );
+				}
+				$changes['theme_slug']   = $repo_name;
+				$changes['site_options'] = array(
+					'stylesheet' => $repo_name,
+					'template'   => $parent,
+				);
+			} else {
+				$entry                           = self::git_plugin_entry( $checkout_dir );
+				$clone_source['git_plugin_file'] = $type_dir . '/' . $repo_name . '/' . $entry;
+				$changes['clone_source']         = $clone_source;
+				global $wpdb;
+				if ( ! $wpdb instanceof \wpdb ) {
+					throw new \RuntimeException( 'Git plugin activation requires WordPress database access.' );
+				}
+				$active                  = ( new WpdbStore( $wpdb ) )->fetch_row(
+					'SELECT option_value FROM `' . $sandbox->get_table_prefix() . 'options` WHERE option_name = ?',
+					array( 'active_plugins' )
+				);
+				$value                   = is_array( $active ) && is_string( $active['option_value'] ?? null ) ? maybe_unserialize( $active['option_value'] ) : array();
+				$plugins                 = is_array( $value ) ? array_values( array_filter( $value, 'is_string' ) ) : array();
+				$plugins[]               = $repo_name . '/' . $entry;
+				$changes['site_options'] = array( 'active_plugins' => serialize( array_values( array_unique( $plugins ) ) ) );
+				( new ConfigWriter() )->install_git_loader();
+			}
+			$result['environment'] = self::manager()->update( $sandbox->id, $changes );
 		} catch ( \Throwable $e ) {
 			$result['git']['error'] = $e->getMessage();
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Find the root plugin entry point in a Git checkout.
+	 *
+	 * @param string $directory Checkout directory.
+	 * @return string Entry filename.
+	 * @throws \RuntimeException If no plugin header is found.
+	 */
+	private static function git_plugin_entry( string $directory ): string {
+		$files = glob( $directory . '/*.php' );
+		foreach ( false === $files ? array() : $files as $file ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Inspecting local plugin headers without requiring admin APIs.
+			$header = file_get_contents( $file, false, null, 0, 8192 );
+			if ( is_string( $header ) && preg_match( '/^[ \t\/*#@]*Plugin Name:\s*\S+/mi', $header ) ) {
+				return basename( $file );
+			}
+		}
+		throw new \RuntimeException( 'Git plugin checkout has no plugin entry point.' );
 	}
 
 	/**

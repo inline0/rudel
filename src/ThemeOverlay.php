@@ -85,6 +85,26 @@ class ThemeOverlay {
 	}
 
 	/**
+	 * Replace the copied fallback theme with a completed Git checkout.
+	 *
+	 * @param string $checkout Source checkout directory.
+	 * @param string $slug Theme slug.
+	 * @param string $root Environment-owned theme root.
+	 * @throws \RuntimeException If the completed checkout cannot be moved.
+	 * @return void
+	 */
+	public function install_checkout( string $checkout, string $slug, string $root ): void {
+		$target = rtrim( $root, '/' ) . '/' . $this->normalize_slug( $slug );
+		if ( is_dir( $target ) ) {
+			$this->delete_directory( $target );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Move only a completed checkout into the environment-owned theme directory.
+		if ( ! rename( $checkout, $target ) ) {
+			throw new \RuntimeException( 'Cannot install Git theme checkout: ' . $target );
+		}
+	}
+
+	/**
 	 * Resolve the template slug for a theme.
 	 *
 	 * @param string      $theme_slug Theme slug.

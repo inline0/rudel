@@ -7,3 +7,4 @@ node_modules/
 .phpunit.cache/
 .phpstan/
 .vercel
+tests/e2e/git-fixtures.*

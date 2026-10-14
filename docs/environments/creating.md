@@ -55,7 +55,7 @@ Creation fails when the `max_sandboxes` or `max_disk_mb` settings are reached. B
 wp rudel create --name=feature-a --git=https://example.test/my-theme.git
 ```
 
-Rudel creates the sandbox, clones the remote into `themes/my-theme` inside the sandbox directory and switches the checkout to the branch `rudel/{id}`. Add `--type=plugin` to clone into `plugins/my-theme` instead. A failed clone leaves the sandbox in place and prints a warning. See [Git](/docs/features/git) for what the sandbox serves from that checkout.
+Rudel creates the sandbox, clones the remote into `themes/my-theme` inside the sandbox directory and switches the checkout to the branch `rudel/{id}`. Add `--type=plugin` to clone into `plugins/my-theme` instead. A failed clone leaves the sandbox in place and prints a warning. A successful theme checkout becomes the sandbox theme; a plugin checkout is activated only inside that sandbox. See [Git](/docs/features/git).
 
 ## Directory layout
 

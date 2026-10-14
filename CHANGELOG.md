@@ -1,6 +1,8 @@
 # Changelog
 
-## v0.10.1 - 2026-10-14
+## v0.10.1 - 2026-10-15
+
+- Served Git-created themes directly from their checkout, including uninstalled and same-name host themes, and activated Git-created plugins through a sandbox-only loader.
 
 - Made the sandbox exit link validate its nonce, expire current and legacy selector cookies, and redirect to the host.
 - Scoped effective auth salts with WordPress's secret and the environment ID, and configured sandbox PHP logging after WordPress's debug setup so pre-defined host constants do not bypass isolation.

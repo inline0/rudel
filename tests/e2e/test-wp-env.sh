@@ -15,6 +15,7 @@ PASSED=0
 FAILED=0
 TOTAL=0
 SANDBOX_IDS=()
+GIT_FIXTURE_DIR=""
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -22,6 +23,9 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 cleanup() {
+	if [[ -n "$GIT_FIXTURE_DIR" ]]; then
+		rm -rf "$GIT_FIXTURE_DIR"
+	fi
 	if (( ${#SANDBOX_IDS[@]} > 0 )); then
 		for sandbox_id in "${SANDBOX_IDS[@]}"; do
 			wp_cli rudel destroy "$sandbox_id" --force >/dev/null 2>&1 || true
@@ -420,6 +424,72 @@ else
 	fail "Host plugin/upload files were not available"
 	exit 1
 fi
+
+GIT_FIXTURE_DIR=$(mktemp -d "$RUDEL_DIR/tests/e2e/git-fixtures.XXXXXX")
+for repo_name in git-theme shared-demo; do
+	SOURCE_DIR="$GIT_FIXTURE_DIR/${repo_name}-source"
+	mkdir "$SOURCE_DIR"
+	git -C "$SOURCE_DIR" init -q --initial-branch=main
+	git -C "$SOURCE_DIR" config user.name Test
+	git -C "$SOURCE_DIR" config user.email test@example.test
+	if [[ "$repo_name" == "git-theme" ]]; then
+		printf '/*\nTheme Name: Git Theme\n*/\n' > "$SOURCE_DIR/style.css"
+		printf '<?php echo "GitThemeMarker";\n' > "$SOURCE_DIR/index.php"
+	else
+		cat > "$SOURCE_DIR/shared-demo.php" <<'PHP'
+<?php
+/* Plugin Name: Shared Demo */
+$rudel_git_plugin_global = 'GitPluginMarker';
+add_filter( 'option_blogname', function ( $name ) {
+	return $GLOBALS['rudel_git_plugin_global'];
+} );
+PHP
+	fi
+	git -C "$SOURCE_DIR" add .
+	git -C "$SOURCE_DIR" commit -qm initial
+	git clone -q --bare "$SOURCE_DIR" "$GIT_FIXTURE_DIR/${repo_name}.git"
+	git --git-dir="$GIT_FIXTURE_DIR/${repo_name}.git" update-server-info
+done
+GIT_BASE_URL="http://wordpress/wp-content/plugins/rudel/tests/e2e/$(basename "$GIT_FIXTURE_DIR")"
+GIT_THEME_OUTPUT=$(wp_cli rudel create --name=git-theme --git="${GIT_BASE_URL}/git-theme.git" --theme=git-theme)
+GIT_THEME_ID=$(parse_created_id "Sandbox created" "$GIT_THEME_OUTPUT")
+if [[ -z "$GIT_THEME_ID" ]]; then
+	fail "Git theme sandbox creation failed" "$GIT_THEME_OUTPUT"
+	exit 1
+fi
+SANDBOX_IDS+=("$GIT_THEME_ID")
+GIT_BODY="$(mktemp)"
+GIT_STATUS=$(overlay_http_status "$GIT_THEME_ID" "$GIT_BODY")
+if [[ "$GIT_STATUS" == "200" ]] && grep -q GitThemeMarker "$GIT_BODY" && [[ "$(environment_json "$GIT_THEME_ID" | json_field theme_slug)" == "git-theme" ]]; then
+	pass "Git-created sandbox serves its previously uninstalled theme"
+else
+	fail "Git-created sandbox did not serve its checkout" "status=${GIT_STATUS} slug=$(environment_json "$GIT_THEME_ID" | json_field theme_slug) body=$(head -c 600 "$GIT_BODY") ${GIT_THEME_OUTPUT} debug=$(wp_env_cli "$GIT_THEME_ID" eval 'echo json_encode(array("stylesheet"=>get_stylesheet(),"template"=>get_template(),"directory"=>get_template_directory(),"index"=>file_get_contents(get_template_directory()."/index.php")));')"
+	exit 1
+fi
+wp_cli rudel destroy "$GIT_THEME_ID" --force >/dev/null
+GIT_PLUGIN_OUTPUT=$(wp_cli rudel create --name=git-plugin --git="${GIT_BASE_URL}/shared-demo.git" --type=plugin)
+GIT_PLUGIN_ID=$(parse_created_id "Sandbox created" "$GIT_PLUGIN_OUTPUT")
+if [[ -z "$GIT_PLUGIN_ID" ]]; then
+	fail "Git plugin sandbox creation failed" "$GIT_PLUGIN_OUTPUT"
+	exit 1
+fi
+SANDBOX_IDS+=("$GIT_PLUGIN_ID")
+GIT_STATUS=$(overlay_http_status "$GIT_PLUGIN_ID" "$GIT_BODY")
+if [[ "$GIT_STATUS" == "200" ]] && grep -q GitPluginMarker "$GIT_BODY" && wp_env_cli "$GIT_PLUGIN_ID" plugin is-active shared-demo >/dev/null 2>&1 && ! wp_cli plugin is-active shared-demo >/dev/null 2>&1; then
+	pass "Git plugin checkout loads in global scope only in its selected sandbox"
+else
+	fail "Git plugin checkout was not loaded" "$GIT_PLUGIN_OUTPUT"
+	exit 1
+fi
+HOST_STATUS=$(curl -sS http://localhost:8000/ -o "$GIT_BODY" -w '%{http_code}')
+if [[ "$HOST_STATUS" == "200" ]] && ! grep -q GitPluginMarker "$GIT_BODY"; then
+	pass "Git plugin preview leaves host plugin execution unchanged"
+else
+	fail "Git plugin code leaked into the host"
+	exit 1
+fi
+wp_cli rudel destroy "$GIT_PLUGIN_ID" --force >/dev/null
+rm -f "$GIT_BODY"
 
 SNAPSHOT_OUTPUT=$(wp_cli rudel snapshot "$ALPHA_ID" --name=baseline)
 if echo "$SNAPSHOT_OUTPUT" | grep -q "Snapshot created: baseline"; then

@@ -90,26 +90,40 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 				return null;
 			}
 
+			$source      = isset( $record['clone_source'] ) && is_string( $record['clone_source'] ) ? json_decode( $record['clone_source'], true ) : null;
+			$plugin_file = is_array( $source ) && isset( $source['git_plugin_file'] ) && is_string( $source['git_plugin_file'] ) ? $source['git_plugin_file'] : null;
+			$plugin_real = null;
+			if ( null !== $plugin_file && str_starts_with( $plugin_file, 'plugins/' ) && str_ends_with( $plugin_file, '.php' ) && ! in_array( '..', explode( '/', $plugin_file ), true ) ) {
+				$candidate = realpath( $real . '/' . $plugin_file );
+				if ( false !== $candidate && str_starts_with( $candidate, $real . '/plugins/' ) && is_file( $candidate ) ) {
+					$plugin_real = $candidate;
+				}
+			}
+
 			return array(
-				'id'           => $slug,
-				'path'         => $real,
-				'record_id'    => isset( $record['id'] ) ? (int) $record['id'] : null,
-				'engine'       => isset( $record['engine'] ) ? (string) $record['engine'] : 'overlay',
-				'multisite'    => ! empty( $record['multisite'] ),
-				'blog_id'      => isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
-				'table_prefix' => isset( $record['table_prefix'] ) && is_string( $record['table_prefix'] ) ? $record['table_prefix'] : null,
-				'theme_slug'   => isset( $record['theme_slug'] ) && is_string( $record['theme_slug'] ) ? $record['theme_slug'] : null,
+				'git_plugin_file' => $plugin_real,
+				'git_plugin_key'  => null !== $plugin_real && null !== $plugin_file ? substr( $plugin_file, 8 ) : null,
+				'id'              => $slug,
+				'path'            => $real,
+				'record_id'       => isset( $record['id'] ) ? (int) $record['id'] : null,
+				'engine'          => isset( $record['engine'] ) ? (string) $record['engine'] : 'overlay',
+				'multisite'       => ! empty( $record['multisite'] ),
+				'blog_id'         => isset( $record['blog_id'] ) ? (int) $record['blog_id'] : null,
+				'table_prefix'    => isset( $record['table_prefix'] ) && is_string( $record['table_prefix'] ) ? $record['table_prefix'] : null,
+				'theme_slug'      => isset( $record['theme_slug'] ) && is_string( $record['theme_slug'] ) ? $record['theme_slug'] : null,
 			);
 		};
 
-		$sandbox_id         = null;
-		$sandbox_path       = null;
-		$environment_engine = 'overlay';
-		$environment_blog   = null;
-		$environment_multi  = false;
-		$environment_row_id = null;
-		$environment_prefix = null;
-		$environment_theme  = null;
+		$sandbox_id              = null;
+		$sandbox_path            = null;
+		$environment_engine      = 'overlay';
+		$environment_blog        = null;
+		$environment_multi       = false;
+		$environment_row_id      = null;
+		$environment_prefix      = null;
+		$environment_theme       = null;
+		$environment_plugin_file = null;
+		$environment_plugin_key  = null;
 
 		$normalize_host = function ( string $host ): string {
 			return strtolower( (string) preg_replace( '/:\d+$/', '', $host ) );
@@ -134,7 +148,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			return $normalize_host( $_SERVER['HTTP_HOST'] ?? 'localhost' );
 		};
 
-		$try_resolve = function ( string $id ) use ( $validate_id, $runtime_store, $validate_record, &$sandbox_id, &$sandbox_path, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$environment_prefix, &$environment_theme ): bool {
+		$try_resolve = function ( string $id ) use ( $validate_id, $runtime_store, $validate_record, &$sandbox_id, &$sandbox_path, &$environment_engine, &$environment_blog, &$environment_multi, &$environment_row_id, &$environment_prefix, &$environment_theme, &$environment_plugin_file, &$environment_plugin_key ): bool {
 			if ( ! $validate_id( $id ) ) {
 				return false;
 			}
@@ -146,14 +160,16 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
 			$result = $validate_record( $result );
 			if ( $result ) {
-				$sandbox_id         = $result['id'];
-				$sandbox_path       = $result['path'];
-				$environment_engine = $result['engine'];
-				$environment_blog   = $result['blog_id'];
-				$environment_multi  = $result['multisite'];
-				$environment_row_id = $result['record_id'];
-				$environment_prefix = $result['table_prefix'];
-				$environment_theme  = $result['theme_slug'];
+				$sandbox_id              = $result['id'];
+				$sandbox_path            = $result['path'];
+				$environment_engine      = $result['engine'];
+				$environment_blog        = $result['blog_id'];
+				$environment_multi       = $result['multisite'];
+				$environment_row_id      = $result['record_id'];
+				$environment_prefix      = $result['table_prefix'];
+				$environment_theme       = $result['theme_slug'];
+				$environment_plugin_file = $result['git_plugin_file'];
+				$environment_plugin_key  = $result['git_plugin_key'];
 				return true;
 			}
 
@@ -338,16 +354,40 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 			'muplugins_loaded',
 			static function () use ( $plugin_dir, $sandbox_path ): void {
 				require_once $plugin_dir . '/rudel.php';
-				error_reporting( E_ALL );
-				// phpcs:ignore WordPress.PHP.IniSet.log_errors_Disallowed -- Host debug constants are immutable; selected requests need their own PHP log.
-				ini_set( 'log_errors', '1' );
-				// phpcs:ignore WordPress.PHP.IniSet.display_errors_Disallowed -- Hide sandbox errors even when the host enables browser debugging.
-				ini_set( 'display_errors', '0' );
-				ini_set( 'error_log', $sandbox_path . '/debug.log' );
+				rudel_enable_sandbox_logging( $sandbox_path );
 			},
 			0,
 			0
 		);
+
+		if ( null !== $environment_plugin_file && null !== $environment_plugin_key ) {
+			$def( 'RUDEL_GIT_PLUGIN_FILE', $environment_plugin_file );
+			$def( 'RUDEL_GIT_PLUGIN_KEY', $environment_plugin_key );
+			$GLOBALS['rudel_git_plugin_active'] = false;
+			$plugin_filter                      = static function ( mixed $plugins ) use ( $environment_plugin_key ): mixed {
+				if ( ! is_array( $plugins ) ) {
+					return $plugins;
+				}
+				$GLOBALS['rudel_git_plugin_active'] = in_array( $environment_plugin_key, $plugins, true );
+				if ( ! $GLOBALS['rudel_git_plugin_active'] ) {
+					return $plugins;
+				}
+				$directory = dirname( $environment_plugin_key ) . '/';
+				return array_values( array_filter( $plugins, static fn ( $plugin ): bool => ! is_string( $plugin ) || ! str_starts_with( $plugin, $directory ) ) );
+			};
+			$register_hook( 'option_active_plugins', $plugin_filter, PHP_INT_MAX, 1 );
+			$register_hook(
+				'plugins_loaded',
+				static function () use ( $plugin_filter ): void {
+					$hook = $GLOBALS['wp_filter']['option_active_plugins'] ?? null;
+					if ( is_object( $hook ) && method_exists( $hook, 'remove_filter' ) ) {
+						$hook->remove_filter( 'option_active_plugins', $plugin_filter, PHP_INT_MAX );
+					}
+				},
+				-100,
+				0
+			);
+		}
 
 		$def( 'RUDEL_ID', $sandbox_id );
 		$def( 'RUDEL_PATH', $sandbox_path );
