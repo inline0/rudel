@@ -142,7 +142,7 @@ Runs the expiry, age and idle policy. Options: `dry_run` (bool), `max_age_days` 
 
 ### `Rudel::cleanup_merged( array $options = [] ): array`
 
-Removes sandboxes whose linked Git worktree branches are merged into the repository's default branch. Option: `dry_run`.
+Removes sandboxes whose linked worktree branch or standalone remote checkout branch has merged. Remote checkouts require a clean working tree and a successful fetch of the recorded base branch before the ancestry check. Option: `dry_run`.
 
 ### `Rudel::touch_current_environment(): void`
 
@@ -171,6 +171,10 @@ Restores a snapshot. With the default `auto_snapshot_before_restore` setting, Ru
 ### `Rudel::snapshots( string $id ): array`
 
 Lists snapshot metadata, newest first. See [Snapshots](/docs/features/snapshots).
+
+### `Rudel::delete_snapshot( string $id, string $name ): bool`
+
+Deletes the snapshot tables and directory. Returns `false` when the snapshot does not exist.
 
 ## Templates
 

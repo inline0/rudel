@@ -260,6 +260,23 @@ class CliCommandAdapters {
 	}
 
 	/**
+	 * Resolve sandbox snapshot deletion.
+	 *
+	 * @param array<int, string>   $args Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
+	 * @return array<string, mixed>
+	 */
+	public static function sandbox_snapshot_delete( array $args, array $assoc_args ): array {
+		return self::php_plan(
+			Rudel::class . '::delete_snapshot',
+			array(
+				self::required_positional( $args, 0, 'id' ),
+				self::required_assoc( $assoc_args, 'name' ),
+			)
+		);
+	}
+
+	/**
 	 * Resolve template list.
 	 *
 	 * @param array<int, string>   $args Positional arguments.

@@ -261,6 +261,31 @@ class GitIntegration {
 	}
 
 	/**
+	 * Verify a clean remote checkout against freshly fetched tracking refs.
+	 *
+	 * @param string $repo_path Checkout path.
+	 * @param string $branch Sandbox branch.
+	 * @param string $target_branch Remote base branch.
+	 * @return bool Whether cleanup can remove the checkout.
+	 */
+	public function is_remote_branch_merged( string $repo_path, string $branch, string $target_branch = 'main' ): bool {
+		try {
+			$repo = Pitmaster::open( $repo_path );
+			if ( ! empty( $repo->status() ) ) {
+				return false;
+			}
+			$repo->fetch( 'origin' );
+			$branch_id = $repo->resolve( $branch );
+			$target_id = $repo->resolve( 'refs/remotes/origin/' . $target_branch );
+			$base = $repo->mergeBase( $branch_id, $target_id );
+			return null !== $base && $base->hex === $branch_id->hex;
+		} catch ( \Throwable $e ) {
+			unset( $e );
+			return false;
+		}
+	}
+
+	/**
 	 * Delete a local branch from a repository.
 	 *
 	 * @param string $repo_path Path to a repo checkout or common git dir.

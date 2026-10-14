@@ -163,8 +163,8 @@ class EnvironmentManager {
 					throw new \RuntimeException( sprintf( 'Source environment not found: %s', $clone_from ) );
 				}
 
-				$theme_slug   = $theme_slug ?? $source_environment->theme_slug ?? $this->theme_slug_from_tracked_dir( $source_environment->tracked_git_dir );
-				$clone_source = $this->clone_from_overlay_environment( $source_environment, $table_prefix, $target_url, $path, $theme_slug );
+				$theme_slug    = $theme_slug ?? $source_environment->theme_slug ?? $this->theme_slug_from_tracked_dir( $source_environment->tracked_git_dir );
+				$clone_source  = $this->clone_from_overlay_environment( $source_environment, $table_prefix, $target_url, $path, $theme_slug );
 				$clone_lineage = array(
 					'source_environment_id'   => $source_environment->id,
 					'source_environment_type' => $source_environment->type,
@@ -194,7 +194,7 @@ class EnvironmentManager {
 			$theme_template = null !== $theme_slug
 				? ( new ThemeOverlay() )->template_slug_for_theme( $theme_slug, ThemeOverlay::theme_root_for( $path ) )
 				: null;
-			$site_options = array_merge(
+			$site_options   = array_merge(
 				array_filter(
 					array(
 						'siteurl'    => $target_url,
@@ -421,7 +421,7 @@ class EnvironmentManager {
 		try {
 			$result = $this->state_replacer->replace( $source, $target );
 			if ( $target->is_overlay() && null !== $source->theme_slug && $source->theme_slug !== $target->theme_slug ) {
-				$target = $this->repository->update_fields(
+				$target            = $this->repository->update_fields(
 					$target->id,
 					array( 'theme_slug' => $source->theme_slug ),
 					$target->type
@@ -686,16 +686,25 @@ class EnvironmentManager {
 			throw new \RuntimeException( 'Overlay database cloning requires a running WordPress database connection.' );
 		}
 
-		$registry_prefix = RuntimeTableConfig::wordpress_prefix( $wpdb ) . RuntimeTableConfig::prefix();
+		$host_prefix = RuntimeTableConfig::wordpress_prefix( $wpdb );
+		$excluded    = array(
+			$host_prefix . RuntimeTableConfig::table( 'environments' ),
+			$host_prefix . RuntimeTableConfig::table( 'worktrees' ),
+			$target_prefix,
+		);
+		if ( '' !== RuntimeTableConfig::prefix() ) {
+			$excluded[] = $host_prefix . RuntimeTableConfig::prefix();
+		}
+		foreach ( $this->repository->all() as $environment ) {
+			$prefix     = $environment->get_table_prefix();
+			$excluded[] = $prefix === $wpdb->prefix ? $prefix . 'snap_' : $prefix;
+		}
 
 		return ( new MySQLCloner() )->clone_database(
 			$target_prefix,
 			$target_url,
 			array(
-				'exclude_prefixes' => array(
-					$registry_prefix,
-					$target_prefix,
-				),
+				'exclude_prefixes' => array_values( array_unique( $excluded ) ),
 			)
 		);
 	}
@@ -727,7 +736,7 @@ class EnvironmentManager {
 		$source_prefix = $source->get_table_prefix();
 		$source_url    = $this->get_environment_site_url( $source );
 		$mysql_cloner  = new MySQLCloner();
-		$tables        = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $target_prefix . 'snap_' ), true );
+		$tables        = $mysql_cloner->copy_tables( $source_prefix, $target_prefix, array( $source_prefix . 'snap_' ), true );
 		$mysql_cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
 		$mysql_cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $source_prefix, $target_prefix );
 
@@ -876,9 +885,19 @@ class EnvironmentManager {
 	 * @return void
 	 */
 	private function write_wp_cli_yml( string $path, string $environment_url ): void {
+		$selector_path = $path . '/rudel-cli.php';
+		$id = basename( $path );
+		$selector = "<?php\nif ( 'cli' !== PHP_SAPI ) { exit; }\n"
+			. "\$rudel_cli_environment = getenv( 'RUDEL_ENVIRONMENT' );\n"
+			. "if ( false === \$rudel_cli_environment || '' === \$rudel_cli_environment ) {\n"
+			. "    putenv( 'RUDEL_ENVIRONMENT={$id}' );\n}\n"
+			. "unset( \$rudel_cli_environment );\n";
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Generated selector runs before WordPress loads.
+		file_put_contents( $selector_path, $selector );
 		$url     = trailingslashit( $environment_url );
 		$content = 'path: ' . $this->get_wp_core_path() . "\n"
-			. 'url: ' . $url . "\n";
+			. 'url: ' . $url . "\n"
+			. "require:\n  - '" . str_replace( "'", "''", $selector_path ) . "'\n";
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing environment wp-cli.yml.
 		file_put_contents( $path . '/wp-cli.yml', $content );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Setting read-only on generated file.

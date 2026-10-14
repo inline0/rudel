@@ -115,6 +115,12 @@ wp rudel snapshot <id> --name=<name>
 
 Creates a named snapshot.
 
+```bash
+wp rudel snapshot delete <id> --name=<name>
+```
+
+Deletes the named snapshot, including its saved tables and files.
+
 ## restore
 
 ```bash

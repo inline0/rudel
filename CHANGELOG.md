@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.10.1 - 2026-10-14
+
+- Excluded existing sandbox and snapshot table groups from host and sandbox clones so repeated creates copy only the source site's tables.
+- Added snapshot deletion through the PHP API and WP-CLI, allowed generated snapshot prefixes in guarded table cleanup, and validated snapshot names before restore or delete.
+- Generated a PHP selector alongside each sandbox's WP-CLI config so commands run from its directory select that sandbox and honour an explicit environment override.
+- Included standalone remote checkouts in merged-branch cleanup after a successful fetch and a clean-worktree check against the recorded remote base branch.
+
 ## v0.10.0 - 2026-06-03
 
 - Completed the hard cut to sandbox-only request overlays by removing the app environment model, app CLI, app APIs, app repositories, app deployment history, app domain routing, and app runtime tables.

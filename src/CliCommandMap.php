@@ -290,6 +290,20 @@ class CliCommandMap {
 				'Create a sandbox snapshot.'
 			),
 			self::definition_item(
+				'sandbox.snapshot.delete',
+				array( 'snapshot', 'delete' ),
+				SnapshotCommand::class,
+				'__invoke',
+				array(
+					array(
+						'transport' => 'php',
+						'callable'  => Rudel::class . '::delete_snapshot',
+					),
+				),
+				CliCommandAdapters::class . '::sandbox_snapshot_delete',
+				'Delete a sandbox snapshot.'
+			),
+			self::definition_item(
 				'template.list',
 				array( 'template', 'list' ),
 				TemplateCommand::class,

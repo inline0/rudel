@@ -55,7 +55,7 @@ Rudel prints the generated sandbox ID, for example `alpha-3be7`. It clones the h
 RUDEL_ENVIRONMENT=alpha-3be7 wp option get blogname
 ```
 
-Without `RUDEL_ENVIRONMENT`, WP-CLI talks to the host.
+Inside a sandbox directory, its generated `wp-cli.yml` loads a selector before WordPress boots, so ordinary commands such as `wp post list` use that sandbox. An explicit `RUDEL_ENVIRONMENT` takes precedence. From the host directory, set `RUDEL_ENVIRONMENT` to select a sandbox.
 
 ## Route HTTP into a sandbox
 

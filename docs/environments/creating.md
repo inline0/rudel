@@ -20,7 +20,7 @@ Rudel generates an ID from the name plus four hex characters (for example `alpha
 
 If `--theme` is omitted, Rudel uses the host site's active theme. The theme must be installed on the host. A child theme brings its parent theme along.
 
-Every table with the host table prefix is copied, including `users` and `usermeta`, except Rudel's own tables. In the current release that also includes the tables of sandboxes that already exist, so each new sandbox is larger than the last. See [issue #3](https://github.com/inline0/rudel/issues/3).
+Host tables are copied, including `users` and `usermeta`. Rudel excludes its runtime metadata and the prefixes of existing sandboxes, including their snapshot tables.
 
 ## Create from another sandbox
 
@@ -28,7 +28,7 @@ Every table with the host table prefix is copied, including `users` and `usermet
 wp rudel create --name=feature-b --clone-from=alpha-3be7
 ```
 
-The new sandbox receives a copy of every table with the source sandbox's prefix, including the source's snapshot tables, and its theme. Snapshot directories are not copied, so those tables are unused in the new sandbox ([issue #12](https://github.com/inline0/rudel/issues/12)). When the source theme directory is a Git repository, Rudel creates a linked worktree on the branch `rudel/{new-id}` instead of a plain copy. The source ID is recorded in the new record.
+The new sandbox receives the source sandbox's current tables and theme. The source's snapshot tables stay with the source. When the source theme directory is a Git repository, Rudel creates a linked worktree on the branch `rudel/{new-id}` instead of a plain copy. The source ID is recorded in the new record.
 
 ## Lifecycle metadata
 

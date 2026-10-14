@@ -48,4 +48,4 @@ By default Rudel first saves the current state as a snapshot named `pre-restore-
 
 ## Listing and removing
 
-There is no CLI command to list or delete snapshots. From PHP, `Rudel::snapshots( $id )` lists them, newest first. Snapshot tables are dropped when the sandbox is destroyed; until then they stay, including the automatic `pre-restore-*` ones ([issue #5](https://github.com/inline0/rudel/issues/5)).
+From PHP, `Rudel::snapshots( $id )` lists snapshots, newest first. Delete one with `wp rudel snapshot delete <id> --name=<name>` or `Rudel::delete_snapshot( $id, $name )`. Deletion removes its tables and directory while preserving the sandbox's live tables. `SnapshotManager::prune( $keep )` keeps the newest positive number of snapshots; a non-positive value leaves them unchanged.

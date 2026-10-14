@@ -406,8 +406,12 @@ class SnapshotManager {
 	 *
 	 * @param string $name Recovery point name.
 	 * @return string Absolute path.
+	 * @throws \InvalidArgumentException If the name could escape snapshot storage.
 	 */
 	private function get_snapshot_path( string $name ): string {
+		if ( ! self::validate_name( $name ) ) {
+			throw new \InvalidArgumentException( sprintf( 'Invalid %s name: %s', $this->kind, $name ) );
+		}
 		return $this->get_snapshots_dir() . '/' . $name;
 	}
 

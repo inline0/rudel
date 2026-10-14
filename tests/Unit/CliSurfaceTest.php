@@ -25,6 +25,7 @@ class CliSurfaceTest extends TestCase
                 'sandbox.push',
                 'sandbox.restore',
                 'sandbox.snapshot',
+                'sandbox.snapshot.delete',
                 'template.list',
                 'template.save',
                 'template.delete',

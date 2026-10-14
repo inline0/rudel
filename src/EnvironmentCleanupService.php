@@ -163,6 +163,7 @@ class EnvironmentCleanupService {
 			}
 
 			$is_merged = false;
+			$remote_checkout = null;
 
 			if ( $has_git ) {
 				$is_merged_locally = true;
@@ -177,6 +178,13 @@ class EnvironmentCleanupService {
 					}
 				}
 				$is_merged = $is_merged_locally;
+			} elseif ( $has_remote ) {
+				$git_dir = $environment->get_git_dir();
+				if ( is_string( $git_dir ) && '' !== $git_dir ) {
+					$remote_checkout = $environment->get_runtime_content_path( $git_dir );
+					$base_branch = $environment->get_git_base_branch() ?? $git->get_default_branch( $remote_checkout );
+					$is_merged = $git->is_remote_branch_merged( $remote_checkout, $branch, $base_branch );
+				}
 			}
 
 			if ( ! $is_merged ) {
@@ -210,6 +218,8 @@ class EnvironmentCleanupService {
 					$repo_control = $git->common_git_dir( $first_repo ) ?? $first_repo;
 					$git->delete_remote_branch( $repo_control, $branch );
 				}
+			} elseif ( $has_remote && null !== $remote_checkout ) {
+				$git->delete_remote_branch( $remote_checkout, $branch );
 			}
 
 			if ( ( $this->destroyer )( $environment->id ) ) {

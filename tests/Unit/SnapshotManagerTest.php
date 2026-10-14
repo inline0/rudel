@@ -64,5 +64,13 @@ class SnapshotManagerTest extends RudelTestCase
 		$this->assertFileDoesNotExist(ThemeOverlay::theme_root_for($environment) . '/demo-theme/local-only.php');
 		$this->assertFileExists($wordpressRoot . '/wp-content/plugins/demo-plugin/demo-plugin.php');
 		$this->assertFileExists($wordpressRoot . '/wp-content/uploads/2026/04/demo.txt');
+
+		$metadata = json_decode((string) file_get_contents($snapshotPath . '/db_snapshot.json'), true);
+		$snapshotPrefix = $metadata['table_prefix'];
+		$this->assertTrue($manager->delete('baseline'));
+		$this->assertDirectoryDoesNotExist($snapshotPath);
+		$this->assertSame([], array_values(array_filter($GLOBALS['wpdb']->getTableNames(), static fn(string $table): bool => str_starts_with($table, $snapshotPrefix))));
+		$this->assertTrue($GLOBALS['wpdb']->hasTable($environment->get_table_prefix() . 'options'));
+		$this->assertFalse($manager->delete('baseline'));
 	}
 }

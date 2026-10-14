@@ -377,6 +377,15 @@ else
 	exit 1
 fi
 
+DIRECTORY_BLOGNAME=$(wp_shell "cd $(printf '%q' "$ALPHA_PATH") && wp option get blogname" | tail -1)
+EXPLICIT_BLOGNAME=$(wp_shell "cd $(printf '%q' "$ALPHA_PATH") && RUDEL_ENVIRONMENT=$(printf '%q' "$BETA_ID") wp option get blogname" | tail -1)
+if [[ "$DIRECTORY_BLOGNAME" == "Alpha Site" && "$EXPLICIT_BLOGNAME" == "Beta Site" ]]; then
+	pass "Generated sandbox WP-CLI config selects its DB and preserves an explicit selector"
+else
+	fail "Generated sandbox WP-CLI selector failed" "directory=${DIRECTORY_BLOGNAME} explicit=${EXPLICIT_BLOGNAME}"
+	exit 1
+fi
+
 ALPHA_BODY="$(mktemp)"
 ALPHA_STATUS=$(overlay_http_status "$ALPHA_ID" "$ALPHA_BODY")
 if [[ "$ALPHA_STATUS" == "200" ]] && grep -q "Alpha Site" "$ALPHA_BODY" && grep -q "rudel-host-theme" "$ALPHA_BODY"; then
@@ -420,6 +429,26 @@ else
 	exit 1
 fi
 
+BASE_TABLE_COUNT=$(wp_cli db query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND LEFT(table_name,LENGTH('${ALPHA_PREFIX}'))='${ALPHA_PREFIX}' AND table_name NOT LIKE '%snap_%'" --skip-column-names | tail -1)
+for clone_option in "" "--clone-from=${ALPHA_ID}"; do
+	CLONE_OUTPUT=$(wp_cli rudel create --name=regression-clone ${clone_option:+"$clone_option"})
+	CLONE_ID=$(parse_created_id "Sandbox created" "$CLONE_OUTPUT")
+	if [[ -z "$CLONE_ID" ]]; then
+		fail "Regression clone creation failed" "$CLONE_OUTPUT"
+		exit 1
+	fi
+	SANDBOX_IDS+=("$CLONE_ID")
+	CLONE_PREFIX=$(environment_json "$CLONE_ID" | json_field table_prefix)
+	CLONE_TABLE_COUNT=$(wp_cli db query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND LEFT(table_name,LENGTH('${CLONE_PREFIX}'))='${CLONE_PREFIX}'" --skip-column-names | tail -1)
+	if [[ "$CLONE_TABLE_COUNT" == "$BASE_TABLE_COUNT" ]]; then
+		pass "Clone ${clone_option:-from-host} excludes sibling and snapshot tables"
+	else
+		fail "Clone copied extra tables" "expected=${BASE_TABLE_COUNT} actual=${CLONE_TABLE_COUNT}"
+		exit 1
+	fi
+	wp_cli rudel destroy "$CLONE_ID" --force >/dev/null
+done
+
 wp_env_cli "$ALPHA_ID" option update blogname "Alpha Changed" >/dev/null
 wp_cli rudel restore "$ALPHA_ID" --snapshot=baseline --force >/dev/null
 ALPHA_RESTORED=$(wp_env_cli "$ALPHA_ID" option get blogname | tail -1)
@@ -427,6 +456,14 @@ if [[ "$ALPHA_RESTORED" == "Alpha Site" ]]; then
 	pass "Snapshot restore returns the sandbox DB state to its prior value"
 else
 	fail "Snapshot restore did not restore sandbox DB state" "$ALPHA_RESTORED"
+	exit 1
+fi
+
+SNAPSHOT_DELETE_OUTPUT=$(wp_cli rudel snapshot delete "$ALPHA_ID" --name=baseline)
+if echo "$SNAPSHOT_DELETE_OUTPUT" | grep -q "Snapshot deleted: baseline" && wp_shell "test ! -d '${ALPHA_PATH}/snapshots/baseline'" >/dev/null; then
+	pass "Snapshot delete command removes its directory and tables"
+else
+	fail "Snapshot delete failed" "$SNAPSHOT_DELETE_OUTPUT"
 	exit 1
 fi
 

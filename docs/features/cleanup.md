@@ -49,7 +49,7 @@ Last activity is updated by every request that selects the sandbox and by snapsh
 wp rudel cleanup --merged --dry-run
 ```
 
-`--merged` runs a separate pass instead of the policy above. It removes a sandbox when every linked Git worktree recorded for it is on a branch that is merged into the repository's default branch, then deletes those branches. Linked worktrees come from cloning a sandbox whose theme directory is a Git repository (see [Git](/docs/features/git)). Sandboxes created with `--git` have no worktree records and are always skipped ([issue #8](https://github.com/inline0/rudel/issues/8)).
+`--merged` runs a separate pass instead of the policy above. It removes a sandbox when every linked Git worktree recorded for it is on a branch that is merged into the repository's default branch, then deletes those branches. Linked worktrees come from cloning a sandbox whose theme directory is a Git repository (see [Git](/docs/features/git)). Sandboxes created with `--git` are checked through their recorded checkout directory and base branch. Rudel fetches tracking refs before checking ancestry, and skips a remote checkout with local edits or a failed fetch.
 
 ## Protected sandboxes
 

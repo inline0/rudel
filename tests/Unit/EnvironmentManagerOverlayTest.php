@@ -87,6 +87,19 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 		$this->assertSame('host-theme', $this->tableOptionValue($environment->get_table_prefix(), 'stylesheet'));
 		$this->assertFileExists($environment->path . '/wp-cli.yml');
 		$this->assertStringContainsString('path: ' . $wordpressRoot, (string) file_get_contents($environment->path . '/wp-cli.yml'));
+		$this->assertStringContainsString('rudel-cli.php', (string) file_get_contents($environment->path . '/wp-cli.yml'));
+		$selector = $environment->path . '/rudel-cli.php';
+		$originalSelection = getenv('RUDEL_ENVIRONMENT');
+		try {
+			putenv('RUDEL_ENVIRONMENT');
+			require $selector;
+			$this->assertSame($environment->id, getenv('RUDEL_ENVIRONMENT'));
+			putenv('RUDEL_ENVIRONMENT=explicit-selection');
+			require $selector;
+			$this->assertSame('explicit-selection', getenv('RUDEL_ENVIRONMENT'));
+		} finally {
+			putenv(false === $originalSelection ? 'RUDEL_ENVIRONMENT' : 'RUDEL_ENVIRONMENT=' . $originalSelection);
+		}
 		$this->assertFileExists(ThemeOverlay::theme_root_for($environment) . '/host-theme/style.css');
 		$this->assertFileDoesNotExist($environment->path . '/bootstrap.php');
 		$this->assertFileDoesNotExist($environment->path . '/wp-content/db.php');
@@ -137,6 +150,26 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 
 	#[RunInSeparateProcess]
 	#[PreserveGlobalState(false)]
+	public function testHostClonesExcludeExistingSandboxesAndTheirSnapshots(): void
+	{
+		$this->defineWordPressRuntime();
+		$manager = new EnvironmentManager($this->tmpDir . '/sandboxes', $this->runtimeStore());
+		$first = $manager->create('Existing Site', ['theme' => 'host-theme']);
+		$suffixes = static function (string $prefix): array {
+			$tables = array_filter($GLOBALS['wpdb']->getTableNames(), static fn(string $table): bool => str_starts_with($table, $prefix));
+			$names = array_map(static fn(string $table): string => substr($table, strlen($prefix)), $tables);
+			sort($names);
+			return $names;
+		};
+		$expected = $suffixes($first->get_table_prefix());
+		(new \Rudel\SnapshotManager($first))->create('baseline');
+		$second = $manager->create('Fresh Site', ['theme' => 'host-theme']);
+		$this->assertSame($expected, $suffixes($second->get_table_prefix()));
+		$this->assertNotEmpty($expected);
+	}
+
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState(false)]
 	public function testCreateCopiesChildThemeParentAndStoresTemplateOption(): void
 	{
 		$wordpressRoot = $this->defineWordPressRuntime();
@@ -178,6 +211,7 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 			]
 		);
 
+		(new \Rudel\SnapshotManager($source))->create('baseline');
 		$clone = $manager->create('Clone Site', ['clone_from' => $source->id]);
 
 		$this->assertSame('Source Blogname', $this->tableOptionValue($clone->get_table_prefix(), 'blogname'));
@@ -186,6 +220,8 @@ class EnvironmentManagerOverlayTest extends RudelTestCase
 		$this->assertFileExists(ThemeOverlay::theme_root_for($clone) . '/host-theme/custom.php');
 		$this->assertSame($source->id, $clone->source_environment_id);
 		$this->assertSame('overlay', $clone->clone_source['engine'] ?? null);
+		$snapshotTables = array_filter($GLOBALS['wpdb']->getTableNames(), static fn(string $table): bool => str_starts_with($table, $clone->get_table_prefix() . 'snap_'));
+		$this->assertSame([], array_values($snapshotTables));
 	}
 
 	#[RunInSeparateProcess]

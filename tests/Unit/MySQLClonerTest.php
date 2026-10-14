@@ -126,6 +126,25 @@ class MySQLClonerTest extends RudelTestCase
         $this->cloner->drop_tables('wp_');
     }
 
+    public function testDropTablesAcceptsOverlaySnapshotsAndKeepsLiveTables(): void
+    {
+        $this->setGlobalWpdb();
+        $this->mockWpdb->addTable('wp_e473a17_snap_3ba676_options', 'CREATE TABLE t (id int)', []);
+        $this->mockWpdb->addTable('wp_e473a17_options', 'CREATE TABLE t (id int)', []);
+        $this->mockWpdb->addTable('wp_options', 'CREATE TABLE t (id int)', []);
+        $this->assertSame(1, $this->cloner->drop_tables('wp_e473a17_snap_3ba676_'));
+        $this->assertTrue($this->mockWpdb->hasTable('wp_e473a17_options'));
+        $this->assertTrue($this->mockWpdb->hasTable('wp_options'));
+    }
+
+    public function testDropTablesProtectsAHostPrefixThatLooksLikeAnOverlay(): void
+    {
+        $this->setGlobalWpdb();
+        $this->mockWpdb->base_prefix = 'wp_e473a17_';
+        $this->expectException(\RuntimeException::class);
+        $this->cloner->drop_tables('wp_e473a17_');
+    }
+
     public function testDropTablesRefusesCustomPrefix(): void
     {
         $this->setGlobalWpdb();

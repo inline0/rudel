@@ -309,9 +309,9 @@ class Rudel {
 	 * @return void
 	 */
 	public static function init( Connection $connection, array $context = array() ): void {
-		self::$store                = RudelDatabase::for_connection( $connection );
-		self::$context              = self::normalize_context( $context );
-		self::$manager_instance     = null;
+		self::$store            = RudelDatabase::for_connection( $connection );
+		self::$context          = self::normalize_context( $context );
+		self::$manager_instance = null;
 	}
 
 	/**
@@ -329,9 +329,9 @@ class Rudel {
 	 * @return void
 	 */
 	public static function reset(): void {
-		self::$store                = null;
-		self::$context              = array();
-		self::$manager_instance     = null;
+		self::$store            = null;
+		self::$context          = array();
+		self::$manager_instance = null;
 		RudelDatabase::reset();
 	}
 
@@ -523,22 +523,22 @@ class Rudel {
 		}
 
 		return array(
-			'bootstrap_installed'                 => $bootstrap_ok,
-			'current_environment_id'              => self::environment_id(),
-			'current_environment_type'            => $type,
-			'sandboxes_directory'                 => self::environments_dir(),
-			'active_sandboxes'                    => count( self::all() ),
-			'config_storage'                      => 'wp_options',
-			'config_option'                       => $config->option_name(),
-			'default_ttl_days'                    => $config->get( 'default_ttl_days' ),
-			'max_age_days'                        => $config->get( 'max_age_days' ),
-			'max_idle_days'                       => $config->get( 'max_idle_days' ),
-			'auto_cleanup'                        => $config->get( 'auto_cleanup_enabled' ) > 0,
-			'auto_cleanup_merged'                 => $config->get( 'auto_cleanup_merged' ) > 0,
-			'expiring_environment_notice_days'    => $config->get( 'expiring_environment_notice_days' ),
-			'automation_scheduled'                => $automation_on,
-			'wordpress_multisite'                 => function_exists( 'is_multisite' ) && is_multisite(),
-			'php_version'                         => PHP_VERSION,
+			'bootstrap_installed'              => $bootstrap_ok,
+			'current_environment_id'           => self::environment_id(),
+			'current_environment_type'         => $type,
+			'sandboxes_directory'              => self::environments_dir(),
+			'active_sandboxes'                 => count( self::all() ),
+			'config_storage'                   => 'wp_options',
+			'config_option'                    => $config->option_name(),
+			'default_ttl_days'                 => $config->get( 'default_ttl_days' ),
+			'max_age_days'                     => $config->get( 'max_age_days' ),
+			'max_idle_days'                    => $config->get( 'max_idle_days' ),
+			'auto_cleanup'                     => $config->get( 'auto_cleanup_enabled' ) > 0,
+			'auto_cleanup_merged'              => $config->get( 'auto_cleanup_merged' ) > 0,
+			'expiring_environment_notice_days' => $config->get( 'expiring_environment_notice_days' ),
+			'automation_scheduled'             => $automation_on,
+			'wordpress_multisite'              => function_exists( 'is_multisite' ) && is_multisite(),
+			'php_version'                      => PHP_VERSION,
 		);
 	}
 
@@ -689,6 +689,22 @@ class Rudel {
 		}
 		$snap_manager = new SnapshotManager( $sandbox );
 		return $snap_manager->list_snapshots();
+	}
+
+	/**
+	 * Delete a sandbox snapshot and its database tables.
+	 *
+	 * @param string $sandbox_id Sandbox identifier.
+	 * @param string $name Snapshot name.
+	 * @return bool Whether the snapshot existed and was removed.
+	 * @throws \RuntimeException If the sandbox is not found.
+	 */
+	public static function delete_snapshot( string $sandbox_id, string $name ): bool {
+		$sandbox = self::get( $sandbox_id );
+		if ( ! $sandbox ) {
+			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
+		}
+		return ( new SnapshotManager( $sandbox ) )->delete( $name );
 	}
 
 	/**
