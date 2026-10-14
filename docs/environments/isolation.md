@@ -73,7 +73,7 @@ For a selected request, Rudel:
 - blocks outbound email through a `pre_wp_mail` filter
 - sets `WP_TEMP_DIR` to the sandbox `tmp` directory
 - sets `WP_CACHE_KEY_SALT` to a sandbox-specific value so persistent object caches keep sandbox keys apart
-- routes PHP errors to the sandbox `debug.log` with browser display disabled and derives effective authentication salts from the environment ID and WordPress's secret salt
+- routes PHP errors to the sandbox `logs/debug.php` with browser display disabled and derives effective authentication salts from the environment ID and WordPress's secret salt
 
 Existing WordPress constants retain their configured values. The `salt` filter scopes the effective signing secret to the selected environment, so host and sibling authentication cookies are rejected. PHP logging is configured after WordPress's debug setup, so host debug constants do not prevent the sandbox log.
 

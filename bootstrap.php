@@ -34,6 +34,7 @@ if ( defined( 'RUDEL_ID' ) ) {
 
 require_once __DIR__ . '/src/RuntimeTableConfig.php';
 require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
+require_once __DIR__ . '/src/PrivateStorage.php';
 
 	( function () use ( &$rudel_bootstrap_requested_url, &$rudel_bootstrap_host_url, $rudel_bootstrap_sapi ) {
 		$plugin_dir       = __DIR__;
@@ -318,7 +319,7 @@ require_once __DIR__ . '/src/BootstrapRuntimeStore.php';
 
 		// Keep sandbox notices out of browser output while preserving a per-environment debug trail.
 		$def( 'WP_DEBUG', true );
-		$def( 'WP_DEBUG_LOG', $sandbox_path . '/debug.log' );
+		$def( 'WP_DEBUG_LOG', \Rudel\PrivateStorage::log_file( $sandbox_path ) );
 		$def( 'WP_DEBUG_DISPLAY', false );
 
 		// Shared Redis/Memcached backends need an environment-specific salt or cached state will bleed across sites.

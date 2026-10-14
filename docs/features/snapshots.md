@@ -30,7 +30,10 @@ Snapshots are for sandbox recovery, not for runtime identity. The environment re
 
 - every table with the sandbox prefix, users included, copied in the same database under `{sandbox_prefix}snap_{hash}_`, for example `wp_b65338d_snap_3ba676_options`
 - the sandbox theme directory, copied to `snapshots/{name}/themes` in the sandbox directory
-- metadata in `snapshots/{name}/snapshot.json` and `snapshots/{name}/db_snapshot.json`
+- metadata in the host Rudel artifacts table; older JSON metadata is migrated and removed
+- local Git-created plugin overrides, when present
+
+Snapshot files are protected from Apache requests by directory deny rules. On servers that do not read `.htaccess`, deny HTTP access to the private recovery directories in the server configuration.
 
 A snapshot therefore costs a full copy of the sandbox tables in the host database plus a copy of the theme files.
 
@@ -42,7 +45,7 @@ A snapshot therefore costs a full copy of the sandbox tables in the host databas
 
 ## Restore
 
-A restore drops the sandbox tables (keeping snapshot tables), copies the snapshot tables back, and replaces the sandbox theme directory with the saved copy.
+A restore drops the sandbox tables (keeping snapshot tables), copies the snapshot tables back, and replaces the sandbox theme directory and captured local plugin overrides with the saved copies.
 
 By default Rudel first saves the current state as a snapshot named `pre-restore-{timestamp}-{hash}`, so a restore can be undone. Set `auto_snapshot_before_restore` to `0` in `rudel_config` to turn that off.
 

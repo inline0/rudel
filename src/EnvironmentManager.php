@@ -130,10 +130,17 @@ class EnvironmentManager {
 				throw new \InvalidArgumentException( sprintf( 'Invalid environment type: %s. Rudel creates sandbox environments only.', $target_type ) );
 			}
 
+			$template         = is_string( $options['template'] ?? null ) ? $options['template'] : 'overlay';
+			$template_manager = new TemplateManager( null, $this->store );
+			$saved_template   = ! in_array( $template, array( 'overlay', 'blank' ), true ) ? $template_manager->get( $template ) : null;
+			if ( null !== $saved_template && null !== $clone_from ) {
+				throw new \InvalidArgumentException( 'Choose either a saved template or clone_from.' );
+			}
 			$table_prefix = Environment::table_prefix_for_id( $id );
-			$theme_slug   = $this->resolve_overlay_theme_slug( $options );
+			$theme_slug   = null !== $saved_template && ! isset( $options['theme'] ) && ! isset( $options['theme_slug'] )
+				? ( is_string( $saved_template['theme_slug'] ?? null ) ? $saved_template['theme_slug'] : null )
+				: $this->resolve_overlay_theme_slug( $options );
 			$target_url   = $this->get_target_environment_url( $id, null );
-			$template     = is_string( $options['template'] ?? null ) ? (string) $options['template'] : 'overlay';
 
 			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for environment scaffolding.
 			if ( ! is_dir( $this->environments_dir ) ) {
@@ -150,6 +157,7 @@ class EnvironmentManager {
 			mkdir( $path . '/metadata', 0755 );
 			mkdir( $path . '/tmp', 0755 );
 			// phpcs:enable
+			PrivateStorage::environment( $path );
 
 			$clone_source       = null;
 			$clone_lineage      = array();
@@ -169,6 +177,16 @@ class EnvironmentManager {
 					'source_environment_id'   => $source_environment->id,
 					'source_environment_type' => $source_environment->type,
 				);
+			} elseif ( null !== $saved_template ) {
+				$template_manager->restore_into( $template, $table_prefix, $path, $target_url );
+				$stored_source = $saved_template['clone_source'] ?? null;
+				$clone_source  = array(
+					'template'   => $template,
+					'source_url' => $saved_template['source_url'] ?? null,
+				);
+				if ( is_array( $stored_source ) && is_string( $stored_source['git_plugin_file'] ?? null ) ) {
+					$clone_source['git_plugin_file'] = $stored_source['git_plugin_file'];
+				}
 			} else {
 				$clone_result = $this->clone_host_database_to_overlay( $table_prefix, $target_url );
 				$clone_source = $this->build_clone_source(
@@ -187,7 +205,7 @@ class EnvironmentManager {
 				);
 			}
 
-			if ( null !== $theme_slug && ! $clone_from ) {
+			if ( null !== $theme_slug && ! $clone_from && ( null === $saved_template || isset( $options['theme'] ) || isset( $options['theme_slug'] ) ) ) {
 				( new ThemeOverlay() )->copy_theme( $theme_slug, ThemeOverlay::theme_root_for( $path ) );
 			}
 
@@ -379,6 +397,11 @@ class EnvironmentManager {
 		Hooks::action( 'rudel_before_environment_destroy', $context );
 
 		try {
+			foreach ( ( new SnapshotManager( $environment ) )->list_snapshots() as $snapshot ) {
+				if ( is_string( $snapshot['name'] ?? null ) ) {
+					( new SnapshotManager( $environment ) )->delete( $snapshot['name'] );
+				}
+			}
 			$this->remove_environment_worktrees( $environment );
 
 			if ( $environment->is_subsite() && $environment->blog_id ) {
@@ -690,6 +713,7 @@ class EnvironmentManager {
 		$excluded    = array(
 			$host_prefix . RuntimeTableConfig::table( 'environments' ),
 			$host_prefix . RuntimeTableConfig::table( 'worktrees' ),
+			$host_prefix . RuntimeTableConfig::table( 'artifacts' ),
 			$target_prefix,
 		);
 		if ( '' !== RuntimeTableConfig::prefix() ) {
@@ -886,8 +910,8 @@ class EnvironmentManager {
 	 */
 	private function write_wp_cli_yml( string $path, string $environment_url ): void {
 		$selector_path = $path . '/rudel-cli.php';
-		$id = basename( $path );
-		$selector = "<?php\nif ( 'cli' !== PHP_SAPI ) { exit; }\n"
+		$id            = basename( $path );
+		$selector      = "<?php\nif ( 'cli' !== PHP_SAPI ) { exit; }\n"
 			. "\$rudel_cli_environment = getenv( 'RUDEL_ENVIRONMENT' );\n"
 			. "if ( false === \$rudel_cli_environment || '' === \$rudel_cli_environment ) {\n"
 			. "    putenv( 'RUDEL_ENVIRONMENT={$id}' );\n}\n"

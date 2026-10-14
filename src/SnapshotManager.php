@@ -34,7 +34,7 @@ class SnapshotManager {
 	private string $storage_dir;
 
 	/**
-	 * Metadata filename stored inside each recovery point.
+	 * Legacy metadata filename used during database migration.
 	 *
 	 * @var string
 	 */
@@ -92,6 +92,7 @@ class SnapshotManager {
 
 		try {
 			$storage_dir = $this->get_snapshots_dir();
+			PrivateStorage::protect( $storage_dir );
 			if ( ! is_dir( $storage_dir ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for recovery point management.
 				mkdir( $storage_dir, 0755, true );
@@ -108,24 +109,13 @@ class SnapshotManager {
 			$mysql_cloner->copy_tables( $source_prefix, $snap_prefix, array( $source_prefix . 'snap_' ) );
 			$user_snapshot = ( new EnvironmentUserIsolationService() )->snapshot( $this->environment, $snap_prefix );
 
-			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing recovery point DB metadata.
-			file_put_contents(
-				$point_path . '/db_snapshot.json',
-				json_encode(
-					array(
-						'engine'       => $this->environment->engine,
-						'table_prefix' => $snap_prefix,
-						'user_tables'  => $user_snapshot,
-					),
-					JSON_PRETTY_PRINT
-				) . "\n"
-			);
-			// phpcs:enable
-
 			if ( $this->environment->is_overlay() ) {
 				$theme_root = ThemeOverlay::theme_root_for( $this->environment );
 				if ( is_dir( $theme_root ) ) {
 					( new ContentCloner() )->copy_directory( $theme_root, $point_path . '/themes' );
+				}
+				if ( is_dir( $this->environment->path . '/plugins' ) && ! is_link( $this->environment->path . '/plugins' ) ) {
+					( new ContentCloner() )->copy_directory( $this->environment->path . '/plugins', $point_path . '/plugins' );
 				}
 			} else {
 				EnvironmentContentLayout::copy_owned_wp_content( $this->environment, $point_path . '/wp-content' );
@@ -137,12 +127,19 @@ class SnapshotManager {
 				$this->owner_id_key => $this->environment->id,
 			);
 
-			// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing recovery point metadata.
-			file_put_contents(
-				$point_path . '/' . $this->metadata_file,
-				json_encode( $meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n"
+			$this->repository()->save(
+				$name,
+				array_merge(
+					$meta,
+					array(
+						'db_snapshot' => array(
+							'engine'       => $this->environment->engine,
+							'table_prefix' => $snap_prefix,
+							'user_tables'  => $user_snapshot,
+						),
+					)
+				)
 			);
-			// phpcs:enable
 
 			$this->environment->update_meta_batch(
 				array(
@@ -178,22 +175,13 @@ class SnapshotManager {
 				continue;
 			}
 
-			$meta_file = $snapshots_dir . '/' . $dir . '/' . $this->metadata_file;
-			if ( ! file_exists( $meta_file ) ) {
+			if ( ! self::validate_name( $dir ) || ! is_dir( $snapshots_dir . '/' . $dir ) ) {
 				continue;
 			}
-
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local recovery point metadata.
-			$raw_contents = file_get_contents( $meta_file );
-			if ( ! is_string( $raw_contents ) ) {
-				continue;
-			}
-			$data = json_decode( $raw_contents, true );
-			if ( is_array( $data ) ) {
-				// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for json_decode result.
-				/** @var array<string, mixed> $typed_data */
-				$typed_data  = $data;
-				$snapshots[] = $typed_data;
+			$data = $this->metadata( $dir );
+			if ( null !== $data ) {
+				unset( $data['db_snapshot'] );
+				$snapshots[] = $data;
 			}
 		}
 
@@ -250,12 +238,10 @@ class SnapshotManager {
 				$this->create( $this->auto_recovery_point_name( 'pre-restore' ) );
 			}
 
-			$db_meta_file = $point_path . '/db_snapshot.json';
-			if ( file_exists( $db_meta_file ) ) {
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading recovery point metadata.
-				$db_meta_contents = file_get_contents( $db_meta_file );
-				$db_meta          = is_string( $db_meta_contents ) ? json_decode( $db_meta_contents, true ) : null;
-				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) && is_string( $db_meta['table_prefix'] ) ) {
+			$record  = $this->metadata( $name );
+			$db_meta = $record['db_snapshot'] ?? null;
+			if ( is_array( $db_meta ) ) {
+				if ( ! empty( $db_meta['table_prefix'] ) && is_string( $db_meta['table_prefix'] ) ) {
 					$mysql_cloner  = new MySQLCloner();
 					$target_prefix = $this->environment->get_table_prefix();
 					$mysql_cloner->drop_tables( $target_prefix, array( $target_prefix . 'snap_' ) );
@@ -283,6 +269,10 @@ class SnapshotManager {
 				$content_cloner->copy_directory( $snapshot_content, $environment_content );
 			}
 
+			if ( $this->environment->is_overlay() && is_dir( $point_path . '/plugins' ) ) {
+				$this->delete_directory( $this->environment->path . '/plugins' );
+				( new ContentCloner() )->copy_directory( $point_path . '/plugins', $this->environment->path . '/plugins' );
+			}
 			if ( ! $this->environment->is_overlay() ) {
 				$this->write_runtime_files( $environment_content );
 				EnvironmentContentLayout::materialize_for_environment( $this->environment );
@@ -324,12 +314,10 @@ class SnapshotManager {
 		$this->emit_action( 'before', 'delete', $context );
 
 		try {
-			$db_meta_file = $point_path . '/db_snapshot.json';
-			if ( file_exists( $db_meta_file ) ) {
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading recovery point metadata.
-				$db_meta_contents = file_get_contents( $db_meta_file );
-				$db_meta          = is_string( $db_meta_contents ) ? json_decode( $db_meta_contents, true ) : null;
-				if ( is_array( $db_meta ) && ! empty( $db_meta['table_prefix'] ) && is_string( $db_meta['table_prefix'] ) ) {
+			$record  = $this->metadata( $name );
+			$db_meta = $record['db_snapshot'] ?? null;
+			if ( is_array( $db_meta ) ) {
+				if ( ! empty( $db_meta['table_prefix'] ) && is_string( $db_meta['table_prefix'] ) ) {
 					$mysql_cloner = new MySQLCloner();
 					$mysql_cloner->drop_tables( $db_meta['table_prefix'] );
 					// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for snapshot metadata.
@@ -343,6 +331,7 @@ class SnapshotManager {
 
 			$result = $this->delete_directory( $point_path );
 			if ( $result ) {
+				$this->repository()->delete( $name );
 				$this->emit_action( 'after', 'delete', $context );
 			}
 
@@ -380,6 +369,69 @@ class SnapshotManager {
 		}
 
 		return $removed;
+	}
+
+	/**
+	 * Resolve the collection in the host metadata database.
+	 *
+	 * @return ArtifactRepository
+	 */
+	private function repository(): ArtifactRepository {
+		return new ArtifactRepository( $this->get_snapshots_dir(), $this->kind );
+	}
+
+	/**
+	 * Migrate legacy JSON only after a database record has been stored.
+	 *
+	 * @param string $name Recovery point name.
+	 * @return array<string, mixed>|null Metadata.
+	 */
+	private function metadata( string $name ): ?array {
+		PrivateStorage::protect( $this->get_snapshots_dir() );
+		$repository = $this->repository();
+		$record     = $repository->get( $name );
+		$point_path = $this->get_snapshot_path( $name );
+		if ( null === $record ) {
+			$record = $this->read_legacy_metadata( $point_path . '/' . $this->metadata_file );
+			if ( null !== $record ) {
+				$record['db_snapshot'] = $this->read_legacy_metadata( $point_path . '/db_snapshot.json' );
+				$repository->save( $name, $record );
+			}
+		}
+		if ( null !== $record ) {
+			foreach ( array( $this->metadata_file, 'db_snapshot.json' ) as $filename ) {
+				if ( is_file( $point_path . '/' . $filename ) ) {
+					// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove public metadata only after successful database migration.
+					unlink( $point_path . '/' . $filename );
+				}
+			}
+		}
+		return $record;
+	}
+
+	/**
+	 * Decode legacy metadata for one-time migration, without trusting numeric keys.
+	 *
+	 * @param string $filename Legacy JSON filename.
+	 * @return array<string, mixed>|null Metadata.
+	 */
+	private function read_legacy_metadata( string $filename ): ?array {
+		if ( ! is_file( $filename ) ) {
+			return null;
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Legacy metadata migration is available to standalone consumers.
+		$contents = file_get_contents( $filename );
+		$data     = is_string( $contents ) ? json_decode( $contents, true ) : null;
+		if ( ! is_array( $data ) ) {
+			return null;
+		}
+		$record = array();
+		foreach ( $data as $key => $value ) {
+			if ( is_string( $key ) ) {
+				$record[ $key ] = $value;
+			}
+		}
+		return $record;
 	}
 
 	/**

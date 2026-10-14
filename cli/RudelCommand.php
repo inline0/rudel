@@ -34,7 +34,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 	 * : Git remote URL. Creates a local checkout inside the sandbox and switches it to the Rudel branch.
 	 *
 	 * [--template=<template>]
-	 * : Template to use. Default: blank.
+	 * : Saved template to load. Default blank creates from the host.
 	 * ---
 	 * default: blank
 	 * ---
@@ -245,7 +245,7 @@ class RudelCommand extends AbstractEnvironmentCommand {
 		$sandbox = $this->require_environment( $args[0] );
 		$data    = $sandbox->to_array();
 
-		$data['size'] = $this->format_size( $sandbox->get_size() );
+		$data['size']       = $this->format_size( $sandbox->get_size() );
 		$data['url']        = $sandbox->get_url();
 		$data['wp_content'] = $sandbox->get_runtime_wp_content_path();
 

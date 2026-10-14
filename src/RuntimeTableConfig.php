@@ -25,6 +25,7 @@ class RuntimeTableConfig {
 	private const TABLE_CONSTANTS = array(
 		'environments' => 'RUDEL_RUNTIME_TABLE_ENVIRONMENTS',
 		'worktrees'    => 'RUDEL_RUNTIME_TABLE_WORKTREES',
+		'artifacts'    => 'RUDEL_RUNTIME_TABLE_ARTIFACTS',
 	);
 
 	/**

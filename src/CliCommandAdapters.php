@@ -177,11 +177,11 @@ class CliCommandAdapters {
 			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $id ) );
 		}
 
-		$log_path = $sandbox->get_wp_content_path() . '/debug.log';
+		$log_path = PrivateStorage::log_file( $sandbox->get_wp_content_path() );
 
 		if ( self::flag( $assoc_args, 'follow' ) ) {
 			return self::shell_plan(
-				array( 'tail', '-f', $log_path ),
+				array( 'tail', '-n', '+2', '-f', $log_path ),
 				array(
 					'path' => $log_path,
 				)

@@ -291,6 +291,16 @@ else
 	exit 1
 fi
 
+wp_cli eval '(new \Rudel\ConfigWriter())->protect_backups();' >/dev/null
+CONFIG_BACKUP=$(wp_cli eval 'echo basename(glob(ABSPATH . "wp-config.php.rudel-backup-*.php")[0]);' | tail -1)
+CONFIG_STATUS=$(curl -sS "http://localhost:8000/${CONFIG_BACKUP}" -o /dev/null -w '%{http_code}')
+if [[ "$CONFIG_STATUS" == "403" || "$CONFIG_STATUS" == "404" ]]; then
+	pass "WordPress configuration backups reject public HTTP access"
+else
+	fail "WordPress configuration backup is publicly downloadable" "$CONFIG_STATUS"
+	exit 1
+fi
+
 HOST_BODY="$(mktemp)"
 HOST_STATUS=$(curl -sS "http://localhost:8000/" -o "$HOST_BODY" -w '%{http_code}')
 if [[ "$HOST_STATUS" == "200" ]] && grep -q "Rudel Host" "$HOST_BODY" && grep -q "rudel-host-theme" "$HOST_BODY"; then
@@ -491,6 +501,49 @@ fi
 wp_cli rudel destroy "$GIT_PLUGIN_ID" --force >/dev/null
 rm -f "$GIT_BODY"
 
+wp_env_cli "$ALPHA_ID" option update blogname "TemplateSavedTitle" >/dev/null
+wp_shell "cp '${ALPHA_PATH}/themes/rudel-host-theme/index.php' '${ALPHA_PATH}/tmp/template-original.php' && printf '\n<?php echo \"TemplateSavedMarker\"; error_log(\"TemplateHttpLogMarker\"); ?>\n' >> '${ALPHA_PATH}/themes/rudel-host-theme/index.php'" >/dev/null
+wp_cli rudel template save "$ALPHA_ID" --name=point-in-time >/dev/null
+TEMPLATE_PREFIX=$(wp_cli eval 'echo (new \Rudel\TemplateManager())->get("point-in-time")["table_prefix"];' | tail -1)
+wp_env_cli "$ALPHA_ID" option update blogname "TemplateChangedTitle" >/dev/null
+wp_shell "cp '${ALPHA_PATH}/tmp/template-original.php' '${ALPHA_PATH}/themes/rudel-host-theme/index.php'" >/dev/null
+TEMPLATE_OUTPUT=$(wp_cli rudel create --name=template-copy --template=point-in-time)
+TEMPLATE_ID=$(parse_created_id "Sandbox created" "$TEMPLATE_OUTPUT")
+SANDBOX_IDS+=("$TEMPLATE_ID")
+TEMPLATE_BODY=$(mktemp)
+TEMPLATE_STATUS=$(overlay_http_status "$TEMPLATE_ID" "$TEMPLATE_BODY")
+if [[ "$TEMPLATE_STATUS" == "200" ]] && grep -q TemplateSavedMarker "$TEMPLATE_BODY" && [[ "$(wp_env_cli "$TEMPLATE_ID" option get blogname | tail -1)" == "TemplateSavedTitle" ]] && [[ "$(wp_env_cli "$TEMPLATE_ID" eval 'echo current_user_can("manage_options") ? "admin" : "missing";' --user=admin | tail -1)" == "admin" ]]; then
+	pass "Saved template restores point-in-time tables, theme files and administrator permissions"
+else
+	fail "Saved template did not restore its captured state" "$TEMPLATE_OUTPUT"
+	exit 1
+fi
+MISSING_OUTPUT=$(wp_cli rudel create --name=missing-template --template=does-not-exist 2>&1 || true)
+if echo "$MISSING_OUTPUT" | grep -q "Template not found"; then
+	pass "Create rejects an unknown saved template"
+else
+	fail "Create accepted an unknown template" "$MISSING_OUTPUT"
+	exit 1
+fi
+wp_cli rudel template delete point-in-time --force >/dev/null
+TEMPLATE_TABLES=$(wp_cli db query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND LEFT(table_name,LENGTH('${TEMPLATE_PREFIX}'))='${TEMPLATE_PREFIX}'" --skip-column-names | tail -1)
+if [[ "$TEMPLATE_TABLES" == "0" && "$(wp_env_cli "$TEMPLATE_ID" option get blogname | tail -1)" == "TemplateSavedTitle" ]]; then
+	pass "Template deletion removes saved tables and preserves created sandboxes"
+else
+	fail "Template deletion damaged a created sandbox or left saved tables"
+	exit 1
+fi
+TEMPLATE_LOG=$(wp_cli rudel logs "$TEMPLATE_ID")
+if echo "$TEMPLATE_LOG" | grep -q TemplateHttpLogMarker && ! echo "$TEMPLATE_LOG" | grep -q __halt_compiler; then
+	pass "HTTP sandbox errors are logged privately and CLI output hides the PHP guard"
+else
+	fail "HTTP sandbox logging failed or exposed its guard" "$TEMPLATE_LOG"
+	exit 1
+fi
+wp_cli rudel destroy "$TEMPLATE_ID" --force >/dev/null
+wp_env_cli "$ALPHA_ID" option update blogname "Alpha Site" >/dev/null
+rm -f "$TEMPLATE_BODY"
+
 SNAPSHOT_OUTPUT=$(wp_cli rudel snapshot "$ALPHA_ID" --name=baseline)
 if echo "$SNAPSHOT_OUTPUT" | grep -q "Snapshot created: baseline"; then
 	pass "Snapshot creation works for overlay sandboxes"
@@ -498,6 +551,22 @@ else
 	fail "Snapshot creation failed" "$SNAPSHOT_OUTPUT"
 	exit 1
 fi
+
+PRIVATE_BODY=$(mktemp)
+for private_path in "logs/debug.php" "snapshots/baseline/db_snapshot.json" "snapshots/baseline/themes/rudel-host-theme/style.css" "metadata/" "tmp/"; do
+	PRIVATE_STATUS=$(curl -sS "http://localhost:8000/wp-content/rudel-environments/${ALPHA_ID}/${private_path}" -o "$PRIVATE_BODY" -w '%{http_code}')
+	if [[ "$PRIVATE_STATUS" != "403" && "$PRIVATE_STATUS" != "404" ]]; then
+		fail "Private sandbox files must not be downloadable" "${private_path}: ${PRIVATE_STATUS}"
+		exit 1
+	fi
+done
+if wp_cli eval "if (file_exists('${ALPHA_PATH}/snapshots/baseline/snapshot.json') || file_exists('${ALPHA_PATH}/snapshots/baseline/db_snapshot.json')) { exit(1); }" >/dev/null; then
+	pass "Private logs and recovery files reject HTTP access; snapshot metadata stays in MySQL"
+else
+	fail "Snapshot metadata was written to a public JSON file"
+	exit 1
+fi
+rm -f "$PRIVATE_BODY"
 
 BASE_TABLE_COUNT=$(wp_cli db query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND LEFT(table_name,LENGTH('${ALPHA_PREFIX}'))='${ALPHA_PREFIX}' AND table_name NOT LIKE '%snap_%'" --skip-column-names | tail -1)
 for clone_option in "" "--clone-from=${ALPHA_ID}"; do
@@ -540,7 +609,7 @@ fi
 wp_cli config set WP_DEBUG false --raw >/dev/null
 wp_cli config set WP_DEBUG_LOG false --raw >/dev/null
 DEBUG_SETTINGS=$(wp_env_cli "$ALPHA_ID" eval 'error_log("RudelDebugProbe"); echo ini_get("display_errors") . ":" . ini_get("log_errors");' | tail -1)
-if [[ "$DEBUG_SETTINGS" == "0:1" ]] && wp_shell "grep -q RudelDebugProbe '${ALPHA_PATH}/debug.log'" >/dev/null; then
+if [[ "$DEBUG_SETTINGS" == "0:1" ]] && wp_shell "grep -q RudelDebugProbe '${ALPHA_PATH}/logs/debug.php'" >/dev/null; then
 	pass "Sandbox PHP logging works with host debug constants disabled and display off"
 else
 	fail "Sandbox debug routing failed"
@@ -574,7 +643,7 @@ fi
 BLOCKED_MAIL=$(wp_env_cli "$ALPHA_ID" eval 'var_export(wp_mail("nobody@example.test","DeactivatedSandboxProbe","blocked"));' | tail -1)
 ALPHA_BODY="$(mktemp)"
 ALPHA_STATUS=$(overlay_http_status "$ALPHA_ID" "$ALPHA_BODY")
-if [[ "$BLOCKED_MAIL" == "true" && "$ALPHA_STATUS" == "200" ]] && grep -q rudel-host-theme "$ALPHA_BODY" && wp_shell "grep -q DeactivatedSandboxProbe '${ALPHA_PATH}/debug.log'" >/dev/null; then
+if [[ "$BLOCKED_MAIL" == "true" && "$ALPHA_STATUS" == "200" ]] && grep -q rudel-host-theme "$ALPHA_BODY" && wp_shell "grep -q DeactivatedSandboxProbe '${ALPHA_PATH}/logs/debug.php'" >/dev/null; then
 	pass "Inactive sandbox plugin still loads mail blocking and theme overlay protections"
 else
 	fail "Inactive sandbox plugin lost runtime protections"

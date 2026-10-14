@@ -56,6 +56,7 @@ Define these in `wp-config.php` above the Rudel bootstrap line.
 | `RUDEL_ENVIRONMENTS_DIR` | `wp-content/rudel-environments` | Directory that holds sandbox directories. Theme assets are always served from `/wp-content/rudel-environments/{id}/themes`, so another directory must still be reachable at that URL. |
 | `RUDEL_RUNTIME_TABLE_PREFIX` | `rudel_` | Part of the Rudel table names after the WordPress prefix. See [Runtime State](/docs/features/runtime-state). |
 | `RUDEL_RUNTIME_TABLE_ENVIRONMENTS` | | Full name override for the environments table, after the WordPress prefix. |
+| `RUDEL_RUNTIME_TABLE_ARTIFACTS` | | Full name override for snapshot and template metadata, after the WordPress prefix. |
 | `RUDEL_RUNTIME_TABLE_WORKTREES` | | Full name override for the worktrees table, after the WordPress prefix. |
 | `RUDEL_DB_DRIVER` | `auto` | Driver for standalone `Rudel\Connection` access: `auto`, `mysqli` or `pdo`. WordPress requests always use `$wpdb`. |
 | `RUDEL_GIT_AUTHOR_NAME` | `Rudel` | Author name Rudel writes into a checkout's Git config when it has no `user.name`, used for `wp rudel push` commits. |

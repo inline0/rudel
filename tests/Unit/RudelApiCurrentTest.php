@@ -53,6 +53,6 @@ class RudelApiCurrentTest extends TestCase
         $this->assertSame('wp_alpha123_', $context['table_prefix']);
         $this->assertSame('http://example.test/', $context['url']);
         $this->assertSame('http://example.test/', $context['exit_url']);
-        $this->assertSame('/tmp/rudel/alpha-site/debug.log', $context['log_path']);
+        $this->assertSame('/tmp/rudel/alpha-site/logs/debug.php', $context['log_path']);
     }
 }

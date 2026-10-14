@@ -2,6 +2,9 @@
 
 ## v0.10.1 - 2026-10-15
 
+- Captured template tables and owned theme or plugin files, restored saved templates during create, rejected unknown names, and cleaned up saved tables during template deletion.
+- Stored snapshot and template metadata in host MySQL tables, migrated legacy JSON metadata, and protected logs, configuration backups and private recovery directories from public HTTP access.
+
 - Served Git-created themes directly from their checkout, including uninstalled and same-name host themes, and activated Git-created plugins through a sandbox-only loader.
 
 - Made the sandbox exit link validate its nonce, expire current and legacy selector cookies, and redirect to the host.

@@ -14,6 +14,25 @@ class ConfigWriterTest extends RudelTestCase
      * Each test runs in a separate process so constants can be defined fresh.
      */
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testLegacyConfigBackupsKeepOriginalContentsBehindGuard(): void
+    {
+        $configPath = $this->createWpConfig($this->tmpDir);
+        define('ABSPATH', $this->tmpDir . '/');
+        $legacy = $configPath . '.rudel-backup-2026-10-14-195827';
+        $original = file_get_contents($configPath);
+        file_put_contents($legacy, $original);
+        $writer = new ConfigWriter();
+        $writer->protect_backups();
+        $this->assertFileDoesNotExist($legacy);
+        $this->assertSame(\Rudel\PrivateStorage::LOG_HEADER . $original, file_get_contents($legacy . '.php'));
+        $this->assertSame(0600, fileperms($legacy . '.php') & 0777);
+        $writer->protect_backups();
+        $this->assertSame(\Rudel\PrivateStorage::LOG_HEADER . $original, file_get_contents($legacy . '.php'));
+        $this->assertSame($original, file_get_contents($configPath));
+    }
+
     // install()
 
     #[RunInSeparateProcess]

@@ -1,191 +1,298 @@
 <?php
 /**
- * Template manager: save and list reusable sandbox templates.
+ * Point-in-time sandbox templates with host database metadata.
  *
  * @package Rudel
  */
 
 namespace Rudel;
 
-/**
- * Manages templates stored under wp-content/rudel-templates/.
- */
+/** Saves reusable site tables and environment-owned content. */
 class TemplateManager {
-
 	/**
-	 * Absolute path to the templates directory.
+	 * Template collection directory.
 	 *
 	 * @var string
 	 */
 	private string $templates_dir;
 
 	/**
-	 * Initialize dependencies.
+	 * Optional injected runtime store.
 	 *
-	 * @param string|null $templates_dir Optional override for the templates directory.
+	 * @var DatabaseStore|null
 	 */
-	public function __construct( ?string $templates_dir = null ) {
-		$this->templates_dir = $templates_dir ?? $this->get_default_templates_dir();
+	private ?DatabaseStore $store;
+
+	/**
+	 * Bind the template collection.
+	 *
+	 * @param string|null        $templates_dir Collection directory.
+	 * @param DatabaseStore|null $store Host metadata store.
+	 */
+	public function __construct( ?string $templates_dir = null, ?DatabaseStore $store = null ) {
+		$this->templates_dir = rtrim( $templates_dir ?? EnvironmentContentLayout::host_wp_content_dir() . '/rudel-templates', '/' );
+		$this->store         = $store;
 	}
 
 	/**
-	 * Save a sandbox as a template.
+	 * Save current tables and owned theme/plugin files independently of the source.
 	 *
-	 * @param Environment $sandbox     The sandbox to save.
-	 * @param string      $name        Template name.
-	 * @param string      $description Optional description.
+	 * @param Environment $sandbox Source sandbox.
+	 * @param string      $name Template name.
+	 * @param string      $description Description.
 	 * @return array<string, mixed> Template metadata.
-	 *
-	 * @throws \InvalidArgumentException If the name is invalid or already exists.
-	 * @throws \RuntimeException If template creation fails.
+	 * @throws \InvalidArgumentException When the name is invalid or already exists.
+	 * @throws \RuntimeException When database or filesystem capture fails.
+	 * @throws \Throwable When capture fails after allocating saved tables.
 	 */
 	public function save( Environment $sandbox, string $name, string $description = '' ): array {
-		if ( ! self::validate_name( $name ) ) {
-			throw new \InvalidArgumentException( sprintf( 'Invalid template name: %s', $name ) );
+		$this->validate( $name );
+		if ( in_array( $name, array( 'overlay', 'blank' ), true ) ) {
+			throw new \InvalidArgumentException( 'Reserved template name: ' . $name );
 		}
-
-		$template_path = $this->templates_dir . '/' . $name;
-
-		if ( is_dir( $template_path ) ) {
-			throw new \InvalidArgumentException( sprintf( 'Template already exists: %s', $name ) );
+		$path = $this->templates_dir . '/' . $name;
+		if ( is_dir( $path ) || null !== $this->repository()->get( $name ) ) {
+			throw new \InvalidArgumentException( 'Template already exists: ' . $name );
 		}
-
-		if ( ! is_dir( $this->templates_dir ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Direct filesystem operations for template management.
-			mkdir( $this->templates_dir, 0755, true );
+		PrivateStorage::protect( $this->templates_dir );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Template capture uses native filesystem operations.
+		if ( ! mkdir( $path, 0755 ) ) {
+			throw new \RuntimeException( 'Cannot create template directory: ' . $path );
 		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- Creating template directory.
-		if ( ! mkdir( $template_path, 0755 ) ) {
-			throw new \RuntimeException( sprintf( 'Failed to create template directory: %s', $template_path ) );
+		$prefix = $this->table_prefix( $name );
+		try {
+			$cloner        = new MySQLCloner();
+			$source_prefix = $sandbox->get_table_prefix();
+			$count         = $cloner->copy_tables( $source_prefix, $prefix, array( $source_prefix . 'snap_' ) );
+			if ( 0 === $count ) {
+				throw new \RuntimeException( 'Template capture requires sandbox database tables.' );
+			}
+			global $wpdb;
+			if ( ! $wpdb instanceof \wpdb ) {
+				throw new \RuntimeException( 'Template capture requires WordPress database access.' );
+			}
+			$cloner->rewrite_table_prefix_in_data( $wpdb, $prefix, $source_prefix, $prefix );
+			$content = new ContentCloner();
+			if ( $sandbox->is_overlay() ) {
+				$content->copy_directory( ThemeOverlay::theme_root_for( $sandbox ), $path . '/wp-content/themes' );
+				if ( is_dir( $sandbox->path . '/plugins' ) && ! is_link( $sandbox->path . '/plugins' ) ) {
+					$content->copy_directory( $sandbox->path . '/plugins', $path . '/wp-content/plugins' );
+				}
+			} else {
+				EnvironmentContentLayout::copy_owned_wp_content( $sandbox, $path . '/wp-content' );
+			}
+			$clone_source = $sandbox->clone_source ?? array();
+			unset( $clone_source['git'], $clone_source['git_worktrees'] );
+			$meta = array(
+				'name'              => $name,
+				'created_at'        => gmdate( 'c' ),
+				'source_sandbox_id' => $sandbox->id,
+				'source_url'        => $sandbox->get_url(),
+				'description'       => $description,
+				'table_prefix'      => $prefix,
+				'theme_slug'        => $sandbox->theme_slug,
+				'clone_source'      => $clone_source,
+				'tables_cloned'     => $count,
+			);
+			$this->repository()->save( $name, $meta );
+			return $meta;
+		} catch ( \Throwable $error ) {
+			( new MySQLCloner() )->drop_tables( $prefix );
+			$this->delete_directory( $path );
+			throw $error;
 		}
+	}
 
-		EnvironmentContentLayout::copy_owned_wp_content( $sandbox, $template_path . '/wp-content' );
-
-		$meta = array(
-			'name'              => $name,
-			'created_at'        => gmdate( 'c' ),
-			'source_sandbox_id' => $sandbox->id,
-			'source_url'        => $sandbox->get_url(),
-			'description'       => $description,
-		);
-
-		// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Writing template metadata.
-		file_put_contents(
-			$template_path . '/template.json',
-			json_encode( $meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n"
-		);
-		// phpcs:enable
-
+	/**
+	 * Copy a saved template into a new sandbox without consulting the source site.
+	 *
+	 * @param string $name Template name.
+	 * @param string $target_prefix New sandbox table prefix.
+	 * @param string $target_path New sandbox directory.
+	 * @param string $target_url New sandbox URL.
+	 * @return array<string, mixed> Saved metadata.
+	 * @throws \RuntimeException When the template has no saved database or cannot be restored.
+	 */
+	public function restore_into( string $name, string $target_prefix, string $target_path, string $target_url ): array {
+		$meta   = $this->get( $name );
+		$prefix = $meta['table_prefix'] ?? null;
+		if ( ! is_string( $prefix ) || $prefix !== $this->table_prefix( $name ) ) {
+			throw new \RuntimeException( 'This template has no saved database. Save it again from a sandbox: ' . $name );
+		}
+		$cloner = new MySQLCloner();
+		if ( 0 === $cloner->copy_tables( $prefix, $target_prefix ) ) {
+			throw new \RuntimeException( 'Saved template tables are missing: ' . $name );
+		}
+		global $wpdb;
+		if ( ! $wpdb instanceof \wpdb ) {
+			throw new \RuntimeException( 'Template restore requires WordPress database access.' );
+		}
+		$source_url = is_string( $meta['source_url'] ?? null ) ? $meta['source_url'] : $target_url;
+		$cloner->rewrite_urls( $wpdb, $target_prefix, $source_url, $target_url );
+		$cloner->rewrite_table_prefix_in_data( $wpdb, $target_prefix, $prefix, $target_prefix );
+		$content = $this->get_template_path( $name ) . '/wp-content';
+		$copier  = new ContentCloner();
+		foreach ( array( 'themes', 'plugins' ) as $directory ) {
+			if ( is_dir( $content . '/' . $directory ) ) {
+				$copier->copy_directory( $content . '/' . $directory, $target_path . '/' . $directory );
+			}
+		}
+		$clone_source = $meta['clone_source'] ?? null;
+		if ( is_array( $clone_source ) && is_string( $clone_source['git_plugin_file'] ?? null ) ) {
+			( new ConfigWriter() )->install_git_loader();
+		}
 		return $meta;
 	}
 
 	/**
-	 * List all templates.
+	 * Read metadata and migrate older file-only templates into the host database.
 	 *
-	 * @return array<int, array<string, mixed>> Array of template metadata arrays.
+	 * @param string $name Template name.
+	 * @return array<string, mixed> Metadata.
+	 * @throws \RuntimeException When the template is missing or its metadata is invalid.
+	 */
+	public function get( string $name ): array {
+		$path = $this->get_template_path( $name );
+		PrivateStorage::protect( $this->templates_dir );
+		$record = $this->repository()->get( $name );
+		$legacy = $path . '/template.json';
+		if ( null === $record && is_file( $legacy ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- One-time migration of legacy file metadata.
+			$raw  = file_get_contents( $legacy );
+			$data = is_string( $raw ) ? json_decode( $raw, true ) : null;
+			if ( is_array( $data ) ) {
+				$record = array();
+				foreach ( $data as $key => $value ) {
+					if ( is_string( $key ) ) {
+						$record[ $key ] = $value;
+					}
+				}
+				$this->repository()->save( $name, $record );
+			}
+		}
+		if ( null === $record ) {
+			throw new \RuntimeException( 'Template metadata is missing: ' . $name );
+		}
+		if ( is_file( $legacy ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove public JSON only after a database record exists.
+			unlink( $legacy );
+		}
+		return $record;
+	}
+
+	/**
+	 * List reusable templates, including migrated file-only templates.
+	 *
+	 * @return array<int, array<string, mixed>> Metadata records.
 	 */
 	public function list_templates(): array {
 		if ( ! is_dir( $this->templates_dir ) ) {
 			return array();
 		}
-
-		$templates = array();
-		$dirs      = scandir( $this->templates_dir );
-
-		foreach ( $dirs as $dir ) {
-			if ( '.' === $dir || '..' === $dir ) {
-				continue;
-			}
-
-			$meta_file = $this->templates_dir . '/' . $dir . '/template.json';
-			if ( ! file_exists( $meta_file ) ) {
-				continue;
-			}
-
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading local template metadata.
-			$raw_contents = file_get_contents( $meta_file );
-			if ( ! is_string( $raw_contents ) ) {
-				continue;
-			}
-			$data = json_decode( $raw_contents, true );
-			if ( is_array( $data ) ) {
-				// phpcs:ignore Generic.Commenting.DocComment.MissingShort -- PHPStan type narrowing for json_decode result.
-				/** @var array<string, mixed> $typed_data */
-				$typed_data  = $data;
-				$templates[] = $typed_data;
+		$entries = scandir( $this->templates_dir );
+		if ( false === $entries ) {
+			return array();
+		}
+		foreach ( $entries as $entry ) {
+			if ( self::validate_name( $entry ) && is_dir( $this->templates_dir . '/' . $entry ) ) {
+				$this->get( $entry );
 			}
 		}
-
-		return $templates;
+		return $this->repository()->all();
 	}
 
 	/**
-	 * Delete a template.
+	 * Remove a template and its saved tables, retaining its original source site.
 	 *
 	 * @param string $name Template name.
-	 * @return bool True if deleted, false if not found.
+	 * @return bool Whether a template was removed.
+	 * @throws \RuntimeException When table ownership cannot be verified.
 	 */
 	public function delete( string $name ): bool {
-		$template_path = $this->templates_dir . '/' . $name;
-
-		if ( ! is_dir( $template_path ) ) {
+		$this->validate( $name );
+		$path = $this->templates_dir . '/' . $name;
+		if ( ! is_dir( $path ) ) {
 			return false;
 		}
-
-		return $this->delete_directory( $template_path );
+		$meta = $this->get( $name );
+		if ( isset( $meta['table_prefix'] ) ) {
+			if ( $meta['table_prefix'] !== $this->table_prefix( $name ) ) {
+				throw new \RuntimeException( 'Template table ownership cannot be verified.' );
+			}
+			( new MySQLCloner() )->drop_tables( $this->table_prefix( $name ) );
+		}
+		$result = $this->delete_directory( $path );
+		if ( $result ) {
+			$this->repository()->delete( $name );
+		}
+		return $result;
 	}
 
 	/**
-	 * Filesystem path for a specific template.
+	 * Locate saved content.
 	 *
 	 * @param string $name Template name.
-	 * @return string Absolute path.
-	 *
-	 * @throws \RuntimeException If the template does not exist.
+	 * @return string Absolute directory.
+	 * @throws \RuntimeException When the template is missing.
 	 */
 	public function get_template_path( string $name ): string {
+		$this->validate( $name );
 		$path = $this->templates_dir . '/' . $name;
-
-		if ( ! is_dir( $path ) ) {
-			throw new \RuntimeException( sprintf( 'Template not found: %s', $name ) );
+		if ( ! is_dir( $path ) || is_link( $path ) ) {
+			throw new \RuntimeException( 'Template not found: ' . $name );
 		}
-
 		return $path;
 	}
 
 	/**
-	 * Directory that stores reusable templates.
+	 * Collection directory.
 	 *
-	 * @return string Absolute path.
+	 * @return string
 	 */
 	public function get_templates_dir(): string {
 		return $this->templates_dir;
 	}
 
 	/**
-	 * Validate a template name.
+	 * Validate one path component.
 	 *
-	 * @param string $name Candidate template name.
-	 * @return bool True if valid.
+	 * @param string $name Template name.
+	 * @return bool Whether the name is safe.
 	 */
 	public static function validate_name( string $name ): bool {
-		return (bool) preg_match( '/^[a-zA-Z0-9][a-zA-Z0-9_.\-]{0,63}$/', $name );
+		return SnapshotManager::validate_name( $name );
 	}
 
 	/**
-	 * Determine the default templates directory.
+	 * Reject invalid names before any filesystem or table operations.
 	 *
-	 * @return string Absolute path.
+	 * @param string $name Template name.
+	 * @return void
+	 * @throws \InvalidArgumentException When a name could escape the collection.
 	 */
-	private function get_default_templates_dir(): string {
-		if ( defined( 'WP_CONTENT_DIR' ) ) {
-			return rtrim( WP_CONTENT_DIR, '/' ) . '/rudel-templates';
+	private function validate( string $name ): void {
+		if ( ! self::validate_name( $name ) ) {
+			throw new \InvalidArgumentException( 'Invalid template name: ' . $name );
 		}
-		if ( defined( 'ABSPATH' ) ) {
-			return rtrim( ABSPATH, '/' ) . '/wp-content/rudel-templates';
-		}
-		return dirname( __DIR__, 3 ) . '/wp-content/rudel-templates';
+	}
+
+	/**
+	 * Saved table ownership is independent of the source sandbox lifetime.
+	 *
+	 * @param string $name Template name.
+	 * @return string
+	 */
+	private function table_prefix( string $name ): string {
+		return 'rudel_tpl_' . substr( hash( 'sha256', $this->templates_dir . '/' . $name ), 0, 12 ) . '_';
+	}
+
+	/**
+	 * Template metadata belongs to the host runtime store.
+	 *
+	 * @return ArtifactRepository
+	 */
+	private function repository(): ArtifactRepository {
+		return new ArtifactRepository( $this->templates_dir, 'template', $this->store );
 	}
 
 	/**

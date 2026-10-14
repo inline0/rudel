@@ -29,7 +29,7 @@ RUDEL_ENVIRONMENT=alpha-3be7 wp option get blogname
 ## create
 
 ```bash
-wp rudel create [--name=<name>] [--theme=<slug>] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--git=<remote>] [--type=<theme|plugin>] [--template=<label>]
+wp rudel create [--name=<name>] [--theme=<slug>] [--clone-from=<id>] [--owner=<owner>] [--labels=<labels>] [--purpose=<purpose>] [--protected] [--ttl-days=<days>] [--expires-at=<timestamp>] [--git=<remote>] [--type=<theme|plugin>] [--template=<name>]
 ```
 
 Creates a sandbox and prints its ID.
@@ -45,7 +45,7 @@ Creates a sandbox and prints its ID.
 | `--expires-at` | Explicit expiry timestamp. |
 | `--git` | Clone a remote repository into the sandbox directory. See [Git](/docs/features/git). |
 | `--type` | Where `--git` checks out: `theme` (default) or `plugin`. |
-| `--template` | A label stored on the record, default `blank`. It does not load a saved template. |
+| `--template` | Saved template to load. The default `blank` and built-in `overlay` create from the host. |
 
 `--clone-db`, `--clone-themes`, `--clone-plugins`, `--clone-uploads`, `--clone-all`, `--shared-plugins` and `--shared-uploads` are deprecated. They only change the progress messages: every sandbox clones the tables, copies one theme and shares plugins and uploads.
 
@@ -105,7 +105,7 @@ Without `--merged`, removes unprotected sandboxes whose expiry has passed, or th
 wp rudel logs <id> [--lines=<lines>] [--follow] [--clear]
 ```
 
-Prints the last lines of the sandbox `debug.log` (default 50). `--follow` runs `tail -f`; `--clear` empties the file. See [Error Logging](/docs/features/logging).
+Prints the last lines of the sandbox `logs/debug.php` (default 50). `--follow` runs `tail -f`; `--clear` empties the file. See [Error Logging](/docs/features/logging).
 
 ## snapshot
 

@@ -57,6 +57,15 @@ class RudelSchema {
 	 */
 	private static function mysql_statements( DatabaseStore $store ): array {
 		return array(
+			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'artifacts' ) . ' (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				scope VARCHAR(64) NOT NULL,
+				kind VARCHAR(32) NOT NULL,
+				name VARCHAR(64) COLLATE utf8mb4_bin NOT NULL,
+				metadata LONGTEXT NOT NULL,
+				PRIMARY KEY (id),
+				UNIQUE KEY rudel_artifact_name (scope, kind, name)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
 			'CREATE TABLE IF NOT EXISTS ' . $store->table( 'environments' ) . ' (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				slug VARCHAR(64) NOT NULL,

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Rudel
  * Description: The WordPress isolation layer for request-selected sandboxes.
- * Version: 0.10.0
+ * Version: 0.10.1
  * Author: Inline0
  * Author URI: https://inline0.com
  * License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RUDEL_VERSION', '0.10.0' );
+define( 'RUDEL_VERSION', '0.10.1' );
 define( 'RUDEL_PLUGIN_FILE', __FILE__ );
 define( 'RUDEL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'RUDEL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -42,6 +42,19 @@ function rudel_ensure_runtime_schema() {
 	}
 
 	Rudel\RudelSchema::ensure( new Rudel\WpdbStore( $GLOBALS['wpdb'] ) );
+	if ( '1' !== get_option( 'rudel_private_storage_version' ) ) {
+		foreach ( ( new Rudel\EnvironmentManager() )->list() as $environment ) {
+			if ( is_dir( $environment->path ) ) {
+				Rudel\PrivateStorage::log_file( $environment->path );
+				( new Rudel\SnapshotManager( $environment ) )->list_snapshots();
+			}
+		}
+		$templates = new Rudel\TemplateManager();
+		Rudel\PrivateStorage::protect( $templates->get_templates_dir() );
+		$templates->list_templates();
+		( new Rudel\ConfigWriter() )->protect_backups();
+		update_option( 'rudel_private_storage_version', '1', false );
+	}
 }
 
 register_activation_hook(
@@ -106,7 +119,7 @@ if ( ! defined( 'RUDEL_RUNTIME_HOOKS_LOADED' ) ) {
 			$subject = isset( $atts['subject'] ) ? (string) $atts['subject'] : '';
 
 			if ( defined( 'RUDEL_ID' ) ) {
-				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in the environment debug.log.
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional: logging blocked email in the environment logs/debug.php.
 				error_log( sprintf( 'Rudel: email blocked in environment %s (to: %s, subject: %s)', RUDEL_ID, $to, $subject ) );
 			}
 
@@ -199,7 +212,7 @@ function rudel_enable_sandbox_logging( string $path ): void {
 	ini_set( 'log_errors', '1' );
 	// phpcs:ignore WordPress.PHP.IniSet.display_errors_Disallowed -- Hide sandbox errors even when the host enables browser debugging.
 	ini_set( 'display_errors', '0' );
-	ini_set( 'error_log', $path . '/debug.log' );
+	ini_set( 'error_log', \Rudel\PrivateStorage::log_file( $path ) );
 }
 
 /**

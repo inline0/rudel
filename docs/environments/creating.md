@@ -62,8 +62,8 @@ Rudel creates the sandbox, clones the remote into `themes/my-theme` inside the s
 ```text
 wp-content/rudel-environments/{id}/
   themes/       copied theme, plus any Git checkout
-  snapshots/    snapshot metadata and theme copies
-  logs/ metadata/ tmp/
+  snapshots/    protected recovery files; metadata stays in MySQL
+  logs/debug.php guarded PHP error log
+  metadata/ tmp/ protected private files
   wp-cli.yml
-  debug.log     when debug logging is active
 ```

@@ -1,44 +1,36 @@
 ---
 title: "Templates"
-description: "Save a copy of a sandbox's files for later reference."
+description: "Create reusable sandbox templates from saved tables and owned files."
 path: "features/templates"
 order: 120
 section: "Features"
 meta_title: "Templates"
-meta_description: "Rudel templates save a file copy of a sandbox directory. In the current release no command creates a sandbox from a saved template."
+meta_description: "Save sandbox tables and owned theme or plugin files, then create independent sandboxes from that point-in-time template."
 ---
 
 # Templates
 
-A template is a named file copy of one sandbox directory.
+A template captures a sandbox's database tables and environment-owned theme and plugin files at the time it is saved.
 
 ```bash
-wp rudel template save alpha-3be7 --name=checkout-baseline --description="Checkout theme baseline"
+wp rudel template save alpha-3be7 --name=checkout-baseline --description="Checkout baseline"
+wp rudel create --name=feature-b --template=checkout-baseline
 wp rudel template list
-wp rudel template delete checkout-baseline
+wp rudel template delete checkout-baseline --force
 ```
 
-`template delete` asks for confirmation; `--force` skips the prompt.
+`create --template` validates the saved template, copies its tables into a fresh sandbox prefix, rewrites WordPress role and capability keys for that prefix, and copies its saved files. Later source changes or deletion do not change the template. A theme override can select another installed host theme. Choose either `--template` or `--clone-from`.
 
-## What a template holds
+## Stored state
 
-`template save` copies the sandbox directory (theme copy, snapshot metadata, logs and the other files Rudel manages there) to:
+Saved tables live in the host MySQL database under a dedicated `rudel_tpl_{hash}_` prefix. Metadata lives in the shared Rudel artifacts table. Owned files are saved in `wp-content/rudel-templates/{name}/wp-content`, protected from Apache HTTP requests by a deny rule.
 
-```text
-wp-content/rudel-templates/{name}/wp-content
-wp-content/rudel-templates/{name}/template.json
-```
+Shared host plugin files, uploads, WordPress core, logs and existing snapshots are excluded. Local Git-created plugin overrides are retained; Git repository metadata and original branch tracking are excluded.
 
-`template.json` records the name, description, creation time, source sandbox ID and URL. No database tables are saved.
+Deleting a template removes its saved tables, files and metadata. Existing sandboxes created from it keep their own copies. `template delete` asks for confirmation; `--force` skips the prompt.
 
-## Current limits
+## Existing file-only templates
 
-In the current release nothing reads a saved template back. `wp rudel create --template=<name>` and the `template` option of `Rudel::create()` only store the given string as a label on the new record; they do not check that the template exists or copy anything from it ([issue #7](https://github.com/inline0/rudel/issues/7)).
+Older templates had no database capture. Rudel migrates their metadata into MySQL, but creating a sandbox from one requires saving a new template from an existing sandbox. This avoids substituting the source site's current database for a missing saved database.
 
-To start several sandboxes from the same state today, prepare one sandbox and clone it:
-
-```bash
-wp rudel create --name=feature-b --clone-from=alpha-3be7
-```
-
-Use snapshots when you need a recovery point for one existing sandbox.
+The built-in `blank` and `overlay` labels create a sandbox from the host and are reserved template names. Use snapshots to restore one existing sandbox.

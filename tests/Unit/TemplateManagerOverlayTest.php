@@ -24,12 +24,15 @@ class TemplateManagerOverlayTest extends RudelTestCase {
 		$sandbox = $this->environmentRepository()->get( 'alpha-site' );
 		$this->assertNotNull( $sandbox );
 
+		$GLOBALS['wpdb']->addTable('wp_alpha_options', 'CREATE TABLE `wp_alpha_options` (`option_id` bigint, `option_name` varchar(191), `option_value` longtext)', [['option_id'=>1,'option_name'=>'blogname','option_value'=>'Saved title']]);
 		$manager = new TemplateManager( $this->tmpDir . '/templates' );
 		$meta    = $manager->save( $sandbox, 'starter', 'Starter template' );
 
 		$this->assertSame( 'starter', $meta['name'] );
 		$this->assertSame( 'http://example.test/', $meta['source_url'] );
-		$this->assertFileExists( $this->tmpDir . '/templates/starter/template.json' );
+		$this->assertFileDoesNotExist( $this->tmpDir . '/templates/starter/template.json' );
+		$this->assertSame($meta, $manager->get('starter'));
+		$this->assertTrue($GLOBALS['wpdb']->hasTable($meta['table_prefix'] . 'options'));
 		$this->assertFileExists( $this->tmpDir . '/templates/starter/wp-content/themes/demo-theme/style.css' );
 	}
 }

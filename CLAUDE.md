@@ -52,6 +52,7 @@ Define these before Rudel boots when non-default paths or names are needed:
 | `RUDEL_CLI_COMMAND` | `rudel` | Root WP-CLI command name |
 | `RUDEL_RUNTIME_TABLE_PREFIX` | `rudel_` | Shared runtime-table prefix after the WordPress DB prefix |
 | `RUDEL_RUNTIME_TABLE_ENVIRONMENTS` | `rudel_environments` | Explicit environments-table base name override |
+| `RUDEL_RUNTIME_TABLE_ARTIFACTS` | `rudel_artifacts` | Snapshot and template metadata table override |
 | `RUDEL_RUNTIME_TABLE_WORKTREES` | `rudel_worktrees` | Explicit worktrees-table base name override |
 | `RUDEL_ENVIRONMENTS_DIR` | `WP_CONTENT_DIR . '/rudel-environments'` | Base directory for sandbox environments |
 

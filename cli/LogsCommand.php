@@ -8,6 +8,7 @@
 namespace Rudel\CLI;
 
 use WP_CLI;
+use Rudel\PrivateStorage;
 
 /**
  * View a sandbox's error log.
@@ -49,12 +50,15 @@ class LogsCommand extends AbstractEnvironmentCommand {
 	 */
 	public function __invoke( $args, $assoc_args ): void {
 		$sandbox  = $this->require_environment( $args[0] );
-		$log_path = $sandbox->get_wp_content_path() . '/debug.log';
+		$log_path = $sandbox->get_wp_content_path() . '/logs/debug.php';
+		if ( is_file( $sandbox->get_wp_content_path() . '/debug.log' ) ) {
+			$log_path = PrivateStorage::log_file( $sandbox->get_wp_content_path() );
+		}
 
 		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'clear', false ) ) {
 			if ( file_exists( $log_path ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Clearing log file.
-				file_put_contents( $log_path, '' );
+				file_put_contents( $log_path, PrivateStorage::LOG_HEADER );
 				WP_CLI::success( 'Log cleared.' );
 			} else {
 				WP_CLI::log( 'No log file to clear.' );
@@ -72,7 +76,7 @@ class LogsCommand extends AbstractEnvironmentCommand {
 			WP_CLI::log( "Following {$log_path} (Ctrl+C to stop)" );
 			WP_CLI::log( '' );
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_passthru -- Intentional: tail -f for live log following.
-			passthru( 'tail -f ' . escapeshellarg( $log_path ) );
+			passthru( 'tail -n +2 -f ' . escapeshellarg( $log_path ) );
 			return;
 		}
 
@@ -80,6 +84,9 @@ class LogsCommand extends AbstractEnvironmentCommand {
 		$lines     = is_numeric( $lines_raw ) ? (int) $lines_raw : 50;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading log file.
 		$content = file_get_contents( $log_path );
+		if ( is_string( $content ) && str_starts_with( $content, PrivateStorage::LOG_HEADER ) ) {
+			$content = substr( $content, strlen( PrivateStorage::LOG_HEADER ) );
+		}
 		if ( false === $content || '' === $content ) {
 			WP_CLI::log( 'Log file is empty.' );
 			return;

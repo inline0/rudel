@@ -5,7 +5,7 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": "^8.2",
-        "pitmaster/pitmaster": "^0.2.10"
+        "pitmaster/pitmaster": "^0.2.12"
     },
     "autoload": {
         "psr-4": {

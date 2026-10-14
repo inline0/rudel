@@ -267,11 +267,11 @@ class Rudel {
 	/**
 	 * Debug log path for the current environment.
 	 *
-	 * @return string|null Absolute path to debug.log, or null when no environment is active.
+	 * @return string|null Absolute path to logs/debug.php, or null when no environment is active.
 	 */
 	public static function log_path(): ?string {
 		$path = self::path();
-		return $path ? $path . '/debug.log' : null;
+		return $path ? $path . '/logs/debug.php' : null;
 	}
 
 	/**
@@ -657,7 +657,10 @@ class Rudel {
 			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
 		}
 
-		$log_path = $sandbox->get_wp_content_path() . '/debug.log';
+		$log_path = $sandbox->get_wp_content_path() . '/logs/debug.php';
+		if ( is_file( $sandbox->get_wp_content_path() . '/debug.log' ) ) {
+			$log_path = PrivateStorage::log_file( $sandbox->get_wp_content_path() );
+		}
 		if ( ! file_exists( $log_path ) ) {
 			return array(
 				'path'        => $log_path,
@@ -670,6 +673,9 @@ class Rudel {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading one sandbox-local debug log.
 		$content = file_get_contents( $log_path );
+		if ( is_string( $content ) && str_starts_with( $content, PrivateStorage::LOG_HEADER ) ) {
+			$content = substr( $content, strlen( PrivateStorage::LOG_HEADER ) );
+		}
 		if ( false === $content || '' === $content ) {
 			return array(
 				'path'        => $log_path,
@@ -705,12 +711,15 @@ class Rudel {
 			throw new \RuntimeException( sprintf( 'Sandbox not found: %s', $sandbox_id ) );
 		}
 
-		$log_path = $sandbox->get_wp_content_path() . '/debug.log';
-		$existed  = file_exists( $log_path );
+		$log_path = $sandbox->get_wp_content_path() . '/logs/debug.php';
+		if ( is_file( $sandbox->get_wp_content_path() . '/debug.log' ) ) {
+			$log_path = PrivateStorage::log_file( $sandbox->get_wp_content_path() );
+		}
+		$existed = file_exists( $log_path );
 
 		if ( $existed ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Clearing one sandbox-local debug log.
-			file_put_contents( $log_path, '' );
+			file_put_contents( $log_path, PrivateStorage::LOG_HEADER );
 		}
 
 		return array(

@@ -37,7 +37,7 @@ These methods describe the current request. Outside a sandbox they return `false
 | `exit_url(): string` | nonce-protected sandbox exit URL in WordPress; host URL outside a sandbox |
 | `host_url(): string` | the host URL without an exit action |
 | `is_email_disabled(): bool` | `true` when outbound mail is blocked for the request |
-| `log_path(): ?string` | `{sandbox directory}/debug.log` |
+| `log_path(): ?string` | `{sandbox directory}/logs/debug.php` |
 | `version(): ?string` | the installed Rudel version |
 | `cli_command(): string` | the WP-CLI root command, `rudel` unless `RUDEL_CLI_COMMAND` is set |
 
@@ -55,7 +55,7 @@ Returns all of the above in one array:
     'url'            => 'http://localhost/',
     'exit_url'       => 'http://localhost/?rudel_exit=1&_wpnonce=...',
     'email_disabled' => true,
-    'log_path'       => '/var/www/html/wp-content/rudel-environments/alpha-3be7/debug.log',
+    'log_path'       => '/var/www/html/wp-content/rudel-environments/alpha-3be7/logs/debug.php',
     'version'        => '0.10.0',
     'cli_command'    => 'rudel',
 ]
@@ -117,7 +117,7 @@ Options:
 | `protected` | `true` to exclude the sandbox from cleanup |
 | `ttl_days` | expiry relative to creation time |
 | `expires_at` | explicit expiry timestamp |
-| `template` | a label stored on the record; it does not load a saved template |
+| `template` | saved template to restore; built-in `overlay` or `blank` creates from the host |
 | `site_options` | option names and scalar values written to the sandbox options table |
 | `skip_limits` | `true` to bypass `max_sandboxes` and `max_disk_mb` |
 
@@ -153,11 +153,11 @@ Records activity (`last_used_at`) for the current sandbox. Rudel calls it on eve
 
 ### `Rudel::read_log( string $id, int $lines = 50 ): array`
 
-Returns the last lines of the sandbox `debug.log` as `path`, `exists`, `empty`, `total_lines` and `lines`.
+Returns the last lines of the sandbox `logs/debug.php` as `path`, `exists`, `empty`, `total_lines` and `lines`.
 
 ### `Rudel::clear_log( string $id ): array`
 
-Empties the sandbox `debug.log` and returns `path`, `existed` and `cleared`.
+Empties the sandbox `logs/debug.php` and returns `path`, `existed` and `cleared`.
 
 ## Snapshots
 

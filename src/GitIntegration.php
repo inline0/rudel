@@ -277,7 +277,7 @@ class GitIntegration {
 			$repo->fetch( 'origin' );
 			$branch_id = $repo->resolve( $branch );
 			$target_id = $repo->resolve( 'refs/remotes/origin/' . $target_branch );
-			$base = $repo->mergeBase( $branch_id, $target_id );
+			$base      = $repo->mergeBase( $branch_id, $target_id );
 			return null !== $base && $base->hex === $branch_id->hex;
 		} catch ( \Throwable $e ) {
 			unset( $e );

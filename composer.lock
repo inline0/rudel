@@ -4,25 +4,25 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9e47c68b25006188c33c885d16103d7d",
+    "content-hash": "0b26b10d968cf3a8cc6d1ad79dacdd47",
     "packages": [
         {
             "name": "pitmaster/pitmaster",
-            "version": "v0.2.10",
+            "version": "v0.2.12",
             "source": {
                 "type": "git",
                 "url": "https://github.com/inline0/pitmaster.git",
-                "reference": "55b442a574b5bc28fcb7e820c6de2502b9cb03e3"
+                "reference": "bb1ad878d051fcf2b2841a4bace0e3d4f33a7d21"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/inline0/pitmaster/zipball/55b442a574b5bc28fcb7e820c6de2502b9cb03e3",
-                "reference": "55b442a574b5bc28fcb7e820c6de2502b9cb03e3",
+                "url": "https://api.github.com/repos/inline0/pitmaster/zipball/bb1ad878d051fcf2b2841a4bace0e3d4f33a7d21",
+                "reference": "bb1ad878d051fcf2b2841a4bace0e3d4f33a7d21",
                 "shasum": ""
             },
             "require": {
+                "ext-ctype": "*",
                 "ext-json": "*",
-                "ext-mbstring": "*",
                 "ext-zlib": "*",
                 "php": "^8.2"
             },
@@ -65,7 +65,7 @@
                 "issues": "https://github.com/inline0/pitmaster/issues",
                 "source": "https://github.com/inline0/pitmaster"
             },
-            "time": "2026-09-24T10:36:18+00:00"
+            "time": "2026-10-14T22:08:24+00:00"
         }
     ],
     "packages-dev": [

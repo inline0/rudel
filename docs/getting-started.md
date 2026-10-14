@@ -29,7 +29,7 @@ Composer installs Rudel into `vendor/rudel/rudel` unless your project maps WordP
 
 ## What activation does
 
-Activation creates Rudel's tables, schedules the hourly cleanup event and adds one bootstrap line to `wp-config.php`, directly above the line that loads `wp-settings.php`. That line lets Rudel select a sandbox before WordPress finishes loading. Rudel writes a backup copy named `wp-config.php.rudel-backup-{timestamp}` first.
+Activation creates Rudel's tables, schedules the hourly cleanup event and adds one bootstrap line to `wp-config.php`, directly above the line that loads `wp-settings.php`. That line lets Rudel select a sandbox before WordPress finishes loading. Rudel writes a backup copy named `wp-config.php.rudel-backup-{timestamp}-{suffix}.php` first, with private permissions and a PHP guard that rejects HTTP requests. Older plaintext backups are migrated. To restore a backup, remove its first guard line before replacing `wp-config.php`.
 
 There is no separate install command. If `wp-config.php` is not writable, activation fails. Deactivation removes the line and the scheduled event.
 

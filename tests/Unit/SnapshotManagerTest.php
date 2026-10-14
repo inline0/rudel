@@ -55,6 +55,17 @@ class SnapshotManagerTest extends RudelTestCase
 		$this->assertDirectoryDoesNotExist($snapshotPath . '/wp-content/uploads');
 		$this->assertFileExists($snapshotPath . '/themes/demo-theme/style.css');
 
+        $repository = new \Rudel\ArtifactRepository($environment->path . '/snapshots', 'snapshot');
+        $record = $repository->get('baseline');
+        $this->assertNotNull($record);
+        file_put_contents($snapshotPath . '/db_snapshot.json', json_encode($record['db_snapshot']));
+        unset($record['db_snapshot']);
+        file_put_contents($snapshotPath . '/snapshot.json', json_encode($record));
+        $repository->delete('baseline');
+        $this->assertSame([$record], $manager->list_snapshots());
+        $this->assertFileDoesNotExist($snapshotPath . '/snapshot.json');
+        $this->assertFileDoesNotExist($snapshotPath . '/db_snapshot.json');
+
 		file_put_contents(ThemeOverlay::theme_root_for($environment) . '/demo-theme/style.css', 'changed css');
 		file_put_contents(ThemeOverlay::theme_root_for($environment) . '/demo-theme/local-only.php', '<?php');
 
@@ -65,7 +76,10 @@ class SnapshotManagerTest extends RudelTestCase
 		$this->assertFileExists($wordpressRoot . '/wp-content/plugins/demo-plugin/demo-plugin.php');
 		$this->assertFileExists($wordpressRoot . '/wp-content/uploads/2026/04/demo.txt');
 
-		$metadata = json_decode((string) file_get_contents($snapshotPath . '/db_snapshot.json'), true);
+		$this->assertFileDoesNotExist($snapshotPath . '/db_snapshot.json');
+		$this->assertFileDoesNotExist($snapshotPath . '/snapshot.json');
+		$record = (new \Rudel\ArtifactRepository($environment->path . '/snapshots', 'snapshot'))->get('baseline');
+		$metadata = $record['db_snapshot'];
 		$snapshotPrefix = $metadata['table_prefix'];
 		$this->assertTrue($manager->delete('baseline'));
 		$this->assertDirectoryDoesNotExist($snapshotPath);

@@ -37,6 +37,7 @@ class ConfigWriter {
 			);
 		}
 
+		$this->protect_backups();
 		if ( $this->is_installed() ) {
 			return;
 		}
@@ -206,13 +207,70 @@ PHP;
 	}
 
 	/**
+	 * Migrate plaintext configuration backups into guarded PHP files.
+	 *
+	 * @return void
+	 * @throws \RuntimeException When an existing backup cannot be protected.
+	 */
+	public function protect_backups(): void {
+		$paths = glob( $this->get_config_path() . '.rudel-backup-*' );
+		if ( false === $paths ) {
+			return;
+		}
+		foreach ( $paths as $path ) {
+			if ( ! is_file( $path ) || is_link( $path ) ) {
+				continue;
+			}
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Protect existing configuration backups before runtime selection.
+			$content = file_get_contents( $path );
+			if ( false === $content ) {
+				throw new \RuntimeException( 'Cannot read Rudel configuration backup.' );
+			}
+			$target = str_ends_with( $path, '.php' ) ? $path : $path . '.php';
+			if ( ! str_starts_with( $content, PrivateStorage::LOG_HEADER ) ) {
+				$this->write_backup( $target, $content );
+			}
+			if ( $target !== $path ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Remove plaintext credentials after a protected backup is stored.
+				if ( ! unlink( $path ) ) {
+					throw new \RuntimeException( 'Cannot remove plaintext Rudel configuration backup.' );
+				}
+			}
+		}
+	}
+
+	/**
 	 * Create a timestamped backup of wp-config.php.
 	 *
 	 * @param string $config_path Path to wp-config.php.
 	 * @return void
+	 * @throws \RuntimeException When a protected backup cannot be saved.
 	 */
 	private function backup( string $config_path ): void {
-		$backup_path = $config_path . '.rudel-backup-' . gmdate( 'Y-m-d-His' );
-		copy( $config_path, $backup_path );
+		$backup_path = $config_path . '.rudel-backup-' . gmdate( 'Y-m-d-His' ) . '-' . bin2hex( random_bytes( 4 ) ) . '.php';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Capture the original configuration before editing it.
+		$content = file_get_contents( $config_path );
+		if ( false === $content ) {
+			throw new \RuntimeException( 'Cannot read WordPress configuration for backup.' );
+		}
+		$this->write_backup( $backup_path, $content );
+	}
+	/**
+	 * Guard backup text without executing any of its PHP contents.
+	 *
+	 * @param string $path Backup filename.
+	 * @param string $content Original configuration.
+	 * @return void
+	 * @throws \RuntimeException When backup storage fails.
+	 */
+	private function write_backup( string $path, string $content ): void {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Configuration backups require an executable guard ahead of their contents.
+		if ( false === file_put_contents( $path, PrivateStorage::LOG_HEADER . $content, LOCK_EX ) ) {
+			throw new \RuntimeException( 'Cannot write protected WordPress configuration backup.' );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Credentials are readable only by the account that owns the configuration.
+		if ( ! chmod( $path, 0600 ) ) {
+			throw new \RuntimeException( 'Cannot restrict WordPress configuration backup permissions.' );
+		}
 	}
 }

@@ -162,7 +162,7 @@ class EnvironmentCleanupService {
 				continue;
 			}
 
-			$is_merged = false;
+			$is_merged       = false;
 			$remote_checkout = null;
 
 			if ( $has_git ) {
@@ -182,8 +182,8 @@ class EnvironmentCleanupService {
 				$git_dir = $environment->get_git_dir();
 				if ( is_string( $git_dir ) && '' !== $git_dir ) {
 					$remote_checkout = $environment->get_runtime_content_path( $git_dir );
-					$base_branch = $environment->get_git_base_branch() ?? $git->get_default_branch( $remote_checkout );
-					$is_merged = $git->is_remote_branch_merged( $remote_checkout, $branch, $base_branch );
+					$base_branch     = $environment->get_git_base_branch() ?? $git->get_default_branch( $remote_checkout );
+					$is_merged       = $git->is_remote_branch_merged( $remote_checkout, $branch, $base_branch );
 				}
 			}
 
