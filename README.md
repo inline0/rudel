@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://rudel.dev">
+  <a href="https://rudel.inline0.dev">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="./.github/logo-dark.svg">
       <source media="(prefers-color-scheme: light)" srcset="./.github/logo-light.svg">
