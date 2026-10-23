@@ -33,6 +33,7 @@ jobs:
             --exclude='tests' \
             --exclude='docs' \
             --exclude='node_modules' \
+            --exclude='AGENTS.md' \
             --exclude='CLAUDE.md' \
             --exclude='phpunit.xml*' \
             --exclude='phpcs.xml*' \
@@ -53,7 +54,7 @@ jobs:
       - name: Verify no dev files leaked
         run: |
           cd dist/rudel
-          for f in phpunit.xml phpunit.xml.dist phpcs.xml phpcs.xml.dist .wp-env.json CLAUDE.md; do
+          for f in phpunit.xml phpunit.xml.dist phpcs.xml phpcs.xml.dist .wp-env.json AGENTS.md CLAUDE.md; do
             test ! -f "$f" || { echo "Dev file leaked: $f"; exit 1; }
           done
           test ! -d tests || { echo "Dev directory leaked: tests/"; exit 1; }
