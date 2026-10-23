@@ -2,6 +2,14 @@
 
 Request-selected WordPress overlay environments for sandboxes.
 
+## Releases
+
+Follow the [shared release rule](https://github.com/inline0/_cp/blob/main/CLAUDE.md#canonical-github-releases).
+Titles are exactly the tag. Bodies contain only the linked `CHANGELOG.md`
+sentence with that tag. Keep complete notes in `CHANGELOG.md` before publishing.
+`.github/workflows/release-format.yml` enforces this format; keep it identical
+to `_cp/scripts/release-format.yml`.
+
 ## Quick Reference
 
 ```bash
@@ -68,7 +76,7 @@ Define these before Rudel boots when non-default paths or names are needed:
 8. Keep CLI help, docs, tests, and `CliCommandMap` aligned with the shipped command surface.
 9. Prefer positive assertions of the current contract over legacy-removal assertions in tests.
 10. Keep Rudel product-neutral. Do not mention downstream product names in docs, comments, examples, changelogs, or release notes.
-11. `CHANGELOG.md` is the source of truth for release notes. GitHub release bodies must be exactly `See CHANGELOG.md for the full release notes.` with no compare links or duplicated summaries.
+11. `CHANGELOG.md` is the source of truth for release notes. Follow the shared release format in the Releases section above.
 
 ## Comment Policy
 
