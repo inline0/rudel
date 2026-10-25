@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto"
-import { homedir } from "node:os"
 import { basename, join, resolve } from "node:path"
 import * as Console from "effect/Console"
 import * as Effect from "effect/Effect"
@@ -117,12 +115,11 @@ export const command = script("test-wp-env", {
               `wp-env start failed on attempt ${attempt}; retrying...`
             )
             yield* site.destroy()
-            const configPath = yield* fs.realPath(join(root, ".wp-env.json"))
-            const workdir = join(
-              process.env.WP_ENV_HOME || join(homedir(), ".wp-env"),
-              createHash("md5").update(configPath).digest("hex")
-            )
-            yield* fs.remove(workdir, { recursive: true, force: true })
+            const installation = yield* site.installation()
+            yield* fs.remove(installation.workDirectoryPath, {
+              recursive: true,
+              force: true,
+            })
             yield* Effect.sleep("2 seconds")
           }
           yield* site.shell(

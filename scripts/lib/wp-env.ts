@@ -1,5 +1,7 @@
-import { join } from "node:path"
+import { createRequire } from "node:module"
+import { basename, join } from "node:path"
 import * as Console from "effect/Console"
+import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import { fail } from "./cli.ts"
@@ -18,6 +20,37 @@ export const stripWpEnv = (text: string) =>
     .trim()
 export const shellQuote = (value: string) =>
   `'${value.replaceAll("'", `'\\''`)}'`
+
+interface Installation {
+  readonly workDirectoryPath: string
+  readonly dockerComposeConfigPath: string
+}
+
+export const WordPressInstallation = Context.Reference<{
+  readonly resolve: (
+    root: string
+  ) => Effect.Effect<Installation, Command.CommandError>
+}>("scripts/WordPressInstallation", {
+  defaultValue: () => ({
+    resolve: (root) =>
+      Effect.tryPromise({
+        try: () => {
+          // wp-env 10.39 rejects fresh homes in install-path. Its config resolver
+          // also handles WP_ENV_HOME and Linux's non-hidden Snap cache directory.
+          const { loadConfig } = createRequire(join(root, "package.json"))(
+            "@wordpress/env/lib/config"
+          ) as { loadConfig: (root: string) => Promise<Installation> }
+          return loadConfig(root)
+        },
+        catch: (cause) =>
+          new Command.CommandError({
+            message: `Could not resolve wp-env installation: ${String(cause)}`,
+            exitCode: 1,
+          }),
+      }),
+  }),
+})
+
 export const wordpress = (root: string) => {
   const raw = (args: ReadonlyArray<string>, check = true) =>
     Command.run({
@@ -42,15 +75,44 @@ export const wordpress = (root: string) => {
     shell(
       `RUDEL_ENVIRONMENT=${shellQuote(id)} wp ${args.map(shellQuote).join(" ")}`
     )
-  // wp-env 10 always prompts; --force is ignored by its CLI.
+  const installation = () =>
+    WordPressInstallation.use((state) => state.resolve(root))
   const destroy = () =>
-    Command.run({
-      command: "pnpm",
-      args: ["exec", "wp-env", "destroy"],
-      cwd: root,
-      stdin: "y\n",
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const state = yield* installation()
+      if (!(yield* fs.exists(state.dockerComposeConfigPath))) {
+        const containers = yield* Command.run({
+          command: "docker",
+          args: [
+            "ps",
+            "--all",
+            "--filter",
+            `label=com.docker.compose.project=${basename(state.workDirectoryPath)}`,
+            "--format",
+            "{{.ID}}",
+          ],
+          mutates: false,
+        })
+        if (containers.stdout.trim() !== "") {
+          return yield* Effect.fail(
+            new Command.CommandError({
+              message: `Cannot destroy wp-env: ${state.dockerComposeConfigPath} is missing but project containers still exist`,
+              exitCode: 1,
+            })
+          )
+        }
+        return { exitCode: 0, stdout: "", stderr: "" }
+      }
+      // wp-env 10.39 always prompts; --force is ignored by its CLI.
+      return yield* Command.run({
+        command: "pnpm",
+        args: ["exec", "wp-env", "destroy"],
+        cwd: root,
+        stdin: "y\n",
+      })
     })
-  return { raw, wp, attempt, shell, selected, destroy }
+  return { raw, wp, attempt, shell, selected, installation, destroy }
 }
 export type WordPress = ReturnType<typeof wordpress>
 
@@ -110,14 +172,17 @@ export const withWordPress = <A, E, R>(
         )
       const wp = wordpress(root)
       yield* Effect.acquireRelease(Effect.succeed(wp), (site) =>
-        (mode === "destroy" ? site.destroy() : site.raw(["stop"], false)).pipe(
+        (mode === "destroy" ? site.destroy() : site.raw(["stop"])).pipe(
           Effect.timeout("60 seconds"),
-          Effect.catch(() =>
+          Effect.catch((error) =>
             site
               .raw(["stop"], false)
-              .pipe(Effect.timeout("30 seconds"), Effect.ignore)
-          ),
-          Effect.ignore
+              .pipe(
+                Effect.timeout("30 seconds"),
+                Effect.ignore,
+                Effect.andThen(Effect.die(error))
+              )
+          )
         )
       )
       return yield* scenario(wp)

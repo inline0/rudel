@@ -10,7 +10,12 @@ import { validateDocumentation } from "../check-docs-content.ts"
 import * as Command from "./command.ts"
 import { runtimeLayer } from "./runtime.ts"
 import { runChecks } from "./suites.ts"
-import { shellQuote, stripWpEnv, withWordPress } from "./wp-env.ts"
+import {
+  shellQuote,
+  stripWpEnv,
+  withWordPress,
+  WordPressInstallation,
+} from "./wp-env.ts"
 
 const root = resolve(import.meta.dirname, "../..")
 const document = (route = "/guide", order = 0, body = "Text.") =>
@@ -185,7 +190,14 @@ test("WordPress scope cleans up after a scenario fails and dry-run provisions no
     Effect.fail(new Error("scenario failed"))
   ).pipe(
     Effect.provide(NodeServices.layer),
-    Effect.provideService(Command.Command, fake)
+    Effect.provideService(Command.Command, fake),
+    Effect.provideService(WordPressInstallation, {
+      resolve: () =>
+        Effect.succeed({
+          workDirectoryPath: root,
+          dockerComposeConfigPath: join(root, ".wp-env.json"),
+        }),
+    })
   )
   await assert.rejects(Effect.runPromise(destroyProgram), /scenario failed/)
   assert.deepEqual(calls.at(-1)?.args, ["exec", "wp-env", "destroy"])

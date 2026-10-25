@@ -176,7 +176,7 @@ importers:
         specifier: 26.6.5
         version: 26.6.5
       '@wordpress/env':
-        specifier: ^10.0.0
+        specifier: 10.39.0
         version: 10.39.0(@types/node@26.6.5)(supports-color@7.2.0)
       effect:
         specifier: 4.0.5
