@@ -105,7 +105,7 @@ export const command = script("test-wp-env", {
             site
               .wp("rudel", "destroy", id, "--force")
               .pipe(Effect.tap(() => Effect.sync(() => sandboxIds.delete(id))))
-          yield* site.raw(["destroy", "--force"], false)
+          yield* site.destroy()
           for (let attempt = 1; attempt <= 3; attempt++) {
             const result = yield* site.raw(["start"], false)
             if (result.exitCode === 0) break
@@ -116,7 +116,7 @@ export const command = script("test-wp-env", {
             yield* Console.error(
               `wp-env start failed on attempt ${attempt}; retrying...`
             )
-            yield* site.raw(["destroy", "--force"], false)
+            yield* site.destroy()
             const configPath = yield* fs.realPath(join(root, ".wp-env.json"))
             const workdir = join(
               process.env.WP_ENV_HOME || join(homedir(), ".wp-env"),
