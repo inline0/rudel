@@ -33,6 +33,12 @@ jobs:
             --exclude='tests' \
             --exclude='docs' \
             --exclude='node_modules' \
+            --exclude='scripts' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            --exclude='pnpm-*.yaml' \
+            --exclude='tsconfig*.json' \
+            --exclude='.nvmrc' \
             --exclude='AGENTS.md' \
             --exclude='CLAUDE.md' \
             --exclude='phpunit.xml*' \
@@ -179,7 +185,7 @@ jobs:
           wp config create --dbname=wordpress --dbuser=root --dbpass=root
           wp core install --url=http://localhost --title=Test \
             --admin_user=admin --admin_password=admin --admin_email=test@example.com --skip-email
-          ln -s $GITHUB_WORKSPACE/test-project/vendor/rudel/rudel wp-content/plugins/rudel
+          ln -s "$GITHUB_WORKSPACE/test-project/vendor/rudel/rudel" wp-content/plugins/rudel
           wp plugin activate rudel
 
       - name: Verify plugin loads
@@ -257,7 +263,7 @@ jobs:
           wp config create --dbname=wordpress --dbuser=root --dbpass=root
           wp core install --url=http://localhost --title=Test \
             --admin_user=admin --admin_password=admin --admin_email=test@example.com --skip-email
-          ln -s $GITHUB_WORKSPACE/test-project/vendor/rudel/rudel wp-content/plugins/rudel
+          ln -s "$GITHUB_WORKSPACE/test-project/vendor/rudel/rudel" wp-content/plugins/rudel
           wp plugin activate rudel
 
       - name: Verify plugin loads

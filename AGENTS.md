@@ -28,9 +28,9 @@ composer test:unit
 composer test:integration
 composer test:security
 
-bash tests/e2e/run-all.sh
-bash tests/run-all.sh
-node scripts/check-docs-content.mjs
+node tests/e2e/run-all.ts
+node tests/run-all.ts
+node scripts/check-docs-content.ts
 ```
 
 ## Current Architecture
@@ -92,3 +92,14 @@ Define these before Rudel boots when non-default paths or names are needed:
 - Every `phpcs:ignore` and `phpcs:disable` must include a reason.
 - Avoid filler docblocks such as `Constructor.` or `Get the X.`
 - If WPCS/PHPCS requires doc comments, keep them terse and low-noise.
+
+## Development tooling
+
+Use Node.js 26.12+ and pnpm 12.14. Install with `pnpm install --frozen-lockfile`.
+Repository scripts are TypeScript executed directly by Node. Effect 4 services
+own filesystem and scoped subprocess operations; test command orchestration by
+replacing the Command service. CLI tools support `--help`, `--json`, `--dry-run`
+and `--log-level`. Run `pnpm typecheck`, `pnpm test:scripts`, and
+`pnpm check:docs` after tooling changes. PHP remains the consumer runtime;
+Node and these dependencies are development-only. E2E runners skip unavailable
+Docker or MySQL and report failures from every available suite.

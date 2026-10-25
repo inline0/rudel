@@ -113,15 +113,15 @@ Operations that clone WordPress tables, copy themes, install the bootstrap, or e
 
 ```bash
 composer install
-npm install
+pnpm install --frozen-lockfile
 
 composer cs
 composer stan
 composer test
 
-bash tests/e2e/run-all.sh
-node scripts/check-docs-content.mjs
-bash tests/run-all.sh
+node tests/e2e/run-all.ts
+node scripts/check-docs-content.ts
+node tests/run-all.ts
 ```
 
 ## Documentation
